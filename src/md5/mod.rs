@@ -1,5 +1,11 @@
 mod md5block;
 
+// mod arch;
+// use arch::*;
+
+mod md5_generic;
+use md5_generic::*;
+
 #[cfg(test)]
 mod tests;
 
@@ -16,8 +22,6 @@ const INIT3: u32 = 0x10325476;
 
 const MAGIC: &[u8] = b"md5\x01";
 const MARSHALED_SIZE: usize = MAGIC.len() + 4 * 4 + BLOCK_SIZE + 8;
-
-const HAVE_ASM: bool = false;
 
 #[derive(Debug, Clone)]
 pub struct Digest {
@@ -244,10 +248,6 @@ fn consume_u32(b: &[u8]) -> (&[u8], u32) {
 
 fn consume_u64(b: &[u8]) -> (&[u8], u64) {
     (&b[8..], be_u64(&b[0..8]))
-}
-
-fn block(d: &mut Digest, p: &[u8]) {
-    block_generic(d, p);
 }
 
 fn block_generic(d: &mut Digest, p: &[u8]) {

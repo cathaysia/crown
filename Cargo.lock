@@ -185,6 +185,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 
 [[package]]
+name = "derive"
+version = "0.1.0"
+dependencies = [
+ "minijinja",
+ "quote",
+ "serde_json",
+ "syn",
+]
+
+[[package]]
 name = "either"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -246,6 +256,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "criterion",
+ "derive",
  "md5",
  "openssl",
 ]
@@ -273,6 +284,16 @@ name = "memchr"
 version = "2.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
+
+[[package]]
+name = "minijinja"
+version = "2.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4e60ac08614cc09062820e51d5d94c2fce16b94ea4e5003bb81b99a95f84e876"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "num-traits"

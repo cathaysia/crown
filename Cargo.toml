@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.98"
+derive = { path = "./derive" }
 
 [dev-dependencies]
 criterion = { version = "0.7", features = ["html_reports"] }
