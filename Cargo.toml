@@ -15,6 +15,7 @@ criterion = { version = "0.7", features = ["html_reports"] }
 md5 = "0.8.0"
 openssl = "0.10.73"
 rc4 = "0.1.0"
+cipher = "0.4.4"
 
 [[bench]]
 name = "md5"

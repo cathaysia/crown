@@ -305,7 +305,7 @@ fn test_large_hashes() {
 }
 
 #[test]
-fn rustcrypto_md5_interoperability() {
+fn rustcrypto_md5_interop() {
     for _ in 0..1000 {
         let s: usize = rand::random_range(100..1000);
         let mut buf = vec![0u8; s];

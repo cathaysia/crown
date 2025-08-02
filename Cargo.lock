@@ -306,6 +306,7 @@ name = "kittytls"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "cipher",
  "criterion",
  "derive",
  "md5",

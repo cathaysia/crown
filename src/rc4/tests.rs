@@ -1,3 +1,5 @@
+use rc4::{KeyInit, StreamCipher};
+
 use super::*;
 
 struct Rc4Test {
@@ -118,5 +120,30 @@ fn test_block() {
 
     if data1 != data2 {
         panic!("bad block");
+    }
+}
+
+#[test]
+fn rustcrypto_rc4_interop() {
+    const KEY: [u8; 8] = [0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
+    for _ in 0..1000 {
+        let s: usize = rand::random_range(100..1000);
+        let mut src = vec![0u8; s];
+        rand::fill(src.as_mut_slice());
+        let this = {
+            let mut dst = src.clone();
+            let mut cipher = crate::rc4::Cipher::new(&KEY).unwrap();
+            cipher.xor_key_stream(&mut dst, &src);
+            dst
+        };
+
+        let rustcrypto = {
+            let mut dst = src.clone();
+            let mut cipher = rc4::Rc4::<cipher::consts::U8>::new_from_slice(&KEY).unwrap();
+            cipher.apply_keystream(&mut dst);
+            dst
+        };
+
+        assert_eq!(this, rustcrypto);
     }
 }
