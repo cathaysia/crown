@@ -87,7 +87,7 @@ fn test_golden() {
         // Test digest with various write patterns
         let mut buf = vec![0u8; test.input.len() + 4];
         for j in 0..7 {
-            let mut c = new();
+            let mut c = Digest::new();
 
             match j.cmp(&2) {
                 Ordering::Less => {
@@ -123,8 +123,8 @@ fn test_golden() {
 #[test]
 fn test_golden_marshal() {
     for test in GOLDEN.iter() {
-        let mut h = new();
-        let mut h2 = new();
+        let mut h = Digest::new();
+        let mut h2 = Digest::new();
 
         let half = test.input.len() / 2;
         h.write(&test.input.as_bytes()[..half]).unwrap();
@@ -175,7 +175,7 @@ fn test_large() {
         while block_size <= N {
             let blocks = N / block_size;
             let b = &block[offset..offset + block_size];
-            let mut c = new();
+            let mut c = Digest::new();
 
             for _ in 0..blocks {
                 c.write(b).unwrap();
@@ -210,7 +210,7 @@ fn test_extra_large() {
         while block_size <= N {
             let blocks = N / block_size;
             let b = &block[offset..offset + block_size];
-            let mut c = new();
+            let mut c = Digest::new();
 
             for _ in 0..blocks {
                 c.write(b).unwrap();
@@ -231,8 +231,8 @@ fn test_extra_large() {
 
 #[test]
 fn test_block_generic() {
-    let mut gen = new();
-    let mut asm = new();
+    let mut gen = Digest::new();
+    let mut asm = Digest::new();
     let buf = vec![0x42u8; BLOCK_SIZE * 20];
 
     block_generic(&mut gen, &buf);
@@ -283,7 +283,7 @@ fn safe_sum(h: &mut Digest) -> Result<Vec<u8>, String> {
 // #[ignore] // Skip large hash tests - these require specific state data that may not match our implementation
 fn test_large_hashes() {
     for (i, test) in LARGE_UNMARSHAL_TESTS.iter().enumerate() {
-        let mut h = new();
+        let mut h = Digest::new();
         if let Err(e) = h.unmarshal_binary(&test.state) {
             panic!("test {} could not unmarshal: {:?}", i, e);
         }

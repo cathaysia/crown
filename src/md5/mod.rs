@@ -254,10 +254,6 @@ fn block_generic(d: &mut Digest, p: &[u8]) {
     md5block::block_generic(d, p);
 }
 
-pub fn new() -> Digest {
-    Digest::new()
-}
-
 pub fn sum(data: &[u8]) -> [u8; SIZE] {
     let mut d = Digest::new();
     d.write(data).unwrap();
