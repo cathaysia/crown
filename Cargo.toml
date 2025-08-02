@@ -9,6 +9,7 @@ anyhow = "1.0.98"
 [dev-dependencies]
 criterion = { version = "0.7", features = ["html_reports"] }
 md5 = "0.8.0"
+openssl = "0.10.73"
 
 [[bench]]
 name = "md5"
