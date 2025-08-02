@@ -8,6 +8,7 @@ anyhow = "1.0.98"
 derive = { path = "./derive" }
 rc6 = "0.0.0"
 thiserror = "2.0.12"
+rand = "0.9.2"
 
 [dev-dependencies]
 criterion = { version = "0.7", features = ["html_reports"] }

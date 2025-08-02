@@ -303,3 +303,16 @@ fn test_large_hashes() {
         }
     }
 }
+
+#[test]
+fn rustcrypto_md5_interoperability() {
+    for _ in 0..1000 {
+        let s: usize = rand::random_range(100..1000);
+        let mut buf = vec![0u8; s];
+        rand::fill(buf.as_mut_slice());
+        let this = &crate::md5::sum(&buf);
+        let rustcrypto = &md5::compute(&buf).to_vec();
+
+        assert_eq!(this, rustcrypto.as_slice());
+    }
+}
