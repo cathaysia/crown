@@ -39,7 +39,7 @@ pub unsafe fn rc6_setup(
         return Err(CipherError::InvalidRound);
     }
     if !(..=128).contains(&keylen) {
-        return Err(CipherError::InvalidKeySize);
+        return Err(CipherError::InvalidKeySize(keylen));
     }
 
     let mut j = 0;

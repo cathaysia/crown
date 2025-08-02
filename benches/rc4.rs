@@ -13,7 +13,7 @@ fn bench_rc4(c: &mut Criterion) {
         }
         let data = vec![0u8; size];
 
-        let mut group = c.benchmark_group("md5");
+        let mut group = c.benchmark_group("rc4");
         group.throughput(Throughput::Bytes(size as u64));
 
         group.bench_function(format!("kittytls_rc4_{size}",), |b| {
