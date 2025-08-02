@@ -16,6 +16,7 @@ md5 = "0.8.0"
 openssl = "0.10.73"
 rc4 = "0.1.0"
 cipher = "0.4.4"
+sha2 = "0.10.9"
 
 [[bench]]
 name = "md5"
@@ -23,4 +24,8 @@ harness = false
 
 [[bench]]
 name = "rc4"
+harness = false
+
+[[bench]]
+name = "sha256"
 harness = false
