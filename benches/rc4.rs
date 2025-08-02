@@ -1,4 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
+use kittytls::cipher::Stream;
 use rc4::{KeyInit, StreamCipher};
 use std::hint::black_box;
 

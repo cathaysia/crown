@@ -3,6 +3,8 @@ mod tests;
 
 use std::fmt;
 
+use crate::cipher::Stream;
+
 /// RC4 cipher instance using a particular key
 pub struct Cipher {
     s: [u32; 256],
@@ -64,9 +66,27 @@ impl Cipher {
         self.j = 0;
     }
 
+    /// Check for inexact overlap between two byte slices
+    fn has_inexact_overlap(&self, a: &[u8], b: &[u8]) -> bool {
+        let a_start = a.as_ptr() as usize;
+        let a_end = a_start + a.len();
+        let b_start = b.as_ptr() as usize;
+        let b_end = b_start + b.len();
+
+        // Check if they overlap but not exactly
+        if a_start == b_start && a.len() == b.len() {
+            false // exact overlap is allowed
+        } else {
+            // Check for any overlap
+            !(a_end <= b_start || b_end <= a_start)
+        }
+    }
+}
+
+impl Stream for Cipher {
     /// Sets dst to the result of XORing src with the key stream.
     /// Dst and src must overlap entirely or not at all.
-    pub fn xor_key_stream(&mut self, dst: &mut [u8], src: &[u8]) {
+    fn xor_key_stream(&mut self, dst: &mut [u8], src: &[u8]) {
         if src.is_empty() {
             return;
         }
@@ -93,21 +113,5 @@ impl Cipher {
 
         self.i = i;
         self.j = j;
-    }
-
-    /// Check for inexact overlap between two byte slices
-    fn has_inexact_overlap(&self, a: &[u8], b: &[u8]) -> bool {
-        let a_start = a.as_ptr() as usize;
-        let a_end = a_start + a.len();
-        let b_start = b.as_ptr() as usize;
-        let b_end = b_start + b.len();
-
-        // Check if they overlap but not exactly
-        if a_start == b_start && a.len() == b.len() {
-            false // exact overlap is allowed
-        } else {
-            // Check for any overlap
-            !(a_end <= b_start || b_end <= a_start)
-        }
     }
 }
