@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod aes_tests;
+#[cfg(test)]
+mod tests;
 
 use super::*;
 use crate::aes;
