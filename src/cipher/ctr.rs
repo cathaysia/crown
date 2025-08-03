@@ -1,7 +1,11 @@
+#[cfg(test)]
+mod aes_tests;
+
 use super::*;
 use crate::aes;
 use crate::cipher::StreamCipher;
 use crate::error::{CryptoError, CryptoResult};
+use crate::utils::inexact_overlap;
 
 const STREAM_BUFFER_SIZE: usize = 512;
 
@@ -114,15 +118,6 @@ impl<B: BlockCipher> StreamCipher for Ctr<B> {
 
 pub fn new_ctr<B: CtrAble>(block: B, iv: &[u8]) -> CryptoResult<Box<dyn StreamCipher>> {
     CtrAble::new_ctr(block, iv)
-}
-
-fn inexact_overlap(dst: &[u8], src: &[u8]) -> bool {
-    let dst_ptr = dst.as_ptr() as usize;
-    let src_ptr = src.as_ptr() as usize;
-    let dst_end = dst_ptr + dst.len();
-    let src_end = src_ptr + src.len();
-
-    (dst_ptr < src_end && src_ptr < dst_end) && (dst_ptr != src_ptr)
 }
 
 fn xor_bytes(dst: &mut [u8], src: &[u8], key_stream: &[u8]) -> usize {

@@ -198,15 +198,6 @@ fn xor_bytes(dst: &mut [u8], a: &[u8], b: &[u8]) {
     }
 }
 
-fn inexact_overlap(a: &[u8], b: &[u8]) -> bool {
-    let a_ptr = a.as_ptr() as usize;
-    let b_ptr = b.as_ptr() as usize;
-    let a_end = a_ptr + a.len();
-    let b_end = b_ptr + b.len();
-
-    (a_ptr < b_end && b_ptr < a_end) && (a_ptr != b_ptr || a.len() != b.len())
-}
-
 pub fn round_to_block(ctr: &mut CTR) -> Result<(), CryptoError> {
     ctr.round_to_block()
 }

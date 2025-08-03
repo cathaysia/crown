@@ -6,6 +6,7 @@ use std::fmt;
 use crate::{
     cipher::StreamCipher,
     error::{CryptoError, CryptoResult},
+    utils::inexact_overlap,
 };
 
 /// RC4 cipher instance using a particular key
@@ -68,22 +69,6 @@ impl Cipher {
         self.i = 0;
         self.j = 0;
     }
-
-    /// Check for inexact overlap between two byte slices
-    fn has_inexact_overlap(&self, a: &[u8], b: &[u8]) -> bool {
-        let a_start = a.as_ptr() as usize;
-        let a_end = a_start + a.len();
-        let b_start = b.as_ptr() as usize;
-        let b_end = b_start + b.len();
-
-        // Check if they overlap but not exactly
-        if a_start == b_start && a.len() == b.len() {
-            false // exact overlap is allowed
-        } else {
-            // Check for any overlap
-            !(a_end <= b_start || b_end <= a_start)
-        }
-    }
 }
 
 impl StreamCipher for Cipher {
@@ -95,7 +80,7 @@ impl StreamCipher for Cipher {
         }
 
         // Check for invalid buffer overlap
-        if self.has_inexact_overlap(&dst[..src.len()], src) {
+        if inexact_overlap(&dst[..src.len()], src) {
             return Err(CryptoError::InvalidBufferOverlap);
         }
 

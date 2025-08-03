@@ -6,3 +6,5 @@ pub mod rc6;
 pub mod sha256;
 
 pub mod error;
+
+pub(crate) mod utils;

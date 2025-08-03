@@ -7,7 +7,10 @@ use consts::*;
 pub mod ctr;
 mod generic;
 
-use crate::error::{CryptoError, CryptoResult};
+use crate::{
+    error::{CryptoError, CryptoResult},
+    utils::inexact_overlap,
+};
 
 pub const BLOCK_SIZE: usize = 16;
 
@@ -102,15 +105,6 @@ fn encrypt_block(c: &Block, dst: &mut [u8], src: &[u8]) {
 
 fn decrypt_block(c: &Block, dst: &mut [u8], src: &[u8]) {
     generic::decrypt_block_generic(&c.block, dst, src);
-}
-
-fn inexact_overlap(dst: &[u8], src: &[u8]) -> bool {
-    let dst_ptr = dst.as_ptr() as usize;
-    let src_ptr = src.as_ptr() as usize;
-    let dst_end = dst_ptr + dst.len();
-    let src_end = src_ptr + src.len();
-
-    (dst_ptr < src_end && src_ptr < dst_end) && (dst_ptr != src_ptr)
 }
 
 // NewCipher creates and returns a new [cipher.Block].
