@@ -2,14 +2,29 @@
 mod tests;
 
 mod imp;
+use crate::cipher::BlockCipher;
 use imp::*;
 
 use std::{fmt, mem::MaybeUninit};
 
-use crate::error::CryptoResult;
-
 pub struct Rc6 {
     skey: Rc6Key,
+}
+
+impl BlockCipher for Rc6 {
+    fn block_size(&self) -> usize {
+        16
+    }
+
+    fn encrypt(&self, dst: &mut [u8], src: &[u8]) {
+        let ret = unsafe { rc6_ecb_encrypt(src.as_ptr(), dst.as_mut_ptr(), &self.skey) };
+        assert!(ret.is_ok());
+    }
+
+    fn decrypt(&self, dst: &mut [u8], src: &[u8]) {
+        let ret = unsafe { rc6_ecb_decrypt(src.as_ptr(), dst.as_mut_ptr(), &self.skey) };
+        assert!(ret.is_ok());
+    }
 }
 
 impl Rc6 {
@@ -23,34 +38,6 @@ impl Rc6 {
 
             Self { skey }
         }
-    }
-
-    ///
-    /// Encrypts a block of text with LTC_RC6
-    /// * `pt`: The input plaintext (16 bytes)
-    /// * `ct`: The output ciphertext (16 bytes)
-    /// * `skey`: The key as scheduled
-    ///
-    pub fn encrypt(&self, plaintext: &[u8]) -> CryptoResult<Vec<u8>> {
-        let mut buf = plaintext.to_vec();
-        let ret = unsafe { rc6_ecb_encrypt(plaintext.as_ptr(), buf.as_mut_ptr(), &self.skey) };
-        assert!(ret.is_ok());
-        Ok(buf)
-    }
-
-    ///
-    ///  Decrypts a block of text with LTC_RC6
-    ///  * `ct`: The input ciphertext (16 bytes)
-    ///  * `pt`: The output plaintext (16 bytes)
-    ///  * `skey`: The key as scheduled
-    ///
-    pub fn decrypt(&self, ciphertext: &[u8]) -> CryptoResult<Vec<u8>> {
-        let mut buf = vec![0u8; ciphertext.len()];
-
-        let ret = unsafe { rc6_ecb_decrypt(ciphertext.as_ptr(), buf.as_mut_ptr(), &self.skey) };
-        assert!(ret.is_ok());
-
-        Ok(buf)
     }
 }
 

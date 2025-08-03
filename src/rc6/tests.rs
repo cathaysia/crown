@@ -50,9 +50,11 @@ fn test_rc6_encrypt_decrypt() {
 
     for (key, pt, ct) in testcase {
         let k = Rc6::new(key, 0);
-        let x = k.encrypt(pt).unwrap();
-        assert_eq!(x, ct);
-        let y = k.decrypt(&x).unwrap();
-        assert_eq!(pt, y);
+        let mut ciphertext = pt.to_vec();
+        k.encrypt(&mut ciphertext, pt);
+        assert_eq!(ciphertext, ct);
+        let mut plaintext = ciphertext.clone();
+        k.decrypt(&mut plaintext, &ciphertext);
+        assert_eq!(pt, plaintext);
     }
 }
