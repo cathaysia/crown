@@ -27,7 +27,7 @@ static RC6_STAB: [u32; 44] = [
     0x708c564b, 0xec3d004, 0xacfb49bd, 0x4b32c376,
 ];
 
-pub unsafe fn rc6_setup(
+pub fn rc6_setup(
     key: *const u8,
     keylen: usize,
     num_rounds: usize,
@@ -50,7 +50,7 @@ pub unsafe fn rc6_setup(
     while i < keylen as u32 {
         let fresh6 = i;
         i = i.wrapping_add(1);
-        A = (A << 8) | (*key.offset(fresh6 as isize) as i32 & 255) as u32;
+        A = (A << 8) | (unsafe { *key.offset(fresh6 as isize) } as i32 & 255) as u32;
         if i & 3 == 0 {
             let fresh7 = j;
             j = j.wrapping_add(1);
