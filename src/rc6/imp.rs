@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn, non_snake_case)]
 
-use crate::error::CipherError;
+use crate::error::CryptoError;
 
 pub struct Rc6Key {
     pub key: [u32; 44],
@@ -32,14 +32,14 @@ pub unsafe fn rc6_setup(
     keylen: usize,
     num_rounds: usize,
     skey: &mut Rc6Key,
-) -> Result<(), CipherError> {
+) -> Result<(), CryptoError> {
     assert!(!key.is_null());
 
     if num_rounds != 0 && num_rounds != 20 {
-        return Err(CipherError::InvalidRound);
+        return Err(CryptoError::InvalidRound);
     }
     if !(..=128).contains(&keylen) {
-        return Err(CipherError::InvalidKeySize(keylen));
+        return Err(CryptoError::InvalidKeySize(keylen));
     }
 
     let mut j = 0;
@@ -109,7 +109,7 @@ pub unsafe fn rc6_ecb_encrypt(
     pt: *const u8,
     ct: *mut u8,
     skey: &Rc6Key,
-) -> Result<(), CipherError> {
+) -> Result<(), CryptoError> {
     assert!(!pt.is_null());
     assert!(!ct.is_null());
 
@@ -160,7 +160,7 @@ pub unsafe fn rc6_ecb_decrypt(
     ct: *const u8,
     pt: *mut u8,
     skey: &Rc6Key,
-) -> Result<(), CipherError> {
+) -> Result<(), CryptoError> {
     assert!(!pt.is_null());
     assert!(!ct.is_null());
 

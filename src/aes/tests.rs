@@ -165,7 +165,7 @@ fn test_invalid_key_sizes() {
         let key = vec![0u8; invalid_size];
         match Block::new(&key) {
             Ok(_) => panic!("Expected error for key size {}", invalid_size),
-            Err(CipherError::InvalidKeySize(size)) => assert_eq!(size, invalid_size),
+            Err(CryptoError::InvalidKeySize(size)) => assert_eq!(size, invalid_size),
             _ => unreachable!(),
         }
     }

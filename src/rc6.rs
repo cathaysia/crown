@@ -6,7 +6,7 @@ use imp::*;
 
 use std::{fmt, mem::MaybeUninit};
 
-use crate::error::CipherResult;
+use crate::error::CryptoResult;
 
 pub struct Rc6 {
     skey: Rc6Key,
@@ -31,7 +31,7 @@ impl Rc6 {
     /// * `ct`: The output ciphertext (16 bytes)
     /// * `skey`: The key as scheduled
     ///
-    pub fn encrypt(&self, plaintext: &[u8]) -> CipherResult<Vec<u8>> {
+    pub fn encrypt(&self, plaintext: &[u8]) -> CryptoResult<Vec<u8>> {
         let mut buf = plaintext.to_vec();
         let ret = unsafe { rc6_ecb_encrypt(plaintext.as_ptr(), buf.as_mut_ptr(), &self.skey) };
         assert!(ret.is_ok());
@@ -44,7 +44,7 @@ impl Rc6 {
     ///  * `pt`: The output plaintext (16 bytes)
     ///  * `skey`: The key as scheduled
     ///
-    pub fn decrypt(&self, ciphertext: &[u8]) -> CipherResult<Vec<u8>> {
+    pub fn decrypt(&self, ciphertext: &[u8]) -> CryptoResult<Vec<u8>> {
         let mut buf = vec![0u8; ciphertext.len()];
 
         let ret = unsafe { rc6_ecb_decrypt(ciphertext.as_ptr(), buf.as_mut_ptr(), &self.skey) };

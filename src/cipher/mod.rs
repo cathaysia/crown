@@ -1,24 +1,26 @@
-use crate::error::CipherResult;
+pub mod ctr;
+
+use crate::error::CryptoResult;
 
 /// A Block represents an implementation of block cipher
 /// using a given key. It provides the capability to encrypt
 /// or decrypt individual blocks. The mode implementations
 /// extend that capability to streams of blocks.
-pub trait Block {
+pub trait BlockCipher {
     /// BlockSize returns the cipher's block size.
-    fn block_size() -> usize;
+    fn block_size(&self) -> usize;
 
     /// Encrypt encrypts the first block in src into dst.
     /// Dst and src must overlap entirely or not at all.
-    fn encrypt(dst: &mut [u8], src: &[u8]);
+    fn encrypt(&self, dst: &mut [u8], src: &[u8]);
 
     /// Decrypt decrypts the first block in src into dst.
     /// Dst and src must overlap entirely or not at all.
-    fn decrypt(dst: &mut [u8], src: &[u8]);
+    fn decrypt(&self, dst: &mut [u8], src: &[u8]);
 }
 
 /// A Stream represents a stream cipher.
-pub trait Stream {
+pub trait StreamCipher {
     /// XORKeyStream XORs each byte in the given slice with a byte from the
     /// cipher's key stream. Dst and src must overlap entirely or not at all.
     ///
@@ -29,7 +31,7 @@ pub trait Stream {
     /// Multiple calls to XORKeyStream behave as if the concatenation of
     /// the src buffers was passed in a single run. That is, Stream
     /// maintains state and does not reset at each XORKeyStream call.
-    fn xor_key_stream(&mut self, dst: &mut [u8], src: &[u8]);
+    fn xor_key_stream(&mut self, dst: &mut [u8], src: &[u8]) -> CryptoResult<()>;
 }
 
 /// A BlockMode represents a block cipher running in a block-based mode (CBC,
@@ -91,5 +93,5 @@ pub trait AEAD {
         nonce: &[u8],
         ciphertext: &[u8],
         additional_data: &[u8],
-    ) -> CipherResult<Vec<u8>>;
+    ) -> CryptoResult<Vec<u8>>;
 }

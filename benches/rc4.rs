@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use kittytls::cipher::Stream;
-use rc4::{KeyInit, StreamCipher};
+use kittytls::cipher::StreamCipher;
+use rc4::KeyInit;
 use std::hint::black_box;
 
 fn bench_rc4(c: &mut Criterion) {
@@ -20,7 +20,7 @@ fn bench_rc4(c: &mut Criterion) {
             let mut cipher = kittytls::rc4::Cipher::new(&KEY).unwrap();
             let mut dst = data.clone();
             b.iter(|| {
-                cipher.xor_key_stream(black_box(&mut dst), black_box(&data));
+                let _ = cipher.xor_key_stream(black_box(&mut dst), black_box(&data));
             })
         });
 
@@ -28,7 +28,7 @@ fn bench_rc4(c: &mut Criterion) {
             let mut cipher = rc4::Rc4::new(&KEY.into());
             b.iter(|| {
                 let mut data = data.clone();
-                cipher.apply_keystream(black_box(&mut data));
+                rc4::StreamCipher::apply_keystream(&mut cipher, black_box(&mut data));
             })
         });
 

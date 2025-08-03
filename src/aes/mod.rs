@@ -4,9 +4,10 @@ mod tests;
 mod consts;
 use consts::*;
 
+pub mod ctr;
 mod generic;
 
-use crate::error::{CipherError, CipherResult};
+use crate::error::{CryptoError, CryptoResult};
 
 pub const BLOCK_SIZE: usize = 16;
 
@@ -35,21 +36,6 @@ pub struct Block {
 }
 
 impl Block {
-    pub fn new(key: &[u8]) -> CipherResult<Self> {
-        match key.len() {
-            AES128_KEY_SIZE | AES192_KEY_SIZE | AES256_KEY_SIZE => {
-                let mut block = BlockExpanded {
-                    rounds: 0,
-                    enc: [0; 60],
-                    dec: [0; 60],
-                };
-                new_block_expanded(&mut block, key);
-                Ok(Block { block })
-            }
-            len => Err(CipherError::InvalidKeySize(len)),
-        }
-    }
-
     pub fn block_size(&self) -> usize {
         BLOCK_SIZE
     }
@@ -78,6 +64,21 @@ impl Block {
             panic!("crypto/aes: invalid buffer overlap");
         }
         decrypt_block(self, dst, src);
+    }
+
+    pub fn new(key: &[u8]) -> CryptoResult<Self> {
+        match key.len() {
+            AES128_KEY_SIZE | AES192_KEY_SIZE | AES256_KEY_SIZE => {
+                let mut block = BlockExpanded {
+                    rounds: 0,
+                    enc: [0; 60],
+                    dec: [0; 60],
+                };
+                new_block_expanded(&mut block, key);
+                Ok(Block { block })
+            }
+            len => Err(CryptoError::InvalidKeySize(len)),
+        }
     }
 
     pub fn encrypt_block_internal(&self, dst: &mut [u8], src: &[u8]) {
@@ -116,6 +117,6 @@ fn inexact_overlap(dst: &[u8], src: &[u8]) -> bool {
 // The key argument should be the AES key,
 // either 16, 24, or 32 bytes to select
 // AES-128, AES-192, or AES-256.
-pub fn new_cipher(key: &[u8]) -> CipherResult<Block> {
+pub fn new_cipher(key: &[u8]) -> CryptoResult<Block> {
     Block::new(key)
 }

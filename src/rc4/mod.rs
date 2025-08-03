@@ -3,7 +3,10 @@ mod tests;
 
 use std::fmt;
 
-use crate::cipher::Stream;
+use crate::{
+    cipher::StreamCipher,
+    error::{CryptoError, CryptoResult},
+};
 
 /// RC4 cipher instance using a particular key
 pub struct Cipher {
@@ -83,17 +86,17 @@ impl Cipher {
     }
 }
 
-impl Stream for Cipher {
+impl StreamCipher for Cipher {
     /// Sets dst to the result of XORing src with the key stream.
     /// Dst and src must overlap entirely or not at all.
-    fn xor_key_stream(&mut self, dst: &mut [u8], src: &[u8]) {
+    fn xor_key_stream(&mut self, dst: &mut [u8], src: &[u8]) -> CryptoResult<()> {
         if src.is_empty() {
-            return;
+            return Ok(());
         }
 
         // Check for invalid buffer overlap
         if self.has_inexact_overlap(&dst[..src.len()], src) {
-            panic!("crypto/rc4: invalid buffer overlap");
+            return Err(CryptoError::InvalidBufferOverlap);
         }
 
         let mut i = self.i;
@@ -113,5 +116,6 @@ impl Stream for Cipher {
 
         self.i = i;
         self.j = j;
+        Ok(())
     }
 }
