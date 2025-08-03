@@ -7,6 +7,7 @@ use super::*;
 use crate::aes;
 use crate::cipher::StreamCipher;
 use crate::error::{CryptoError, CryptoResult};
+use crate::subtle::xor::xor_bytes;
 use crate::utils::inexact_overlap;
 
 const STREAM_BUFFER_SIZE: usize = 512;
@@ -37,7 +38,7 @@ where
         Ok(Box::new(Ctr {
             b: self,
             ctr: iv.to_vec(),
-            out: vec![0u8; buf_size],
+            out: Vec::with_capacity(buf_size),
             out_used: 0,
         }))
     }
@@ -104,7 +105,7 @@ impl<B: BlockCipher> StreamCipher for Ctr<B> {
         let mut src = src;
 
         while !src.is_empty() {
-            if self.out_used >= self.out.len() - self.b.block_size() {
+            if self.out_used >= self.out.len().saturating_sub(self.b.block_size()) {
                 self.refill();
             }
 
@@ -120,14 +121,4 @@ impl<B: BlockCipher> StreamCipher for Ctr<B> {
 
 pub fn new_ctr<B: CtrAble>(block: B, iv: &[u8]) -> CryptoResult<Box<dyn StreamCipher>> {
     CtrAble::new_ctr(block, iv)
-}
-
-fn xor_bytes(dst: &mut [u8], src: &[u8], key_stream: &[u8]) -> usize {
-    let n = src.len().min(key_stream.len());
-
-    for i in 0..n {
-        dst[i] = src[i] ^ key_stream[i];
-    }
-
-    n
 }

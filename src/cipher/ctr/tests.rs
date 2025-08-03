@@ -3,7 +3,6 @@ use cipher::KeyIvInit;
 use crate::des::BLOCK_SIZE;
 
 #[test]
-#[ignore = "cannot pass"]
 fn rustcrypto_des_ctr_interop() {
     let mut key = [0u8; 8];
     rand::fill(&mut key);

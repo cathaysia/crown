@@ -15,7 +15,7 @@ fn bench_des_ctr(c: &mut Criterion) {
         for (i, byte) in buf.iter_mut().enumerate() {
             *byte = (i % 256) as u8;
         }
-        let data = vec![0u8; size];
+        let src = vec![0u8; size];
 
         let mut group = c.benchmark_group("des_ctr");
         group.throughput(Throughput::Bytes(size as u64));
@@ -23,9 +23,9 @@ fn bench_des_ctr(c: &mut Criterion) {
         group.bench_function(format!("kittytls_des_ctr_{size}"), |b| {
             let block = kittytls::des::DesCipher::new(&key).unwrap();
             let mut cipher = kittytls::cipher::ctr::new_ctr(block, &[0u8; BLOCK_SIZE]).unwrap();
-            let mut dst = data.clone();
+            let mut dst = src.clone();
             b.iter(|| {
-                let _ = cipher.xor_key_stream(black_box(&mut dst), black_box(&data));
+                let _ = cipher.xor_key_stream(black_box(&mut dst), black_box(&src));
             })
         });
 
@@ -33,7 +33,7 @@ fn bench_des_ctr(c: &mut Criterion) {
             type Des256ctr64be = ctr::Ctr64BE<des::Des>;
             let mut cipher = Des256ctr64be::new_from_slices(&key, &[0u8; BLOCK_SIZE]).unwrap();
             b.iter(|| {
-                let mut data = data.clone();
+                let mut data = src.clone();
                 cipher::StreamCipher::apply_keystream(&mut cipher, black_box(&mut data));
             })
         });

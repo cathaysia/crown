@@ -8,4 +8,5 @@ pub mod sha256;
 
 pub mod error;
 
+pub mod subtle;
 pub(crate) mod utils;
