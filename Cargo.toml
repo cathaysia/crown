@@ -48,3 +48,7 @@ name = "des"
 [[bench]]
 name = "des_ctr"
 harness = false
+
+[[bench]]
+name = "xor"
+harness = false
