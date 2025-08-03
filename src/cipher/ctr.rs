@@ -35,7 +35,7 @@ where
         Ok(Box::new(Ctr {
             b: self,
             ctr: iv.to_vec(),
-            out: Vec::with_capacity(buf_size),
+            out: vec![0u8; buf_size],
             out_used: 0,
         }))
     }
@@ -121,7 +121,7 @@ pub fn new_ctr<B: CtrAble>(block: B, iv: &[u8]) -> CryptoResult<Box<dyn StreamCi
 }
 
 fn xor_bytes(dst: &mut [u8], src: &[u8], key_stream: &[u8]) -> usize {
-    let n = dst.len().min(src.len()).min(key_stream.len());
+    let n = src.len().min(key_stream.len());
 
     for i in 0..n {
         dst[i] = src[i] ^ key_stream[i];
