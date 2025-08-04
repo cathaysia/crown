@@ -18,6 +18,23 @@ macro_rules! ROR {
     };
 }
 
+macro_rules! LOAD32L {
+    ($ptr:expr) => {
+        u32::from_be_bytes([
+            (*$ptr.add(3)) & 255,
+            (*$ptr.add(2)) & 255,
+            (*$ptr.add(1)) & 255,
+            (*$ptr.add(0)) & 255,
+        ])
+    };
+}
+
+macro_rules! STORE32L {
+    ($x:expr, $y:expr) => {
+        std::ptr::copy(std::ptr::addr_of!($x).cast::<u8>(), $y, 4);
+    };
+}
+
 static RC6_STAB: [u32; 44] = [
     0xb7e15163, 0x5618cb1c, 0xf45044d5, 0x9287be8e, 0x30bf3847, 0xcef6b200, 0x6d2e2bb9, 0xb65a572,
     0xa99d1f2b, 0x47d498e4, 0xe60c129d, 0x84438c56, 0x227b060f, 0xc0b27fc8, 0x5ee9f981, 0xfd21733a,
@@ -113,11 +130,10 @@ pub unsafe fn rc6_ecb_encrypt(
     assert!(!pt.is_null());
     assert!(!ct.is_null());
 
-    let xpt = pt.cast::<u32>();
-    let mut a = *xpt.add(0);
-    let mut b = *xpt.add(1);
-    let mut c = *xpt.add(2);
-    let mut d = *xpt.add(3);
+    let mut a = LOAD32L!(pt.add(0));
+    let mut b = LOAD32L!(pt.add(4));
+    let mut c = LOAD32L!(pt.add(8));
+    let mut d = LOAD32L!(pt.add(12));
 
     b = b.wrapping_add(skey.key[0]);
     d = d.wrapping_add(skey.key[1]);
@@ -147,11 +163,10 @@ pub unsafe fn rc6_ecb_encrypt(
     a = a.wrapping_add(skey.key[42]);
     c = c.wrapping_add(skey.key[43]);
 
-    let xct = ct.cast::<u32>();
-    *xct.add(0) = a;
-    *xct.add(1) = b;
-    *xct.add(2) = c;
-    *xct.add(3) = d;
+    STORE32L!(a, ct);
+    STORE32L!(b, ct.add(4));
+    STORE32L!(c, ct.add(8));
+    STORE32L!(d, ct.add(12));
 
     Ok(())
 }
@@ -167,12 +182,10 @@ pub unsafe fn rc6_ecb_decrypt(
     let mut t: u32;
     let mut u: u32;
 
-    let xct = ct.cast::<u32>();
-
-    let mut a = *xct.add(0);
-    let mut b = *xct.add(1);
-    let mut c = *xct.add(2);
-    let mut d = *xct.add(3);
+    let mut a = LOAD32L!(ct.add(0));
+    let mut b = LOAD32L!(ct.add(4));
+    let mut c = LOAD32L!(ct.add(8));
+    let mut d = LOAD32L!(ct.add(12));
 
     a = a.wrapping_sub(skey.key[42]);
     c = c.wrapping_sub(skey.key[43]);
@@ -197,10 +210,10 @@ pub unsafe fn rc6_ecb_decrypt(
     }
     b = b.wrapping_sub(skey.key[0]);
     d = d.wrapping_sub(skey.key[1]);
-    let xpt = pt.cast::<u32>();
-    *xpt = a;
-    *xpt.add(1) = b;
-    *xpt.add(2) = c;
-    *xpt.add(3) = d;
+
+    STORE32L!(a, pt.add(0));
+    STORE32L!(b, pt.add(4));
+    STORE32L!(c, pt.add(8));
+    STORE32L!(d, pt.add(12));
     Ok(())
 }
