@@ -6,3 +6,9 @@ pub(crate) fn inexact_overlap(dst: &[u8], src: &[u8]) -> bool {
 
     (dst_ptr < src_end && src_ptr < dst_end) && (dst_ptr != src_ptr)
 }
+
+pub fn copy(dst: &mut [u8], src: &[u8]) -> usize {
+    let len = dst.len().min(src.len());
+    dst[..len].copy_from_slice(&src[..len]);
+    len
+}
