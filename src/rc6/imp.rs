@@ -1,6 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn, non_snake_case)]
 
-use crate::error::CryptoError;
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+
+use crate::error::{CryptoError, CryptoResult};
 
 pub struct Rc6Key {
     pub key: [u32; 44],
@@ -18,23 +20,6 @@ macro_rules! ROR {
     };
 }
 
-macro_rules! LOAD32L {
-    ($ptr:expr) => {
-        u32::from_be_bytes([
-            (*$ptr.add(3)) & 255,
-            (*$ptr.add(2)) & 255,
-            (*$ptr.add(1)) & 255,
-            (*$ptr.add(0)) & 255,
-        ])
-    };
-}
-
-macro_rules! STORE32L {
-    ($x:expr, $y:expr) => {
-        std::ptr::copy(std::ptr::addr_of!($x).cast::<u8>(), $y, 4);
-    };
-}
-
 static RC6_STAB: [u32; 44] = [
     0xb7e15163, 0x5618cb1c, 0xf45044d5, 0x9287be8e, 0x30bf3847, 0xcef6b200, 0x6d2e2bb9, 0xb65a572,
     0xa99d1f2b, 0x47d498e4, 0xe60c129d, 0x84438c56, 0x227b060f, 0xc0b27fc8, 0x5ee9f981, 0xfd21733a,
@@ -45,13 +30,11 @@ static RC6_STAB: [u32; 44] = [
 ];
 
 pub fn rc6_setup(
-    key: *const u8,
+    key: &[u8],
     keylen: usize,
     num_rounds: usize,
     skey: &mut Rc6Key,
-) -> Result<(), CryptoError> {
-    assert!(!key.is_null());
-
+) -> CryptoResult<()> {
     if num_rounds != 0 && num_rounds != 20 {
         return Err(CryptoError::InvalidRound);
     }
@@ -65,13 +48,11 @@ pub fn rc6_setup(
     let mut L = [0u32; 64];
     // copy the key into the L array
     while i < keylen as u32 {
-        let fresh6 = i;
+        A = (A << 8) | (key[i as usize] as i32 & 255) as u32;
         i = i.wrapping_add(1);
-        A = (A << 8) | (unsafe { *key.offset(fresh6 as isize) } as i32 & 255) as u32;
         if i & 3 == 0 {
-            let fresh7 = j;
+            L[j as usize] = A.swap_bytes();
             j = j.wrapping_add(1);
-            L[fresh7 as usize] = A.swap_bytes();
             A = 0;
         }
     }
@@ -122,22 +103,15 @@ pub fn rc6_setup(
     Ok(())
 }
 
-pub unsafe fn rc6_ecb_encrypt(
-    pt: *const u8,
-    ct: *mut u8,
-    skey: &Rc6Key,
-) -> Result<(), CryptoError> {
-    assert!(!pt.is_null());
-    assert!(!ct.is_null());
-
-    let mut a = LOAD32L!(pt.add(0));
-    let mut b = LOAD32L!(pt.add(4));
-    let mut c = LOAD32L!(pt.add(8));
-    let mut d = LOAD32L!(pt.add(12));
+pub fn rc6_ecb_encrypt(mut pt: &[u8], mut ct: &mut [u8], skey: &Rc6Key) -> CryptoResult<()> {
+    let mut a = pt.read_u32::<LittleEndian>()?;
+    let mut b = pt.read_u32::<LittleEndian>()?;
+    let mut c = pt.read_u32::<LittleEndian>()?;
+    let mut d = pt.read_u32::<LittleEndian>()?;
 
     b = b.wrapping_add(skey.key[0]);
     d = d.wrapping_add(skey.key[1]);
-    let mut K = (skey.key).as_ptr().offset(2);
+    let mut K = &skey.key[2..];
 
     let mut t: u32;
     let mut u: u32;
@@ -148,9 +122,9 @@ pub unsafe fn rc6_ecb_encrypt(
             t = ROL!(t, 5);
             u = $d.wrapping_mul($d.wrapping_add($d).wrapping_add(1));
             u = ROL!(u, 5);
-            $a = (ROL!($a ^ t, u)).wrapping_add(*K.offset(0));
-            $c = (ROL!($c ^ u, t)).wrapping_add(*K.offset(1));
-            K = K.offset(2);
+            $a = (ROL!($a ^ t, u)).wrapping_add(K[0]);
+            $c = (ROL!($c ^ u, t)).wrapping_add(K[1]);
+            K = &K[2..];
         };
     }
 
@@ -163,57 +137,51 @@ pub unsafe fn rc6_ecb_encrypt(
     a = a.wrapping_add(skey.key[42]);
     c = c.wrapping_add(skey.key[43]);
 
-    STORE32L!(a, ct);
-    STORE32L!(b, ct.add(4));
-    STORE32L!(c, ct.add(8));
-    STORE32L!(d, ct.add(12));
+    ct.write_u32::<LittleEndian>(a)?;
+    ct.write_u32::<LittleEndian>(b)?;
+    ct.write_u32::<LittleEndian>(c)?;
+    ct.write_u32::<LittleEndian>(d)?;
 
     Ok(())
 }
 
-pub unsafe fn rc6_ecb_decrypt(
-    ct: *const u8,
-    pt: *mut u8,
-    skey: &Rc6Key,
-) -> Result<(), CryptoError> {
-    assert!(!pt.is_null());
-    assert!(!ct.is_null());
-
+pub fn rc6_ecb_decrypt(mut ct: &[u8], mut pt: &mut [u8], skey: &Rc6Key) -> Result<(), CryptoError> {
     let mut t: u32;
     let mut u: u32;
 
-    let mut a = LOAD32L!(ct.add(0));
-    let mut b = LOAD32L!(ct.add(4));
-    let mut c = LOAD32L!(ct.add(8));
-    let mut d = LOAD32L!(ct.add(12));
+    let mut a = ct.read_u32::<LittleEndian>()?;
+    let mut b = ct.read_u32::<LittleEndian>()?;
+    let mut c = ct.read_u32::<LittleEndian>()?;
+    let mut d = ct.read_u32::<LittleEndian>()?;
 
     a = a.wrapping_sub(skey.key[42]);
     c = c.wrapping_sub(skey.key[43]);
 
     macro_rules! RND {
-        ($K:ident, $a:ident, $b:ident, $c:ident, $d:ident) => {
+        ($idx:ident, $K:ident, $a:ident, $b:ident, $c:ident, $d:ident) => {
             t = $b.wrapping_mul($b.wrapping_add($b).wrapping_add(1));
             t = ROL!(t, 5);
             u = $d.wrapping_mul($d.wrapping_add($d).wrapping_add(1));
             u = ROL!(u, 5);
-            $c = ROR!($c.wrapping_sub(*$K.offset(1)), t) ^ u;
-            $a = ROR!($a.wrapping_sub(*$K.offset(0)), u) ^ t;
-            $K = $K.offset(-2);
+            $c = ROR!($c.wrapping_sub($K[$idx + 1]), t) ^ u;
+            $a = ROR!($a.wrapping_sub($K[$idx]), u) ^ t;
+            $idx -= 2;
         };
     }
-    let mut K = (skey.key).as_ptr().offset(40);
+    let mut idx = 40;
+    let K = &skey.key;
     for _ in 0..5 {
-        RND!(K, d, a, b, c);
-        RND!(K, c, d, a, b);
-        RND!(K, b, c, d, a);
-        RND!(K, a, b, c, d);
+        RND!(idx, K, d, a, b, c);
+        RND!(idx, K, c, d, a, b);
+        RND!(idx, K, b, c, d, a);
+        RND!(idx, K, a, b, c, d);
     }
     b = b.wrapping_sub(skey.key[0]);
     d = d.wrapping_sub(skey.key[1]);
 
-    STORE32L!(a, pt.add(0));
-    STORE32L!(b, pt.add(4));
-    STORE32L!(c, pt.add(8));
-    STORE32L!(d, pt.add(12));
+    pt.write_u32::<LittleEndian>(a)?;
+    pt.write_u32::<LittleEndian>(b)?;
+    pt.write_u32::<LittleEndian>(c)?;
+    pt.write_u32::<LittleEndian>(d)?;
     Ok(())
 }

@@ -17,12 +17,12 @@ impl BlockCipher for Rc6 {
     }
 
     fn encrypt(&self, dst: &mut [u8], src: &[u8]) {
-        let ret = unsafe { rc6_ecb_encrypt(src.as_ptr(), dst.as_mut_ptr(), &self.skey) };
+        let ret = rc6_ecb_encrypt(src, dst, &self.skey);
         assert!(ret.is_ok());
     }
 
     fn decrypt(&self, dst: &mut [u8], src: &[u8]) {
-        let ret = unsafe { rc6_ecb_decrypt(src.as_ptr(), dst.as_mut_ptr(), &self.skey) };
+        let ret = rc6_ecb_decrypt(src, dst, &self.skey);
         assert!(ret.is_ok());
     }
 }
@@ -33,7 +33,7 @@ impl Rc6 {
             let skey = MaybeUninit::<Rc6Key>::uninit();
             let mut skey = skey.assume_init();
 
-            let err = rc6_setup(key.as_ptr(), key.len(), num_rounds, &mut skey);
+            let err = rc6_setup(key, key.len(), num_rounds, &mut skey);
             assert!(err.is_ok());
 
             Self { skey }

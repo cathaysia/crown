@@ -14,6 +14,8 @@ pub enum CryptoError {
     InvalidLength,
     #[error("invalid buffer overlap")]
     InvalidBufferOverlap,
+    #[error("io error: {0}")]
+    IoError(#[from] std::io::Error),
 }
 
 pub type CryptoResult<T> = Result<T, CryptoError>;
