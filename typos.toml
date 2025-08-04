@@ -1,0 +1,5 @@
+[default]
+extend-ignore-re = ["\\w{10,}"]
+
+[default.extend-words]
+nd = "nd"

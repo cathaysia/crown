@@ -104,7 +104,7 @@ impl StreamCipher for Cipher {
 
         // xor_key_stream_blocks implementations expect input lengths that are a
         // multiple of BUF_SIZE. Platform-specific ones process multiple blocks at a
-        // time, so have BUF_SIZEs that are a multiple of BLOCK_SIZE.
+        // time, so have BUF_SIZE that are a multiple of BLOCK_SIZE.
         let full = src.len() - src.len() % BUF_SIZE;
         if full > 0 {
             self.xor_key_stream_blocks(&mut dst[..full], &src[..full]);
