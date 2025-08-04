@@ -1,4 +1,5 @@
 pub mod aes;
+pub mod chacha20;
 pub mod cipher;
 pub mod des;
 pub mod md5;
