@@ -3,6 +3,11 @@ name = "kittytls"
 version = "0.1.0"
 edition = "2021"
 
+[profile.relwithdebinfo]
+inherits = "release"
+debug = true
+strip = false
+
 [dependencies]
 anyhow = "1.0.98"
 derive = { path = "./derive" }
