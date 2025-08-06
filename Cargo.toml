@@ -15,6 +15,7 @@ rc6 = "0.0.0"
 thiserror = "2.0.12"
 rand = "0.9.2"
 bytes = "1.10.1"
+paste = "1.0.15"
 
 [dev-dependencies]
 criterion = { version = "0.7", features = ["html_reports"] }
@@ -30,6 +31,7 @@ chacha20 = "0.9.1"
 hex = "0.4.3"
 chacha20poly1305 = "0.10.1"
 ring = "0.17.14"
+sha3 = "0.10.8"
 
 [[bench]]
 name = "md5"
@@ -45,6 +47,10 @@ harness = false
 
 [[bench]]
 name = "sha512"
+harness = false
+
+[[bench]]
+name = "sha3"
 harness = false
 
 [[bench]]
