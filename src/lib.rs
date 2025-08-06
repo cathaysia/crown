@@ -3,6 +3,7 @@ pub mod chacha20;
 pub mod chacha20ploy1305;
 pub mod cipher;
 pub mod des;
+pub mod hash;
 pub mod md5;
 pub mod ploy1305;
 pub mod rc4;

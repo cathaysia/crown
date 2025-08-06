@@ -1,3 +1,7 @@
+use std::io::Write;
+
+use crate::hash::Hash;
+
 #[cfg(test)]
 mod tests;
 
@@ -122,43 +126,45 @@ impl Digest {
         Ok(())
     }
 
-    pub fn reset(&mut self) {
-        if !self.is224 {
-            self.h[0] = INIT0;
-            self.h[1] = INIT1;
-            self.h[2] = INIT2;
-            self.h[3] = INIT3;
-            self.h[4] = INIT4;
-            self.h[5] = INIT5;
-            self.h[6] = INIT6;
-            self.h[7] = INIT7;
+    fn check_sum(&mut self) -> [u8; SIZE] {
+        let len = self.len;
+        // Padding. Add a 1 bit and 0 bits until 56 bytes mod 64.
+        let mut tmp = [0u8; 64 + 8]; // padding + length buffer
+        tmp[0] = 0x80;
+        let t = if len % 64 < 56 {
+            56 - len % 64
         } else {
-            self.h[0] = INIT0_224;
-            self.h[1] = INIT1_224;
-            self.h[2] = INIT2_224;
-            self.h[3] = INIT3_224;
-            self.h[4] = INIT4_224;
-            self.h[5] = INIT5_224;
-            self.h[6] = INIT6_224;
-            self.h[7] = INIT7_224;
-        }
-        self.nx = 0;
-        self.len = 0;
-    }
+            64 + 56 - len % 64
+        };
 
-    pub fn size(&self) -> usize {
+        // Length in bits.
+        let len_bits = len << 3;
+        let padlen = &mut tmp[..t as usize + 8];
+        padlen[t as usize..t as usize + 8].copy_from_slice(&len_bits.to_be_bytes());
+        self.write_all(padlen).unwrap();
+
+        if self.nx != 0 {
+            panic!("nx != 0");
+        }
+
+        let mut digest = [0u8; SIZE];
+        digest[0..4].copy_from_slice(&self.h[0].to_be_bytes());
+        digest[4..8].copy_from_slice(&self.h[1].to_be_bytes());
+        digest[8..12].copy_from_slice(&self.h[2].to_be_bytes());
+        digest[12..16].copy_from_slice(&self.h[3].to_be_bytes());
+        digest[16..20].copy_from_slice(&self.h[4].to_be_bytes());
+        digest[20..24].copy_from_slice(&self.h[5].to_be_bytes());
+        digest[24..28].copy_from_slice(&self.h[6].to_be_bytes());
         if !self.is224 {
-            SIZE
-        } else {
-            SIZE224
+            digest[28..32].copy_from_slice(&self.h[7].to_be_bytes());
         }
-    }
 
-    pub fn block_size(&self) -> usize {
-        BLOCK_SIZE
+        digest
     }
+}
 
-    pub fn write(&mut self, mut p: &[u8]) -> usize {
+impl Write for Digest {
+    fn write(&mut self, mut p: &[u8]) -> std::io::Result<usize> {
         let nn = p.len();
         self.len += nn as u64;
 
@@ -190,10 +196,16 @@ impl Digest {
             self.x[..self.nx].copy_from_slice(p);
         }
 
-        nn
+        Ok(nn)
     }
 
-    pub fn sum(&self, input: &[u8]) -> Vec<u8> {
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl Hash for Digest {
+    fn sum(&self, input: &[u8]) -> Vec<u8> {
         // Make a copy of self so that caller can keep writing and summing.
         let mut d0 = *self;
         let hash = d0.check_sum();
@@ -206,40 +218,40 @@ impl Digest {
         result
     }
 
-    fn check_sum(&mut self) -> [u8; SIZE] {
-        let len = self.len;
-        // Padding. Add a 1 bit and 0 bits until 56 bytes mod 64.
-        let mut tmp = [0u8; 64 + 8]; // padding + length buffer
-        tmp[0] = 0x80;
-        let t = if len % 64 < 56 {
-            56 - len % 64
-        } else {
-            64 + 56 - len % 64
-        };
-
-        // Length in bits.
-        let len_bits = len << 3;
-        let padlen = &mut tmp[..t as usize + 8];
-        padlen[t as usize..t as usize + 8].copy_from_slice(&len_bits.to_be_bytes());
-        self.write(padlen);
-
-        if self.nx != 0 {
-            panic!("nx != 0");
-        }
-
-        let mut digest = [0u8; SIZE];
-        digest[0..4].copy_from_slice(&self.h[0].to_be_bytes());
-        digest[4..8].copy_from_slice(&self.h[1].to_be_bytes());
-        digest[8..12].copy_from_slice(&self.h[2].to_be_bytes());
-        digest[12..16].copy_from_slice(&self.h[3].to_be_bytes());
-        digest[16..20].copy_from_slice(&self.h[4].to_be_bytes());
-        digest[20..24].copy_from_slice(&self.h[5].to_be_bytes());
-        digest[24..28].copy_from_slice(&self.h[6].to_be_bytes());
+    fn size(&self) -> usize {
         if !self.is224 {
-            digest[28..32].copy_from_slice(&self.h[7].to_be_bytes());
+            SIZE
+        } else {
+            SIZE224
         }
+    }
 
-        digest
+    fn block_size(&self) -> usize {
+        BLOCK_SIZE
+    }
+
+    fn reset(&mut self) {
+        if !self.is224 {
+            self.h[0] = INIT0;
+            self.h[1] = INIT1;
+            self.h[2] = INIT2;
+            self.h[3] = INIT3;
+            self.h[4] = INIT4;
+            self.h[5] = INIT5;
+            self.h[6] = INIT6;
+            self.h[7] = INIT7;
+        } else {
+            self.h[0] = INIT0_224;
+            self.h[1] = INIT1_224;
+            self.h[2] = INIT2_224;
+            self.h[3] = INIT3_224;
+            self.h[4] = INIT4_224;
+            self.h[5] = INIT5_224;
+            self.h[6] = INIT6_224;
+            self.h[7] = INIT7_224;
+        }
+        self.nx = 0;
+        self.len = 0;
     }
 }
 
@@ -277,7 +289,7 @@ fn block(d: &mut Digest, p: &[u8]) {
 
 pub fn sum256(data: &[u8]) -> [u8; SIZE] {
     let mut h = new();
-    h.write(data);
+    h.write_all(data).unwrap();
 
     let sum = h.sum(&[]);
 
@@ -286,7 +298,7 @@ pub fn sum256(data: &[u8]) -> [u8; SIZE] {
 
 pub fn sum224(data: &[u8]) -> [u8; SIZE224] {
     let mut h = new224();
-    h.write(data);
+    h.write_all(data).unwrap();
 
     let sum = h.sum(&[]);
 
