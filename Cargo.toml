@@ -44,6 +44,10 @@ name = "sha256"
 harness = false
 
 [[bench]]
+name = "sha512"
+harness = false
+
+[[bench]]
 name = "aes"
 harness = false
 
