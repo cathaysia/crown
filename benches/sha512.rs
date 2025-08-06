@@ -32,12 +32,12 @@ fn bench_sha512(c: &mut Criterion) {
 
         group.bench_function(
             format!(
-                "kittytls_sha512_{size}_{}",
+                "kittycrypto_sha512_{size}_{}",
                 if unaligned { "unaligned" } else { "aligned" }
             ),
             |b| {
                 b.iter(|| {
-                    let _ = kittytls::sha512::sum512(black_box(data));
+                    let _ = kittycrypto::sha512::sum512(black_box(data));
                 })
             },
         );

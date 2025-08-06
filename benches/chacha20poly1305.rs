@@ -22,8 +22,8 @@ fn bench_chacha20poly1305(c: &mut Criterion) {
         let mut group = c.benchmark_group("chacha20_poly1305");
         group.throughput(Throughput::Bytes(size as u64));
 
-        group.bench_function(format!("kittytls_{size}",), |b| {
-            let cipher = kittytls::chacha20ploy1305::ChaCha20Poly1305::new(&key).unwrap();
+        group.bench_function(format!("kittycrypto_{size}",), |b| {
+            let cipher = kittycrypto::chacha20ploy1305::ChaCha20Poly1305::new(&key).unwrap();
             b.iter(|| {
                 let mut dst = vec![];
                 cipher.seal(&mut dst, &nonce, &data, &[]).unwrap();

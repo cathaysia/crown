@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use kittytls::subtle::xor::xor_bytes;
+use kittycrypto::subtle::xor::xor_bytes;
 use std::hint::black_box;
 
 fn bench_xor(c: &mut Criterion) {
@@ -25,7 +25,7 @@ fn bench_xor(c: &mut Criterion) {
         rand::fill(x.as_mut_slice());
         rand::fill(y.as_mut_slice());
 
-        group.bench_function(format!("kittytls_xor_{size}"), |b| {
+        group.bench_function(format!("kittycrypto_xor_{size}"), |b| {
             b.iter(|| {
                 xor_bytes(black_box(&mut dst), black_box(&x), black_box(&y));
             })

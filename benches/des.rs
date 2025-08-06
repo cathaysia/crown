@@ -1,8 +1,8 @@
 use cipher::KeyInit;
 use cipher::{generic_array::GenericArray, BlockEncrypt};
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use kittytls::cipher::BlockCipher;
-use kittytls::des::BLOCK_SIZE;
+use kittycrypto::cipher::BlockCipher;
+use kittycrypto::des::BLOCK_SIZE;
 use std::hint::black_box;
 
 fn bench_des(c: &mut Criterion) {
@@ -16,8 +16,8 @@ fn bench_des(c: &mut Criterion) {
     let mut group = c.benchmark_group("des");
     group.throughput(Throughput::Bytes(4));
 
-    group.bench_function("kittytls_des".to_string(), |b| {
-        let cipher = kittytls::des::DesCipher::new(&key).unwrap();
+    group.bench_function("kittycrypto_des".to_string(), |b| {
+        let cipher = kittycrypto::des::DesCipher::new(&key).unwrap();
         b.iter(|| {
             let mut dst = block;
             for i in (0..block.len()).step_by(BLOCK_SIZE) {

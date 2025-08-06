@@ -1,6 +1,6 @@
 use cipher::KeyIvInit;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use kittytls::des::BLOCK_SIZE;
+use kittycrypto::des::BLOCK_SIZE;
 use std::hint::black_box;
 
 fn bench_des_ctr(c: &mut Criterion) {
@@ -20,9 +20,9 @@ fn bench_des_ctr(c: &mut Criterion) {
         let mut group = c.benchmark_group("des_ctr");
         group.throughput(Throughput::Bytes(size as u64));
 
-        group.bench_function(format!("kittytls_des_ctr_{size}"), |b| {
-            let block = kittytls::des::DesCipher::new(&key).unwrap();
-            let mut cipher = kittytls::cipher::ctr::new_ctr(block, &[0u8; BLOCK_SIZE]).unwrap();
+        group.bench_function(format!("kittycrypto_des_ctr_{size}"), |b| {
+            let block = kittycrypto::des::DesCipher::new(&key).unwrap();
+            let mut cipher = kittycrypto::cipher::ctr::new_ctr(block, &[0u8; BLOCK_SIZE]).unwrap();
             let mut dst = src.clone();
             b.iter(|| {
                 let _ = cipher.xor_key_stream(black_box(&mut dst), black_box(&src));

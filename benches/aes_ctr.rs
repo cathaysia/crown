@@ -19,9 +19,9 @@ fn bench_aes_ctr(c: &mut Criterion) {
         let mut group = c.benchmark_group("aes_ctr");
         group.throughput(Throughput::Bytes(size as u64));
 
-        group.bench_function(format!("kittytls_aes_ctr_{size}",), |b| {
-            let block = kittytls::aes::Block::new(&key).unwrap();
-            let mut cipher = kittytls::cipher::ctr::new_ctr(block, &[0u8; 16]).unwrap();
+        group.bench_function(format!("kittycrypto_aes_ctr_{size}",), |b| {
+            let block = kittycrypto::aes::Block::new(&key).unwrap();
+            let mut cipher = kittycrypto::cipher::ctr::new_ctr(block, &[0u8; 16]).unwrap();
             let mut dst = data.clone();
             b.iter(|| {
                 let _ = cipher.xor_key_stream(black_box(&mut dst), black_box(&data));

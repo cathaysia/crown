@@ -1,6 +1,6 @@
 use cipher::{generic_array::GenericArray, BlockEncrypt};
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use kittytls::aes::BLOCK_SIZE;
+use kittycrypto::aes::BLOCK_SIZE;
 use rc4::KeyInit;
 use std::hint::black_box;
 
@@ -15,8 +15,8 @@ fn bench_aes(c: &mut Criterion) {
     let mut group = c.benchmark_group("aes");
     group.throughput(Throughput::Bytes(4));
 
-    group.bench_function("kittytls_aes".to_string(), |b| {
-        let cipher = kittytls::aes::new_cipher(&key).unwrap();
+    group.bench_function("kittycrypto_aes".to_string(), |b| {
+        let cipher = kittycrypto::aes::new_cipher(&key).unwrap();
         b.iter(|| {
             let mut dst = block;
             for i in (0..block.len()).step_by(BLOCK_SIZE) {

@@ -32,12 +32,12 @@ fn bench_sha256(c: &mut Criterion) {
 
         group.bench_function(
             format!(
-                "kittytls_sha256_{size}_{}",
+                "kittycrypto_sha256_{size}_{}",
                 if unaligned { "unaligned" } else { "aligned" }
             ),
             |b| {
                 b.iter(|| {
-                    let _ = kittytls::sha256::sum256(black_box(data));
+                    let _ = kittycrypto::sha256::sum256(black_box(data));
                 })
             },
         );
