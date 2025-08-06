@@ -1,6 +1,6 @@
 mod data;
 
-use byteorder::{BigEndian, ReadBytesExt};
+use bytes::Buf;
 use data::TEST_DATA;
 
 use super::{verify, TAG_SIZE};
@@ -35,11 +35,7 @@ impl Test {
         }
         let mut buf = buf.as_slice();
 
-        [
-            buf.read_u64::<BigEndian>().unwrap(),
-            buf.read_u64::<BigEndian>().unwrap(),
-            buf.read_u64::<BigEndian>().unwrap(),
-        ]
+        [buf.get_u64(), buf.get_u64(), buf.get_u64()]
     }
 }
 

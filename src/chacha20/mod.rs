@@ -6,11 +6,10 @@ mod tests;
 
 mod generic;
 
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-
 use crate::cipher::StreamCipher;
 use crate::error::{CryptoError, CryptoResult};
 use crate::utils::inexact_overlap;
+use bytes::{Buf, BufMut};
 
 const KEY_SIZE: usize = 32;
 const NONCE_SIZE: usize = 12;
@@ -208,23 +207,19 @@ impl Cipher {
 
         let mut key = key.as_slice();
         c.key = [
-            key.read_u32::<LittleEndian>()?,
-            key.read_u32::<LittleEndian>()?,
-            key.read_u32::<LittleEndian>()?,
-            key.read_u32::<LittleEndian>()?,
-            key.read_u32::<LittleEndian>()?,
-            key.read_u32::<LittleEndian>()?,
-            key.read_u32::<LittleEndian>()?,
-            key.read_u32::<LittleEndian>()?,
+            key.get_u32_le(),
+            key.get_u32_le(),
+            key.get_u32_le(),
+            key.get_u32_le(),
+            key.get_u32_le(),
+            key.get_u32_le(),
+            key.get_u32_le(),
+            key.get_u32_le(),
         ];
 
         let mut nonce = nonce.as_slice();
 
-        c.nonce = [
-            nonce.read_u32::<LittleEndian>()?,
-            nonce.read_u32::<LittleEndian>()?,
-            nonce.read_u32::<LittleEndian>()?,
-        ];
+        c.nonce = [nonce.get_u32_le(), nonce.get_u32_le(), nonce.get_u32_le()];
 
         Ok(c)
     }
@@ -403,18 +398,18 @@ pub fn h_chacha20(mut key: &[u8], mut nonce: &[u8]) -> CryptoResult<Vec<u8>> {
     let mut x1 = J1;
     let mut x2 = J2;
     let mut x3 = J3;
-    let mut x4 = key.read_u32::<LittleEndian>()?;
-    let mut x5 = key.read_u32::<LittleEndian>()?;
-    let mut x6 = key.read_u32::<LittleEndian>()?;
-    let mut x7 = key.read_u32::<LittleEndian>()?;
-    let mut x8 = key.read_u32::<LittleEndian>()?;
-    let mut x9 = key.read_u32::<LittleEndian>()?;
-    let mut x10 = key.read_u32::<LittleEndian>()?;
-    let mut x11 = key.read_u32::<LittleEndian>()?;
-    let mut x12 = nonce.read_u32::<LittleEndian>()?;
-    let mut x13 = nonce.read_u32::<LittleEndian>()?;
-    let mut x14 = nonce.read_u32::<LittleEndian>()?;
-    let mut x15 = nonce.read_u32::<LittleEndian>()?;
+    let mut x4 = key.get_u32_le();
+    let mut x5 = key.get_u32_le();
+    let mut x6 = key.get_u32_le();
+    let mut x7 = key.get_u32_le();
+    let mut x8 = key.get_u32_le();
+    let mut x9 = key.get_u32_le();
+    let mut x10 = key.get_u32_le();
+    let mut x11 = key.get_u32_le();
+    let mut x12 = nonce.get_u32_le();
+    let mut x13 = nonce.get_u32_le();
+    let mut x14 = nonce.get_u32_le();
+    let mut x15 = nonce.get_u32_le();
 
     for _ in 0..10 {
         // Diagonal round.
@@ -432,14 +427,14 @@ pub fn h_chacha20(mut key: &[u8], mut nonce: &[u8]) -> CryptoResult<Vec<u8>> {
     let mut out = vec![0; 32];
     {
         let mut outx = out.as_mut_slice();
-        outx.write_u32::<LittleEndian>(x0)?;
-        outx.write_u32::<LittleEndian>(x1)?;
-        outx.write_u32::<LittleEndian>(x2)?;
-        outx.write_u32::<LittleEndian>(x3)?;
-        outx.write_u32::<LittleEndian>(x12)?;
-        outx.write_u32::<LittleEndian>(x13)?;
-        outx.write_u32::<LittleEndian>(x14)?;
-        outx.write_u32::<LittleEndian>(x15)?;
+        outx.put_u32_le(x0);
+        outx.put_u32_le(x1);
+        outx.put_u32_le(x2);
+        outx.put_u32_le(x3);
+        outx.put_u32_le(x12);
+        outx.put_u32_le(x13);
+        outx.put_u32_le(x14);
+        outx.put_u32_le(x15);
     }
 
     Ok(out)
