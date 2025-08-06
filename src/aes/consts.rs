@@ -8,7 +8,7 @@
 // Reducing mod poly corresponds to binary xor with poly every
 // time a 0x100 bit appears.
 #[cfg(test)]
-pub(super) const POLY: u32 = 1 << 8 | 1 << 4 | 1 << 3 | 1 << 1 | 1 << 0; // x⁸ + x⁴ + x³ + x + 1
+pub(super) const POLY: u32 = (1 << 8) | (1 << 4) | (1 << 3) | (1 << 1) | (1 << 0); // x⁸ + x⁴ + x³ + x + 1
 
 // Powers of x mod poly in GF(2).
 pub(super) const POWX: [u8; 16] = [

@@ -26,9 +26,9 @@ pub fn block_generic(dig: &mut super::Digest, mut p: &[u8]) {
         // rounds below if needed for speed.
         (0..16).for_each(|i| {
             let j = i * 4;
-            w[i] = (p[j] as u32) << 24
-                | (p[j + 1] as u32) << 16
-                | (p[j + 2] as u32) << 8
+            w[i] = ((p[j] as u32) << 24)
+                | ((p[j + 1] as u32) << 16)
+                | ((p[j + 2] as u32) << 8)
                 | (p[j + 3] as u32);
         });
 

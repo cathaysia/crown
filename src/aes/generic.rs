@@ -53,21 +53,21 @@ pub fn encrypt_block_generic(c: &BlockExpanded, dst: &mut [u8], src: &[u8]) {
     let t2 = s2;
     let t3 = s3;
 
-    s0 = (SBOX0[((t0 >> 24) & 0xff) as usize] as u32) << 24
-        | (SBOX0[((t1 >> 16) & 0xff) as usize] as u32) << 16
-        | (SBOX0[((t2 >> 8) & 0xff) as usize] as u32) << 8
+    s0 = ((SBOX0[((t0 >> 24) & 0xff) as usize] as u32) << 24)
+        | ((SBOX0[((t1 >> 16) & 0xff) as usize] as u32) << 16)
+        | ((SBOX0[((t2 >> 8) & 0xff) as usize] as u32) << 8)
         | (SBOX0[(t3 & 0xff) as usize] as u32);
-    s1 = (SBOX0[((t1 >> 24) & 0xff) as usize] as u32) << 24
-        | (SBOX0[((t2 >> 16) & 0xff) as usize] as u32) << 16
-        | (SBOX0[((t3 >> 8) & 0xff) as usize] as u32) << 8
+    s1 = ((SBOX0[((t1 >> 24) & 0xff) as usize] as u32) << 24)
+        | ((SBOX0[((t2 >> 16) & 0xff) as usize] as u32) << 16)
+        | ((SBOX0[((t3 >> 8) & 0xff) as usize] as u32) << 8)
         | (SBOX0[(t0 & 0xff) as usize] as u32);
-    s2 = (SBOX0[((t2 >> 24) & 0xff) as usize] as u32) << 24
-        | (SBOX0[((t3 >> 16) & 0xff) as usize] as u32) << 16
-        | (SBOX0[((t0 >> 8) & 0xff) as usize] as u32) << 8
+    s2 = ((SBOX0[((t2 >> 24) & 0xff) as usize] as u32) << 24)
+        | ((SBOX0[((t3 >> 16) & 0xff) as usize] as u32) << 16)
+        | ((SBOX0[((t0 >> 8) & 0xff) as usize] as u32) << 8)
         | (SBOX0[(t1 & 0xff) as usize] as u32);
-    s3 = (SBOX0[((t3 >> 24) & 0xff) as usize] as u32) << 24
-        | (SBOX0[((t0 >> 16) & 0xff) as usize] as u32) << 16
-        | (SBOX0[((t1 >> 8) & 0xff) as usize] as u32) << 8
+    s3 = ((SBOX0[((t3 >> 24) & 0xff) as usize] as u32) << 24)
+        | ((SBOX0[((t0 >> 16) & 0xff) as usize] as u32) << 16)
+        | ((SBOX0[((t1 >> 8) & 0xff) as usize] as u32) << 8)
         | (SBOX0[(t2 & 0xff) as usize] as u32);
 
     s0 ^= xk[k];
@@ -131,21 +131,21 @@ pub fn decrypt_block_generic(c: &BlockExpanded, dst: &mut [u8], src: &[u8]) {
     let t2 = s2;
     let t3 = s3;
 
-    s0 = (SBOX1[((t0 >> 24) & 0xff) as usize] as u32) << 24
-        | (SBOX1[((t3 >> 16) & 0xff) as usize] as u32) << 16
-        | (SBOX1[((t2 >> 8) & 0xff) as usize] as u32) << 8
+    s0 = ((SBOX1[((t0 >> 24) & 0xff) as usize] as u32) << 24)
+        | ((SBOX1[((t3 >> 16) & 0xff) as usize] as u32) << 16)
+        | ((SBOX1[((t2 >> 8) & 0xff) as usize] as u32) << 8)
         | (SBOX1[(t1 & 0xff) as usize] as u32);
-    s1 = (SBOX1[((t1 >> 24) & 0xff) as usize] as u32) << 24
-        | (SBOX1[((t0 >> 16) & 0xff) as usize] as u32) << 16
-        | (SBOX1[((t3 >> 8) & 0xff) as usize] as u32) << 8
+    s1 = ((SBOX1[((t1 >> 24) & 0xff) as usize] as u32) << 24)
+        | ((SBOX1[((t0 >> 16) & 0xff) as usize] as u32) << 16)
+        | ((SBOX1[((t3 >> 8) & 0xff) as usize] as u32) << 8)
         | (SBOX1[(t2 & 0xff) as usize] as u32);
-    s2 = (SBOX1[((t2 >> 24) & 0xff) as usize] as u32) << 24
-        | (SBOX1[((t1 >> 16) & 0xff) as usize] as u32) << 16
-        | (SBOX1[((t0 >> 8) & 0xff) as usize] as u32) << 8
+    s2 = ((SBOX1[((t2 >> 24) & 0xff) as usize] as u32) << 24)
+        | ((SBOX1[((t1 >> 16) & 0xff) as usize] as u32) << 16)
+        | ((SBOX1[((t0 >> 8) & 0xff) as usize] as u32) << 8)
         | (SBOX1[(t3 & 0xff) as usize] as u32);
-    s3 = (SBOX1[((t3 >> 24) & 0xff) as usize] as u32) << 24
-        | (SBOX1[((t2 >> 16) & 0xff) as usize] as u32) << 16
-        | (SBOX1[((t1 >> 8) & 0xff) as usize] as u32) << 8
+    s3 = ((SBOX1[((t3 >> 24) & 0xff) as usize] as u32) << 24)
+        | ((SBOX1[((t2 >> 16) & 0xff) as usize] as u32) << 16)
+        | ((SBOX1[((t1 >> 8) & 0xff) as usize] as u32) << 8)
         | (SBOX1[(t0 & 0xff) as usize] as u32);
 
     s0 ^= xk[k];
@@ -161,9 +161,9 @@ pub fn decrypt_block_generic(c: &BlockExpanded, dst: &mut [u8], src: &[u8]) {
 }
 
 fn subw(w: u32) -> u32 {
-    (SBOX0[((w >> 24) & 0xff) as usize] as u32) << 24
-        | (SBOX0[((w >> 16) & 0xff) as usize] as u32) << 16
-        | (SBOX0[((w >> 8) & 0xff) as usize] as u32) << 8
+    ((SBOX0[((w >> 24) & 0xff) as usize] as u32) << 24)
+        | ((SBOX0[((w >> 16) & 0xff) as usize] as u32) << 16)
+        | ((SBOX0[((w >> 8) & 0xff) as usize] as u32) << 8)
         | (SBOX0[(w & 0xff) as usize] as u32)
 }
 
