@@ -4,6 +4,7 @@ mod tests;
 mod consts;
 use consts::*;
 
+pub mod cbc;
 pub mod ctr;
 mod generic;
 
