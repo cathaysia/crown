@@ -1,3 +1,8 @@
+use crate::{
+    error::{CryptoError, CryptoResult},
+    hmac::Marshalable,
+};
+
 use super::*;
 use std::io::{self, Write};
 
@@ -108,12 +113,7 @@ impl Digest {
         result
     }
 
-    pub fn marshal_binary(&self) -> Result<Vec<u8>, String> {
-        let mut b = Vec::with_capacity(MARSHALED_SIZE);
-        self.append_binary(&mut b)
-    }
-
-    pub fn append_binary(&self, b: &mut Vec<u8>) -> Result<Vec<u8>, String> {
+    pub fn append_binary(&self, b: &mut Vec<u8>) -> CryptoResult<Vec<u8>> {
         match self.dsbyte {
             DSBYTE_SHA3 => b.extend_from_slice(MAGIC_SHA3.as_bytes()),
             DSBYTE_SHAKE => b.extend_from_slice(MAGIC_SHAKE.as_bytes()),
@@ -128,14 +128,19 @@ impl Digest {
         b.push(self.state as u8);
         Ok(b.clone())
     }
+}
 
-    pub fn unmarshal_binary(&mut self, b: &[u8]) -> Result<(), String> {
+impl Marshalable for Digest {
+    fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
+        let mut b = Vec::with_capacity(MARSHALED_SIZE);
+        self.append_binary(&mut b)
+    }
+    fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
         if b.len() != MARSHALED_SIZE {
-            return Err("sha3: invalid hash state".to_string());
+            return Err(CryptoError::InvalidHashState);
         }
 
-        let magic =
-            std::str::from_utf8(&b[..MAGIC_SHA3.len()]).map_err(|_| "sha3: invalid hash state")?;
+        let magic = std::str::from_utf8(&b[..MAGIC_SHA3.len()])?;
         let b = &b[MAGIC_SHA3.len()..];
 
         let valid = match magic {
@@ -147,13 +152,13 @@ impl Digest {
         };
 
         if !valid {
-            return Err("sha3: invalid hash state identifier".to_string());
+            return Err(CryptoError::InvalidHashIdentifier);
         }
 
         let rate = b[0] as usize;
         let b = &b[1..];
         if rate != self.rate {
-            return Err("sha3: invalid hash state function".to_string());
+            Err("sha3: invalid hash state function".to_string())?;
         }
 
         {
@@ -166,11 +171,11 @@ impl Digest {
         let state = match b[1] {
             0 => SpongeDirection::Absorbing,
             1 => SpongeDirection::Squeezing,
-            _ => return Err("sha3: invalid hash state".to_string()),
+            _ => Err("sha3: invalid hash state".to_string())?,
         };
 
         if n > self.rate {
-            return Err("sha3: invalid hash state".to_string());
+            Err("sha3: invalid hash state".to_string())?;
         }
         self.n = n;
         self.state = state;
@@ -234,7 +239,7 @@ impl crate::hash::Hash for Digest {
 
     /// Sum appends the current hash to b and returns the resulting slice.
     /// It does not change the underlying hash state.
-    fn sum(&self, b: &[u8]) -> Vec<u8> {
+    fn sum(&mut self, b: &[u8]) -> Vec<u8> {
         // record_approved(); // FIPS 140 compliance - would need implementation
         self.sum_generic(b)
     }

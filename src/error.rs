@@ -18,6 +18,20 @@ pub enum CryptoError {
     IoError(#[from] std::io::Error),
     #[error("invalid tag")]
     AuthenticationFailed,
+    #[error("invalid hash state")]
+    InvalidHashState,
+    #[error("invalid hash identifier")]
+    InvalidHashIdentifier,
+    #[error("invalid hash size")]
+    StringError(String),
+    #[error("invalid UTF-8 sequence")]
+    Utf8Error(#[from] std::str::Utf8Error),
+}
+
+impl From<String> for CryptoError {
+    fn from(err: String) -> Self {
+        CryptoError::StringError(err)
+    }
 }
 
 pub type CryptoResult<T> = Result<T, CryptoError>;

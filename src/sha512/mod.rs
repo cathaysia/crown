@@ -7,7 +7,11 @@
 
 use std::io::Write;
 
-use crate::hash::Hash;
+use crate::{
+    error::{CryptoError, CryptoResult},
+    hash::Hash,
+    hmac::Marshalable,
+};
 
 pub mod block;
 pub mod noasm;
@@ -90,13 +94,6 @@ pub struct Digest {
 }
 
 impl Digest {
-    /// Marshal the digest state to binary format
-    pub fn marshal_binary(&self) -> Vec<u8> {
-        let mut result = Vec::with_capacity(MARSHALED_SIZE);
-        self.append_binary(&mut result);
-        result
-    }
-
     /// Append the digest state to the provided buffer
     pub fn append_binary(&self, b: &mut Vec<u8>) {
         match self.size {
@@ -120,10 +117,53 @@ impl Digest {
         b.extend_from_slice(&self.len.to_be_bytes());
     }
 
+    fn check_sum(&mut self) -> [u8; SIZE_512] {
+        // Padding. Add a 1 bit and 0 bits until 112 bytes mod 128.
+        let len = self.len;
+        let mut tmp = [0u8; 128 + 16]; // padding + length buffer
+        tmp[0] = 0x80;
+
+        let t = if len % 128 < 112 {
+            112 - len % 128
+        } else {
+            128 + 112 - len % 128
+        };
+
+        // Length in bits
+        let len_bits = len << 3;
+        let padlen = &mut tmp[..t as usize + 16];
+
+        // Write length as big-endian u64 (upper 64 bits are zero)
+        let len_bytes = len_bits.to_be_bytes();
+        padlen[t as usize + 8..t as usize + 16].copy_from_slice(&len_bytes);
+
+        self.write_all(padlen).unwrap();
+
+        if self.nx != 0 {
+            panic!("d.nx != 0");
+        }
+
+        let mut digest = [0u8; SIZE_512];
+        for (i, &h) in self.h.iter().enumerate() {
+            let bytes = h.to_be_bytes();
+            digest[i * 8..(i + 1) * 8].copy_from_slice(&bytes);
+        }
+
+        digest
+    }
+}
+
+impl Marshalable for Digest {
+    /// Marshal the digest state to binary format
+    fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
+        let mut result = Vec::with_capacity(MARSHALED_SIZE);
+        self.append_binary(&mut result);
+        Ok(result)
+    }
     /// Unmarshal digest state from binary format
-    pub fn unmarshal_binary(&mut self, b: &[u8]) -> Result<(), &'static str> {
+    fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
         if b.len() < 4 {
-            return Err("invalid hash state identifier");
+            return Err(CryptoError::InvalidHashIdentifier);
         }
 
         let valid = match self.size {
@@ -135,11 +175,11 @@ impl Digest {
         };
 
         if !valid {
-            return Err("invalid hash state identifier");
+            return Err(CryptoError::InvalidHashIdentifier);
         }
 
         if b.len() != MARSHALED_SIZE {
-            return Err("invalid hash state size");
+            return Err(CryptoError::InvalidHashState);
         }
 
         let mut offset = 4;
@@ -177,41 +217,6 @@ impl Digest {
 
         self.nx = (self.len % CHUNK as u64) as usize;
         Ok(())
-    }
-
-    fn check_sum(&mut self) -> [u8; SIZE_512] {
-        // Padding. Add a 1 bit and 0 bits until 112 bytes mod 128.
-        let len = self.len;
-        let mut tmp = [0u8; 128 + 16]; // padding + length buffer
-        tmp[0] = 0x80;
-
-        let t = if len % 128 < 112 {
-            112 - len % 128
-        } else {
-            128 + 112 - len % 128
-        };
-
-        // Length in bits
-        let len_bits = len << 3;
-        let padlen = &mut tmp[..t as usize + 16];
-
-        // Write length as big-endian u64 (upper 64 bits are zero)
-        let len_bytes = len_bits.to_be_bytes();
-        padlen[t as usize + 8..t as usize + 16].copy_from_slice(&len_bytes);
-
-        self.write_all(padlen).unwrap();
-
-        if self.nx != 0 {
-            panic!("d.nx != 0");
-        }
-
-        let mut digest = [0u8; SIZE_512];
-        for (i, &h) in self.h.iter().enumerate() {
-            let bytes = h.to_be_bytes();
-            digest[i * 8..(i + 1) * 8].copy_from_slice(&bytes);
-        }
-
-        digest
     }
 }
 
@@ -269,7 +274,7 @@ impl Hash for Digest {
     }
 
     /// Compute the final hash and append it to the input
-    fn sum(&self, input: &[u8]) -> Vec<u8> {
+    fn sum(&mut self, input: &[u8]) -> Vec<u8> {
         // Make a copy so caller can keep writing and summing
         let mut d0 = self.clone();
         let hash = d0.check_sum();

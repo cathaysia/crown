@@ -3,7 +3,11 @@
 // license that can be found in the LICENSE file.
 
 use super::*;
-use crate::hash::Hash;
+use crate::{
+    error::{CryptoError, CryptoResult},
+    hash::Hash,
+    hmac::Marshalable,
+};
 use std::io::{self, Read, Write};
 
 #[derive(Clone)]
@@ -86,7 +90,7 @@ impl Shake {
     // output length is selected to provide full-strength generic security: 32 bytes
     // for SHAKE128 and 64 bytes for SHAKE256. It does not change the underlying
     // state. It panics if any output has already been read.
-    pub fn sum(&self, input: &[u8]) -> Vec<u8> {
+    pub fn sum(&mut self, input: &[u8]) -> Vec<u8> {
         self.d.sum(input)
     }
 
@@ -146,22 +150,24 @@ impl Shake {
         }
     }
 
-    pub fn marshal_binary(&self) -> Result<Vec<u8>, String> {
-        let mut b = Vec::with_capacity(207 + self.init_block.len()); // magic(4) + rate(1) + state(200) + n(1) + direction(1)
-        self.append_binary(&mut b)
-    }
-
-    pub fn append_binary(&self, b: &mut Vec<u8>) -> Result<Vec<u8>, String> {
+    pub fn append_binary(&self, b: &mut Vec<u8>) -> CryptoResult<Vec<u8>> {
         self.d.append_binary(b)?;
         b.extend_from_slice(&self.init_block);
         Ok(b.clone())
     }
+}
 
-    pub fn unmarshal_binary(&mut self, b: &[u8]) -> Result<(), String> {
+impl Marshalable for Shake {
+    fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
+        let mut b = Vec::with_capacity(207 + self.init_block.len()); // magic(4) + rate(1) + state(200) + n(1) + direction(1)
+        self.append_binary(&mut b)
+    }
+
+    fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
         const MARSHALED_SIZE: usize = 207; // magic(4) + rate(1) + state(200) + n(1) + direction(1)
 
         if b.len() < MARSHALED_SIZE {
-            return Err("sha3: invalid hash state".to_string());
+            return Err(CryptoError::InvalidHashState);
         }
 
         self.d.unmarshal_binary(&b[..MARSHALED_SIZE])?;

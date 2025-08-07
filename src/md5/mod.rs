@@ -1,10 +1,14 @@
 mod md5block;
-
 // mod arch;
 // use arch::*;
 
 mod md5_generic;
 use md5_generic::*;
+
+use crate::{
+    error::{CryptoError, CryptoResult},
+    hmac::Marshalable,
+};
 
 #[cfg(test)]
 mod tests;
@@ -30,30 +34,6 @@ pub struct Digest {
     nx: usize,
     len: u64,
 }
-
-#[derive(Debug)]
-pub enum Md5Error {
-    InvalidHashStateIdentifier,
-    InvalidHashStateSize,
-    Fips140OnlyMode,
-}
-
-impl std::fmt::Display for Md5Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Md5Error::InvalidHashStateIdentifier => {
-                write!(f, "crypto/md5: invalid hash state identifier")
-            }
-            Md5Error::InvalidHashStateSize => write!(f, "crypto/md5: invalid hash state size"),
-            Md5Error::Fips140OnlyMode => write!(
-                f,
-                "crypto/md5: use of MD5 is not allowed in FIPS 140-only mode"
-            ),
-        }
-    }
-}
-
-impl std::error::Error for Md5Error {}
 
 impl Default for Digest {
     fn default() -> Self {
@@ -90,11 +70,7 @@ impl Digest {
         BLOCK_SIZE
     }
 
-    pub fn marshal_binary(&self) -> Result<Vec<u8>, Md5Error> {
-        self.append_binary(Vec::with_capacity(MARSHALED_SIZE))
-    }
-
-    pub fn append_binary(&self, mut b: Vec<u8>) -> Result<Vec<u8>, Md5Error> {
+    pub fn append_binary(&self, mut b: Vec<u8>) -> CryptoResult<Vec<u8>> {
         b.extend_from_slice(MAGIC);
         be_append_u32(&mut b, self.s[0]);
         be_append_u32(&mut b, self.s[1]);
@@ -106,41 +82,7 @@ impl Digest {
         Ok(b)
     }
 
-    pub fn unmarshal_binary(&mut self, b: &[u8]) -> Result<(), Md5Error> {
-        if b.len() < MAGIC.len() || &b[..MAGIC.len()] != MAGIC {
-            return Err(Md5Error::InvalidHashStateIdentifier);
-        }
-        if b.len() != MARSHALED_SIZE {
-            return Err(Md5Error::InvalidHashStateSize);
-        }
-
-        let mut b = &b[MAGIC.len()..];
-        let (remaining, s0) = consume_u32(b);
-        b = remaining;
-        let (remaining, s1) = consume_u32(b);
-        b = remaining;
-        let (remaining, s2) = consume_u32(b);
-        b = remaining;
-        let (remaining, s3) = consume_u32(b);
-        b = remaining;
-
-        self.s[0] = s0;
-        self.s[1] = s1;
-        self.s[2] = s2;
-        self.s[3] = s3;
-
-        let copied = b.len().min(self.x.len());
-        self.x[..copied].copy_from_slice(&b[..copied]);
-        b = &b[copied..];
-
-        let (_, len) = consume_u64(b);
-        self.len = len;
-        self.nx = (self.len % BLOCK_SIZE as u64) as usize;
-
-        Ok(())
-    }
-
-    pub fn write(&mut self, p: &[u8]) -> Result<usize, Md5Error> {
+    pub fn write(&mut self, p: &[u8]) -> CryptoResult<usize> {
         let nn = p.len();
         self.len += nn as u64;
         let mut p = p;
@@ -213,6 +155,46 @@ impl Digest {
         le_put_u32(&mut digest[8..], self.s[2]);
         le_put_u32(&mut digest[12..], self.s[3]);
         digest
+    }
+}
+
+impl Marshalable for Digest {
+    fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
+        self.append_binary(Vec::with_capacity(MARSHALED_SIZE))
+    }
+
+    fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
+        if b.len() < MAGIC.len() || &b[..MAGIC.len()] != MAGIC {
+            return Err(CryptoError::InvalidHashIdentifier);
+        }
+        if b.len() != MARSHALED_SIZE {
+            return Err(CryptoError::InvalidHashState);
+        }
+
+        let mut b = &b[MAGIC.len()..];
+        let (remaining, s0) = consume_u32(b);
+        b = remaining;
+        let (remaining, s1) = consume_u32(b);
+        b = remaining;
+        let (remaining, s2) = consume_u32(b);
+        b = remaining;
+        let (remaining, s3) = consume_u32(b);
+        b = remaining;
+
+        self.s[0] = s0;
+        self.s[1] = s1;
+        self.s[2] = s2;
+        self.s[3] = s3;
+
+        let copied = b.len().min(self.x.len());
+        self.x[..copied].copy_from_slice(&b[..copied]);
+        b = &b[copied..];
+
+        let (_, len) = consume_u64(b);
+        self.len = len;
+        self.nx = (self.len % BLOCK_SIZE as u64) as usize;
+
+        Ok(())
     }
 }
 

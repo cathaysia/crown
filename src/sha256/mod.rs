@@ -1,6 +1,10 @@
 use std::io::Write;
 
-use crate::hash::Hash;
+use crate::{
+    error::{CryptoError, CryptoResult},
+    hash::Hash,
+    hmac::Marshalable,
+};
 
 #[cfg(test)]
 mod tests;
@@ -54,12 +58,6 @@ const MAGIC256: &[u8] = b"sha\x03";
 const MARSHALED_SIZE: usize = 4 + 8 * 4 + CHUNK + 8;
 
 impl Digest {
-    pub fn marshal_binary(&self) -> Vec<u8> {
-        let mut b = Vec::with_capacity(MARSHALED_SIZE);
-        self.append_binary(&mut b);
-        b
-    }
-
     pub fn append_binary(&self, b: &mut Vec<u8>) {
         if self.is224 {
             b.extend_from_slice(MAGIC224);
@@ -77,53 +75,6 @@ impl Digest {
         b.extend_from_slice(&self.x[..self.nx]);
         b.extend_from_slice(&vec![0; CHUNK - self.nx]);
         b.extend_from_slice(&self.len.to_be_bytes());
-    }
-
-    pub fn unmarshal_binary(&mut self, b: &[u8]) -> Result<(), &'static str> {
-        if b.len() < MAGIC224.len()
-            || (self.is224 && &b[..MAGIC224.len()] != MAGIC224)
-            || (!self.is224 && &b[..MAGIC256.len()] != MAGIC256)
-        {
-            return Err("invalid hash state identifier");
-        }
-        if b.len() != MARSHALED_SIZE {
-            return Err("invalid hash state size");
-        }
-
-        let mut offset = MAGIC224.len();
-        self.h[0] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[1] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[2] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[3] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[4] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[5] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[6] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[7] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-
-        self.x.copy_from_slice(&b[offset..offset + CHUNK]);
-        offset += CHUNK;
-
-        self.len = u64::from_be_bytes([
-            b[offset],
-            b[offset + 1],
-            b[offset + 2],
-            b[offset + 3],
-            b[offset + 4],
-            b[offset + 5],
-            b[offset + 6],
-            b[offset + 7],
-        ]);
-
-        self.nx = (self.len % CHUNK as u64) as usize;
-        Ok(())
     }
 
     fn check_sum(&mut self) -> [u8; SIZE] {
@@ -160,6 +111,61 @@ impl Digest {
         }
 
         digest
+    }
+}
+
+impl Marshalable for Digest {
+    fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
+        let mut b = Vec::with_capacity(MARSHALED_SIZE);
+        self.append_binary(&mut b);
+        Ok(b)
+    }
+
+    fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
+        if b.len() < MAGIC224.len()
+            || (self.is224 && &b[..MAGIC224.len()] != MAGIC224)
+            || (!self.is224 && &b[..MAGIC256.len()] != MAGIC256)
+        {
+            return Err(CryptoError::InvalidHashIdentifier);
+        }
+        if b.len() != MARSHALED_SIZE {
+            return Err(CryptoError::InvalidHashState);
+        }
+
+        let mut offset = MAGIC224.len();
+        self.h[0] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
+        offset += 4;
+        self.h[1] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
+        offset += 4;
+        self.h[2] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
+        offset += 4;
+        self.h[3] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
+        offset += 4;
+        self.h[4] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
+        offset += 4;
+        self.h[5] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
+        offset += 4;
+        self.h[6] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
+        offset += 4;
+        self.h[7] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
+        offset += 4;
+
+        self.x.copy_from_slice(&b[offset..offset + CHUNK]);
+        offset += CHUNK;
+
+        self.len = u64::from_be_bytes([
+            b[offset],
+            b[offset + 1],
+            b[offset + 2],
+            b[offset + 3],
+            b[offset + 4],
+            b[offset + 5],
+            b[offset + 6],
+            b[offset + 7],
+        ]);
+
+        self.nx = (self.len % CHUNK as u64) as usize;
+        Ok(())
     }
 }
 
@@ -205,7 +211,7 @@ impl Write for Digest {
 }
 
 impl Hash for Digest {
-    fn sum(&self, input: &[u8]) -> Vec<u8> {
+    fn sum(&mut self, input: &[u8]) -> Vec<u8> {
         // Make a copy of self so that caller can keep writing and summing.
         let mut d0 = *self;
         let hash = d0.check_sum();
