@@ -8,6 +8,8 @@ pub mod cbc;
 pub mod ctr;
 mod generic;
 
+pub mod gcm;
+
 use crate::{
     cipher::BlockCipher,
     error::{CryptoError, CryptoResult},
