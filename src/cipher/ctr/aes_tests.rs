@@ -1,5 +1,7 @@
 use cipher::KeyIvInit;
 
+use crate::cipher::ctr::CtrAble;
+
 #[test]
 fn rustcrypto_aes_ctr_interop() {
     let mut key = [0u8; 32];
@@ -12,8 +14,10 @@ fn rustcrypto_aes_ctr_interop() {
         rand::fill(src.as_mut_slice());
         let this = {
             let mut dst = src.clone();
-            let block = crate::aes::Block::new(&key).unwrap();
-            let mut ctr = crate::cipher::ctr::new_ctr(block, &[0u8; 16]).unwrap();
+            let mut ctr = crate::aes::Block::new(&key)
+                .unwrap()
+                .to_ctr(&[0u8; 16])
+                .unwrap();
             ctr.xor_key_stream(&mut dst, &src).unwrap();
             dst
         };

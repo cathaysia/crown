@@ -1,6 +1,6 @@
 use cipher::{generic_array::GenericArray, BlockEncrypt};
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use kittycrypto::aes::BLOCK_SIZE;
+use kittycrypto::{aes::BLOCK_SIZE, cipher::BlockCipher};
 use rc4::KeyInit;
 use std::hint::black_box;
 

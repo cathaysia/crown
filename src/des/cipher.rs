@@ -1,6 +1,10 @@
 use super::block::*;
 use crate::{
-    cipher::BlockCipher,
+    cipher::{
+        cbc::{CbcDecAbleMarker, CbcEncAbleMarker},
+        ctr::CtrAbleMarker,
+        BlockCipher,
+    },
     des::block::{init_feistel_box, FEISTEL_BOX_INIT},
 };
 use std::fmt;
@@ -21,6 +25,10 @@ impl std::error::Error for KeySizeError {}
 pub struct DesCipher {
     pub subkeys: [u64; 16],
 }
+
+impl CtrAbleMarker for DesCipher {}
+impl CbcEncAbleMarker for DesCipher {}
+impl CbcDecAbleMarker for DesCipher {}
 
 impl BlockCipher for DesCipher {
     fn block_size(&self) -> usize {

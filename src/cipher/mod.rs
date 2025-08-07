@@ -1,4 +1,8 @@
+pub mod cbc;
 pub mod ctr;
+
+#[cfg(test)]
+pub mod common_test;
 
 use crate::error::CryptoResult;
 
@@ -38,7 +42,7 @@ pub trait StreamCipher {
 /// ECB etc).
 pub trait BlockMode {
     /// BlockSize returns the mode's block size.
-    fn block_size() -> usize;
+    fn block_size(&self) -> usize;
 
     /// CryptBlocks encrypts or decrypts a number of blocks. The length of
     /// src must be a multiple of the block size. Dst and src must overlap
@@ -51,7 +55,7 @@ pub trait BlockMode {
     /// Multiple calls to CryptBlocks behave as if the concatenation of
     /// the src buffers was passed in a single run. That is, BlockMode
     /// maintains state and does not reset at each CryptBlocks call.
-    fn crypt_blocks(dst: &mut [u8], src: &[u8]);
+    fn crypt_blocks(&mut self, dst: &mut [u8], src: &[u8]);
 }
 
 /// AEAD is a cipher mode providing authenticated encryption with associated

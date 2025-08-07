@@ -13,11 +13,13 @@ use crate::utils::inexact_overlap;
 const STREAM_BUFFER_SIZE: usize = 512;
 
 pub trait CtrAble {
-    fn new_ctr(self, iv: &[u8]) -> CryptoResult<Box<dyn StreamCipher>>;
+    fn to_ctr(self, iv: &[u8]) -> CryptoResult<Box<dyn StreamCipher>>;
 }
 
+pub trait CtrAbleMarker {}
+
 impl CtrAble for aes::Block {
-    fn new_ctr(self, iv: &[u8]) -> CryptoResult<Box<dyn StreamCipher>> {
+    fn to_ctr(self, iv: &[u8]) -> CryptoResult<Box<dyn StreamCipher>> {
         Ok(Box::new(AesCtrWrapper {
             c: aes::ctr::CTR::new(self, iv)?,
         }))
@@ -26,9 +28,9 @@ impl CtrAble for aes::Block {
 
 impl<T> CtrAble for T
 where
-    T: BlockCipher + 'static,
+    T: BlockCipher + CtrAbleMarker + 'static,
 {
-    fn new_ctr(self, iv: &[u8]) -> CryptoResult<Box<dyn StreamCipher>> {
+    fn to_ctr(self, iv: &[u8]) -> CryptoResult<Box<dyn StreamCipher>> {
         if iv.len() != self.block_size() {
             return Err(CryptoError::InvalidIvSize(iv.len()));
         }
@@ -117,8 +119,4 @@ impl<B: BlockCipher> StreamCipher for Ctr<B> {
 
         Ok(())
     }
-}
-
-pub fn new_ctr<B: CtrAble>(block: B, iv: &[u8]) -> CryptoResult<Box<dyn StreamCipher>> {
-    CtrAble::new_ctr(block, iv)
 }

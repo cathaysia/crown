@@ -9,6 +9,7 @@ pub mod ctr;
 mod generic;
 
 use crate::{
+    cipher::BlockCipher,
     error::{CryptoError, CryptoResult},
     utils::inexact_overlap,
 };
@@ -39,12 +40,12 @@ pub struct Block {
     block: BlockExpanded,
 }
 
-impl Block {
-    pub fn block_size(&self) -> usize {
+impl BlockCipher for Block {
+    fn block_size(&self) -> usize {
         BLOCK_SIZE
     }
 
-    pub fn encrypt(&self, dst: &mut [u8], src: &[u8]) {
+    fn encrypt(&self, dst: &mut [u8], src: &[u8]) {
         if src.len() < BLOCK_SIZE {
             panic!("crypto/aes: input not full block");
         }
@@ -57,7 +58,7 @@ impl Block {
         encrypt_block(self, dst, src);
     }
 
-    pub fn decrypt(&self, dst: &mut [u8], src: &[u8]) {
+    fn decrypt(&self, dst: &mut [u8], src: &[u8]) {
         if src.len() < BLOCK_SIZE {
             panic!("crypto/aes: input not full block");
         }
@@ -69,7 +70,9 @@ impl Block {
         }
         decrypt_block(self, dst, src);
     }
+}
 
+impl Block {
     pub fn new(key: &[u8]) -> CryptoResult<Self> {
         match key.len() {
             AES128_KEY_SIZE | AES192_KEY_SIZE | AES256_KEY_SIZE => {
