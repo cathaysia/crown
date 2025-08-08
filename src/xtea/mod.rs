@@ -1,0 +1,108 @@
+// Package xtea implements XTEA encryption, as defined in Needham and Wheeler's
+// 1997 technical report, "Tea extensions."
+//
+// XTEA is a legacy cipher and its short block size makes it vulnerable to
+// birthday bound attacks (see https://sweet32.info). It should only be used
+// where compatibility with legacy systems, not security, is the goal.
+//
+// Deprecated: any new system should use AES (from crypto/aes, if necessary in
+// an AEAD mode like crypto/cipher.NewGCM) or XChaCha20-Poly1305 (from
+// golang.org/x/crypto/chacha20poly1305).
+
+// For details, see http://www.cix.co.uk/~klockstone/xtea.pdf
+
+#[cfg(test)]
+mod tests;
+
+pub mod block;
+
+use std::fmt;
+
+use crate::cipher::BlockCipher;
+
+// The XTEA block size in bytes.
+pub const BLOCK_SIZE: usize = 8;
+
+// A Cipher is an instance of an XTEA cipher using a particular key.
+pub struct Cipher {
+    // table contains a series of precalculated values that are used each round.
+    pub table: [u32; 64],
+}
+
+#[derive(Debug, Clone)]
+pub struct KeySizeError(pub usize);
+
+impl fmt::Display for KeySizeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "crypto/xtea: invalid key size {}", self.0)
+    }
+}
+
+impl std::error::Error for KeySizeError {}
+
+impl Cipher {
+    /// Creates and returns a new Cipher.
+    /// The key argument should be the XTEA key.
+    /// XTEA only supports 128 bit (16 byte) keys.
+    pub fn new(key: &[u8]) -> Result<Self, KeySizeError> {
+        let k = key.len();
+        match k {
+            16 => {
+                let mut c = Cipher { table: [0; 64] };
+                init_cipher(&mut c, key);
+                Ok(c)
+            }
+            _ => Err(KeySizeError(k)),
+        }
+    }
+}
+
+impl BlockCipher for Cipher {
+    /// Returns the XTEA block size, 8 bytes.
+    /// It is necessary to satisfy the Block interface in the
+    /// package "crypto/cipher".
+    fn block_size(&self) -> usize {
+        BLOCK_SIZE
+    }
+
+    /// Encrypts the 8 byte buffer src using the key and stores the result in dst.
+    /// Note that for amounts of data larger than a block,
+    /// it is not safe to just call encrypt on successive blocks;
+    /// instead, use an encryption mode like CBC.
+    fn encrypt(&self, dst: &mut [u8], src: &[u8]) {
+        block::encrypt_block(self, dst, src);
+    }
+
+    /// Decrypts the 8 byte buffer src using the key and stores the result in dst.
+    fn decrypt(&self, dst: &mut [u8], src: &[u8]) {
+        block::decrypt_block(self, dst, src);
+    }
+}
+
+/// Initializes the cipher context by creating a look up table
+/// of precalculated values that are based on the key.
+fn init_cipher(c: &mut Cipher, key: &[u8]) {
+    // Load the key into four u32s
+    let mut k = [0u32; 4];
+    (0..k.len()).for_each(|i| {
+        let j = i << 2; // Multiply by 4
+        k[i] = ((key[j] as u32) << 24)
+            | ((key[j + 1] as u32) << 16)
+            | ((key[j + 2] as u32) << 8)
+            | (key[j + 3] as u32);
+    });
+
+    // Precalculate the table
+    const DELTA: u32 = 0x9E3779B9;
+    let mut sum = 0u32;
+
+    // Two rounds of XTEA applied per loop
+    let mut i = 0;
+    while i < block::NUM_ROUNDS {
+        c.table[i] = sum.wrapping_add(k[(sum & 3) as usize]);
+        i += 1;
+        sum = sum.wrapping_add(DELTA);
+        c.table[i] = sum.wrapping_add(k[((sum >> 11) & 3) as usize]);
+        i += 1;
+    }
+}

@@ -16,6 +16,7 @@ pub mod sha3;
 pub mod sha512;
 pub mod tea;
 pub mod twofish;
+pub mod xtea;
 
 pub mod error;
 
