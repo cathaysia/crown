@@ -1,34 +1,17 @@
 use super::block::*;
 use crate::{
-    cipher::{
-        cbc::{CbcDecAbleMarker, CbcEncAbleMarker},
-        ctr::CtrAbleMarker,
-        BlockCipher,
-    },
+    cipher::{marker::BlockCipherMarker, BlockCipher},
     des::block::{init_feistel_box, FEISTEL_BOX_INIT},
+    error::{CryptoError, CryptoResult},
 };
-use std::fmt;
 
 pub const BLOCK_SIZE: usize = 8;
-
-#[derive(Debug, Clone)]
-pub struct KeySizeError(pub usize);
-
-impl fmt::Display for KeySizeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "crypto/des: invalid key size {}", self.0)
-    }
-}
-
-impl std::error::Error for KeySizeError {}
 
 pub struct DesCipher {
     pub subkeys: [u64; 16],
 }
 
-impl CtrAbleMarker for DesCipher {}
-impl CbcEncAbleMarker for DesCipher {}
-impl CbcDecAbleMarker for DesCipher {}
+impl BlockCipherMarker for DesCipher {}
 
 impl BlockCipher for DesCipher {
     fn block_size(&self) -> usize {
@@ -65,9 +48,9 @@ impl BlockCipher for DesCipher {
 }
 
 impl DesCipher {
-    pub fn new(key: &[u8]) -> Result<Self, KeySizeError> {
+    pub fn new(key: &[u8]) -> CryptoResult<Self> {
         if key.len() != 8 {
-            return Err(KeySizeError(key.len()));
+            return Err(CryptoError::InvalidKeySize(key.len()));
         }
 
         let mut cipher = Self { subkeys: [0; 16] };
@@ -110,11 +93,12 @@ pub struct TripleDesBlockCipher {
     cipher2: DesCipher,
     cipher3: DesCipher,
 }
+impl BlockCipherMarker for TripleDesBlockCipher {}
 
 impl TripleDesBlockCipher {
-    pub fn new(key: &[u8]) -> Result<Self, KeySizeError> {
+    pub fn new(key: &[u8]) -> CryptoResult<Self> {
         if key.len() != 24 {
-            return Err(KeySizeError(key.len()));
+            return Err(CryptoError::InvalidKeySize(key.len()));
         }
 
         let mut cipher1 = DesCipher { subkeys: [0; 16] };
@@ -132,11 +116,22 @@ impl TripleDesBlockCipher {
         })
     }
 
-    pub fn block_size(&self) -> usize {
+    fn inexact_overlap(&self, dst: &[u8], src: &[u8]) -> bool {
+        let dst_ptr = dst.as_ptr() as usize;
+        let src_ptr = src.as_ptr() as usize;
+        let dst_end = dst_ptr + dst.len();
+        let src_end = src_ptr + src.len();
+
+        (dst_ptr < src_end && src_ptr < dst_end) && (dst_ptr != src_ptr)
+    }
+}
+
+impl BlockCipher for TripleDesBlockCipher {
+    fn block_size(&self) -> usize {
         BLOCK_SIZE
     }
 
-    pub fn encrypt(&self, dst: &mut [u8], src: &[u8]) {
+    fn encrypt(&self, dst: &mut [u8], src: &[u8]) {
         if src.len() < BLOCK_SIZE {
             panic!("crypto/des: input not full block");
         }
@@ -196,7 +191,7 @@ impl TripleDesBlockCipher {
         dst[..8].copy_from_slice(&result.to_be_bytes());
     }
 
-    pub fn decrypt(&self, dst: &mut [u8], src: &[u8]) {
+    fn decrypt(&self, dst: &mut [u8], src: &[u8]) {
         if src.len() < BLOCK_SIZE {
             panic!("crypto/des: input not full block");
         }
@@ -254,14 +249,5 @@ impl TripleDesBlockCipher {
         let pre_output = ((right as u64) << 32) | (left as u64);
         let result = permute_final_block(pre_output);
         dst[..8].copy_from_slice(&result.to_be_bytes());
-    }
-
-    fn inexact_overlap(&self, dst: &[u8], src: &[u8]) -> bool {
-        let dst_ptr = dst.as_ptr() as usize;
-        let src_ptr = src.as_ptr() as usize;
-        let dst_end = dst_ptr + dst.len();
-        let src_end = src_ptr + src.len();
-
-        (dst_ptr < src_end && src_ptr < dst_end) && (dst_ptr != src_ptr)
     }
 }

@@ -2,7 +2,7 @@ pub use super::*;
 pub use crate::aes::*;
 
 pub fn ctr_blocks_1(
-    block: &Block,
+    block: &AesCipher,
     destination: &mut [u8],
     source: &[u8],
     iv_low: u64,
@@ -12,7 +12,7 @@ pub fn ctr_blocks_1(
 }
 
 pub fn ctr_blocks_2(
-    block: &Block,
+    block: &AesCipher,
     destination: &mut [u8],
     source: &[u8],
     iv_low: u64,
@@ -22,7 +22,7 @@ pub fn ctr_blocks_2(
 }
 
 pub fn ctr_blocks_4(
-    block: &Block,
+    block: &AesCipher,
     destination: &mut [u8],
     source: &[u8],
     iv_low: u64,
@@ -32,7 +32,7 @@ pub fn ctr_blocks_4(
 }
 
 pub fn ctr_blocks_8(
-    block: &Block,
+    block: &AesCipher,
     destination: &mut [u8],
     source: &[u8],
     iv_low: u64,

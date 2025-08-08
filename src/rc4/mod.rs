@@ -1,8 +1,6 @@
 #[cfg(test)]
 mod tests;
 
-use std::fmt;
-
 use crate::{
     cipher::StreamCipher,
     error::{CryptoError, CryptoResult},
@@ -10,34 +8,22 @@ use crate::{
 };
 
 /// RC4 cipher instance using a particular key
-pub struct Cipher {
+pub struct Rc4Cipher {
     s: [u32; 256],
     i: u8,
     j: u8,
 }
 
-/// Error type for invalid key sizes
-#[derive(Debug, Clone, Copy)]
-pub struct KeySizeError(usize);
-
-impl fmt::Display for KeySizeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "crypto/rc4: invalid key size {}", self.0)
-    }
-}
-
-impl std::error::Error for KeySizeError {}
-
-impl Cipher {
+impl Rc4Cipher {
     /// Creates and returns a new Cipher. The key argument should be the
     /// RC4 key, at least 1 byte and at most 256 bytes.
-    pub fn new(key: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(key: &[u8]) -> CryptoResult<Self> {
         let k = key.len();
         if !(1..=256).contains(&k) {
-            return Err(Box::new(KeySizeError(k)));
+            return Err(CryptoError::InvalidKeySize(k));
         }
 
-        let mut c = Cipher {
+        let mut c = Rc4Cipher {
             s: [0; 256],
             i: 0,
             j: 0,
@@ -71,7 +57,7 @@ impl Cipher {
     }
 }
 
-impl StreamCipher for Cipher {
+impl StreamCipher for Rc4Cipher {
     /// Sets dst to the result of XORing src with the key stream.
     /// Dst and src must overlap entirely or not at all.
     fn xor_key_stream(&mut self, dst: &mut [u8], src: &[u8]) -> CryptoResult<()> {

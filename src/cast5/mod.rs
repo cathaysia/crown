@@ -15,38 +15,28 @@ mod tests;
 
 use data::S_BOX;
 
-use crate::{cast5::data::SCHEDULE, cipher::BlockCipher};
+use crate::{
+    cast5::data::SCHEDULE,
+    cipher::{marker::BlockCipherMarker, BlockCipher},
+    error::{CryptoError, CryptoResult},
+};
 
 pub const BLOCK_SIZE: usize = 8;
 pub const KEY_SIZE: usize = 16;
 
-pub struct Cipher {
+pub struct Cast5Cipher {
     masking: [u32; 16],
     rotate: [u8; 16],
 }
+impl BlockCipherMarker for Cast5Cipher {}
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Cast5Error {
-    InvalidKeySize,
-}
-
-impl std::fmt::Display for Cast5Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Cast5Error::InvalidKeySize => write!(f, "CAST5: keys must be 16 bytes"),
-        }
-    }
-}
-
-impl std::error::Error for Cast5Error {}
-
-impl Cipher {
-    pub fn new(key: &[u8]) -> Result<Self, Cast5Error> {
+impl Cast5Cipher {
+    pub fn new(key: &[u8]) -> CryptoResult<Self> {
         if key.len() != KEY_SIZE {
-            return Err(Cast5Error::InvalidKeySize);
+            return Err(CryptoError::InvalidKeySize(key.len()));
         }
 
-        let mut cipher = Cipher {
+        let mut cipher = Cast5Cipher {
             masking: [0; 16],
             rotate: [0; 16],
         };
@@ -102,7 +92,7 @@ impl Cipher {
         }
     }
 }
-impl BlockCipher for Cipher {
+impl BlockCipher for Cast5Cipher {
     fn block_size(&self) -> usize {
         BLOCK_SIZE
     }

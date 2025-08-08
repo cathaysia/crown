@@ -1,9 +1,9 @@
 //!    Implementation adapted from Needham and Wheeler's paper:
-//!    http://www.cix.co.uk/~klockstone/xtea.pdf
+//!    <http://www.cix.co.uk/~klockstone/xtea.pdf>
 //!
 //!    A precalculated look up table is used during encryption/decryption for values that are based purely on the key.
 
-use super::Cipher;
+use super::Xtea;
 
 // XTEA is based on 64 rounds.
 pub(crate) const NUM_ROUNDS: usize = 64;
@@ -36,7 +36,7 @@ fn u32_to_block(v0: u32, v1: u32, dst: &mut [u8]) {
 }
 
 /// Encrypts a single 8 byte block using XTEA.
-pub fn encrypt_block(c: &Cipher, dst: &mut [u8], src: &[u8]) {
+pub fn encrypt_block(c: &Xtea, dst: &mut [u8], src: &[u8]) {
     let (mut v0, mut v1) = block_to_u32(src);
 
     // Two rounds of XTEA applied per loop
@@ -52,7 +52,7 @@ pub fn encrypt_block(c: &Cipher, dst: &mut [u8], src: &[u8]) {
 }
 
 /// Decrypts a single 8 byte block using XTEA.
-pub fn decrypt_block(c: &Cipher, dst: &mut [u8], src: &[u8]) {
+pub fn decrypt_block(c: &Xtea, dst: &mut [u8], src: &[u8]) {
     let (mut v0, mut v1) = block_to_u32(src);
 
     // Two rounds of XTEA applied per loop

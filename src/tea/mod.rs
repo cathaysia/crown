@@ -2,10 +2,10 @@
 //!
 //! This module implements the TEA algorithm, as defined in Needham and
 //! Wheeler's 1994 technical report, "TEA, a Tiny Encryption Algorithm". See
-//! http://www.cix.co.uk/~klockstone/tea.pdf for details.
+//! <http://www.cix.co.uk/~klockstone/tea.pdf> for details.
 //!
 //! TEA is a legacy cipher and its short block size makes it vulnerable to
-//! birthday bound attacks (see https://sweet32.info). It should only be used
+//! birthday bound attacks (see <https://sweet32.info>). It should only be used
 //! where compatibility with legacy systems, not security, is the goal.
 //!
 //! Deprecated: any new system should use AES (from crypto/aes, if necessary in
@@ -15,6 +15,7 @@
 #[cfg(test)]
 mod tests;
 
+use crate::cipher::marker::BlockCipherMarker;
 use crate::cipher::BlockCipher;
 
 use crate::error::CryptoError;
@@ -36,6 +37,8 @@ pub struct Tea {
     key: [u8; 16],
     rounds: usize,
 }
+
+impl BlockCipherMarker for Tea {}
 
 impl Tea {
     /// Creates a new TEA cipher instance with the standard number of rounds.

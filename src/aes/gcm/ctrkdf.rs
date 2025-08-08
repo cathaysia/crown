@@ -6,11 +6,11 @@
 //! the sequence Label || 0x00 || Context. The L field is omitted, since the
 //! output key length is fixed.
 //!
-//! It's optimized for use in XAES-256-GCM (https://c2sp.org/XAES-256-GCM),
+//! It's optimized for use in [XAES-256-GCM](https://c2sp.org/XAES-256-GCM),
 //! rather than for exposing it to applications as a stand-alone KDF.
 
 use super::cmac::Cmac;
-use crate::aes::{Block, BLOCK_SIZE};
+use crate::aes::{AesCipher, BLOCK_SIZE};
 
 /// CounterKDF implements a KDF in Counter Mode instantiated with CMAC-AES.
 pub struct CounterKDF {
@@ -19,7 +19,7 @@ pub struct CounterKDF {
 
 impl CounterKDF {
     /// Creates a new CounterKDF with the given AES block cipher.
-    pub fn new(b: Block) -> Self {
+    pub fn new(b: AesCipher) -> Self {
         CounterKDF { mac: Cmac::new(b) }
     }
 

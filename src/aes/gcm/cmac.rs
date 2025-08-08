@@ -1,22 +1,23 @@
 //! CMAC implements the CMAC mode from NIST SP 800-38B.
 //!
-//! It is optimized for use in Counter KDF (SP 800-108r1) and XAES-256-GCM
-//! (https://c2sp.org/XAES-256-GCM), rather than for exposing it to applications
+//! It is optimized for use in Counter KDF (SP 800-108r1) and
+//! [XAES-256-GCM](https://c2sp.org/XAES-256-GCM), rather than
+//! for exposing it to applications
 //! as a stand-alone MAC.
 
-use crate::aes::{Block, BLOCK_SIZE};
+use crate::aes::{AesCipher, BLOCK_SIZE};
 use crate::subtle::xor::xor_bytes;
 
 /// CMAC implements the CMAC mode from NIST SP 800-38B.
 pub struct Cmac {
-    b: Block,
+    b: AesCipher,
     k1: [u8; BLOCK_SIZE],
     k2: [u8; BLOCK_SIZE],
 }
 
 impl Cmac {
     /// Creates a new CMAC instance with the given AES block cipher.
-    pub fn new(b: Block) -> Self {
+    pub fn new(b: AesCipher) -> Self {
         let mut cmac = Cmac {
             b,
             k1: [0; BLOCK_SIZE],

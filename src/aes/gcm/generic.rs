@@ -1,6 +1,6 @@
 use super::ghash::ghash;
 use super::*;
-use crate::aes::Block;
+use crate::aes::AesCipher;
 use crate::error::{CryptoError, CryptoResult};
 use crate::subtle::xor::xor_bytes;
 
@@ -118,7 +118,7 @@ fn derive_counter_generic(
 // wrapping (which is different from AES-CTR) and places the result into out.
 // counter is the initial value and will be updated with the next value.
 fn gcm_counter_crypt_generic(
-    b: &Block,
+    b: &AesCipher,
     out: &mut [u8],
     src: &[u8],
     counter: &mut [u8; GCM_BLOCK_SIZE],

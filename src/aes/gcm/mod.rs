@@ -7,14 +7,14 @@ pub mod nonces;
 mod noasm;
 pub use noasm::*;
 
-use crate::aes::Block;
+use crate::aes::AesCipher;
 use crate::cipher::BlockCipher;
 use crate::error::{CryptoError, CryptoResult};
 use crate::utils::{any_overlap, inexact_overlap};
 
 // GCM represents a Galois Counter Mode with a specific key.
 pub struct GCM {
-    cipher: Block,
+    cipher: AesCipher,
     nonce_size: usize,
     tag_size: usize,
 }
@@ -27,14 +27,14 @@ pub const GCM_STANDARD_NONCE_SIZE: usize = 12;
 
 impl GCM {
     /// Create a new GCM instance with the given cipher, nonce size, and tag size.
-    pub fn new(cipher: Block, nonce_size: usize, tag_size: usize) -> CryptoResult<Self> {
+    pub fn new(cipher: AesCipher, nonce_size: usize, tag_size: usize) -> CryptoResult<Self> {
         // This function is outlined to let the allocation happen on the parent stack.
         Self::new_gcm(cipher, nonce_size, tag_size)
     }
 
     /// Internal function to create a new GCM instance.
     /// This is marked as a separate function to avoid inlining complexity.
-    fn new_gcm(cipher: Block, nonce_size: usize, tag_size: usize) -> CryptoResult<Self> {
+    fn new_gcm(cipher: AesCipher, nonce_size: usize, tag_size: usize) -> CryptoResult<Self> {
         if !(GCM_MINIMUM_TAG_SIZE..=GCM_BLOCK_SIZE).contains(&tag_size) {
             return Err(CryptoError::InvalidParameter(
                 "incorrect tag size given to GCM".to_string(),

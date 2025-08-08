@@ -14,7 +14,7 @@ fn rustcrypto_aes_ctr_interop() {
         rand::fill(src.as_mut_slice());
         let this = {
             let mut dst = src.clone();
-            let mut ctr = crate::aes::Block::new(&key)
+            let mut ctr = crate::aes::AesCipher::new(&key)
                 .unwrap()
                 .to_ctr(&[0u8; 16])
                 .unwrap();

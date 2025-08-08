@@ -87,24 +87,24 @@ fn test_golden() {
         // Test digest with various write patterns
         let mut buf = vec![0u8; test.input.len() + 4];
         for j in 0..7 {
-            let mut c = Digest::new();
+            let mut c = Md5::new();
 
             match j.cmp(&2) {
                 Ordering::Less => {
-                    c.write(test.input.as_bytes()).unwrap();
+                    c.write_all(test.input.as_bytes()).unwrap();
                 }
                 Ordering::Equal => {
                     let half = test.input.len() / 2;
-                    c.write(&test.input.as_bytes()[..half]).unwrap();
+                    c.write_all(&test.input.as_bytes()[..half]).unwrap();
                     c.sum(&[]);
-                    c.write(&test.input.as_bytes()[half..]).unwrap();
+                    c.write_all(&test.input.as_bytes()[half..]).unwrap();
                 }
                 _ => {
                     // Test unaligned write
                     buf = buf[1..].to_vec();
                     buf.resize(test.input.len() + 3, 0);
                     buf[..test.input.len()].copy_from_slice(test.input.as_bytes());
-                    c.write(&buf[..test.input.len()]).unwrap();
+                    c.write_all(&buf[..test.input.len()]).unwrap();
                 }
             }
 
@@ -123,11 +123,11 @@ fn test_golden() {
 #[test]
 fn test_golden_marshal() {
     for test in GOLDEN.iter() {
-        let mut h = Digest::new();
-        let mut h2 = Digest::new();
+        let mut h = Md5::new();
+        let mut h2 = Md5::new();
 
         let half = test.input.len() / 2;
-        h.write(&test.input.as_bytes()[..half]).unwrap();
+        h.write_all(&test.input.as_bytes()[..half]).unwrap();
 
         let state = h.marshal_binary().unwrap();
         let state_append_vec = h.append_binary(vec![0u8; 4]).unwrap();
@@ -146,8 +146,8 @@ fn test_golden_marshal() {
 
         h2.unmarshal_binary(&state).unwrap();
 
-        h.write(&test.input.as_bytes()[half..]).unwrap();
-        h2.write(&test.input.as_bytes()[half..]).unwrap();
+        h.write_all(&test.input.as_bytes()[half..]).unwrap();
+        h2.write_all(&test.input.as_bytes()[half..]).unwrap();
 
         let actual = h.sum(&[]);
         let actual2 = h2.sum(&[]);
@@ -175,10 +175,10 @@ fn test_large() {
         while block_size <= N {
             let blocks = N / block_size;
             let b = &block[offset..offset + block_size];
-            let mut c = Digest::new();
+            let mut c = Md5::new();
 
             for _ in 0..blocks {
-                c.write(b).unwrap();
+                c.write_all(b).unwrap();
             }
 
             let result = c.sum(&[]);
@@ -210,10 +210,10 @@ fn test_extra_large() {
         while block_size <= N {
             let blocks = N / block_size;
             let b = &block[offset..offset + block_size];
-            let mut c = Digest::new();
+            let mut c = Md5::new();
 
             for _ in 0..blocks {
-                c.write(b).unwrap();
+                c.write_all(b).unwrap();
             }
 
             let result = c.sum(&[]);
@@ -231,8 +231,8 @@ fn test_extra_large() {
 
 #[test]
 fn test_block_generic() {
-    let mut gen = Digest::new();
-    let mut asm = Digest::new();
+    let mut gen = Md5::new();
+    let mut asm = Md5::new();
     let buf = vec![0x42u8; BLOCK_SIZE * 20];
 
     block_generic(&mut gen, &buf);
@@ -274,7 +274,7 @@ static LARGE_UNMARSHAL_TESTS: &[UnmarshalTest] = &[
     },
 ];
 
-fn safe_sum(h: &mut Digest) -> Result<Vec<u8>, String> {
+fn safe_sum(h: &mut Md5) -> Result<Vec<u8>, String> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| h.sum(&[])))
         .map_err(|_| "sum panic".to_string())
 }
@@ -283,7 +283,7 @@ fn safe_sum(h: &mut Digest) -> Result<Vec<u8>, String> {
 // #[ignore] // Skip large hash tests - these require specific state data that may not match our implementation
 fn test_large_hashes() {
     for (i, test) in LARGE_UNMARSHAL_TESTS.iter().enumerate() {
-        let mut h = Digest::new();
+        let mut h = Md5::new();
         if let Err(e) = h.unmarshal_binary(&test.state) {
             panic!("test {} could not unmarshal: {:?}", i, e);
         }

@@ -1,7 +1,7 @@
 //! MD4 block step.
 //! In its own file so that a faster assembly or C version
 //! can be substituted easily.
-use super::Digest;
+use super::Md4;
 
 const SHIFT1: [u32; 4] = [3, 7, 11, 19];
 const SHIFT2: [u32; 4] = [3, 5, 9, 13];
@@ -12,7 +12,7 @@ const X_INDEX3: [usize; 16] = [0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7,
 
 const CHUNK: usize = 64;
 
-pub fn block(dig: &mut Digest, mut p: &[u8]) -> usize {
+pub fn block(dig: &mut Md4, mut p: &[u8]) -> usize {
     let mut a = dig.s[0];
     let mut b = dig.s[1];
     let mut c = dig.s[2];

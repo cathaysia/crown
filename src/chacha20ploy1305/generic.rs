@@ -4,7 +4,7 @@ use crate::{
     error::{CryptoError, CryptoResult},
 };
 
-type ChaCha20 = crate::chacha20::Cipher;
+type ChaCha20 = crate::chacha20::Chacha20Cipher;
 type Poly1305 = crate::ploy1305::MAC;
 
 const POLY1305_TAG_SIZE: usize = 16;

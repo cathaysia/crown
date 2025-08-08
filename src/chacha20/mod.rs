@@ -25,7 +25,7 @@ const J3: u32 = 0x6b206574; // te k
 
 /// Cipher is a stateful instance of ChaCha20 or XChaCha20 using a particular key
 /// and nonce. A Cipher implements the StreamCipher trait.
-pub struct Cipher {
+pub struct Chacha20Cipher {
     // The ChaCha20 state is 16 words: 4 constant, 8 of key, 1 of counter
     // (incremented after each block), and 3 of nonce.
     key: [u32; 8],
@@ -59,7 +59,7 @@ pub struct Cipher {
     p15: u32,
 }
 
-impl StreamCipher for Cipher {
+impl StreamCipher for Chacha20Cipher {
     fn xor_key_stream(&mut self, dst: &mut [u8], mut src: &[u8]) -> CryptoResult<()> {
         if src.is_empty() {
             return Ok(());
@@ -156,7 +156,7 @@ impl StreamCipher for Cipher {
     }
 }
 
-impl Cipher {
+impl Chacha20Cipher {
     /// new_unauthenticated_cipher creates a new ChaCha20 stream cipher with the given
     /// 32 bytes key and a 12 or 24 bytes nonce. If a nonce of 24 bytes is provided,
     /// the XChaCha20 construction will be used. It returns an error if key or nonce
@@ -165,7 +165,7 @@ impl Cipher {
     /// Note that ChaCha20, like all stream ciphers, is not authenticated and allows
     /// attackers to silently tamper with the plaintext.
     pub fn new_unauthenticated_cipher(key: &[u8], nonce: &[u8]) -> CryptoResult<Self> {
-        let mut c = Cipher {
+        let mut c = Chacha20Cipher {
             key: [0; 8],
             counter: 0,
             nonce: [0; 3],

@@ -5,6 +5,7 @@ mod tests;
 
 use super::*;
 use crate::aes;
+use crate::cipher::marker::BlockCipherMarker;
 use crate::cipher::StreamCipher;
 use crate::error::{CryptoError, CryptoResult};
 use crate::subtle::xor::xor_bytes;
@@ -17,8 +18,9 @@ pub trait CtrAble {
 }
 
 pub trait CtrAbleMarker {}
+impl<T: BlockCipherMarker> CtrAbleMarker for T {}
 
-impl CtrAble for aes::Block {
+impl CtrAble for aes::AesCipher {
     fn to_ctr(self, iv: &[u8]) -> CryptoResult<Box<dyn StreamCipher>> {
         Ok(Box::new(AesCtrWrapper {
             c: aes::ctr::CTR::new(self, iv)?,

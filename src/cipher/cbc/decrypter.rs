@@ -1,5 +1,5 @@
 use crate::{
-    cipher::{BlockCipher, BlockMode},
+    cipher::{marker::BlockCipherMarker, BlockCipher, BlockMode},
     subtle::xor::xor_bytes,
 };
 
@@ -16,6 +16,7 @@ pub trait CbcDecAble<B: BlockCipher> {
 }
 
 pub trait CbcDecAbleMarker {}
+impl<T: BlockCipherMarker> CbcDecAbleMarker for T {}
 
 impl<B: BlockCipher + CbcDecAbleMarker + 'static> CbcDecAble<B> for B {
     fn to_cbc_dec(self, iv: &[u8]) -> Box<dyn BlockMode> {
@@ -23,7 +24,7 @@ impl<B: BlockCipher + CbcDecAbleMarker + 'static> CbcDecAble<B> for B {
     }
 }
 
-impl CbcDecAble<crate::aes::Block> for crate::aes::Block {
+impl CbcDecAble<crate::aes::AesCipher> for crate::aes::AesCipher {
     fn to_cbc_dec(self, iv: &[u8]) -> Box<dyn BlockMode> {
         Box::new(crate::aes::cbc::CBCDecrypter::new(
             self,

@@ -1,4 +1,4 @@
-use crate::md5::Digest;
+use crate::md5::Md5;
 
 const SHIFT1: [u32; 4] = [7, 12, 17, 22];
 const SHIFT2: [u32; 4] = [5, 9, 14, 20];
@@ -80,7 +80,7 @@ macro_rules! md5_round4 {
     };
 }
 
-pub fn block_generic(dig: &mut Digest, p: &[u8]) {
+pub fn block_generic(dig: &mut Md5, p: &[u8]) {
     let mut a = dig.s[0];
     let mut b = dig.s[1];
     let mut c = dig.s[2];

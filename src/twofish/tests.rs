@@ -16,7 +16,7 @@ fn rustcrypto_twofish_interop() {
         rand::fill(src.as_mut_slice());
         let this = {
             let mut dst = src;
-            let cipher = super::new_cipher(&key).unwrap();
+            let cipher = super::Twofish::new(&key).unwrap();
 
             for i in (0..src.len()).step_by(BLOCK_SIZE) {
                 let end = (i + BLOCK_SIZE).min(src.len());

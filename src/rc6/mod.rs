@@ -2,30 +2,16 @@
 mod tests;
 
 mod imp;
-use crate::cipher::BlockCipher;
+use crate::cipher::{marker::BlockCipherMarker, BlockCipher};
 use imp::*;
 
-use std::{fmt, mem::MaybeUninit};
+use std::mem::MaybeUninit;
 
 pub struct Rc6 {
     skey: Rc6Key,
 }
 
-impl BlockCipher for Rc6 {
-    fn block_size(&self) -> usize {
-        16
-    }
-
-    fn encrypt(&self, dst: &mut [u8], src: &[u8]) {
-        let ret = rc6_ecb_encrypt(src, dst, &self.skey);
-        assert!(ret.is_ok());
-    }
-
-    fn decrypt(&self, dst: &mut [u8], src: &[u8]) {
-        let ret = rc6_ecb_decrypt(src, dst, &self.skey);
-        assert!(ret.is_ok());
-    }
-}
+impl BlockCipherMarker for Rc6 {}
 
 impl Rc6 {
     pub fn new(key: &[u8], num_rounds: usize) -> Self {
@@ -41,8 +27,18 @@ impl Rc6 {
     }
 }
 
-impl fmt::Debug for Rc6 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Rc6 { ... }")
+impl BlockCipher for Rc6 {
+    fn block_size(&self) -> usize {
+        16
+    }
+
+    fn encrypt(&self, dst: &mut [u8], src: &[u8]) {
+        let ret = rc6_ecb_encrypt(src, dst, &self.skey);
+        assert!(ret.is_ok());
+    }
+
+    fn decrypt(&self, dst: &mut [u8], src: &[u8]) {
+        let ret = rc6_ecb_decrypt(src, dst, &self.skey);
+        assert!(ret.is_ok());
     }
 }

@@ -22,7 +22,7 @@ fn bench_chacha20(c: &mut Criterion) {
 
         group.bench_function(format!("kittycrypto_chacha20_{size}",), |b| {
             let mut cipher =
-                kittycrypto::chacha20::Cipher::new_unauthenticated_cipher(&key, &[0u8; 12])
+                kittycrypto::chacha20::Chacha20Cipher::new_unauthenticated_cipher(&key, &[0u8; 12])
                     .unwrap();
             let mut dst = data.clone();
             b.iter(|| {

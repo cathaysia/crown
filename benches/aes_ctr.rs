@@ -21,7 +21,7 @@ fn bench_aes_ctr(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(size as u64));
 
         group.bench_function(format!("kittycrypto_aes_ctr_{size}",), |b| {
-            let mut cipher = kittycrypto::aes::Block::new(&key)
+            let mut cipher = kittycrypto::aes::AesCipher::new(&key)
                 .unwrap()
                 .to_ctr(&[0u8; 16])
                 .unwrap();

@@ -24,16 +24,24 @@ const INIT1: u32 = 0xEFCDAB89;
 const INIT2: u32 = 0x98BADCFE;
 const INIT3: u32 = 0x10325476;
 
-pub struct Digest {
+#[derive(Clone)]
+pub struct Md4 {
     pub s: [u32; 4],
     pub x: [u8; CHUNK],
     pub nx: usize,
     pub len: u64,
 }
 
-impl Digest {
+impl Default for Md4 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Md4 {
+    /// Create a new MD4 hasher
     pub fn new() -> Self {
-        let mut d = Digest {
+        let mut d = Md4 {
             s: [0; 4],
             x: [0; CHUNK],
             nx: 0,
@@ -62,7 +70,7 @@ impl Digest {
 
     pub fn sum(&mut self, input: &[u8]) -> Vec<u8> {
         // Make a copy of self, so that caller can keep writing and summing.
-        let mut d = *self;
+        let mut d = self.clone();
 
         // Padding. Add a 1 bit and 0 bits until 56 bytes mod 64.
         let len = d.len;
@@ -97,7 +105,7 @@ impl Digest {
     }
 }
 
-impl Write for Digest {
+impl Write for Md4 {
     fn write(&mut self, p: &[u8]) -> io::Result<usize> {
         let nn = p.len();
         self.len += nn as u64;
@@ -131,7 +139,7 @@ impl Write for Digest {
     }
 }
 
-impl Hash for Digest {
+impl Hash for Md4 {
     fn sum(&mut self, input: &[u8]) -> Vec<u8> {
         self.sum(input)
     }
@@ -149,27 +157,8 @@ impl Hash for Digest {
     }
 }
 
-impl Default for Digest {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Clone for Digest {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl Copy for Digest {}
-
-/// Create a new MD4 hasher
-pub fn new() -> Digest {
-    Digest::new()
-}
-
 pub fn sum(input: &[u8]) -> [u8; 16] {
-    let mut h = new();
+    let mut h = Md4::new();
     h.write_all(input).unwrap();
     h.sum(&[]).try_into().unwrap()
 }

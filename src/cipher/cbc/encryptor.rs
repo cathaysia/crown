@@ -1,5 +1,5 @@
 use crate::{
-    cipher::{BlockCipher, BlockMode},
+    cipher::{marker::BlockCipherMarker, BlockCipher, BlockMode},
     subtle::xor::xor_bytes,
     utils::inexact_overlap,
 };
@@ -17,6 +17,7 @@ pub trait CbcEncAble<B> {
 }
 
 pub trait CbcEncAbleMarker {}
+impl<T: BlockCipherMarker> CbcEncAbleMarker for T {}
 
 /// CBC encryptor
 pub struct CbcEncrypter<B: BlockCipher>(Cbc<B>);
@@ -30,7 +31,7 @@ impl<B: BlockCipher> CbcEncrypter<B> {
     }
 }
 
-impl CbcEncAble<crate::aes::Block> for crate::aes::Block {
+impl CbcEncAble<crate::aes::AesCipher> for crate::aes::AesCipher {
     fn to_cbc_enc(self, iv: &[u8]) -> Box<dyn BlockMode> {
         Box::new(crate::aes::cbc::CBCEncryptor::new(
             self,

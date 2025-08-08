@@ -1,6 +1,3 @@
-#[cfg(test)]
-mod tests;
-
 mod consts;
 use consts::*;
 
@@ -8,7 +5,13 @@ pub mod cbc;
 pub mod ctr;
 mod generic;
 
+mod noasm;
+use noasm::*;
+
 pub mod gcm;
+
+#[cfg(test)]
+mod tests;
 
 use crate::{
     cipher::BlockCipher,
@@ -26,23 +29,36 @@ const AES128_ROUNDS: usize = 10;
 const AES192_ROUNDS: usize = 12;
 const AES256_ROUNDS: usize = 14;
 
-pub struct BlockExpanded {
-    pub rounds: usize,
-    pub enc: [u32; 60],
-    pub dec: [u32; 60],
-}
-
-impl BlockExpanded {
-    pub fn round_keys_size(&self) -> usize {
-        (self.rounds + 1) * (128 / 32)
-    }
-}
-
-pub struct Block {
+pub struct AesCipher {
     block: BlockExpanded,
 }
 
-impl BlockCipher for Block {
+impl AesCipher {
+    // NewCipher creates and returns a new [cipher.Block].
+    // The key argument should be the AES key,
+    // either 16, 24, or 32 bytes to select
+    // AES-128, AES-192, or AES-256.
+    pub fn new(key: &[u8]) -> CryptoResult<Self> {
+        match key.len() {
+            AES128_KEY_SIZE | AES192_KEY_SIZE | AES256_KEY_SIZE => {
+                let mut block = BlockExpanded {
+                    rounds: 0,
+                    enc: [0; 60],
+                    dec: [0; 60],
+                };
+                BlockExpanded::expand(&mut block, key);
+                Ok(AesCipher { block })
+            }
+            len => Err(CryptoError::InvalidKeySize(len)),
+        }
+    }
+
+    pub fn encrypt_block_internal(&self, dst: &mut [u8], src: &[u8]) {
+        encrypt_block(self, dst, src);
+    }
+}
+
+impl BlockCipher for AesCipher {
     fn block_size(&self) -> usize {
         BLOCK_SIZE
     }
@@ -74,49 +90,24 @@ impl BlockCipher for Block {
     }
 }
 
-impl Block {
-    pub fn new(key: &[u8]) -> CryptoResult<Self> {
+pub struct BlockExpanded {
+    pub rounds: usize,
+    pub enc: [u32; 60],
+    pub dec: [u32; 60],
+}
+
+impl BlockExpanded {
+    fn expand(c: &mut BlockExpanded, key: &[u8]) {
         match key.len() {
-            AES128_KEY_SIZE | AES192_KEY_SIZE | AES256_KEY_SIZE => {
-                let mut block = BlockExpanded {
-                    rounds: 0,
-                    enc: [0; 60],
-                    dec: [0; 60],
-                };
-                new_block_expanded(&mut block, key);
-                Ok(Block { block })
-            }
-            len => Err(CryptoError::InvalidKeySize(len)),
+            AES128_KEY_SIZE => c.rounds = AES128_ROUNDS,
+            AES192_KEY_SIZE => c.rounds = AES192_ROUNDS,
+            AES256_KEY_SIZE => c.rounds = AES256_ROUNDS,
+            _ => unreachable!(),
         }
+        generic::expand_key_generic(c, key);
     }
 
-    pub fn encrypt_block_internal(&self, dst: &mut [u8], src: &[u8]) {
-        encrypt_block(self, dst, src);
+    pub fn round_keys_size(&self) -> usize {
+        (self.rounds + 1) * (128 / 32)
     }
-}
-
-fn new_block_expanded(c: &mut BlockExpanded, key: &[u8]) {
-    match key.len() {
-        AES128_KEY_SIZE => c.rounds = AES128_ROUNDS,
-        AES192_KEY_SIZE => c.rounds = AES192_ROUNDS,
-        AES256_KEY_SIZE => c.rounds = AES256_ROUNDS,
-        _ => unreachable!(),
-    }
-    generic::expand_key_generic(c, key);
-}
-
-fn encrypt_block(c: &Block, dst: &mut [u8], src: &[u8]) {
-    generic::encrypt_block_generic(&c.block, dst, src);
-}
-
-fn decrypt_block(c: &Block, dst: &mut [u8], src: &[u8]) {
-    generic::decrypt_block_generic(&c.block, dst, src);
-}
-
-// NewCipher creates and returns a new [cipher.Block].
-// The key argument should be the AES key,
-// either 16, 24, or 32 bytes to select
-// AES-128, AES-192, or AES-256.
-pub fn new_cipher(key: &[u8]) -> CryptoResult<Block> {
-    Block::new(key)
 }

@@ -1,6 +1,6 @@
 //! HMAC implementation according to FIPS 198-1.
 //!
-//! FIPS 198-1: https://doi.org/10.6028/NIST.FIPS.198-1
+//! FIPS 198-1: <https://doi.org/10.6028/NIST.FIPS.198-1>
 
 #[cfg(test)]
 mod tests;

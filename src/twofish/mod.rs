@@ -16,7 +16,10 @@
 #[cfg(test)]
 mod tests;
 
-use crate::{cipher::BlockCipher, error::CryptoError};
+use crate::{
+    cipher::{marker::BlockCipherMarker, BlockCipher},
+    error::{CryptoError, CryptoResult},
+};
 
 // BlockSize is the constant block size of Twofish.
 pub const BLOCK_SIZE: usize = 16;
@@ -25,162 +28,149 @@ const MDS_POLYNOMIAL: u32 = 0x169; // x^8 + x^6 + x^5 + x^3 + 1, see [TWOFISH] 4
 const RS_POLYNOMIAL: u32 = 0x14d; // x^8 + x^6 + x^3 + x^2 + 1, see [TWOFISH] 4.3
 
 // A Cipher is an instance of Twofish encryption using a particular key.
-pub struct Cipher {
+pub struct Twofish {
     s: [[u32; 256]; 4],
     k: [u32; 40],
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct KeySizeError(pub usize);
+impl BlockCipherMarker for Twofish {}
 
-impl std::fmt::Display for KeySizeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "crypto/twofish: invalid key size {}", self.0)
+impl Twofish {
+    // NewCipher creates and returns a Cipher.
+    // The key argument should be the Twofish key, 16, 24 or 32 bytes.
+    pub fn new(key: &[u8]) -> CryptoResult<Twofish> {
+        let keylen = key.len();
+
+        if keylen != 16 && keylen != 24 && keylen != 32 {
+            return Err(CryptoError::InvalidKeySize(keylen));
+        }
+
+        // k is the number of 64 bit words in key
+        let k = keylen / 8;
+
+        // Create the S[..] words
+        let mut s = [0u8; 4 * 4];
+        for i in 0..k {
+            // Computes [y0 y1 y2 y3] = rs . [x0 x1 x2 x3 x4 x5 x6 x7]
+            for (j, rs_row) in RS.iter().enumerate() {
+                for (k_idx, &rs_val) in rs_row.iter().enumerate() {
+                    s[4 * i + j] ^= gf_mult(key[8 * i + k_idx], rs_val, RS_POLYNOMIAL);
+                }
+            }
+        }
+
+        // Calculate subkeys
+        let mut c = Twofish {
+            s: [[0; 256]; 4],
+            k: [0; 40],
+        };
+
+        let mut tmp = [0u8; 4];
+        for i in 0u8..20 {
+            // A = h(p * 2x, Me)
+            (0..tmp.len()).for_each(|j| {
+                tmp[j] = 2 * i;
+            });
+            let a = h(&tmp, key, 0);
+
+            // B = rolc(h(p * (2x + 1), Mo), 8)
+            (0..tmp.len()).for_each(|j| {
+                tmp[j] = 2 * i + 1;
+            });
+            let b = h(&tmp, key, 1);
+            let b = b.rotate_left(8);
+
+            c.k[2 * i as usize] = a.wrapping_add(b);
+
+            // K[2i+1] = (A + 2B) <<< 9
+            c.k[2 * i as usize + 1] = (2u32.wrapping_mul(b).wrapping_add(a)).rotate_left(9);
+        }
+
+        // Calculate sboxes
+        match k {
+            2 => {
+                for i in 0..256 {
+                    c.s[0][i] = mds_column_mult(
+                        SBOX[1][(SBOX[0][(SBOX[0][i] ^ s[0]) as usize] ^ s[4]) as usize],
+                        0,
+                    );
+                    c.s[1][i] = mds_column_mult(
+                        SBOX[0][(SBOX[0][(SBOX[1][i] ^ s[1]) as usize] ^ s[5]) as usize],
+                        1,
+                    );
+                    c.s[2][i] = mds_column_mult(
+                        SBOX[1][(SBOX[1][(SBOX[0][i] ^ s[2]) as usize] ^ s[6]) as usize],
+                        2,
+                    );
+                    c.s[3][i] = mds_column_mult(
+                        SBOX[0][(SBOX[1][(SBOX[1][i] ^ s[3]) as usize] ^ s[7]) as usize],
+                        3,
+                    );
+                }
+            }
+            3 => {
+                for i in 0..256 {
+                    c.s[0][i] = mds_column_mult(
+                        SBOX[1][(SBOX[0][(SBOX[0][(SBOX[1][i] ^ s[0]) as usize] ^ s[4]) as usize]
+                            ^ s[8]) as usize],
+                        0,
+                    );
+                    c.s[1][i] = mds_column_mult(
+                        SBOX[0][(SBOX[0][(SBOX[1][(SBOX[1][i] ^ s[1]) as usize] ^ s[5]) as usize]
+                            ^ s[9]) as usize],
+                        1,
+                    );
+                    c.s[2][i] = mds_column_mult(
+                        SBOX[1][(SBOX[1][(SBOX[0][(SBOX[0][i] ^ s[2]) as usize] ^ s[6]) as usize]
+                            ^ s[10]) as usize],
+                        2,
+                    );
+                    c.s[3][i] = mds_column_mult(
+                        SBOX[0][(SBOX[1][(SBOX[1][(SBOX[0][i] ^ s[3]) as usize] ^ s[7]) as usize]
+                            ^ s[11]) as usize],
+                        3,
+                    );
+                }
+            }
+            _ => {
+                for i in 0..256 {
+                    c.s[0][i] = mds_column_mult(
+                        SBOX[1][(SBOX[0][(SBOX[0]
+                            [(SBOX[1][(SBOX[1][i] ^ s[0]) as usize] ^ s[4]) as usize]
+                            ^ s[8]) as usize]
+                            ^ s[12]) as usize],
+                        0,
+                    );
+                    c.s[1][i] = mds_column_mult(
+                        SBOX[0][(SBOX[0][(SBOX[1]
+                            [(SBOX[1][(SBOX[0][i] ^ s[1]) as usize] ^ s[5]) as usize]
+                            ^ s[9]) as usize]
+                            ^ s[13]) as usize],
+                        1,
+                    );
+                    c.s[2][i] = mds_column_mult(
+                        SBOX[1][(SBOX[1][(SBOX[0]
+                            [(SBOX[0][(SBOX[0][i] ^ s[2]) as usize] ^ s[6]) as usize]
+                            ^ s[10]) as usize]
+                            ^ s[14]) as usize],
+                        2,
+                    );
+                    c.s[3][i] = mds_column_mult(
+                        SBOX[0][(SBOX[1][(SBOX[1]
+                            [(SBOX[0][(SBOX[1][i] ^ s[3]) as usize] ^ s[7]) as usize]
+                            ^ s[11]) as usize]
+                            ^ s[15]) as usize],
+                        3,
+                    );
+                }
+            }
+        }
+
+        Ok(c)
     }
 }
 
-impl std::error::Error for KeySizeError {}
-
-impl From<KeySizeError> for CryptoError {
-    fn from(err: KeySizeError) -> Self {
-        CryptoError::InvalidKeySize(err.0)
-    }
-}
-
-// NewCipher creates and returns a Cipher.
-// The key argument should be the Twofish key, 16, 24 or 32 bytes.
-pub fn new_cipher(key: &[u8]) -> Result<Cipher, KeySizeError> {
-    let keylen = key.len();
-
-    if keylen != 16 && keylen != 24 && keylen != 32 {
-        return Err(KeySizeError(keylen));
-    }
-
-    // k is the number of 64 bit words in key
-    let k = keylen / 8;
-
-    // Create the S[..] words
-    let mut s = [0u8; 4 * 4];
-    for i in 0..k {
-        // Computes [y0 y1 y2 y3] = rs . [x0 x1 x2 x3 x4 x5 x6 x7]
-        for (j, rs_row) in RS.iter().enumerate() {
-            for (k_idx, &rs_val) in rs_row.iter().enumerate() {
-                s[4 * i + j] ^= gf_mult(key[8 * i + k_idx], rs_val, RS_POLYNOMIAL);
-            }
-        }
-    }
-
-    // Calculate subkeys
-    let mut c = Cipher {
-        s: [[0; 256]; 4],
-        k: [0; 40],
-    };
-
-    let mut tmp = [0u8; 4];
-    for i in 0u8..20 {
-        // A = h(p * 2x, Me)
-        (0..tmp.len()).for_each(|j| {
-            tmp[j] = 2 * i;
-        });
-        let a = h(&tmp, key, 0);
-
-        // B = rolc(h(p * (2x + 1), Mo), 8)
-        (0..tmp.len()).for_each(|j| {
-            tmp[j] = 2 * i + 1;
-        });
-        let b = h(&tmp, key, 1);
-        let b = b.rotate_left(8);
-
-        c.k[2 * i as usize] = a.wrapping_add(b);
-
-        // K[2i+1] = (A + 2B) <<< 9
-        c.k[2 * i as usize + 1] = (2u32.wrapping_mul(b).wrapping_add(a)).rotate_left(9);
-    }
-
-    // Calculate sboxes
-    match k {
-        2 => {
-            for i in 0..256 {
-                c.s[0][i] = mds_column_mult(
-                    SBOX[1][(SBOX[0][(SBOX[0][i] ^ s[0]) as usize] ^ s[4]) as usize],
-                    0,
-                );
-                c.s[1][i] = mds_column_mult(
-                    SBOX[0][(SBOX[0][(SBOX[1][i] ^ s[1]) as usize] ^ s[5]) as usize],
-                    1,
-                );
-                c.s[2][i] = mds_column_mult(
-                    SBOX[1][(SBOX[1][(SBOX[0][i] ^ s[2]) as usize] ^ s[6]) as usize],
-                    2,
-                );
-                c.s[3][i] = mds_column_mult(
-                    SBOX[0][(SBOX[1][(SBOX[1][i] ^ s[3]) as usize] ^ s[7]) as usize],
-                    3,
-                );
-            }
-        }
-        3 => {
-            for i in 0..256 {
-                c.s[0][i] = mds_column_mult(
-                    SBOX[1][(SBOX[0][(SBOX[0][(SBOX[1][i] ^ s[0]) as usize] ^ s[4]) as usize]
-                        ^ s[8]) as usize],
-                    0,
-                );
-                c.s[1][i] = mds_column_mult(
-                    SBOX[0][(SBOX[0][(SBOX[1][(SBOX[1][i] ^ s[1]) as usize] ^ s[5]) as usize]
-                        ^ s[9]) as usize],
-                    1,
-                );
-                c.s[2][i] = mds_column_mult(
-                    SBOX[1][(SBOX[1][(SBOX[0][(SBOX[0][i] ^ s[2]) as usize] ^ s[6]) as usize]
-                        ^ s[10]) as usize],
-                    2,
-                );
-                c.s[3][i] = mds_column_mult(
-                    SBOX[0][(SBOX[1][(SBOX[1][(SBOX[0][i] ^ s[3]) as usize] ^ s[7]) as usize]
-                        ^ s[11]) as usize],
-                    3,
-                );
-            }
-        }
-        _ => {
-            for i in 0..256 {
-                c.s[0][i] = mds_column_mult(
-                    SBOX[1][(SBOX[0][(SBOX[0]
-                        [(SBOX[1][(SBOX[1][i] ^ s[0]) as usize] ^ s[4]) as usize]
-                        ^ s[8]) as usize]
-                        ^ s[12]) as usize],
-                    0,
-                );
-                c.s[1][i] = mds_column_mult(
-                    SBOX[0][(SBOX[0][(SBOX[1]
-                        [(SBOX[1][(SBOX[0][i] ^ s[1]) as usize] ^ s[5]) as usize]
-                        ^ s[9]) as usize]
-                        ^ s[13]) as usize],
-                    1,
-                );
-                c.s[2][i] = mds_column_mult(
-                    SBOX[1][(SBOX[1][(SBOX[0]
-                        [(SBOX[0][(SBOX[0][i] ^ s[2]) as usize] ^ s[6]) as usize]
-                        ^ s[10]) as usize]
-                        ^ s[14]) as usize],
-                    2,
-                );
-                c.s[3][i] = mds_column_mult(
-                    SBOX[0][(SBOX[1][(SBOX[1]
-                        [(SBOX[0][(SBOX[1][i] ^ s[3]) as usize] ^ s[7]) as usize]
-                        ^ s[11]) as usize]
-                        ^ s[15]) as usize],
-                    3,
-                );
-            }
-        }
-    }
-
-    Ok(c)
-}
-
-impl BlockCipher for Cipher {
+impl BlockCipher for Twofish {
     // BlockSize returns the Twofish block size, 16 bytes.
     fn block_size(&self) -> usize {
         BLOCK_SIZE

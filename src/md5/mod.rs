@@ -3,10 +3,13 @@ mod md5block;
 // use arch::*;
 
 mod md5_generic;
+use std::io::Write;
+
 use md5_generic::*;
 
 use crate::{
     error::{CryptoError, CryptoResult},
+    hash::Hash,
     hmac::Marshalable,
 };
 
@@ -28,22 +31,22 @@ const MAGIC: &[u8] = b"md5\x01";
 const MARSHALED_SIZE: usize = MAGIC.len() + 4 * 4 + BLOCK_SIZE + 8;
 
 #[derive(Debug, Clone)]
-pub struct Digest {
+pub struct Md5 {
     s: [u32; 4],
     x: [u8; BLOCK_SIZE],
     nx: usize,
     len: u64,
 }
 
-impl Default for Digest {
+impl Default for Md5 {
     fn default() -> Self {
-        Digest::new()
+        Md5::new()
     }
 }
 
-impl Digest {
+impl Md5 {
     pub fn new() -> Self {
-        let mut d = Digest {
+        let mut d = Md5 {
             s: [0; 4],
             x: [0; BLOCK_SIZE],
             nx: 0,
@@ -51,23 +54,6 @@ impl Digest {
         };
         d.reset();
         d
-    }
-
-    pub fn reset(&mut self) {
-        self.s[0] = INIT0;
-        self.s[1] = INIT1;
-        self.s[2] = INIT2;
-        self.s[3] = INIT3;
-        self.nx = 0;
-        self.len = 0;
-    }
-
-    pub const fn size(&self) -> usize {
-        SIZE
-    }
-
-    pub const fn block_size(&self) -> usize {
-        BLOCK_SIZE
     }
 
     pub fn append_binary(&self, mut b: Vec<u8>) -> CryptoResult<Vec<u8>> {
@@ -82,7 +68,29 @@ impl Digest {
         Ok(b)
     }
 
-    pub fn write(&mut self, p: &[u8]) -> CryptoResult<usize> {
+    pub fn check_sum(&mut self) -> [u8; SIZE] {
+        let mut tmp = [0u8; 1 + 63 + 8];
+        tmp[0] = 0x80;
+
+        let pad = (55u64.wrapping_sub(self.len)) % 64;
+        le_put_u64(&mut tmp[1 + pad as usize..], self.len << 3);
+        self.write_all(&tmp[..1 + pad as usize + 8]).unwrap();
+
+        if self.nx != 0 {
+            panic!("d.nx != 0");
+        }
+
+        let mut digest = [0u8; SIZE];
+        le_put_u32(&mut digest[0..], self.s[0]);
+        le_put_u32(&mut digest[4..], self.s[1]);
+        le_put_u32(&mut digest[8..], self.s[2]);
+        le_put_u32(&mut digest[12..], self.s[3]);
+        digest
+    }
+}
+
+impl Write for Md5 {
+    fn write(&mut self, p: &[u8]) -> std::io::Result<usize> {
         let nn = p.len();
         self.len += nn as u64;
         let mut p = p;
@@ -128,37 +136,12 @@ impl Digest {
         Ok(nn)
     }
 
-    pub fn sum(&self, input: &[u8]) -> Vec<u8> {
-        let mut d0 = self.clone();
-        let hash = d0.check_sum();
-        let mut result = Vec::with_capacity(input.len() + SIZE);
-        result.extend_from_slice(input);
-        result.extend_from_slice(&hash);
-        result
-    }
-
-    pub fn check_sum(&mut self) -> [u8; SIZE] {
-        let mut tmp = [0u8; 1 + 63 + 8];
-        tmp[0] = 0x80;
-
-        let pad = (55u64.wrapping_sub(self.len)) % 64;
-        le_put_u64(&mut tmp[1 + pad as usize..], self.len << 3);
-        self.write(&tmp[..1 + pad as usize + 8]).unwrap();
-
-        if self.nx != 0 {
-            panic!("d.nx != 0");
-        }
-
-        let mut digest = [0u8; SIZE];
-        le_put_u32(&mut digest[0..], self.s[0]);
-        le_put_u32(&mut digest[4..], self.s[1]);
-        le_put_u32(&mut digest[8..], self.s[2]);
-        le_put_u32(&mut digest[12..], self.s[3]);
-        digest
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
     }
 }
 
-impl Marshalable for Digest {
+impl Marshalable for Md5 {
     fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
         self.append_binary(Vec::with_capacity(MARSHALED_SIZE))
     }
@@ -198,6 +181,34 @@ impl Marshalable for Digest {
     }
 }
 
+impl Hash for Md5 {
+    fn reset(&mut self) {
+        self.s[0] = INIT0;
+        self.s[1] = INIT1;
+        self.s[2] = INIT2;
+        self.s[3] = INIT3;
+        self.nx = 0;
+        self.len = 0;
+    }
+
+    fn size(&self) -> usize {
+        SIZE
+    }
+
+    fn block_size(&self) -> usize {
+        BLOCK_SIZE
+    }
+
+    fn sum(&mut self, input: &[u8]) -> Vec<u8> {
+        let mut d0 = self.clone();
+        let hash = d0.check_sum();
+        let mut result = Vec::with_capacity(input.len() + SIZE);
+        result.extend_from_slice(input);
+        result.extend_from_slice(&hash);
+        result
+    }
+}
+
 fn be_append_u32(b: &mut Vec<u8>, v: u32) {
     b.extend_from_slice(&v.to_be_bytes());
 }
@@ -232,12 +243,12 @@ fn consume_u64(b: &[u8]) -> (&[u8], u64) {
     (&b[8..], be_u64(&b[0..8]))
 }
 
-fn block_generic(d: &mut Digest, p: &[u8]) {
+fn block_generic(d: &mut Md5, p: &[u8]) {
     md5block::block_generic(d, p);
 }
 
 pub fn sum(data: &[u8]) -> [u8; SIZE] {
-    let mut d = Digest::new();
-    d.write(data).unwrap();
+    let mut d = Md5::new();
+    d.write_all(data).unwrap();
     d.check_sum()
 }
