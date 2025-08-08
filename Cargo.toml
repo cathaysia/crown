@@ -33,6 +33,7 @@ chacha20poly1305 = "0.10.1"
 ring = "0.17.14"
 sha3 = "0.10.8"
 hmac = "0.12.1"
+md4 = "0.10.2"
 
 [[bench]]
 name = "md5"

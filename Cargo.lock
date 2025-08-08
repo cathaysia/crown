@@ -452,6 +452,7 @@ dependencies = [
  "des",
  "hex",
  "hmac",
+ "md4",
  "md5",
  "openssl",
  "paste",
@@ -475,6 +476,15 @@ name = "log"
 version = "0.4.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
+
+[[package]]
+name = "md4"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7da5ac363534dce5fabf69949225e174fbf111a498bf0ff794c8ea1fba9f3dda"
+dependencies = [
+ "digest",
+]
 
 [[package]]
 name = "md5"
