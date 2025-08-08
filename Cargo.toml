@@ -36,6 +36,7 @@ hmac = "0.12.1"
 md4 = "0.10.2"
 twofish = "0.7.1"
 xtea = "0.0.1-pre.0"
+cast5 = "0.11.1"
 
 [[bench]]
 name = "md5"

@@ -11,8 +11,14 @@ pub(crate) const NUM_ROUNDS: usize = 64;
 /// Reads an 8 byte slice into two u32s.
 /// The block is treated as big endian.
 fn block_to_u32(src: &[u8]) -> (u32, u32) {
-    let r0 = ((src[0] as u32) << 24) | ((src[1] as u32) << 16) | ((src[2] as u32) << 8) | (src[3] as u32);
-    let r1 = ((src[4] as u32) << 24) | ((src[5] as u32) << 16) | ((src[6] as u32) << 8) | (src[7] as u32);
+    let r0 = ((src[0] as u32) << 24)
+        | ((src[1] as u32) << 16)
+        | ((src[2] as u32) << 8)
+        | (src[3] as u32);
+    let r1 = ((src[4] as u32) << 24)
+        | ((src[5] as u32) << 16)
+        | ((src[6] as u32) << 8)
+        | (src[7] as u32);
     (r0, r1)
 }
 
