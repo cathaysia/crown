@@ -463,6 +463,7 @@ dependencies = [
  "sha2",
  "sha3",
  "thiserror",
+ "twofish",
 ]
 
 [[package]]
@@ -898,6 +899,15 @@ checksum = "be4d6b5f19ff7664e8c98d03e2139cb510db9b0a60b55f8e8709b689d939b6bc"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "twofish"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a78e83a30223c757c3947cd144a31014ff04298d8719ae10d03c31c0448c8013"
+dependencies = [
+ "cipher",
 ]
 
 [[package]]
