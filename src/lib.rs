@@ -14,6 +14,7 @@ pub mod rc6;
 pub mod sha256;
 pub mod sha3;
 pub mod sha512;
+pub mod tea;
 
 pub mod error;
 
