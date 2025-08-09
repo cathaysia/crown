@@ -10,6 +10,7 @@ pub mod hmac;
 pub mod md4;
 pub mod md5;
 pub mod ploy1305;
+pub mod rc2;
 pub mod rc4;
 pub mod rc6;
 pub mod sha256;
