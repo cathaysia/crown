@@ -16,7 +16,7 @@ fn bench_aes(c: &mut Criterion) {
     group.throughput(Throughput::Bytes(4));
 
     group.bench_function("kittycrypto_aes".to_string(), |b| {
-        let cipher = kittycrypto::aes::new_cipher(&key).unwrap();
+        let cipher = kittycrypto::aes::AesCipher::new(&key).unwrap();
         b.iter(|| {
             let mut dst = block;
             for i in (0..block.len()).step_by(BLOCK_SIZE) {
