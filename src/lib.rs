@@ -1,4 +1,5 @@
 pub mod aes;
+pub mod bcrypt;
 pub mod blowfish;
 pub mod cast5;
 pub mod chacha20;
