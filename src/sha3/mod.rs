@@ -1,4 +1,4 @@
-//! Package sha3 implements the SHA-3 fixed-output-length hash functions and
+//! Module sha3 implements the SHA-3 fixed-output-length hash functions and
 //! the SHAKE variable-output-length functions defined by [FIPS 202], as well as
 //! the cSHAKE extendable-output-length functions defined by [SP 800-185].
 //!
@@ -20,7 +20,7 @@ use noasm::*;
 #[cfg(test)]
 mod tests;
 
-pub use digest::Digest;
+pub use digest::Sha3;
 
 use crate::hash::Hash;
 
@@ -77,8 +77,8 @@ impl_shakesum_for!(128);
 impl_shakesum_for!(256);
 
 /// New224 returns a new Digest computing the SHA3-224 hash.
-pub fn new224() -> Digest {
-    Digest {
+pub fn new224() -> Sha3 {
+    Sha3 {
         a: [0; 200],
         n: 0,
         rate: RATE_K448,
@@ -89,8 +89,8 @@ pub fn new224() -> Digest {
 }
 
 /// New256 returns a new Digest computing the SHA3-256 hash.
-pub fn new256() -> Digest {
-    Digest {
+pub fn new256() -> Sha3 {
+    Sha3 {
         a: [0; 200],
         n: 0,
         rate: RATE_K512,
@@ -101,8 +101,8 @@ pub fn new256() -> Digest {
 }
 
 /// New384 returns a new Digest computing the SHA3-384 hash.
-pub fn new384() -> Digest {
-    Digest {
+pub fn new384() -> Sha3 {
+    Sha3 {
         a: [0; 200],
         n: 0,
         rate: RATE_K768,
@@ -113,8 +113,8 @@ pub fn new384() -> Digest {
 }
 
 /// New512 returns a new Digest computing the SHA3-512 hash.
-pub fn new512() -> Digest {
-    Digest {
+pub fn new512() -> Sha3 {
+    Sha3 {
         a: [0; 200],
         n: 0,
         rate: RATE_K1024,
@@ -126,8 +126,8 @@ pub fn new512() -> Digest {
 
 /// NewLegacyKeccak256 returns a new Digest computing the legacy, non-standard
 /// Keccak-256 hash.
-pub fn new_legacy_keccak256() -> Digest {
-    Digest {
+pub fn new_legacy_keccak256() -> Sha3 {
+    Sha3 {
         a: [0; 200],
         n: 0,
         rate: RATE_K512,
@@ -139,8 +139,8 @@ pub fn new_legacy_keccak256() -> Digest {
 
 /// NewLegacyKeccak512 returns a new Digest computing the legacy, non-standard
 /// Keccak-512 hash.
-pub fn new_legacy_keccak512() -> Digest {
-    Digest {
+pub fn new_legacy_keccak512() -> Sha3 {
+    Sha3 {
         a: [0; 200],
         n: 0,
         rate: RATE_K1024,

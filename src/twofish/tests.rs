@@ -2,7 +2,7 @@ use cipher::generic_array::GenericArray;
 use cipher::KeyInit;
 
 use crate::cipher::BlockCipher;
-use crate::twofish::BLOCK_SIZE;
+use crate::twofish::Twofish;
 
 #[test]
 fn rustcrypto_twofish_interop() {
@@ -18,9 +18,9 @@ fn rustcrypto_twofish_interop() {
             let mut dst = src;
             let cipher = super::Twofish::new(&key).unwrap();
 
-            for i in (0..src.len()).step_by(BLOCK_SIZE) {
-                let end = (i + BLOCK_SIZE).min(src.len());
-                if end - i == BLOCK_SIZE {
+            for i in (0..src.len()).step_by(Twofish::BLOCK_SIZE) {
+                let end = (i + Twofish::BLOCK_SIZE).min(src.len());
+                if end - i == Twofish::BLOCK_SIZE {
                     cipher.encrypt(&mut dst[i..end], &src[i..end]);
                 }
             }
@@ -31,7 +31,7 @@ fn rustcrypto_twofish_interop() {
             let mut dst = src;
             let cipher = twofish::Twofish::new(&key.into());
 
-            for chunk in dst.chunks_exact_mut(BLOCK_SIZE) {
+            for chunk in dst.chunks_exact_mut(Twofish::BLOCK_SIZE) {
                 let block = GenericArray::from_mut_slice(chunk);
                 cipher::BlockEncrypt::encrypt_block(&cipher, block);
             }

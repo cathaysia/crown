@@ -32,13 +32,13 @@ const PI_TABLE: [u8; 256] = [
     0xc5, 0xf3, 0xdb, 0x47, 0xe5, 0xa5, 0x9c, 0x77, 0x0a, 0xa6, 0x20, 0x68, 0xfe, 0x7f, 0xc1, 0xad,
 ];
 
-pub struct Rc2Cipher {
+pub struct Rc2 {
     k: [u16; 64],
 }
 
-impl BlockCipherMarker for Rc2Cipher {}
+impl BlockCipherMarker for Rc2 {}
 
-impl Rc2Cipher {
+impl Rc2 {
     pub fn new(key: &[u8], t1: usize) -> Result<Self, &'static str> {
         Ok(Self {
             k: expand_key(key, t1),
@@ -46,7 +46,7 @@ impl Rc2Cipher {
     }
 }
 
-impl BlockCipher for Rc2Cipher {
+impl BlockCipher for Rc2 {
     fn block_size(&self) -> usize {
         BLOCK_SIZE
     }

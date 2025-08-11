@@ -2,9 +2,10 @@ use crate::{
     chacha20ploy1305::ChaCha20Poly1305,
     cipher::StreamCipher,
     error::{CryptoError, CryptoResult},
+    utils::constant_time_eq,
 };
 
-type ChaCha20 = crate::chacha20::Chacha20Cipher;
+type ChaCha20 = crate::chacha20::Chacha20;
 type Poly1305 = crate::ploy1305::MAC;
 
 const POLY1305_TAG_SIZE: usize = 16;
@@ -108,16 +109,4 @@ impl ChaCha20Poly1305 {
 
         Ok(())
     }
-}
-
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-
-    let mut result = 0u8;
-    for (x, y) in a.iter().zip(b.iter()) {
-        result |= x ^ y;
-    }
-    result == 0
 }

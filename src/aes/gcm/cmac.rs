@@ -5,19 +5,19 @@
 //! for exposing it to applications
 //! as a stand-alone MAC.
 
-use crate::aes::{AesCipher, BLOCK_SIZE};
+use crate::aes::{Aes, BLOCK_SIZE};
 use crate::subtle::xor::xor_bytes;
 
 /// CMAC implements the CMAC mode from NIST SP 800-38B.
 pub struct Cmac {
-    b: AesCipher,
+    b: Aes,
     k1: [u8; BLOCK_SIZE],
     k2: [u8; BLOCK_SIZE],
 }
 
 impl Cmac {
     /// Creates a new CMAC instance with the given AES block cipher.
-    pub fn new(b: AesCipher) -> Self {
+    pub fn new(b: Aes) -> Self {
         let mut cmac = Cmac {
             b,
             k1: [0; BLOCK_SIZE],

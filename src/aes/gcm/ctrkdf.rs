@@ -10,7 +10,7 @@
 //! rather than for exposing it to applications as a stand-alone KDF.
 
 use super::cmac::Cmac;
-use crate::aes::{AesCipher, BLOCK_SIZE};
+use crate::aes::{Aes, BLOCK_SIZE};
 
 /// CounterKDF implements a KDF in Counter Mode instantiated with CMAC-AES.
 pub struct CounterKDF {
@@ -19,7 +19,7 @@ pub struct CounterKDF {
 
 impl CounterKDF {
     /// Creates a new CounterKDF with the given AES block cipher.
-    pub fn new(b: AesCipher) -> Self {
+    pub fn new(b: Aes) -> Self {
         CounterKDF { mac: Cmac::new(b) }
     }
 

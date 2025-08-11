@@ -29,11 +29,11 @@ const AES128_ROUNDS: usize = 10;
 const AES192_ROUNDS: usize = 12;
 const AES256_ROUNDS: usize = 14;
 
-pub struct AesCipher {
+pub struct Aes {
     block: BlockExpanded,
 }
 
-impl AesCipher {
+impl Aes {
     // NewCipher creates and returns a new [cipher.Block].
     // The key argument should be the AES key,
     // either 16, 24, or 32 bytes to select
@@ -47,7 +47,7 @@ impl AesCipher {
                     dec: [0; 60],
                 };
                 BlockExpanded::expand(&mut block, key);
-                Ok(AesCipher { block })
+                Ok(Aes { block })
             }
             len => Err(CryptoError::InvalidKeySize(len)),
         }
@@ -58,7 +58,7 @@ impl AesCipher {
     }
 }
 
-impl BlockCipher for AesCipher {
+impl BlockCipher for Aes {
     fn block_size(&self) -> usize {
         BLOCK_SIZE
     }

@@ -20,7 +20,7 @@ pub trait CtrAble {
 pub trait CtrAbleMarker {}
 impl<T: BlockCipherMarker> CtrAbleMarker for T {}
 
-impl CtrAble for aes::AesCipher {
+impl CtrAble for aes::Aes {
     fn to_ctr(self, iv: &[u8]) -> CryptoResult<Box<dyn StreamCipher>> {
         Ok(Box::new(AesCtrWrapper {
             c: aes::ctr::CTR::new(self, iv)?,

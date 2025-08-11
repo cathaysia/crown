@@ -1,3 +1,7 @@
+//! Module bcrypt implements Provos and Mazières's bcrypt adaptive hashing
+//! algorithm. See <http://www.usenix.org/event/usenix99/provos/provos.pdf>
+//!
+
 mod base64;
 use base64::*;
 
@@ -5,9 +9,10 @@ use base64::*;
 mod tests;
 
 use crate::{
-    blowfish::{expand_key, Cipher as BlowfishCipher},
+    blowfish::{expand_key, Blowfish as BlowfishCipher},
     cipher::BlockCipher,
     error::CryptoError,
+    utils::constant_time_eq,
 };
 use std::fmt;
 
@@ -194,7 +199,7 @@ pub fn compare_hash_and_password(
         minor: p.minor,
     };
 
-    if constant_time_compare(&p.to_hash(), &other_p.to_hash()) {
+    if constant_time_eq(&p.to_hash(), &other_p.to_hash()) {
         Ok(())
     } else {
         Err(BcryptError::MismatchedHashAndPassword)
@@ -295,16 +300,4 @@ fn check_cost(cost: u32) -> Result<(), BcryptError> {
     } else {
         Ok(())
     }
-}
-
-fn constant_time_compare(a: &[u8], b: &[u8]) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-
-    let mut result = 0u8;
-    for (x, y) in a.iter().zip(b.iter()) {
-        result |= x ^ y;
-    }
-    result == 0
 }

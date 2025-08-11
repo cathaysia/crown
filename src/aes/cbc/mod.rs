@@ -1,5 +1,5 @@
 use crate::{
-    aes::{AesCipher, BLOCK_SIZE},
+    aes::{Aes, BLOCK_SIZE},
     cipher::{BlockCipher, BlockMode},
     subtle::xor::xor_bytes,
     utils::inexact_overlap,
@@ -7,7 +7,7 @@ use crate::{
 
 /// CBC encryptor structure
 pub struct CBCEncryptor {
-    block: AesCipher,
+    block: Aes,
     iv: [u8; BLOCK_SIZE],
 }
 
@@ -52,7 +52,7 @@ impl CBCEncryptor {
     /// # Arguments
     /// * `block` - AES block cipher
     /// * `iv` - Initialization vector, must be 16 bytes
-    pub fn new(block: AesCipher, iv: [u8; BLOCK_SIZE]) -> Self {
+    pub fn new(block: Aes, iv: [u8; BLOCK_SIZE]) -> Self {
         Self { block, iv }
     }
 
@@ -89,7 +89,7 @@ impl CBCEncryptor {
 
 /// CBC decrypter structure
 pub struct CBCDecrypter {
-    block: AesCipher,
+    block: Aes,
     iv: [u8; BLOCK_SIZE],
 }
 
@@ -134,7 +134,7 @@ impl CBCDecrypter {
     /// # Arguments
     /// * `block` - AES block cipher
     /// * `iv` - Initialization vector, must be 16 bytes
-    pub fn new(block: AesCipher, iv: [u8; BLOCK_SIZE]) -> Self {
+    pub fn new(block: Aes, iv: [u8; BLOCK_SIZE]) -> Self {
         Self { block, iv }
     }
 

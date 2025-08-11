@@ -48,7 +48,7 @@ fn test_encrypt_decrypt() {
         let plain = hex::decode(plain_hex).unwrap();
         let expected_cipher = hex::decode(cipher_hex).unwrap();
 
-        let cipher = Rc2Cipher::new(&key, t1).unwrap();
+        let cipher = Rc2::new(&key, t1).unwrap();
         let mut dst = [0u8; 8];
 
         // Test encryption

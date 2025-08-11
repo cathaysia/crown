@@ -1,3 +1,8 @@
+//! Module rc4 implements RC4 encryption, as defined in Bruce Schneier's
+//! Applied Cryptography.
+//!
+//! RC4 is cryptographically broken and should not be used for secure
+//! applications.
 #[cfg(test)]
 mod tests;
 
@@ -8,13 +13,13 @@ use crate::{
 };
 
 /// RC4 cipher instance using a particular key
-pub struct Rc4Cipher {
+pub struct Rc4 {
     s: [u32; 256],
     i: u8,
     j: u8,
 }
 
-impl Rc4Cipher {
+impl Rc4 {
     /// Creates and returns a new Cipher. The key argument should be the
     /// RC4 key, at least 1 byte and at most 256 bytes.
     pub fn new(key: &[u8]) -> CryptoResult<Self> {
@@ -23,7 +28,7 @@ impl Rc4Cipher {
             return Err(CryptoError::InvalidKeySize(k));
         }
 
-        let mut c = Rc4Cipher {
+        let mut c = Rc4 {
             s: [0; 256],
             i: 0,
             j: 0,
@@ -43,21 +48,9 @@ impl Rc4Cipher {
 
         Ok(c)
     }
-
-    /// Reset zeros the key data and makes the Cipher unusable.
-    ///
-    /// Deprecated: Reset can't guarantee that the key will be entirely removed from
-    /// the process's memory.
-    pub fn reset(&mut self) {
-        for i in 0..256 {
-            self.s[i] = 0;
-        }
-        self.i = 0;
-        self.j = 0;
-    }
 }
 
-impl StreamCipher for Rc4Cipher {
+impl StreamCipher for Rc4 {
     /// Sets dst to the result of XORing src with the key stream.
     /// Dst and src must overlap entirely or not at all.
     fn xor_key_stream(&mut self, dst: &mut [u8], src: &[u8]) -> CryptoResult<()> {

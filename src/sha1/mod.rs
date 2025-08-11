@@ -1,3 +1,7 @@
+//! Module sha1 implements the SHA-1 hash algorithm as defined in RFC 3174.
+//!
+//! SHA-1 is cryptographically broken and should not be used for secure
+//! applications.
 mod block;
 
 mod generic;
@@ -6,11 +10,12 @@ use generic::*;
 #[cfg(test)]
 mod tests;
 
-use crate::hash::Hash;
+use crate::{
+    error::{CryptoError, CryptoResult},
+    hash::Hash,
+    hmac::Marshalable,
+};
 use std::io::{self, Write};
-
-pub const SIZE: usize = 20;
-pub const BLOCK_SIZE: usize = 64;
 
 const CHUNK: usize = 64;
 const INIT0: u32 = 0x67452301;
@@ -38,6 +43,9 @@ impl Default for Sha1 {
 }
 
 impl Sha1 {
+    pub const SIZE: usize = 20;
+    pub const BLOCK_SIZE: usize = 64;
+
     pub fn new() -> Self {
         let mut d = Sha1 {
             h: [0; 5],
@@ -49,23 +57,7 @@ impl Sha1 {
         d
     }
 
-    pub fn reset(&mut self) {
-        self.h[0] = INIT0;
-        self.h[1] = INIT1;
-        self.h[2] = INIT2;
-        self.h[3] = INIT3;
-        self.h[4] = INIT4;
-        self.nx = 0;
-        self.len = 0;
-    }
-
-    pub fn marshal_binary(&self) -> Vec<u8> {
-        let mut b = Vec::with_capacity(MARSHALED_SIZE);
-        self.append_binary(&mut b);
-        b
-    }
-
-    pub fn append_binary(&self, b: &mut Vec<u8>) {
+    fn append_binary(&self, b: &mut Vec<u8>) {
         b.extend_from_slice(MAGIC);
         b.extend_from_slice(&self.h[0].to_be_bytes());
         b.extend_from_slice(&self.h[1].to_be_bytes());
@@ -77,46 +69,7 @@ impl Sha1 {
         b.extend_from_slice(&self.len.to_be_bytes());
     }
 
-    pub fn unmarshal_binary(&mut self, b: &[u8]) -> Result<(), &'static str> {
-        if b.len() < MAGIC.len() || &b[..MAGIC.len()] != MAGIC {
-            return Err("invalid hash state identifier");
-        }
-        if b.len() != MARSHALED_SIZE {
-            return Err("invalid hash state size");
-        }
-
-        let mut offset = MAGIC.len();
-
-        self.h[0] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[1] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[2] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[3] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[4] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-
-        self.x.copy_from_slice(&b[offset..offset + CHUNK]);
-        offset += CHUNK;
-
-        self.len = u64::from_be_bytes([
-            b[offset],
-            b[offset + 1],
-            b[offset + 2],
-            b[offset + 3],
-            b[offset + 4],
-            b[offset + 5],
-            b[offset + 6],
-            b[offset + 7],
-        ]);
-
-        self.nx = (self.len % CHUNK as u64) as usize;
-        Ok(())
-    }
-
-    fn check_sum(&mut self) -> [u8; SIZE] {
+    fn check_sum(&mut self) -> [u8; Sha1::SIZE] {
         let len = self.len;
 
         // Padding. Add a 1 bit and 0 bits until 56 bytes mod 64.
@@ -140,7 +93,7 @@ impl Sha1 {
             panic!("d.nx != 0");
         }
 
-        let mut digest = [0u8; SIZE];
+        let mut digest = [0u8; Sha1::SIZE];
         digest[0..4].copy_from_slice(&self.h[0].to_be_bytes());
         digest[4..8].copy_from_slice(&self.h[1].to_be_bytes());
         digest[8..12].copy_from_slice(&self.h[2].to_be_bytes());
@@ -150,6 +103,7 @@ impl Sha1 {
         digest
     }
 
+    /// computes the same result of [Self::sum] but in constant time.
     pub fn constant_time_sum(&self, input: &[u8]) -> Vec<u8> {
         let mut d0 = self.clone();
         let hash = d0.const_sum();
@@ -158,7 +112,7 @@ impl Sha1 {
         result
     }
 
-    fn const_sum(&mut self) -> [u8; SIZE] {
+    fn const_sum(&mut self) -> [u8; Sha1::SIZE] {
         let mut length = [0u8; 8];
         let l = self.len << 3;
         (0..8).for_each(|i| {
@@ -186,7 +140,7 @@ impl Sha1 {
             block(self, &x);
         }
 
-        let mut digest = [0u8; SIZE];
+        let mut digest = [0u8; Sha1::SIZE];
         for (i, &s) in self.h.iter().enumerate() {
             digest[i * 4] = mask1b & (s >> 24) as u8;
             digest[i * 4 + 1] = mask1b & (s >> 16) as u8;
@@ -267,19 +221,71 @@ impl Hash for Sha1 {
     }
 
     fn reset(&mut self) {
-        self.reset();
+        self.h[0] = INIT0;
+        self.h[1] = INIT1;
+        self.h[2] = INIT2;
+        self.h[3] = INIT3;
+        self.h[4] = INIT4;
+        self.nx = 0;
+        self.len = 0;
     }
 
     fn size(&self) -> usize {
-        SIZE
+        Sha1::SIZE
     }
 
     fn block_size(&self) -> usize {
-        BLOCK_SIZE
+        Sha1::BLOCK_SIZE
     }
 }
 
-pub fn sum(data: &[u8]) -> [u8; SIZE] {
+impl Marshalable for Sha1 {
+    fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
+        let mut b = Vec::with_capacity(MARSHALED_SIZE);
+        self.append_binary(&mut b);
+        Ok(b)
+    }
+    fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
+        if b.len() < MAGIC.len() || &b[..MAGIC.len()] != MAGIC {
+            return Err(CryptoError::InvalidHashIdentifier);
+        }
+        if b.len() != MARSHALED_SIZE {
+            return Err(CryptoError::InvalidHashState);
+        }
+
+        let mut offset = MAGIC.len();
+
+        self.h[0] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
+        offset += 4;
+        self.h[1] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
+        offset += 4;
+        self.h[2] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
+        offset += 4;
+        self.h[3] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
+        offset += 4;
+        self.h[4] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
+        offset += 4;
+
+        self.x.copy_from_slice(&b[offset..offset + CHUNK]);
+        offset += CHUNK;
+
+        self.len = u64::from_be_bytes([
+            b[offset],
+            b[offset + 1],
+            b[offset + 2],
+            b[offset + 3],
+            b[offset + 4],
+            b[offset + 5],
+            b[offset + 6],
+            b[offset + 7],
+        ]);
+
+        self.nx = (self.len % CHUNK as u64) as usize;
+        Ok(())
+    }
+}
+
+pub fn sum(data: &[u8]) -> [u8; Sha1::SIZE] {
     let mut d = Sha1::new();
     d.write_all(data).unwrap();
     d.check_sum()

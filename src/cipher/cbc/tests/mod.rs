@@ -2,29 +2,31 @@ mod aes_test;
 
 use cipher::{BlockDecryptMut, BlockEncryptMut, KeyIvInit};
 
-use crate::cipher::cbc::{CbcDecAble, CbcEncAble};
+use crate::{
+    cipher::cbc::{CbcDecAble, CbcEncAble},
+    des::Des,
+};
 
 #[test]
 fn des_cbc() {
-    use crate::des::BLOCK_SIZE;
     let mut key = [0u8; 8];
     rand::fill(&mut key);
     let key = key;
 
     for _ in 0..1000 {
-        let mut block = [0u8; BLOCK_SIZE];
+        let mut block = [0u8; Des::BLOCK_SIZE];
         rand::fill(&mut block);
         let block = block;
 
-        let kt_enc = crate::des::DesCipher::new(&key)
+        let kt_enc = crate::des::Des::new(&key)
             .unwrap()
-            .to_cbc_enc(&[0u8; BLOCK_SIZE]);
+            .to_cbc_enc(&[0u8; Des::BLOCK_SIZE]);
 
-        let kt_dec = crate::des::DesCipher::new(&key)
+        let kt_dec = crate::des::Des::new(&key)
             .unwrap()
-            .to_cbc_dec(&[0u8; BLOCK_SIZE]);
+            .to_cbc_dec(&[0u8; Des::BLOCK_SIZE]);
 
-        let mut dst = [0u8; BLOCK_SIZE];
+        let mut dst = [0u8; Des::BLOCK_SIZE];
         dst.copy_from_slice(&block);
 
         kt_enc.crypt_blocks(&mut dst, &block);
@@ -37,7 +39,6 @@ fn des_cbc() {
 #[test]
 #[ignore = "cannot pass"]
 fn rustcrypto_des_cbc_interop() {
-    use crate::des::BLOCK_SIZE;
     let mut key = [0u8; 8];
     rand::fill(&mut key);
     let key = key;
@@ -46,18 +47,18 @@ fn rustcrypto_des_cbc_interop() {
     type DesCbcDec = cbc::Decryptor<des::Des>;
 
     for _ in 0..1000 {
-        let mut block = [0u8; BLOCK_SIZE];
+        let mut block = [0u8; Des::BLOCK_SIZE];
         rand::fill(&mut block);
         let block = block;
 
         {
-            let kt_enc = crate::des::DesCipher::new(&key)
+            let kt_enc = crate::des::Des::new(&key)
                 .unwrap()
-                .to_cbc_enc(&[0u8; BLOCK_SIZE]);
+                .to_cbc_enc(&[0u8; Des::BLOCK_SIZE]);
 
-            let mut rc_dec = DesCbcDec::new_from_slices(&key, &[0u8; BLOCK_SIZE]).unwrap();
+            let mut rc_dec = DesCbcDec::new_from_slices(&key, &[0u8; Des::BLOCK_SIZE]).unwrap();
 
-            let mut dst = [0u8; BLOCK_SIZE];
+            let mut dst = [0u8; Des::BLOCK_SIZE];
             dst.copy_from_slice(&block);
 
             kt_enc.crypt_blocks(&mut dst, &block);
@@ -66,13 +67,13 @@ fn rustcrypto_des_cbc_interop() {
         }
 
         {
-            let mut rc_enc = DesCbcEnc::new_from_slices(&key, &[0u8; BLOCK_SIZE]).unwrap();
+            let mut rc_enc = DesCbcEnc::new_from_slices(&key, &[0u8; Des::BLOCK_SIZE]).unwrap();
 
-            let kt_dec = crate::des::DesCipher::new(&key)
+            let kt_dec = crate::des::Des::new(&key)
                 .unwrap()
-                .to_cbc_dec(&[0u8; BLOCK_SIZE]);
+                .to_cbc_dec(&[0u8; Des::BLOCK_SIZE]);
 
-            let mut dst = [0u8; BLOCK_SIZE];
+            let mut dst = [0u8; Des::BLOCK_SIZE];
             dst.copy_from_slice(&block);
 
             rc_enc.encrypt_block_mut(&mut dst.into());

@@ -24,7 +24,7 @@ impl<B: BlockCipher + CbcDecAbleMarker + 'static> CbcDecAble<B> for B {
     }
 }
 
-impl CbcDecAble<crate::aes::AesCipher> for crate::aes::AesCipher {
+impl CbcDecAble<crate::aes::Aes> for crate::aes::Aes {
     fn to_cbc_dec(self, iv: &[u8]) -> Box<dyn BlockMode> {
         Box::new(crate::aes::cbc::CBCDecrypter::new(
             self,

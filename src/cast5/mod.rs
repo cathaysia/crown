@@ -1,12 +1,14 @@
-// Package cast5 implements CAST5, as defined in RFC 2144.
-//
-// CAST5 is a legacy cipher and its short block size makes it vulnerable to
-// birthday bound attacks (see https://sweet32.info). It should only be used
-// where compatibility with legacy systems, not security, is the goal.
-//
-// Deprecated: any new system should use AES (from crypto/aes, if necessary in
-// an AEAD mode like crypto/cipher.NewGCM) or XChaCha20-Poly1305 (from
-// golang.org/x/crypto/chacha20poly1305).
+//! Module cast5 implements CAST5, as defined in RFC 2144.
+//!
+//! # WARNING
+//!
+//! CAST5 is a legacy cipher and its short block size makes it vulnerable to
+//! birthday bound attacks (see <https://sweet32.info>). It should only be used
+//! where compatibility with legacy systems, not security, is the goal.
+//!
+//! Deprecated: any new system should use [AES](crate::aes::Aes) (if necessary in
+//! an AEAD mode like [Aes-Gcm](crate::aes::gcm::GCM)) or
+//! [ChaCha20-Poly1305](crate::chacha20ploy1305::ChaCha20Poly1305).
 
 mod data;
 
@@ -21,22 +23,24 @@ use crate::{
     error::{CryptoError, CryptoResult},
 };
 
-pub const BLOCK_SIZE: usize = 8;
-pub const KEY_SIZE: usize = 16;
-
-pub struct Cast5Cipher {
+pub struct Cast5 {
     masking: [u32; 16],
     rotate: [u8; 16],
 }
-impl BlockCipherMarker for Cast5Cipher {}
+impl BlockCipherMarker for Cast5 {}
 
-impl Cast5Cipher {
+impl Cast5 {
+    pub const KEY_SIZE: usize = 16;
+    pub const BLOCK_SIZE: usize = 8;
+    /// Create a new instance of Cast5.
+    ///
+    /// **key**: The key size should be 16 bytes.
     pub fn new(key: &[u8]) -> CryptoResult<Self> {
-        if key.len() != KEY_SIZE {
+        if key.len() != Self::KEY_SIZE {
             return Err(CryptoError::InvalidKeySize(key.len()));
         }
 
-        let mut cipher = Cast5Cipher {
+        let mut cipher = Cast5 {
             masking: [0; 16],
             rotate: [0; 16],
         };
@@ -92,9 +96,9 @@ impl Cast5Cipher {
         }
     }
 }
-impl BlockCipher for Cast5Cipher {
+impl BlockCipher for Cast5 {
     fn block_size(&self) -> usize {
-        BLOCK_SIZE
+        Self::BLOCK_SIZE
     }
 
     fn encrypt(&self, dst: &mut [u8], src: &[u8]) {

@@ -1,3 +1,8 @@
+//! Module md5 implements the MD5 hash algorithm as defined in RFC 1321.
+//!
+//! MD5 is cryptographically broken and should not be used for secure
+//! applications.
+
 mod md5block;
 // mod arch;
 // use arch::*;
@@ -16,11 +21,8 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
-pub const SIZE: usize = 16;
-pub const BLOCK_SIZE: usize = 64;
-
 const MAX_ASM_ITERS: usize = 1024;
-const MAX_ASM_SIZE: usize = BLOCK_SIZE * MAX_ASM_ITERS;
+const MAX_ASM_SIZE: usize = Md5::BLOCK_SIZE * MAX_ASM_ITERS;
 
 const INIT0: u32 = 0x67452301;
 const INIT1: u32 = 0xEFCDAB89;
@@ -28,12 +30,12 @@ const INIT2: u32 = 0x98BADCFE;
 const INIT3: u32 = 0x10325476;
 
 const MAGIC: &[u8] = b"md5\x01";
-const MARSHALED_SIZE: usize = MAGIC.len() + 4 * 4 + BLOCK_SIZE + 8;
+const MARSHALED_SIZE: usize = MAGIC.len() + 4 * 4 + Md5::BLOCK_SIZE + 8;
 
 #[derive(Debug, Clone)]
 pub struct Md5 {
     s: [u32; 4],
-    x: [u8; BLOCK_SIZE],
+    x: [u8; Md5::BLOCK_SIZE],
     nx: usize,
     len: u64,
 }
@@ -45,10 +47,13 @@ impl Default for Md5 {
 }
 
 impl Md5 {
+    pub const SIZE: usize = 16;
+    pub const BLOCK_SIZE: usize = 64;
+
     pub fn new() -> Self {
         let mut d = Md5 {
             s: [0; 4],
-            x: [0; BLOCK_SIZE],
+            x: [0; Md5::BLOCK_SIZE],
             nx: 0,
             len: 0,
         };
@@ -56,7 +61,7 @@ impl Md5 {
         d
     }
 
-    pub fn append_binary(&self, mut b: Vec<u8>) -> CryptoResult<Vec<u8>> {
+    fn append_binary(&self, mut b: Vec<u8>) -> CryptoResult<Vec<u8>> {
         b.extend_from_slice(MAGIC);
         be_append_u32(&mut b, self.s[0]);
         be_append_u32(&mut b, self.s[1]);
@@ -68,7 +73,7 @@ impl Md5 {
         Ok(b)
     }
 
-    pub fn check_sum(&mut self) -> [u8; SIZE] {
+    pub fn check_sum(&mut self) -> [u8; Md5::SIZE] {
         let mut tmp = [0u8; 1 + 63 + 8];
         tmp[0] = 0x80;
 
@@ -80,7 +85,7 @@ impl Md5 {
             panic!("d.nx != 0");
         }
 
-        let mut digest = [0u8; SIZE];
+        let mut digest = [0u8; Md5::SIZE];
         le_put_u32(&mut digest[0..], self.s[0]);
         le_put_u32(&mut digest[4..], self.s[1]);
         le_put_u32(&mut digest[8..], self.s[2]);
@@ -96,10 +101,10 @@ impl Write for Md5 {
         let mut p = p;
 
         if self.nx > 0 {
-            let n = (BLOCK_SIZE - self.nx).min(p.len());
+            let n = (Md5::BLOCK_SIZE - self.nx).min(p.len());
             self.x[self.nx..self.nx + n].copy_from_slice(&p[..n]);
             self.nx += n;
-            if self.nx == BLOCK_SIZE {
+            if self.nx == Md5::BLOCK_SIZE {
                 let x_copy = self.x;
                 if HAVE_ASM {
                     block(self, &x_copy);
@@ -111,8 +116,8 @@ impl Write for Md5 {
             p = &p[n..];
         }
 
-        if p.len() >= BLOCK_SIZE {
-            let n = p.len() & !(BLOCK_SIZE - 1);
+        if p.len() >= Md5::BLOCK_SIZE {
+            let n = p.len() & !(Md5::BLOCK_SIZE - 1);
             if HAVE_ASM {
                 let mut remaining = n;
                 let mut offset = 0;
@@ -175,7 +180,7 @@ impl Marshalable for Md5 {
 
         let (_, len) = consume_u64(b);
         self.len = len;
-        self.nx = (self.len % BLOCK_SIZE as u64) as usize;
+        self.nx = (self.len % Md5::BLOCK_SIZE as u64) as usize;
 
         Ok(())
     }
@@ -192,17 +197,17 @@ impl Hash for Md5 {
     }
 
     fn size(&self) -> usize {
-        SIZE
+        Md5::SIZE
     }
 
     fn block_size(&self) -> usize {
-        BLOCK_SIZE
+        Md5::BLOCK_SIZE
     }
 
     fn sum(&mut self, input: &[u8]) -> Vec<u8> {
         let mut d0 = self.clone();
         let hash = d0.check_sum();
-        let mut result = Vec::with_capacity(input.len() + SIZE);
+        let mut result = Vec::with_capacity(input.len() + Md5::SIZE);
         result.extend_from_slice(input);
         result.extend_from_slice(&hash);
         result
@@ -247,7 +252,7 @@ fn block_generic(d: &mut Md5, p: &[u8]) {
     md5block::block_generic(d, p);
 }
 
-pub fn sum(data: &[u8]) -> [u8; SIZE] {
+pub fn sum(data: &[u8]) -> [u8; Md5::SIZE] {
     let mut d = Md5::new();
     d.write_all(data).unwrap();
     d.check_sum()

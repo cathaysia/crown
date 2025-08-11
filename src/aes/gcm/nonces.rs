@@ -1,4 +1,4 @@
-use crate::aes::AesCipher;
+use crate::aes::Aes;
 use crate::error::CryptoResult;
 use crate::{aes::gcm::GCM, utils};
 
@@ -49,7 +49,7 @@ pub fn seal_with_random_nonce(
 // must be a counter.
 //
 // This complies with FIPS 140-3 IG C.H Scenario 3.
-pub fn new_gcm_with_counter_nonce(cipher: AesCipher) -> Result<GCMWithCounterNonce, &'static str> {
+pub fn new_gcm_with_counter_nonce(cipher: Aes) -> Result<GCMWithCounterNonce, &'static str> {
     let g = super::GCM::new_gcm(cipher, GCM_STANDARD_NONCE_SIZE, GCM_TAG_SIZE).unwrap();
     Ok(GCMWithCounterNonce {
         g,
@@ -144,7 +144,7 @@ impl GCMWithCounterNonce {
 // Section 7.2.1.
 //
 // This complies with FIPS 140-3 IG C.H Scenario 1.a.
-pub fn new_gcm_for_tls12(cipher: AesCipher) -> CryptoResult<GCMForTLS12> {
+pub fn new_gcm_for_tls12(cipher: Aes) -> CryptoResult<GCMForTLS12> {
     let g = GCM::new_gcm(cipher, GCM_STANDARD_NONCE_SIZE, GCM_TAG_SIZE)?;
     Ok(GCMForTLS12 { g, next: 0 })
 }
@@ -212,7 +212,7 @@ impl GCMForTLS12 {
 
 // NewGCMForTLS13 returns a new AEAD that works like GCM, but enforces the
 // construction of nonces as specified in RFC 8446, Section 5.3.
-pub fn new_gcm_for_tls13(cipher: AesCipher) -> CryptoResult<GCMForTLS13> {
+pub fn new_gcm_for_tls13(cipher: Aes) -> CryptoResult<GCMForTLS13> {
     let g = GCM::new_gcm(cipher, GCM_STANDARD_NONCE_SIZE, GCM_TAG_SIZE)?;
     Ok(GCMForTLS13 {
         g,
@@ -296,7 +296,7 @@ impl GCMForTLS13 {
 // construction of nonces as specified in RFC 5647.
 //
 // This complies with FIPS 140-3 IG C.H Scenario 1.d.
-pub fn new_gcm_for_ssh(cipher: AesCipher) -> CryptoResult<GCMForSSH> {
+pub fn new_gcm_for_ssh(cipher: Aes) -> CryptoResult<GCMForSSH> {
     let g = GCM::new_gcm(cipher, GCM_STANDARD_NONCE_SIZE, GCM_TAG_SIZE)?;
     Ok(GCMForSSH {
         g,

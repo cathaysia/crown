@@ -88,7 +88,7 @@ const ENCRYPT_TESTS: &[CryptTest] = &[
 #[test]
 fn test_cipher_encrypt() {
     for (i, test) in ENCRYPT_TESTS.iter().enumerate() {
-        let cipher = match AesCipher::new(test.key) {
+        let cipher = match Aes::new(test.key) {
             Ok(c) => c,
             Err(e) => {
                 panic!("Block::new({} bytes) = {}", test.key.len(), e);
@@ -112,7 +112,7 @@ fn test_cipher_encrypt() {
 #[test]
 fn test_cipher_decrypt() {
     for (i, test) in ENCRYPT_TESTS.iter().enumerate() {
-        let cipher = match AesCipher::new(test.key) {
+        let cipher = match Aes::new(test.key) {
             Ok(c) => c,
             Err(e) => {
                 panic!("Block::new({} bytes) = {}", test.key.len(), e);
@@ -139,7 +139,7 @@ fn test_aes_block() {
         let key_bytes = keylen / 8;
         let key = vec![0u8; key_bytes];
 
-        match AesCipher::new(&key) {
+        match Aes::new(&key) {
             Ok(cipher) => {
                 assert_eq!(cipher.block_size(), BLOCK_SIZE);
 
@@ -163,7 +163,7 @@ fn test_aes_block() {
 fn test_invalid_key_sizes() {
     for &invalid_size in &[0, 8, 15, 17, 23, 25, 31, 33, 64] {
         let key = vec![0u8; invalid_size];
-        match AesCipher::new(&key) {
+        match Aes::new(&key) {
             Ok(_) => panic!("Expected error for key size {}", invalid_size),
             Err(CryptoError::InvalidKeySize(size)) => assert_eq!(size, invalid_size),
             _ => unreachable!(),
@@ -174,7 +174,7 @@ fn test_invalid_key_sizes() {
 #[test]
 fn test_block_size() {
     let key = vec![0u8; 16];
-    let cipher = AesCipher::new(&key).unwrap();
+    let cipher = Aes::new(&key).unwrap();
     assert_eq!(cipher.block_size(), 16);
 }
 
@@ -182,7 +182,7 @@ fn test_block_size() {
 #[should_panic(expected = "crypto/aes: input not full block")]
 fn test_encrypt_short_input() {
     let key = vec![0u8; 16];
-    let cipher = AesCipher::new(&key).unwrap();
+    let cipher = Aes::new(&key).unwrap();
     let mut dst = vec![0u8; 16];
     let src = vec![0u8; 15]; // Too short
     cipher.encrypt(&mut dst, &src);
@@ -192,7 +192,7 @@ fn test_encrypt_short_input() {
 #[should_panic(expected = "crypto/aes: output not full block")]
 fn test_encrypt_short_output() {
     let key = vec![0u8; 16];
-    let cipher = AesCipher::new(&key).unwrap();
+    let cipher = Aes::new(&key).unwrap();
     let mut dst = vec![0u8; 15]; // Too short
     let src = vec![0u8; 16];
     cipher.encrypt(&mut dst, &src);
@@ -210,7 +210,7 @@ fn rustcrypto_aes_interop() {
         rand::fill(src.as_mut_slice());
         let this = {
             let mut dst = src;
-            let cipher = super::AesCipher::new(&key).unwrap();
+            let cipher = super::Aes::new(&key).unwrap();
 
             for i in (0..src.len()).step_by(BLOCK_SIZE) {
                 let end = (i + BLOCK_SIZE).min(src.len());

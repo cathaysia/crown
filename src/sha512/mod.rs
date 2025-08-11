@@ -1,9 +1,5 @@
-// Copyright 2009 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
-// Package sha512 implements the SHA-384, SHA-512, SHA-512/224, and SHA-512/256
-// hash algorithms as defined in FIPS 180-4.
+//! Package sha512 implements the SHA-384, SHA-512, SHA-512/224, and SHA-512/256
+//! hash algorithms as defined in FIPS 180-4.
 
 use std::io::Write;
 
@@ -13,18 +9,11 @@ use crate::{
     hmac::Marshalable,
 };
 
-pub mod block;
-pub mod noasm;
+pub(crate) mod block;
+pub(crate) mod noasm;
 
 #[cfg(test)]
 mod tests;
-
-// Size constants for different SHA-512 variants
-pub const SIZE_512: usize = 64;
-pub const SIZE_224: usize = 28;
-pub const SIZE_256: usize = 32;
-pub const SIZE_384: usize = 48;
-pub const BLOCK_SIZE: usize = 128;
 
 const CHUNK: usize = 128;
 
@@ -85,7 +74,7 @@ const MARSHALED_SIZE: usize = 4 + 8 * 8 + CHUNK + 8;
 
 /// SHA-384, SHA-512, SHA-512/224, or SHA-512/256 digest implementation
 #[derive(Clone)]
-pub struct Digest {
+pub struct Sha512 {
     h: [u64; 8],
     x: [u8; CHUNK],
     nx: usize,
@@ -93,14 +82,20 @@ pub struct Digest {
     size: usize,
 }
 
-impl Digest {
+impl Sha512 {
+    pub const SIZE_512: usize = 64;
+    pub const SIZE_224: usize = 28;
+    pub const SIZE_256: usize = 32;
+    pub const SIZE_384: usize = 48;
+    pub const BLOCK_SIZE: usize = 128;
+
     /// Append the digest state to the provided buffer
-    pub fn append_binary(&self, b: &mut Vec<u8>) {
+    fn append_binary(&self, b: &mut Vec<u8>) {
         match self.size {
-            SIZE_384 => b.extend_from_slice(MAGIC_384),
-            SIZE_224 => b.extend_from_slice(MAGIC_512_224),
-            SIZE_256 => b.extend_from_slice(MAGIC_512_256),
-            SIZE_512 => b.extend_from_slice(MAGIC_512),
+            Self::SIZE_384 => b.extend_from_slice(MAGIC_384),
+            Self::SIZE_224 => b.extend_from_slice(MAGIC_512_224),
+            Self::SIZE_256 => b.extend_from_slice(MAGIC_512_256),
+            Self::SIZE_512 => b.extend_from_slice(MAGIC_512),
             _ => panic!("unknown size"),
         }
 
@@ -117,7 +112,7 @@ impl Digest {
         b.extend_from_slice(&self.len.to_be_bytes());
     }
 
-    fn check_sum(&mut self) -> [u8; SIZE_512] {
+    fn check_sum(&mut self) -> [u8; Self::SIZE_512] {
         // Padding. Add a 1 bit and 0 bits until 112 bytes mod 128.
         let len = self.len;
         let mut tmp = [0u8; 128 + 16]; // padding + length buffer
@@ -143,7 +138,7 @@ impl Digest {
             panic!("d.nx != 0");
         }
 
-        let mut digest = [0u8; SIZE_512];
+        let mut digest = [0u8; Self::SIZE_512];
         for (i, &h) in self.h.iter().enumerate() {
             let bytes = h.to_be_bytes();
             digest[i * 8..(i + 1) * 8].copy_from_slice(&bytes);
@@ -153,7 +148,7 @@ impl Digest {
     }
 }
 
-impl Marshalable for Digest {
+impl Marshalable for Sha512 {
     /// Marshal the digest state to binary format
     fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
         let mut result = Vec::with_capacity(MARSHALED_SIZE);
@@ -167,10 +162,10 @@ impl Marshalable for Digest {
         }
 
         let valid = match self.size {
-            SIZE_384 => b.starts_with(MAGIC_384),
-            SIZE_224 => b.starts_with(MAGIC_512_224),
-            SIZE_256 => b.starts_with(MAGIC_512_256),
-            SIZE_512 => b.starts_with(MAGIC_512),
+            Self::SIZE_384 => b.starts_with(MAGIC_384),
+            Self::SIZE_224 => b.starts_with(MAGIC_512_224),
+            Self::SIZE_256 => b.starts_with(MAGIC_512_256),
+            Self::SIZE_512 => b.starts_with(MAGIC_512),
             _ => false,
         };
 
@@ -220,7 +215,7 @@ impl Marshalable for Digest {
     }
 }
 
-impl Write for Digest {
+impl Write for Sha512 {
     /// Write data to the digest
     fn write(&mut self, p: &[u8]) -> std::io::Result<usize> {
         let nn = p.len();
@@ -262,7 +257,7 @@ impl Write for Digest {
     }
 }
 
-impl Hash for Digest {
+impl Hash for Sha512 {
     /// Get the output size of this digest
     fn size(&self) -> usize {
         self.size
@@ -270,7 +265,7 @@ impl Hash for Digest {
 
     /// Get the block size
     fn block_size(&self) -> usize {
-        BLOCK_SIZE
+        Self::BLOCK_SIZE
     }
 
     /// Compute the final hash and append it to the input
@@ -287,10 +282,10 @@ impl Hash for Digest {
     /// Reset the digest to its initial state
     fn reset(&mut self) {
         match self.size {
-            SIZE_384 => self.h = INIT_384,
-            SIZE_224 => self.h = INIT_224,
-            SIZE_256 => self.h = INIT_256,
-            SIZE_512 => self.h = INIT_512,
+            Self::SIZE_384 => self.h = INIT_384,
+            Self::SIZE_224 => self.h = INIT_224,
+            Self::SIZE_256 => self.h = INIT_256,
+            Self::SIZE_512 => self.h = INIT_512,
             _ => panic!("unknown size"),
         }
         self.nx = 0;
@@ -299,52 +294,52 @@ impl Hash for Digest {
 }
 
 /// Create a new SHA-512 digest
-pub fn new() -> Digest {
-    let mut d = Digest {
+pub fn new() -> Sha512 {
+    let mut d = Sha512 {
         h: [0; 8],
         x: [0; CHUNK],
         nx: 0,
         len: 0,
-        size: SIZE_512,
+        size: Sha512::SIZE_512,
     };
     d.reset();
     d
 }
 
 /// Create a new SHA-512/224 digest
-pub fn new_512_224() -> Digest {
-    let mut d = Digest {
+pub fn new_512_224() -> Sha512 {
+    let mut d = Sha512 {
         h: [0; 8],
         x: [0; CHUNK],
         nx: 0,
         len: 0,
-        size: SIZE_224,
+        size: Sha512::SIZE_224,
     };
     d.reset();
     d
 }
 
 /// Create a new SHA-512/256 digest
-pub fn new_512_256() -> Digest {
-    let mut d = Digest {
+pub fn new_512_256() -> Sha512 {
+    let mut d = Sha512 {
         h: [0; 8],
         x: [0; CHUNK],
         nx: 0,
         len: 0,
-        size: SIZE_256,
+        size: Sha512::SIZE_256,
     };
     d.reset();
     d
 }
 
 /// Create a new SHA-384 digest
-pub fn new_384() -> Digest {
-    let mut d = Digest {
+pub fn new_384() -> Sha512 {
+    let mut d = Sha512 {
         h: [0; 8],
         x: [0; CHUNK],
         nx: 0,
         len: 0,
-        size: SIZE_384,
+        size: Sha512::SIZE_384,
     };
     d.reset();
     d

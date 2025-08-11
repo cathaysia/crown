@@ -1,6 +1,6 @@
 use cipher::KeyIvInit;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use kittycrypto::{cipher::ctr::CtrAble, des::BLOCK_SIZE};
+use kittycrypto::{cipher::ctr::CtrAble, des::Des};
 use std::hint::black_box;
 
 fn bench_des_ctr(c: &mut Criterion) {
@@ -21,9 +21,9 @@ fn bench_des_ctr(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(size as u64));
 
         group.bench_function(format!("kittycrypto_des_ctr_{size}"), |b| {
-            let mut cipher = kittycrypto::des::DesCipher::new(&key)
+            let mut cipher = kittycrypto::des::Des::new(&key)
                 .unwrap()
-                .to_ctr(&[0u8; BLOCK_SIZE])
+                .to_ctr(&[0u8; Des::BLOCK_SIZE])
                 .unwrap();
             let mut dst = src.clone();
             b.iter(|| {
@@ -33,7 +33,7 @@ fn bench_des_ctr(c: &mut Criterion) {
 
         group.bench_function(format!("rustcrypto_des_ctr_{size}",), |b| {
             type Des256ctr64be = ctr::Ctr64BE<des::Des>;
-            let mut cipher = Des256ctr64be::new_from_slices(&key, &[0u8; BLOCK_SIZE]).unwrap();
+            let mut cipher = Des256ctr64be::new_from_slices(&key, &[0u8; Des::BLOCK_SIZE]).unwrap();
             b.iter(|| {
                 let mut data = src.clone();
                 cipher::StreamCipher::apply_keystream(&mut cipher, black_box(&mut data));

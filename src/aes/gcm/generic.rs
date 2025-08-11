@@ -1,8 +1,9 @@
 use super::ghash::ghash;
 use super::*;
-use crate::aes::AesCipher;
+use crate::aes::Aes;
 use crate::error::{CryptoError, CryptoResult};
 use crate::subtle::xor::xor_bytes;
+use crate::utils::constant_time_eq;
 
 const GCM_BLOCK_SIZE: usize = 16;
 const GCM_TAG_SIZE: usize = 16;
@@ -80,7 +81,7 @@ pub fn open_generic(
         additional_data,
     );
 
-    if constant_time_compare(&expected_tag[..g.tag_size], tag) != 1 {
+    if !constant_time_eq(&expected_tag[..g.tag_size], tag) {
         return Err(CryptoError::AuthenticationFailed);
     }
 
@@ -118,7 +119,7 @@ fn derive_counter_generic(
 // wrapping (which is different from AES-CTR) and places the result into out.
 // counter is the initial value and will be updated with the next value.
 fn gcm_counter_crypt_generic(
-    b: &AesCipher,
+    b: &Aes,
     out: &mut [u8],
     src: &[u8],
     counter: &mut [u8; GCM_BLOCK_SIZE],
@@ -171,20 +172,4 @@ fn gcm_auth_generic(
     let mut s = [0u8; GCM_BLOCK_SIZE];
     ghash(&mut s, h, &[additional_data, ciphertext, &len_block]);
     xor_bytes(out, &s, tag_mask);
-}
-
-// constant_time_compare returns 1 if the two slices, x and y, have equal contents
-// and 0 otherwise. The time taken is a function of the length of the slices and
-// is independent of the contents.
-fn constant_time_compare(x: &[u8], y: &[u8]) -> i32 {
-    if x.len() != y.len() {
-        return 0;
-    }
-
-    let mut v = 0u8;
-    for i in 0..x.len() {
-        v |= x[i] ^ y[i];
-    }
-
-    ((v as u32).wrapping_sub(1) >> 31) as i32
 }

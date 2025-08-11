@@ -55,7 +55,7 @@ const GOLDEN: &[Rc4Test] = &[
     },
 ];
 
-fn test_encrypt(desc: &str, c: &mut Rc4Cipher, src: &[u8], expect: &[u8]) {
+fn test_encrypt(desc: &str, c: &mut Rc4, src: &[u8], expect: &[u8]) {
     let mut dst = vec![0u8; src.len()];
     c.xor_key_stream(&mut dst, src).unwrap();
 
@@ -83,7 +83,7 @@ fn test_golden() {
         }
 
         for size in 1..=g.keystream.len() {
-            let mut c = Rc4Cipher::new(g.key).unwrap_or_else(|err| {
+            let mut c = Rc4::new(g.key).unwrap_or_else(|err| {
                 panic!("#{}: NewCipher: {}", gi, err);
             });
 
@@ -103,8 +103,8 @@ fn test_golden() {
 
 #[test]
 fn test_block() {
-    let mut c1a = Rc4Cipher::new(GOLDEN[0].key).unwrap();
-    let mut c1b = Rc4Cipher::new(GOLDEN[1].key).unwrap();
+    let mut c1a = Rc4::new(GOLDEN[0].key).unwrap();
+    let mut c1b = Rc4::new(GOLDEN[1].key).unwrap();
     let mut data1 = vec![0u8; 1 << 20];
     let data2 = data1.clone();
 
@@ -115,8 +115,8 @@ fn test_block() {
             .unwrap();
     }
 
-    let mut c2a = Rc4Cipher::new(GOLDEN[0].key).unwrap();
-    let mut c2b = Rc4Cipher::new(GOLDEN[1].key).unwrap();
+    let mut c2a = Rc4::new(GOLDEN[0].key).unwrap();
+    let mut c2b = Rc4::new(GOLDEN[1].key).unwrap();
     let mut data2 = vec![0u8; 1 << 20];
     let data3 = data2.clone();
     c2a.xor_key_stream(&mut data2, &data3.clone()).unwrap();
@@ -136,7 +136,7 @@ fn rustcrypto_rc4_interop() {
         rand::fill(src.as_mut_slice());
         let this = {
             let mut dst = src.clone();
-            let mut cipher = crate::rc4::Rc4Cipher::new(&KEY).unwrap();
+            let mut cipher = crate::rc4::Rc4::new(&KEY).unwrap();
             cipher.xor_key_stream(&mut dst, &src).unwrap();
             dst
         };

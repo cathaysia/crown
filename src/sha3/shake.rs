@@ -1,7 +1,3 @@
-// Copyright 2014 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
 use super::*;
 use crate::{
     error::{CryptoError, CryptoResult},
@@ -12,7 +8,7 @@ use std::io::{self, Read, Write};
 
 #[derive(Clone)]
 pub struct Shake {
-    d: Digest, // SHA-3 state context and Read/Write operations
+    d: Sha3, // SHA-3 state context and Read/Write operations
 
     // initBlock is the cSHAKE specific initialization set of bytes. It is initialized
     // by newCShake function and stores concatenation of N followed by S, encoded
@@ -54,7 +50,7 @@ fn left_encode(x: u64) -> Vec<u8> {
 
 fn new_cshake(n: &[u8], s: &[u8], rate: usize, output_len: usize, dsbyte: u8) -> Shake {
     let mut c = Shake {
-        d: Digest {
+        d: Sha3 {
             a: [0; 200],
             n: 0,
             rate,
@@ -78,29 +74,44 @@ fn new_cshake(n: &[u8], s: &[u8], rate: usize, output_len: usize, dsbyte: u8) ->
 }
 
 impl Shake {
-    pub fn block_size(&self) -> usize {
-        self.d.block_size()
+    fn append_binary(&self, b: &mut Vec<u8>) -> CryptoResult<Vec<u8>> {
+        self.d.append_binary(b)?;
+        b.extend_from_slice(&self.init_block);
+        Ok(b.clone())
+    }
+}
+
+impl Marshalable for Shake {
+    fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
+        let mut b = Vec::with_capacity(207 + self.init_block.len()); // magic(4) + rate(1) + state(200) + n(1) + direction(1)
+        self.append_binary(&mut b)
     }
 
-    pub fn size(&self) -> usize {
-        self.d.size()
-    }
+    fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
+        const MARSHALED_SIZE: usize = 207; // magic(4) + rate(1) + state(200) + n(1) + direction(1)
 
-    // Sum appends a portion of output to b and returns the resulting slice. The
-    // output length is selected to provide full-strength generic security: 32 bytes
-    // for SHAKE128 and 64 bytes for SHAKE256. It does not change the underlying
-    // state. It panics if any output has already been read.
-    pub fn sum(&mut self, input: &[u8]) -> Vec<u8> {
-        self.d.sum(input)
-    }
+        if b.len() < MARSHALED_SIZE {
+            return Err(CryptoError::InvalidHashState);
+        }
 
-    // Write absorbs more data into the hash's state.
-    // It panics if any output has already been read.
-    pub fn write(&mut self, p: &[u8]) -> io::Result<usize> {
+        self.d.unmarshal_binary(&b[..MARSHALED_SIZE])?;
+        self.init_block = b[MARSHALED_SIZE..].to_vec();
+        Ok(())
+    }
+}
+
+impl Write for Shake {
+    fn write(&mut self, p: &[u8]) -> io::Result<usize> {
         self.d.write(p)
     }
 
-    pub fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
+    fn flush(&mut self) -> io::Result<()> {
+        self.d.flush()
+    }
+}
+
+impl Read for Shake {
+    fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
         // Note that read is not exposed on Digest since SHA-3 does not offer
         // variable output length. It is only used internally by Sum.
 
@@ -140,62 +151,39 @@ impl Shake {
 
         Ok(n)
     }
+}
+
+impl Hash for Shake {
+    fn block_size(&self) -> usize {
+        self.d.block_size()
+    }
+
+    fn size(&self) -> usize {
+        self.d.size()
+    }
+
+    // Sum appends a portion of output to b and returns the resulting slice. The
+    // output length is selected to provide full-strength generic security: 32 bytes
+    // for SHAKE128 and 64 bytes for SHAKE256. It does not change the underlying
+    // state. It panics if any output has already been read.
+    fn sum(&mut self, input: &[u8]) -> Vec<u8> {
+        self.d.sum(input)
+    }
 
     // Reset resets the hash to initial state.
-    pub fn reset(&mut self) {
+    fn reset(&mut self) {
         self.d.reset();
         if !self.init_block.is_empty() {
             let padded = bytepad(&self.init_block, self.d.rate);
             self.d.write_all(&padded).unwrap();
         }
     }
-
-    pub fn append_binary(&self, b: &mut Vec<u8>) -> CryptoResult<Vec<u8>> {
-        self.d.append_binary(b)?;
-        b.extend_from_slice(&self.init_block);
-        Ok(b.clone())
-    }
-}
-
-impl Marshalable for Shake {
-    fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
-        let mut b = Vec::with_capacity(207 + self.init_block.len()); // magic(4) + rate(1) + state(200) + n(1) + direction(1)
-        self.append_binary(&mut b)
-    }
-
-    fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
-        const MARSHALED_SIZE: usize = 207; // magic(4) + rate(1) + state(200) + n(1) + direction(1)
-
-        if b.len() < MARSHALED_SIZE {
-            return Err(CryptoError::InvalidHashState);
-        }
-
-        self.d.unmarshal_binary(&b[..MARSHALED_SIZE])?;
-        self.init_block = b[MARSHALED_SIZE..].to_vec();
-        Ok(())
-    }
-}
-
-impl Write for Shake {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.d.write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.d.flush()
-    }
-}
-
-impl Read for Shake {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.read(buf)
-    }
 }
 
 // NewShake128 creates a new SHAKE128 XOF.
 pub fn new_shake128() -> Shake {
     Shake {
-        d: Digest {
+        d: Sha3 {
             a: [0; 200],
             n: 0,
             rate: RATE_K256,
@@ -210,7 +198,7 @@ pub fn new_shake128() -> Shake {
 // NewShake256 creates a new SHAKE256 XOF.
 pub fn new_shake256() -> Shake {
     Shake {
-        d: Digest {
+        d: Sha3 {
             a: [0; 200],
             n: 0,
             rate: RATE_K512,

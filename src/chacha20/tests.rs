@@ -510,10 +510,8 @@ const TEST_VECTORS :&[TestCase]= &[
 #[test]
 fn test_no_overlap() -> anyhow::Result<()> {
     for c in TEST_VECTORS {
-        let mut s = Chacha20Cipher::new_unauthenticated_cipher(
-            &hex::decode(c.key)?,
-            &hex::decode(c.nonce)?,
-        )?;
+        let mut s =
+            Chacha20::new_unauthenticated_cipher(&hex::decode(c.key)?, &hex::decode(c.nonce)?)?;
         let input = hex::decode(c.input)?;
         let mut output = vec![0u8; input.len()];
         s.xor_key_stream(&mut output, &input).unwrap();
@@ -557,8 +555,7 @@ fn rustcrypto_chacha20_interop() {
         let this = {
             let mut dst = vec![0; src.len()];
             let mut cipher =
-                crate::chacha20::Chacha20Cipher::new_unauthenticated_cipher(&key, &[0u8; 12])
-                    .unwrap();
+                crate::chacha20::Chacha20::new_unauthenticated_cipher(&key, &[0u8; 12]).unwrap();
             cipher.xor_key_stream(&mut dst, &src).unwrap();
             dst
         };

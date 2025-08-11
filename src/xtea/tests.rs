@@ -1,7 +1,6 @@
 use xtea::cipher::{BlockCipherEncrypt, KeyInit};
 
-use super::BLOCK_SIZE;
-use crate::cipher::BlockCipher;
+use crate::{cipher::BlockCipher, xtea::Xtea};
 
 #[test]
 fn rustcrypto_twofish_interop() {
@@ -17,9 +16,9 @@ fn rustcrypto_twofish_interop() {
             let mut dst = src;
             let cipher = super::Xtea::new(&key).unwrap();
 
-            for i in (0..src.len()).step_by(BLOCK_SIZE) {
-                let end = (i + BLOCK_SIZE).min(src.len());
-                if end - i == BLOCK_SIZE {
+            for i in (0..src.len()).step_by(Xtea::BLOCK_SIZE) {
+                let end = (i + Xtea::BLOCK_SIZE).min(src.len());
+                if end - i == Xtea::BLOCK_SIZE {
                     cipher.encrypt(&mut dst[i..end], &src[i..end]);
                 }
             }
@@ -30,7 +29,7 @@ fn rustcrypto_twofish_interop() {
             let mut dst = src;
             let cipher = xtea::Xtea::new(&key.into());
 
-            for chunk in dst.chunks_exact_mut(BLOCK_SIZE) {
+            for chunk in dst.chunks_exact_mut(Xtea::BLOCK_SIZE) {
                 cipher.encrypt_block(chunk.try_into().unwrap());
             }
             dst

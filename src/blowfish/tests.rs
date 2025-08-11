@@ -183,7 +183,7 @@ static ENCRYPT_TESTS: &[CryptTest] = &[
 #[test]
 fn test_cipher_encrypt() {
     for (i, tt) in ENCRYPT_TESTS.iter().enumerate() {
-        let c = match Cipher::new(tt.key) {
+        let c = match Blowfish::new(tt.key) {
             Ok(cipher) => cipher,
             Err(err) => {
                 panic!("NewCipher({} bytes) = {:?}", tt.key.len(), err);
@@ -205,7 +205,7 @@ fn test_cipher_encrypt() {
 #[test]
 fn test_cipher_decrypt() {
     for (i, tt) in ENCRYPT_TESTS.iter().enumerate() {
-        let c = match Cipher::new(tt.key) {
+        let c = match Blowfish::new(tt.key) {
             Ok(cipher) => cipher,
             Err(err) => {
                 panic!("NewCipher({} bytes) = {:?}", tt.key.len(), err);
@@ -227,13 +227,13 @@ fn test_cipher_decrypt() {
 #[test]
 fn test_salted_cipher_key_length() {
     assert!(matches!(
-        Cipher::new_salted(&[], b"a"),
+        Blowfish::new_salted(&[], b"a"),
         Err(CryptoError::InvalidKeySize(0))
     ));
 
     // A 57-byte key. One over the typical blowfish restriction.
     let key = b"012345678901234567890123456789012345678901234567890123456";
-    Cipher::new_salted(key, b"a").unwrap();
+    Blowfish::new_salted(key, b"a").unwrap();
 }
 
 // Test vectors generated with Blowfish from OpenSSH.
@@ -281,7 +281,7 @@ fn test_salted_cipher() {
         salt[i] = (i + 32) as u8;
     }
     for (i, &expected) in SALTED_VECTORS.iter().enumerate() {
-        let c = match Cipher::new_salted(&key, &salt[..i]) {
+        let c = match Blowfish::new_salted(&key, &salt[..i]) {
             Ok(cipher) => cipher,
             Err(err) => {
                 panic!("Failed to create salted cipher: {:?}", err);

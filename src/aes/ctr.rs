@@ -4,14 +4,14 @@ pub use noasm::*;
 use crate::cipher::StreamCipher;
 
 pub struct CTR {
-    b: AesCipher,
+    b: Aes,
     ivlo: u64,
     ivhi: u64,
     offset: u64,
 }
 
 impl CTR {
-    pub fn new(b: AesCipher, iv: &[u8]) -> CryptoResult<Self> {
+    pub fn new(b: Aes, iv: &[u8]) -> CryptoResult<Self> {
         if iv.len() != BLOCK_SIZE {
             return Err(CryptoError::InvalidIvSize(iv.len()));
         }
@@ -148,7 +148,7 @@ impl StreamCipher for CTR {
     }
 }
 
-pub(crate) fn ctr_blocks(b: &AesCipher, dst: &mut [u8], src: &[u8], mut ivlo: u64, mut ivhi: u64) {
+pub(crate) fn ctr_blocks(b: &Aes, dst: &mut [u8], src: &[u8], mut ivlo: u64, mut ivhi: u64) {
     let mut buf = vec![0u8; src.len()];
 
     for chunk in buf.chunks_mut(BLOCK_SIZE) {

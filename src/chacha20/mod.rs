@@ -1,5 +1,5 @@
-// Package chacha20 implements the ChaCha20 and XChaCha20 encryption algorithms
-// as specified in RFC 8439 and draft-irtf-cfrg-xchacha-01.
+//! Module chacha20 implements the ChaCha20 and XChaCha20 encryption algorithms
+//! as specified in RFC 8439 and draft-irtf-cfrg-xchacha-01.
 
 #[cfg(test)]
 mod tests;
@@ -11,10 +11,6 @@ use crate::error::{CryptoError, CryptoResult};
 use crate::utils::inexact_overlap;
 use bytes::{Buf, BufMut};
 
-const KEY_SIZE: usize = 32;
-const NONCE_SIZE: usize = 12;
-const NONCE_SIZE_X: usize = 24;
-const BLOCK_SIZE: usize = 64;
 const BUF_SIZE: usize = 64;
 
 // The constant first 4 words of the ChaCha20 state.
@@ -25,7 +21,7 @@ const J3: u32 = 0x6b206574; // te k
 
 /// Cipher is a stateful instance of ChaCha20 or XChaCha20 using a particular key
 /// and nonce. A Cipher implements the StreamCipher trait.
-pub struct Chacha20Cipher {
+pub struct Chacha20 {
     // The ChaCha20 state is 16 words: 4 constant, 8 of key, 1 of counter
     // (incremented after each block), and 3 of nonce.
     key: [u32; 8],
@@ -59,7 +55,7 @@ pub struct Chacha20Cipher {
     p15: u32,
 }
 
-impl StreamCipher for Chacha20Cipher {
+impl StreamCipher for Chacha20 {
     fn xor_key_stream(&mut self, dst: &mut [u8], mut src: &[u8]) -> CryptoResult<()> {
         if src.is_empty() {
             return Ok(());
@@ -94,7 +90,7 @@ impl StreamCipher for Chacha20Cipher {
         // If we'd need to let the counter overflow and keep generating output,
         // panic immediately. If instead we'd only reach the last block, remember
         // not to generate any more output after the buffer is drained.
-        let num_blocks = src.len().div_ceil(BLOCK_SIZE);
+        let num_blocks = src.len().div_ceil(Self::block_size());
         if self.overflow || u64::from(self.counter) + num_blocks as u64 > 1 << 32 {
             return Err(CryptoError::CounterOverflow);
         } else if u64::from(self.counter) + num_blocks as u64 == 1 << 32 {
@@ -103,7 +99,7 @@ impl StreamCipher for Chacha20Cipher {
 
         // xor_key_stream_blocks implementations expect input lengths that are a
         // multiple of BUF_SIZE. Platform-specific ones process multiple blocks at a
-        // time, so have BUF_SIZE that are a multiple of BLOCK_SIZE.
+        // time, so have BUF_SIZE that are a multiple of Self::block_size().
         let full = src.len() - src.len() % BUF_SIZE;
         if full > 0 {
             self.xor_key_stream_blocks(&mut dst[..full], &src[..full]);
@@ -113,11 +109,11 @@ impl StreamCipher for Chacha20Cipher {
 
         // If using a multi-block xor_key_stream_blocks would overflow, use the generic
         // one that does one block at a time.
-        const BLOCKS_PER_BUF: u64 = BUF_SIZE as u64 / BLOCK_SIZE as u64;
+        const BLOCKS_PER_BUF: u64 = BUF_SIZE as u64 / Chacha20::block_size() as u64;
         if u64::from(self.counter) + BLOCKS_PER_BUF > 1 << 32 {
             self.buf = [0; BUF_SIZE];
-            let num_blocks = src.len().div_ceil(BLOCK_SIZE);
-            let buf_len = num_blocks * BLOCK_SIZE;
+            let num_blocks = src.len().div_ceil(Self::block_size());
+            let buf_len = num_blocks * Self::block_size();
             let buf = &mut self.buf[BUF_SIZE - buf_len..];
             buf[..src.len()].copy_from_slice(src);
             let buf = unsafe {
@@ -156,16 +152,22 @@ impl StreamCipher for Chacha20Cipher {
     }
 }
 
-impl Chacha20Cipher {
-    /// new_unauthenticated_cipher creates a new ChaCha20 stream cipher with the given
-    /// 32 bytes key and a 12 or 24 bytes nonce. If a nonce of 24 bytes is provided,
-    /// the XChaCha20 construction will be used. It returns an error if key or nonce
-    /// have any other length.
+impl Chacha20 {
+    /// [Self::new_unauthenticated_cipher] creates a new ChaCha20 stream cipher.
     ///
-    /// Note that ChaCha20, like all stream ciphers, is not authenticated and allows
-    /// attackers to silently tamper with the plaintext.
+    /// - if the key is 32 bytes long, then create a chacha20 cipher.
+    /// - if the key is 24 bytes long, then create a xchacha20 cipher.
+    ///
+    /// # NOTE
+    ///
+    /// like all stream ciphers, is not authenticated and allows attackers to
+    /// silently tamper with the plaintext.
+    ///
+    /// # Error
+    ///
+    /// Return error if the key is not 12 or 24 bytes. Or the nonce is not 12 or 24 bytes.
     pub fn new_unauthenticated_cipher(key: &[u8], nonce: &[u8]) -> CryptoResult<Self> {
-        let mut c = Chacha20Cipher {
+        let mut c = Chacha20 {
             key: [0; 8],
             counter: 0,
             nonce: [0; 3],
@@ -187,19 +189,19 @@ impl Chacha20Cipher {
             p15: 0,
         };
 
-        if key.len() != KEY_SIZE {
+        if key.len() != Self::key_size() {
             return Err(CryptoError::InvalidKeySize(key.len()));
         }
 
-        let (key, nonce) = if nonce.len() == NONCE_SIZE_X {
+        let (key, nonce) = if nonce.len() == Self::nonce_size_x() {
             // XChaCha20 uses the ChaCha20 core to mix 16 bytes of the nonce into a
             // derived key, allowing it to operate on a nonce of 24 bytes. See
             // draft-irtf-cfrg-xchacha-01, Section 2.3.
             let derived_key = h_chacha20(key, &nonce[0..16])?;
-            let mut c_nonce = vec![0; NONCE_SIZE];
+            let mut c_nonce = vec![0; Self::nonce_size()];
             c_nonce[4..12].copy_from_slice(&nonce[16..24]);
             (derived_key, c_nonce)
-        } else if nonce.len() == NONCE_SIZE {
+        } else if nonce.len() == Self::nonce_size() {
             (key.to_vec(), nonce.to_vec())
         } else {
             return Err(CryptoError::InvalidIvSize(nonce.len()));
@@ -224,6 +226,22 @@ impl Chacha20Cipher {
         Ok(c)
     }
 
+    pub const fn block_size() -> usize {
+        64
+    }
+
+    pub const fn key_size() -> usize {
+        32
+    }
+
+    pub const fn nonce_size() -> usize {
+        12
+    }
+
+    pub const fn nonce_size_x() -> usize {
+        24
+    }
+
     /// set_counter sets the Cipher counter. The next invocation of xor_key_stream will
     /// behave as if (64 * counter) bytes had been encrypted so far.
     ///
@@ -232,12 +250,12 @@ impl Chacha20Cipher {
     ///
     /// Note that the execution time of xor_key_stream is not independent of the
     /// counter value.
-    pub fn set_counter(&mut self, counter: u32) {
+    pub(crate) fn set_counter(&mut self, counter: u32) {
         // Internally, self may buffer multiple blocks, which complicates this
         // implementation slightly. When checking whether the counter has rolled
         // back, we must use both self.counter and self.len to determine how many blocks
         // we have already output.
-        let output_counter = self.counter - (self.len as u32 / BLOCK_SIZE as u32);
+        let output_counter = self.counter - (self.len as u32 / Self::block_size() as u32);
         if self.overflow || counter < output_counter {
             panic!("chacha20: set_counter attempted to rollback counter");
         }
@@ -247,7 +265,7 @@ impl Chacha20Cipher {
         // we're advancing within the existing buffer, we can save work by simply
         // setting self.len.
         if counter < self.counter {
-            self.len = ((self.counter - counter) * BLOCK_SIZE as u32) as usize;
+            self.len = ((self.counter - counter) * Self::block_size() as u32) as usize;
         } else {
             self.counter = counter;
             self.len = 0;
@@ -255,7 +273,7 @@ impl Chacha20Cipher {
     }
 
     fn xor_key_stream_blocks_generic(&mut self, dst: &mut [u8], src: &[u8]) {
-        if dst.len() != src.len() || dst.len() % BLOCK_SIZE != 0 {
+        if dst.len() != src.len() || dst.len() % Self::block_size() != 0 {
             panic!("chacha20: internal error: wrong dst and/or src length");
         }
 
@@ -339,8 +357,8 @@ impl Chacha20Cipher {
 
             self.counter += 1;
 
-            src = &src[BLOCK_SIZE..];
-            dst = &mut dst[BLOCK_SIZE..];
+            src = &src[Self::block_size()..];
+            dst = &mut dst[Self::block_size()..];
         }
     }
 }
@@ -386,8 +404,8 @@ fn add_xor(dst: &mut [u8], src: &[u8], a: u32, b: u32) {
 /// h_chacha20 uses the ChaCha20 core to generate a derived key from a 32 bytes
 /// key and a 16 bytes nonce. It returns an error if key or nonce have any other
 /// length. It is used as part of the XChaCha20 construction.
-pub fn h_chacha20(mut key: &[u8], mut nonce: &[u8]) -> CryptoResult<Vec<u8>> {
-    if key.len() != KEY_SIZE {
+fn h_chacha20(mut key: &[u8], mut nonce: &[u8]) -> CryptoResult<Vec<u8>> {
+    if key.len() != Chacha20::key_size() {
         return Err(CryptoError::InvalidKeySize(key.len()));
     }
     if nonce.len() != 16 {

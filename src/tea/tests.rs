@@ -14,7 +14,7 @@ fn test_blocksize() {
 
     assert_eq!(
         c.block_size(),
-        BLOCK_SIZE,
+        Tea::BLOCK_SIZE,
         "cipher.block_size() returned incorrect value"
     );
 }
@@ -22,14 +22,14 @@ fn test_blocksize() {
 /// Test that invalid key sizes return an error
 #[test]
 fn test_invalid_key_size() {
-    let key_too_long = [0u8; KEY_SIZE + 1];
+    let key_too_long = [0u8; Tea::KEY_SIZE + 1];
     assert!(
         Tea::new(&key_too_long).is_err(),
         "invalid key size {} should result in an error",
         key_too_long.len()
     );
 
-    let key_too_short = [0u8; KEY_SIZE - 1];
+    let key_too_short = [0u8; Tea::KEY_SIZE - 1];
     assert!(
         Tea::new(&key_too_short).is_err(),
         "invalid key size {} should result in an error",
@@ -83,7 +83,7 @@ fn test_cipher_encrypt() {
         let c = Tea::new_with_rounds(&test.key, test.rounds)
             .unwrap_or_else(|_| panic!("#{}: NewCipherWithRounds should not return error", i));
 
-        let mut ciphertext = [0u8; BLOCK_SIZE];
+        let mut ciphertext = [0u8; Tea::BLOCK_SIZE];
         c.encrypt(&mut ciphertext, &test.plaintext);
 
         assert_eq!(
@@ -92,7 +92,7 @@ fn test_cipher_encrypt() {
             i, ciphertext, test.ciphertext
         );
 
-        let mut plaintext2 = [0u8; BLOCK_SIZE];
+        let mut plaintext2 = [0u8; Tea::BLOCK_SIZE];
         c.decrypt(&mut plaintext2, &ciphertext);
 
         assert_eq!(

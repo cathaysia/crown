@@ -54,9 +54,7 @@ const CBC_AESTESTS: [CbcAesTest; 3] = [
 #[test]
 fn test_cbc_encrypter_aes() {
     for case in CBC_AESTESTS {
-        let c = crate::aes::AesCipher::new(case.key)
-            .unwrap()
-            .to_cbc_enc(case.iv);
+        let c = crate::aes::Aes::new(case.key).unwrap().to_cbc_enc(case.iv);
         let mut dst = vec![0u8; case.output.len()];
         c.crypt_blocks(&mut dst, case.input);
         assert_eq!(dst, case.output, "{} failed", case.name)

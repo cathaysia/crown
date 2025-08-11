@@ -94,7 +94,7 @@ impl<H: Hash + Marshalable> HMAC<H> {
 
     /// Mark this HMAC instance as being used in a Key Derivation Function.
     /// This affects FIPS compliance checking for short keys.
-    pub fn mark_as_used_in_kdf(&mut self) {
+    pub(crate) fn mark_as_used_in_kdf(&mut self) {
         self.for_hkdf = true;
     }
 }

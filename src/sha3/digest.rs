@@ -17,7 +17,7 @@ pub(super) enum SpongeDirection {
 }
 
 #[derive(Debug, Clone)]
-pub struct Digest {
+pub struct Sha3 {
     /// main state of the hash
     pub(super) a: [u8; 1600 / 8], // 200 bytes
 
@@ -47,7 +47,7 @@ pub struct Digest {
     pub(super) state: SpongeDirection,
 }
 
-impl Digest {
+impl Sha3 {
     /// permute applies the KeccakF-1600 permutation.
     fn permute(&mut self) {
         keccak_f1600(&mut self.a);
@@ -113,7 +113,7 @@ impl Digest {
         result
     }
 
-    pub fn append_binary(&self, b: &mut Vec<u8>) -> CryptoResult<Vec<u8>> {
+    pub(crate) fn append_binary(&self, b: &mut Vec<u8>) -> CryptoResult<Vec<u8>> {
         match self.dsbyte {
             DSBYTE_SHA3 => b.extend_from_slice(MAGIC_SHA3.as_bytes()),
             DSBYTE_SHAKE => b.extend_from_slice(MAGIC_SHAKE.as_bytes()),
@@ -130,7 +130,7 @@ impl Digest {
     }
 }
 
-impl Marshalable for Digest {
+impl Marshalable for Sha3 {
     fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
         let mut b = Vec::with_capacity(MARSHALED_SIZE);
         self.append_binary(&mut b)
@@ -184,7 +184,7 @@ impl Marshalable for Digest {
     }
 }
 
-impl Write for Digest {
+impl Write for Sha3 {
     fn write(&mut self, p: &[u8]) -> io::Result<usize> {
         if self.state != SpongeDirection::Absorbing {
             panic!("sha3: Write after Read");
@@ -216,7 +216,7 @@ impl Write for Digest {
     }
 }
 
-impl crate::hash::Hash for Digest {
+impl crate::hash::Hash for Sha3 {
     /// BlockSize returns the rate of sponge underlying this hash function.
     fn block_size(&self) -> usize {
         self.rate

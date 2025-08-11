@@ -1,15 +1,16 @@
-//! Package twofish implements Bruce Schneier's Twofish encryption algorithm.
+//! Module twofish implements Bruce Schneier's Twofish encryption algorithm.
 //!
+//! # WARNING
 //! Deprecated: Twofish is a legacy cipher and should not be used for new
 //! applications. Also, this package does not and will not provide an optimized
 //! implementation. Instead, use AES (from crypto/aes, if necessary in an AEAD
 //! mode like crypto/cipher.NewGCM) or XChaCha20-Poly1305 (from
 //! golang.org/x/crypto/chacha20poly1305).
 
-// Twofish is defined in https://www.schneier.com/paper-twofish-paper.pdf [TWOFISH]
+// Twofish is defined in <https://www.schneier.com/paper-twofish-paper.pdf> [TWOFISH]
 
 // This code is a port of the LibTom C implementation.
-// See http://libtom.org/?page=features&newsitems=5&whatfile=crypt.
+// See <http://libtom.org/?page=features&newsitems=5&whatfile=crypt>.
 // LibTomCrypt is free for all purposes under the public domain.
 // It was heavily inspired by the go blowfish package.
 
@@ -20,9 +21,6 @@ use crate::{
     cipher::{marker::BlockCipherMarker, BlockCipher},
     error::{CryptoError, CryptoResult},
 };
-
-// BlockSize is the constant block size of Twofish.
-pub const BLOCK_SIZE: usize = 16;
 
 const MDS_POLYNOMIAL: u32 = 0x169; // x^8 + x^6 + x^5 + x^3 + 1, see [TWOFISH] 4.2
 const RS_POLYNOMIAL: u32 = 0x14d; // x^8 + x^6 + x^3 + x^2 + 1, see [TWOFISH] 4.3
@@ -36,8 +34,10 @@ pub struct Twofish {
 impl BlockCipherMarker for Twofish {}
 
 impl Twofish {
-    // NewCipher creates and returns a Cipher.
-    // The key argument should be the Twofish key, 16, 24 or 32 bytes.
+    /// BlockSize is the constant block size of Twofish.
+    pub const BLOCK_SIZE: usize = 16;
+    /// NewCipher creates and returns a Cipher.
+    /// The key argument should be the Twofish key, 16, 24 or 32 bytes.
     pub fn new(key: &[u8]) -> CryptoResult<Twofish> {
         let keylen = key.len();
 
@@ -173,7 +173,7 @@ impl Twofish {
 impl BlockCipher for Twofish {
     // BlockSize returns the Twofish block size, 16 bytes.
     fn block_size(&self) -> usize {
-        BLOCK_SIZE
+        Self::BLOCK_SIZE
     }
 
     // Encrypt encrypts a 16-byte block from src to dst, which may overlap.

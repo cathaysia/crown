@@ -20,12 +20,6 @@ use crate::cipher::BlockCipher;
 
 use crate::error::CryptoError;
 
-/// The size of a TEA block, in bytes.
-pub const BLOCK_SIZE: usize = 8;
-
-/// The size of a TEA key, in bytes.
-pub const KEY_SIZE: usize = 16;
-
 /// The TEA key schedule constant.
 const DELTA: u32 = 0x9e3779b9;
 
@@ -41,6 +35,12 @@ pub struct Tea {
 impl BlockCipherMarker for Tea {}
 
 impl Tea {
+    /// The size of a TEA block, in bytes.
+    pub const BLOCK_SIZE: usize = 8;
+
+    /// The size of a TEA key, in bytes.
+    pub const KEY_SIZE: usize = 16;
+
     /// Creates a new TEA cipher instance with the standard number of rounds.
     /// The key must be exactly 16 bytes long.
     pub fn new(key: &[u8]) -> Result<Self, CryptoError> {
@@ -50,7 +50,7 @@ impl Tea {
     /// Creates a new TEA cipher instance with a given number of rounds.
     /// The number of rounds must be even and the key must be exactly 16 bytes long.
     pub fn new_with_rounds(key: &[u8], rounds: usize) -> Result<Self, CryptoError> {
-        if key.len() != KEY_SIZE {
+        if key.len() != Self::KEY_SIZE {
             return Err(CryptoError::InvalidKeySize(key.len()));
         }
 
@@ -73,7 +73,7 @@ impl Tea {
 impl BlockCipher for Tea {
     /// Returns the TEA block size, which is eight bytes.
     fn block_size(&self) -> usize {
-        BLOCK_SIZE
+        Self::BLOCK_SIZE
     }
 
     /// Encrypts the 8 byte buffer src using the key and stores the result in dst.
@@ -82,15 +82,15 @@ impl BlockCipher for Tea {
     fn encrypt(&self, dst: &mut [u8], src: &[u8]) {
         assert_eq!(
             src.len(),
-            BLOCK_SIZE,
+            Self::BLOCK_SIZE,
             "Source buffer must be exactly {} bytes",
-            BLOCK_SIZE
+            Self::BLOCK_SIZE
         );
         assert_eq!(
             dst.len(),
-            BLOCK_SIZE,
+            Self::BLOCK_SIZE,
             "Destination buffer must be exactly {} bytes",
-            BLOCK_SIZE
+            Self::BLOCK_SIZE
         );
 
         let mut v0 = u32::from_be_bytes([src[0], src[1], src[2], src[3]]);
@@ -125,15 +125,15 @@ impl BlockCipher for Tea {
     fn decrypt(&self, dst: &mut [u8], src: &[u8]) {
         assert_eq!(
             src.len(),
-            BLOCK_SIZE,
+            Self::BLOCK_SIZE,
             "Source buffer must be exactly {} bytes",
-            BLOCK_SIZE
+            Self::BLOCK_SIZE
         );
         assert_eq!(
             dst.len(),
-            BLOCK_SIZE,
+            Self::BLOCK_SIZE,
             "Destination buffer must be exactly {} bytes",
-            BLOCK_SIZE
+            Self::BLOCK_SIZE
         );
 
         let mut v0 = u32::from_be_bytes([src[0], src[1], src[2], src[3]]);

@@ -233,7 +233,7 @@ fn test_extra_large() {
 fn test_block_generic() {
     let mut gen = Md5::new();
     let mut asm = Md5::new();
-    let buf = vec![0x42u8; BLOCK_SIZE * 20];
+    let buf = vec![0x42u8; Md5::BLOCK_SIZE * 20];
 
     block_generic(&mut gen, &buf);
     block(&mut asm, &buf);

@@ -1,3 +1,10 @@
+//! Package hkdf implements the HMAC-based Extract-and-Expand Key Derivation
+//! Function (HKDF) as defined in RFC 5869.
+//!
+//! HKDF is a cryptographic key derivation function (KDF) with the goal of
+//! expanding limited input keying material into one or more cryptographically
+//! strong secret keys.
+
 use crate::{
     hash::Hash,
     hmac::{self, Marshalable},

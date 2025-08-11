@@ -1,5 +1,6 @@
-//! Package blowfish implements Bruce Schneier's Blowfish encryption algorithm.
+//! Module blowfish implements Bruce Schneier's Blowfish encryption algorithm.
 //!
+//! # WARNING
 //! Blowfish is a legacy cipher and its short block size makes it vulnerable to
 //! birthday bound attacks (see <https://sweet32.info>). It should only be used
 //! where compatibility with legacy systems, not security, is the goal.
@@ -11,7 +12,8 @@ mod consts;
 #[cfg(test)]
 mod tests;
 
-pub use block::{decrypt_block, encrypt_block, expand_key, expand_key_with_salt};
+pub(crate) use block::*;
+
 use consts::{P, S0, S1, S2, S3};
 
 use crate::{
@@ -19,37 +21,38 @@ use crate::{
     error::{CryptoError, CryptoResult},
 };
 
-// The Blowfish block size in bytes.
-pub const BLOCK_SIZE: usize = 8;
-
 // A Cipher is an instance of Blowfish encryption using a particular key.
-pub struct Cipher {
-    pub p: [u32; 18],
-    pub s0: [u32; 256],
-    pub s1: [u32; 256],
-    pub s2: [u32; 256],
-    pub s3: [u32; 256],
+pub struct Blowfish {
+    p: [u32; 18],
+    s0: [u32; 256],
+    s1: [u32; 256],
+    s2: [u32; 256],
+    s3: [u32; 256],
 }
 
-impl BlockCipherMarker for Cipher {}
+impl BlockCipherMarker for Blowfish {}
 
-impl Cipher {
-    // NewCipher creates and returns a Cipher.
-    // The key argument should be the Blowfish key, from 1 to 56 bytes.
+impl Blowfish {
+    pub const BLOCK_SIZE: usize = 8;
+    /// Creates and returns a Blowfish cipher.
+    ///
+    /// **key**: The key argument should be the Blowfish key, from 1 to 56 bytes.
     pub fn new(key: &[u8]) -> CryptoResult<Self> {
-        let k = key.len();
-        if !(1..=56).contains(&k) {
-            return Err(CryptoError::InvalidKeySize(k));
+        if !(1..=56).contains(&key.len()) {
+            return Err(CryptoError::InvalidKeySize(key.len()));
         }
         let mut result = Self::init();
         expand_key(key, &mut result);
         Ok(result)
     }
 
-    // NewSaltedCipher creates a returns a Cipher that folds a salt into its key
-    // schedule. For most purposes, NewCipher, instead of NewSaltedCipher, is
-    // sufficient and desirable. For bcrypt compatibility, the key can be over 56
-    // bytes.
+    /// Creates a returns a Cipher that folds a salt into its key
+    /// schedule. For most purposes, [Self::new], instead of [Self::new_salted], is
+    /// sufficient and desirable.
+    ///
+    /// # Note
+    /// For bcrypt compatibility, the key can be over 56
+    /// bytes.
     pub fn new_salted(key: &[u8], salt: &[u8]) -> CryptoResult<Self> {
         if salt.is_empty() {
             return Self::new(key);
@@ -74,19 +77,11 @@ impl Cipher {
     }
 }
 
-impl BlockCipher for Cipher {
-    // BlockSize returns the Blowfish block size, 8 bytes.
-    // It is necessary to satisfy the Block interface in the
-    // package "crypto/cipher".
+impl BlockCipher for Blowfish {
     fn block_size(&self) -> usize {
-        BLOCK_SIZE
+        Self::BLOCK_SIZE
     }
 
-    // Encrypt encrypts the 8-byte buffer src using the key k
-    // and stores the result in dst.
-    // Note that for amounts of data larger than a block,
-    // it is not safe to just call Encrypt on successive blocks;
-    // instead, use an encryption mode like CBC (see crypto/cipher/cbc.go).
     fn encrypt(&self, dst: &mut [u8], src: &[u8]) {
         let l = ((src[0] as u32) << 24)
             | ((src[1] as u32) << 16)
@@ -107,8 +102,6 @@ impl BlockCipher for Cipher {
         dst[7] = r as u8;
     }
 
-    // Decrypt decrypts the 8-byte buffer src using the key k
-    // and stores the result in dst.
     fn decrypt(&self, dst: &mut [u8], src: &[u8]) {
         let l = ((src[0] as u32) << 24)
             | ((src[1] as u32) << 16)

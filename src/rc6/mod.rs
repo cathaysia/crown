@@ -1,3 +1,4 @@
+//! Module rc6 implements the Rc6 stream cipher algorithm.
 #[cfg(test)]
 mod tests;
 

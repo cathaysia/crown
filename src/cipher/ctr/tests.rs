@@ -1,6 +1,6 @@
 use cipher::KeyIvInit;
 
-use crate::{cipher::ctr::CtrAble, des::BLOCK_SIZE};
+use crate::{cipher::ctr::CtrAble, des::Des};
 
 #[test]
 fn rustcrypto_des_ctr_interop() {
@@ -14,9 +14,9 @@ fn rustcrypto_des_ctr_interop() {
         rand::fill(src.as_mut_slice());
         let this = {
             let mut dst = src.clone();
-            let mut ctr = crate::des::DesCipher::new(&key)
+            let mut ctr = crate::des::Des::new(&key)
                 .unwrap()
-                .to_ctr(&[0u8; BLOCK_SIZE])
+                .to_ctr(&[0u8; Des::BLOCK_SIZE])
                 .unwrap();
             ctr.xor_key_stream(&mut dst, &src).unwrap();
             dst
@@ -25,7 +25,7 @@ fn rustcrypto_des_ctr_interop() {
         let rustcrypto = {
             let mut dst = src.clone();
             type DesCtr64Be = ctr::Ctr64BE<des::Des>;
-            let mut cipher = DesCtr64Be::new_from_slices(&key, &[0u8; BLOCK_SIZE]).unwrap();
+            let mut cipher = DesCtr64Be::new_from_slices(&key, &[0u8; Des::BLOCK_SIZE]).unwrap();
             cipher::StreamCipher::apply_keystream(&mut cipher, &mut dst);
             dst
         };

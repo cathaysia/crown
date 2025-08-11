@@ -1,4 +1,4 @@
-//! Package poly1305 implements Poly1305 one-time message authentication code as
+//! Module poly1305 implements Poly1305 one-time message authentication code as
 //! specified in <https://cr.yp.to/mac/poly1305-20050329.pdf>.
 //!
 //! Poly1305 is a fast, one-time authentication function. It is infeasible for an
@@ -20,6 +20,8 @@ pub use generic::*;
 mod no_asm;
 use no_asm::*;
 
+use crate::utils::constant_time_eq;
+
 /// TagSize is the size, in bytes, of a poly1305 authenticator.
 pub const TAG_SIZE: usize = 16;
 
@@ -36,7 +38,7 @@ pub fn sum(out: &mut [u8; TAG_SIZE], msg: &[u8], key: &[u8; 32]) {
 pub fn verify(mac: &[u8; TAG_SIZE], m: &[u8], key: &[u8; 32]) -> bool {
     let mut tmp = [0u8; TAG_SIZE];
     sum(&mut tmp, m, key);
-    constant_time_compare(&tmp, mac) == 1
+    constant_time_eq(&tmp, mac)
 }
 
 /// MAC is an io.Writer computing an authentication tag
@@ -68,7 +70,7 @@ impl MAC {
         }
     }
     /// Size returns the number of bytes Sum will return.
-    pub fn size(&self) -> usize {
+    pub const fn size() -> usize {
         TAG_SIZE
     }
 
@@ -96,24 +98,6 @@ impl MAC {
         let mut mac = [0u8; TAG_SIZE];
         self.mac.sum(&mut mac);
         self.finalized = true;
-        constant_time_compare(&mac, expected) == 1
-    }
-}
-
-/// Compares two slices in constant time.
-fn constant_time_compare(x: &[u8], y: &[u8]) -> u8 {
-    if x.len() != y.len() {
-        return 0;
-    }
-
-    let mut v: u8 = 0;
-    for i in 0..x.len() {
-        v |= x[i] ^ y[i];
-    }
-
-    if v == 0 {
-        1
-    } else {
-        0
+        constant_time_eq(&mac, expected)
     }
 }

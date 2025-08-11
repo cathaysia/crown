@@ -31,7 +31,7 @@ impl<B: BlockCipher> CbcEncrypter<B> {
     }
 }
 
-impl CbcEncAble<crate::aes::AesCipher> for crate::aes::AesCipher {
+impl CbcEncAble<crate::aes::Aes> for crate::aes::Aes {
     fn to_cbc_enc(self, iv: &[u8]) -> Box<dyn BlockMode> {
         Box::new(crate::aes::cbc::CBCEncryptor::new(
             self,

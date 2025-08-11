@@ -1,3 +1,6 @@
+//! Module sha256 implements the SHA224 and SHA256 hash algorithms as defined
+//! in FIPS 180-4.
+
 use std::io::Write;
 
 use crate::{
@@ -45,7 +48,7 @@ const INIT7_224: u32 = 0xBEFA4FA4;
 
 // Digest is a SHA-224 or SHA-256 hash implementation.
 #[derive(Clone)]
-pub struct Digest {
+pub struct Sha256 {
     h: [u32; 8],
     x: [u8; CHUNK],
     nx: usize,
@@ -57,8 +60,8 @@ const MAGIC224: &[u8] = b"sha\x02";
 const MAGIC256: &[u8] = b"sha\x03";
 const MARSHALED_SIZE: usize = 4 + 8 * 4 + CHUNK + 8;
 
-impl Digest {
-    pub fn append_binary(&self, b: &mut Vec<u8>) {
+impl Sha256 {
+    fn append_binary(&self, b: &mut Vec<u8>) {
         if self.is224 {
             b.extend_from_slice(MAGIC224);
         } else {
@@ -114,7 +117,7 @@ impl Digest {
     }
 }
 
-impl Marshalable for Digest {
+impl Marshalable for Sha256 {
     fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
         let mut b = Vec::with_capacity(MARSHALED_SIZE);
         self.append_binary(&mut b);
@@ -169,7 +172,7 @@ impl Marshalable for Digest {
     }
 }
 
-impl Write for Digest {
+impl Write for Sha256 {
     fn write(&mut self, mut p: &[u8]) -> std::io::Result<usize> {
         let nn = p.len();
         self.len += nn as u64;
@@ -210,7 +213,7 @@ impl Write for Digest {
     }
 }
 
-impl Hash for Digest {
+impl Hash for Sha256 {
     fn sum(&mut self, input: &[u8]) -> Vec<u8> {
         // Make a copy of self so that caller can keep writing and summing.
         let mut d0 = *self;
@@ -261,11 +264,11 @@ impl Hash for Digest {
     }
 }
 
-impl Copy for Digest {}
+impl Copy for Sha256 {}
 
 // New returns a new Digest computing the SHA-256 hash.
-pub fn new() -> Digest {
-    let mut d = Digest {
+pub fn new() -> Sha256 {
+    let mut d = Sha256 {
         h: [0; 8],
         x: [0; CHUNK],
         nx: 0,
@@ -277,8 +280,8 @@ pub fn new() -> Digest {
 }
 
 // New224 returns a new Digest computing the SHA-224 hash.
-pub fn new224() -> Digest {
-    let mut d = Digest {
+pub fn new224() -> Sha256 {
+    let mut d = Sha256 {
         h: [0; 8],
         x: [0; CHUNK],
         nx: 0,
@@ -289,7 +292,7 @@ pub fn new224() -> Digest {
     d
 }
 
-fn block(d: &mut Digest, p: &[u8]) {
+fn block(d: &mut Sha256, p: &[u8]) {
     generic::block_generic(d, p);
 }
 

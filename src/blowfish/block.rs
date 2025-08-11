@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-use super::Cipher;
+use super::Blowfish;
 
 // getNextWord returns the next big-endian uint32 value from the byte slice
 // at the given position in a circular manner, updating the position.
@@ -25,7 +25,7 @@ fn get_next_word(b: &[u8], pos: &mut usize) -> u32 {
 // pi and substitution tables for calls to Encrypt. This is used, primarily,
 // by the bcrypt package to reuse the Blowfish key schedule during its
 // set up. It's unlikely that you need to use this directly.
-pub fn expand_key(key: &[u8], c: &mut Cipher) {
+pub fn expand_key(key: &[u8], c: &mut Blowfish) {
     let mut j = 0;
     for i in 0..18 {
         // Using inlined getNextWord for performance.
@@ -84,7 +84,7 @@ pub fn expand_key(key: &[u8], c: &mut Cipher) {
 // schedule. While ExpandKey is essentially expandKeyWithSalt with an all-zero
 // salt passed in, reusing ExpandKey turns out to be a place of inefficiency
 // and specializing it here is useful.
-pub fn expand_key_with_salt(key: &[u8], salt: &[u8], c: &mut Cipher) {
+pub fn expand_key_with_salt(key: &[u8], salt: &[u8], c: &mut Blowfish) {
     let mut j = 0;
     for i in 0..18 {
         c.p[i] ^= get_next_word(key, &mut j);
@@ -144,7 +144,7 @@ pub fn expand_key_with_salt(key: &[u8], salt: &[u8], c: &mut Cipher) {
     }
 }
 
-pub fn encrypt_block(l: u32, r: u32, c: &Cipher) -> (u32, u32) {
+pub fn encrypt_block(l: u32, r: u32, c: &Blowfish) -> (u32, u32) {
     let mut xl = l;
     let mut xr = r;
     xl ^= c.p[0];
@@ -216,7 +216,7 @@ pub fn encrypt_block(l: u32, r: u32, c: &Cipher) -> (u32, u32) {
     (xr, xl)
 }
 
-pub fn decrypt_block(l: u32, r: u32, c: &Cipher) -> (u32, u32) {
+pub fn decrypt_block(l: u32, r: u32, c: &Blowfish) -> (u32, u32) {
     let mut xl = l;
     let mut xr = r;
     xl ^= c.p[17];
