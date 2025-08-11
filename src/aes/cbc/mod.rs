@@ -27,7 +27,7 @@ impl BlockMode for CBCEncryptor {
     /// * If input is not full blocks
     /// * If output buffer is smaller than input
     /// * If buffers have invalid overlap
-    fn crypt_blocks(&mut self, dst: &mut [u8], src: &[u8]) {
+    fn crypt_blocks(mut self: Box<Self>, dst: &mut [u8], src: &[u8]) {
         if src.len() % BLOCK_SIZE != 0 {
             panic!("crypto/cipher: input not full blocks");
         }
@@ -109,7 +109,7 @@ impl BlockMode for CBCDecrypter {
     /// * If input is not full blocks
     /// * If output buffer is smaller than input
     /// * If buffers have invalid overlap
-    fn crypt_blocks(&mut self, dst: &mut [u8], src: &[u8]) {
+    fn crypt_blocks(mut self: Box<Self>, dst: &mut [u8], src: &[u8]) {
         if src.len() % BLOCK_SIZE != 0 {
             panic!("crypto/cipher: input not full blocks");
         }
