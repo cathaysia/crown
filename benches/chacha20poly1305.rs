@@ -1,5 +1,6 @@
 use chacha20poly1305::aead::AeadMutInPlace;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
+use kittycrypto::cipher::Aead;
 use rc4::KeyInit;
 use ring::aead::UnboundKey;
 

@@ -32,7 +32,7 @@ impl ChaCha20Poly1305 {
         start
     }
 
-    pub fn seal_generic(
+    pub(crate) fn seal_generic(
         &self,
         dst: &mut Vec<u8>,
         nonce: &[u8],
@@ -66,7 +66,7 @@ impl ChaCha20Poly1305 {
         Ok(())
     }
 
-    pub fn open_generic(
+    pub(crate) fn open_generic(
         &self,
         dst: &mut Vec<u8>,
         nonce: &[u8],

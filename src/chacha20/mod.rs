@@ -404,7 +404,7 @@ fn add_xor(dst: &mut [u8], src: &[u8], a: u32, b: u32) {
 /// h_chacha20 uses the ChaCha20 core to generate a derived key from a 32 bytes
 /// key and a 16 bytes nonce. It returns an error if key or nonce have any other
 /// length. It is used as part of the XChaCha20 construction.
-fn h_chacha20(mut key: &[u8], mut nonce: &[u8]) -> CryptoResult<Vec<u8>> {
+pub(crate) fn h_chacha20(mut key: &[u8], mut nonce: &[u8]) -> CryptoResult<Vec<u8>> {
     if key.len() != Chacha20::key_size() {
         return Err(CryptoError::InvalidKeySize(key.len()));
     }

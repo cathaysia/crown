@@ -4,9 +4,13 @@
 
 mod generic;
 
+mod xchacha20poly1305;
+pub use xchacha20poly1305::*;
+
 #[cfg(test)]
 mod tests;
 
+use crate::cipher::Aead;
 use crate::error::{CryptoError, CryptoResult};
 
 // ChaCha20-Poly1305 AEAD implementation
@@ -31,7 +35,30 @@ impl ChaCha20Poly1305 {
         Ok(Self { key: cipher_key })
     }
 
-    pub fn seal(
+    // Placeholder implementations - these would call the actual crypto functions
+    fn seal_impl(
+        &self,
+        dst: &mut Vec<u8>,
+        nonce: &[u8],
+        plaintext: &[u8],
+        additional_data: &[u8],
+    ) -> CryptoResult<()> {
+        self.seal_generic(dst, nonce, plaintext, additional_data)
+    }
+
+    fn open_impl(
+        &self,
+        dst: &mut Vec<u8>,
+        nonce: &[u8],
+        ciphertext: &[u8],
+        additional_data: &[u8],
+    ) -> CryptoResult<()> {
+        self.open_generic(dst, nonce, ciphertext, additional_data)
+    }
+}
+
+impl Aead for ChaCha20Poly1305 {
+    fn seal(
         &self,
         dst: &mut Vec<u8>,
         nonce: &[u8],
@@ -49,7 +76,7 @@ impl ChaCha20Poly1305 {
         self.seal_impl(dst, nonce, plaintext, additional_data)
     }
 
-    pub fn open(
+    fn open(
         &self,
         dst: &mut Vec<u8>,
         nonce: &[u8],
@@ -71,24 +98,11 @@ impl ChaCha20Poly1305 {
         self.open_impl(dst, nonce, ciphertext, additional_data)
     }
 
-    // Placeholder implementations - these would call the actual crypto functions
-    fn seal_impl(
-        &self,
-        dst: &mut Vec<u8>,
-        nonce: &[u8],
-        plaintext: &[u8],
-        additional_data: &[u8],
-    ) -> CryptoResult<()> {
-        self.seal_generic(dst, nonce, plaintext, additional_data)
+    fn nonce_size() -> usize {
+        Self::NONCE_SIZE
     }
 
-    fn open_impl(
-        &self,
-        dst: &mut Vec<u8>,
-        nonce: &[u8],
-        ciphertext: &[u8],
-        additional_data: &[u8],
-    ) -> CryptoResult<()> {
-        self.open_generic(dst, nonce, ciphertext, additional_data)
+    fn overhead() -> usize {
+        Self::OVERHEAD
     }
 }

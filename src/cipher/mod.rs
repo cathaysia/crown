@@ -62,7 +62,7 @@ pub trait BlockMode {
 /// AEAD is a cipher mode providing authenticated encryption with associated
 /// data. For a description of the methodology, see
 /// <https://en.wikipedia.org/wiki/Authenticated_encryption>.
-pub trait AEAD {
+pub trait Aead {
     /// NonceSize returns the size of the nonce that must be passed to Seal
     /// and Open.
     fn nonce_size() -> usize;
@@ -79,7 +79,13 @@ pub trait AEAD {
     /// To reuse plaintext's storage for the encrypted output, use `plaintext[:0]`
     /// as dst. Otherwise, the remaining capacity of dst must not overlap plaintext.
     /// dst and additionalData may not overlap.
-    fn seal(dst: &[u8], nonce: &[u8], plaintext: &[u8], additional_data: &[u8]) -> Vec<u8>;
+    fn seal(
+        &self,
+        dst: &mut Vec<u8>,
+        nonce: &[u8],
+        plaintext: &[u8],
+        additional_data: &[u8],
+    ) -> CryptoResult<()>;
 
     /// Open decrypts and authenticates ciphertext, authenticates the
     /// additional data and, if successful, appends the resulting plaintext
@@ -94,9 +100,10 @@ pub trait AEAD {
     /// Even if the function fails, the contents of dst, up to its capacity,
     /// may be overwritten.
     fn open(
-        dst: &[u8],
+        &self,
+        dst: &mut Vec<u8>,
         nonce: &[u8],
         ciphertext: &[u8],
         additional_data: &[u8],
-    ) -> CryptoResult<Vec<u8>>;
+    ) -> CryptoResult<()>;
 }
