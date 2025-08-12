@@ -1,3 +1,6 @@
+//! Module rc5 implements the RC5 cipher
+//!
+//! RC5 is a symmetric-key block cipher.
 use crate::{
     cipher::{marker::BlockCipherMarker, BlockCipher},
     error::CryptoResult,
