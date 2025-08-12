@@ -14,7 +14,7 @@ pub mod gcm;
 mod tests;
 
 use crate::{
-    cipher::BlockCipher,
+    cipher::{ofb::OfbAbleMarker, BlockCipher},
     error::{CryptoError, CryptoResult},
     utils::inexact_overlap,
 };
@@ -29,9 +29,12 @@ const AES128_ROUNDS: usize = 10;
 const AES192_ROUNDS: usize = 12;
 const AES256_ROUNDS: usize = 14;
 
+#[derive(Clone)]
 pub struct Aes {
     block: BlockExpanded,
 }
+
+impl OfbAbleMarker for Aes {}
 
 impl Aes {
     // NewCipher creates and returns a new [cipher.Block].
@@ -90,6 +93,7 @@ impl BlockCipher for Aes {
     }
 }
 
+#[derive(Clone)]
 pub struct BlockExpanded {
     pub rounds: usize,
     pub enc: [u32; 60],

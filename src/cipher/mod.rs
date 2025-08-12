@@ -1,6 +1,7 @@
 pub mod cbc;
 pub mod ctr;
 pub mod marker;
+pub mod ofb;
 
 #[cfg(test)]
 pub mod common_test;

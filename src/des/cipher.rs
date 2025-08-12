@@ -6,6 +6,7 @@ use crate::{
     utils::inexact_overlap,
 };
 
+#[derive(Clone)]
 pub struct Des {
     subkeys: [u64; 16],
 }
