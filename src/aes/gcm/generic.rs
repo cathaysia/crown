@@ -3,7 +3,7 @@ use super::*;
 use crate::aes::Aes;
 use crate::error::{CryptoError, CryptoResult};
 use crate::subtle::xor::xor_bytes;
-use crate::utils::constant_time_eq;
+use crate::utils::{constant_time_eq, copy};
 
 const GCM_BLOCK_SIZE: usize = 16;
 const GCM_TAG_SIZE: usize = 16;
@@ -127,7 +127,8 @@ fn gcm_counter_crypt_generic(
         b.encrypt_block_internal(&mut mask);
         gcm_inc32(counter);
 
-        xor_bytes(&mut out[..GCM_BLOCK_SIZE], &src[..GCM_BLOCK_SIZE], &mask);
+        copy(&mut out[..GCM_BLOCK_SIZE], &src[..GCM_BLOCK_SIZE]);
+        xor_bytes(&mut out[..GCM_BLOCK_SIZE], &mask);
         out = &mut out[GCM_BLOCK_SIZE..];
         src = &src[GCM_BLOCK_SIZE..];
     }
@@ -136,7 +137,8 @@ fn gcm_counter_crypt_generic(
         mask.copy_from_slice(counter);
         b.encrypt_block_internal(&mut mask);
         gcm_inc32(counter);
-        xor_bytes(&mut out[..src.len()], src, &mask[..src.len()]);
+        copy(&mut out[..src.len()], src);
+        xor_bytes(&mut out[..src.len()], &mask[..src.len()]);
     }
 }
 
@@ -167,5 +169,6 @@ fn gcm_auth_generic(
 
     let mut s = [0u8; GCM_BLOCK_SIZE];
     ghash(&mut s, h, &[additional_data, ciphertext, &len_block]);
-    xor_bytes(out, &s, tag_mask);
+    copy(out, &s);
+    xor_bytes(out, tag_mask);
 }

@@ -7,6 +7,7 @@
 
 use crate::aes::{Aes, BLOCK_SIZE};
 use crate::subtle::xor::xor_bytes;
+use crate::utils::copy;
 
 /// CMAC implements the CMAC mode from NIST SP 800-38B.
 pub struct Cmac {
@@ -58,12 +59,14 @@ impl Cmac {
         let mut remaining = m;
         while remaining.len() >= BLOCK_SIZE {
             // XOR current block with accumulator
-            xor_bytes(&mut x, &self.k1, &remaining[..BLOCK_SIZE]);
+            copy(&mut x, &self.k1);
+            xor_bytes(&mut x, &remaining[..BLOCK_SIZE]);
 
             if remaining.len() == BLOCK_SIZE {
                 // Final complete block - XOR with k1
                 let y = x;
-                xor_bytes(&mut x, &self.k1, &y);
+                copy(&mut x, &self.k1);
+                xor_bytes(&mut x, &y);
             }
 
             // Encrypt the result
@@ -74,8 +77,10 @@ impl Cmac {
         if !remaining.is_empty() {
             // Final incomplete block
             let src = x;
-            xor_bytes(&mut x, remaining, &src);
-            xor_bytes(&mut x, &self.k2, &src);
+            copy(&mut x, remaining);
+            xor_bytes(&mut x, &src);
+            copy(&mut x, &self.k2);
+            xor_bytes(&mut x, &src);
             x[remaining.len()] ^= 0b10000000;
             self.b.encrypt_block_internal(&mut x);
         }

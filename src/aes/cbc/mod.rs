@@ -64,9 +64,8 @@ impl CBCEncryptor {
         let inout_chunks = inout.chunks_exact_mut(BLOCK_SIZE);
 
         for dst_block in inout_chunks {
-            let src_block = dst_block.to_vec();
             // Write the xor to dst, then encrypt in place
-            xor_bytes(dst_block, &src_block, &self.iv);
+            xor_bytes(dst_block, &self.iv);
             self.block.encrypt(dst_block);
 
             // Move to the next block with this block as the next iv
@@ -148,14 +147,13 @@ impl CBCDecrypter {
             // Decrypt the block
             self.block.decrypt(&mut inout[start..end]);
 
-            let dst1 = inout[start..end].to_vec();
             if start > 0 {
                 let prev = start - BLOCK_SIZE;
                 let src = inout.to_vec();
-                xor_bytes(&mut inout[start..end], &dst1, &src[prev..start]);
+                xor_bytes(&mut inout[start..end], &src[prev..start]);
             } else {
                 // The first block is special because it uses the saved iv
-                xor_bytes(&mut inout[start..end], &dst1, &iv);
+                xor_bytes(&mut inout[start..end], &iv);
             }
 
             if start == 0 {

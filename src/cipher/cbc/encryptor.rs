@@ -60,9 +60,8 @@ impl<B: BlockCipher> BlockMode for CbcEncrypter<B> {
         let dst_chunks = inout.chunks_exact_mut(self.0.block_size);
 
         for dst_block in dst_chunks {
-            let src_block = dst_block.to_vec();
             // Write the xor to dst, then encrypt in place
-            xor_bytes(dst_block, &src_block, &iv);
+            xor_bytes(dst_block, &iv);
             self.0.b.encrypt(dst_block);
 
             // Move to the next block with this block as the next iv

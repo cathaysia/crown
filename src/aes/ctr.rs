@@ -1,7 +1,7 @@
 mod noasm;
 pub use noasm::*;
 
-use crate::cipher::StreamCipher;
+use crate::{cipher::StreamCipher, subtle::xor::xor_bytes};
 
 pub struct CTR {
     b: Aes,
@@ -179,8 +179,7 @@ pub(crate) fn ctr_blocks(b: &Aes, dst: &mut [u8], src: &[u8], mut ivlo: u64, mut
         b.encrypt(chunk);
     }
 
-    let b = buf.to_vec();
-    xor_bytes(&mut buf, src, &b);
+    xor_bytes(&mut buf, src);
     dst.copy_from_slice(&buf);
 }
 
@@ -188,12 +187,6 @@ fn add128(lo: u64, hi: u64, x: u64) -> (u64, u64) {
     let (new_lo, carry) = lo.overflowing_add(x);
     let (new_hi, _) = hi.overflowing_add(if carry { 1 } else { 0 });
     (new_lo, new_hi)
-}
-
-fn xor_bytes(dst: &mut [u8], a: &[u8], b: &[u8]) {
-    for i in 0..dst.len() {
-        dst[i] = a[i] ^ b[i];
-    }
 }
 
 // RoundToBlock is used by CTR_DRBG, which discards the rightmost unused bits at

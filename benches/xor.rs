@@ -19,15 +19,13 @@ fn bench_xor(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(size as u64));
 
         let mut dst = vec![0u8; size];
-        let mut x = vec![0u8; size];
         let mut y = vec![0u8; size];
 
-        rand::fill(x.as_mut_slice());
         rand::fill(y.as_mut_slice());
 
         group.bench_function(format!("kittycrypto_xor_{size}"), |b| {
             b.iter(|| {
-                xor_bytes(black_box(&mut dst), black_box(&x), black_box(&y));
+                xor_bytes(black_box(&mut dst), black_box(&y));
             })
         });
 

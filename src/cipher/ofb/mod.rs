@@ -5,7 +5,7 @@ use crate::cipher::marker::BlockCipherMarker;
 use crate::cipher::StreamCipher;
 use crate::error::{CryptoError, CryptoResult};
 use crate::subtle::xor::xor_bytes;
-use crate::utils::inexact_overlap;
+use crate::utils::{copy, inexact_overlap};
 
 #[cfg(test)]
 mod tests;
@@ -90,7 +90,9 @@ impl<B: BlockCipher> StreamCipher for Ofb<B> {
                 self.refill();
             }
 
-            let n = xor_bytes(dst, src, &self.out[self.out_used..]);
+            copy(dst, src);
+
+            let n = xor_bytes(dst, &self.out[self.out_used..]);
             dst = &mut dst[n..];
             src = &src[n..];
             self.out_used += n;

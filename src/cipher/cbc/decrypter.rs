@@ -1,6 +1,6 @@
 use crate::{
     cipher::{marker::BlockCipherMarker, BlockCipher, BlockMode},
-    subtle::xor::xor_bytes,
+    subtle::xor::{xor_bytes, xor_bytes_self},
 };
 
 use super::Cbc;
@@ -74,9 +74,7 @@ impl<B: BlockCipher> BlockMode for CbcDecrypter<B> {
             let prev = start - block_size;
 
             self.0.b.decrypt(&mut inout[start..end]);
-            let dst2 = inout[start..end].to_vec();
-            let src = inout[start..end].to_vec();
-            xor_bytes(&mut inout[start..end], &dst2, &src);
+            xor_bytes_self(&mut inout[start..end]);
 
             end = start;
             start = prev;
@@ -84,8 +82,7 @@ impl<B: BlockCipher> BlockMode for CbcDecrypter<B> {
 
         // The first block is special because it uses the saved iv
         self.0.b.decrypt(&mut inout[start..end]);
-        let dst2 = inout[start..end].to_vec();
-        xor_bytes(&mut inout[start..end], &dst2, &self.0.iv);
+        xor_bytes(&mut inout[start..end], &self.0.iv);
 
         // Set the new iv to the first block we copied earlier
         std::mem::swap(&mut self.0.iv, &mut self.0.tmp);

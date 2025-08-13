@@ -75,7 +75,12 @@ impl<B: BlockCipher> StreamCipher for Cfb<B> {
                 let _ = copy_len; // Suppress unused variable warning
             }
 
-            let n = xor_bytes(dst, src, &self.out[self.out_used..]);
+            {
+                let len = dst.len().min(self.out.len() - self.out_used);
+                copy(dst, &src[..len]);
+            }
+
+            let n = xor_bytes(dst, &self.out[self.out_used..]);
 
             if !self.decrypt {
                 let copy_len = copy(&mut self.next[self.out_used..], &dst[..n]);
