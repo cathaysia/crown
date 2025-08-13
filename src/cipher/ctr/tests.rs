@@ -1,6 +1,9 @@
 use cipher::KeyIvInit;
 
-use crate::{cipher::ctr::CtrAble, des::Des};
+use crate::{
+    cipher::{ctr::CtrAble, StreamCipher},
+    des::Des,
+};
 
 #[test]
 fn rustcrypto_des_ctr_interop() {

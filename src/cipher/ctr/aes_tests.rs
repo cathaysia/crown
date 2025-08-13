@@ -1,6 +1,6 @@
 use cipher::KeyIvInit;
 
-use crate::cipher::ctr::CtrAble;
+use crate::cipher::{ctr::CtrAble, StreamCipher};
 
 #[test]
 fn rustcrypto_aes_ctr_interop() {

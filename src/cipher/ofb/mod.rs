@@ -13,7 +13,7 @@ mod tests;
 const STREAM_BUFFER_SIZE: usize = 512;
 
 pub trait OfbAble {
-    fn to_ofb(self, iv: &[u8]) -> CryptoResult<Box<dyn StreamCipher>>;
+    fn to_ofb(self, iv: &[u8]) -> CryptoResult<impl StreamCipher>;
 }
 
 pub trait OfbAbleMarker {}
@@ -23,7 +23,7 @@ impl<T> OfbAble for T
 where
     T: BlockCipher + OfbAbleMarker + 'static,
 {
-    fn to_ofb(self, iv: &[u8]) -> CryptoResult<Box<dyn StreamCipher>> {
+    fn to_ofb(self, iv: &[u8]) -> CryptoResult<impl StreamCipher> {
         let block_size = self.block_size();
         if iv.len() != block_size {
             return Err(CryptoError::InvalidIvSize(iv.len()));
@@ -31,12 +31,12 @@ where
 
         let buf_size = STREAM_BUFFER_SIZE.max(block_size);
 
-        Ok(Box::new(Ofb {
+        Ok(Ofb {
             b: self,
             cipher: iv.to_vec(),
             out: Vec::with_capacity(buf_size),
             out_used: 0,
-        }))
+        })
     }
 }
 

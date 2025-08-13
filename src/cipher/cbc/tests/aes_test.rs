@@ -1,4 +1,4 @@
-use crate::cipher::{cbc::CbcEncAble, common_test::*};
+use crate::cipher::{cbc::CbcEncAble, common_test::*, BlockMode};
 
 struct CbcAesTest {
     name: &'static str,

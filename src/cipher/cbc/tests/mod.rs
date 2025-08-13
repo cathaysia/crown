@@ -3,7 +3,10 @@ mod aes_test;
 use cipher::{BlockDecryptMut, BlockEncryptMut, KeyIvInit};
 
 use crate::{
-    cipher::cbc::{CbcDecAble, CbcEncAble},
+    cipher::{
+        cbc::{CbcDecAble, CbcEncAble},
+        BlockMode,
+    },
     des::Des,
 };
 

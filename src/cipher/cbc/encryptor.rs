@@ -13,7 +13,7 @@ pub trait CbcEncAble<B> {
     /// # Panics
     ///
     /// Panics if the IV length doesn't match the block size
-    fn to_cbc_enc(self, iv: &[u8]) -> Box<dyn BlockMode>;
+    fn to_cbc_enc(self, iv: &[u8]) -> impl BlockMode;
 }
 
 pub trait CbcEncAbleMarker {}
@@ -32,21 +32,18 @@ impl<B: BlockCipher> CbcEncrypter<B> {
 }
 
 impl CbcEncAble<crate::aes::Aes> for crate::aes::Aes {
-    fn to_cbc_enc(self, iv: &[u8]) -> Box<dyn BlockMode> {
-        Box::new(crate::aes::cbc::CBCEncryptor::new(
-            self,
-            iv.try_into().unwrap(),
-        ))
+    fn to_cbc_enc(self, iv: &[u8]) -> impl BlockMode {
+        crate::aes::cbc::CBCEncryptor::new(self, iv.try_into().unwrap())
     }
 }
 
 impl<B: BlockCipher + CbcEncAbleMarker + 'static> CbcEncAble<B> for B {
-    fn to_cbc_enc(self, iv: &[u8]) -> Box<dyn BlockMode> {
+    fn to_cbc_enc(self, iv: &[u8]) -> impl BlockMode {
         if iv.len() != self.block_size() {
             panic!("cipher.NewCBCEncrypter: IV length must equal block size");
         }
 
-        Box::new(CbcEncrypter(Cbc::new(self, iv)))
+        CbcEncrypter(Cbc::new(self, iv))
     }
 }
 
@@ -55,7 +52,7 @@ impl<B: BlockCipher> BlockMode for CbcEncrypter<B> {
         self.0.block_size
     }
 
-    fn crypt_blocks(mut self: Box<Self>, dst: &mut [u8], src: &[u8]) {
+    fn crypt_blocks(mut self, dst: &mut [u8], src: &[u8]) {
         if src.len() % self.0.block_size != 0 {
             panic!("crypto/cipher: input not full blocks");
         }

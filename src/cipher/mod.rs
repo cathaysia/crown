@@ -58,7 +58,7 @@ pub trait BlockMode {
     /// Multiple calls to CryptBlocks behave as if the concatenation of
     /// the src buffers was passed in a single run. That is, BlockMode
     /// maintains state and does not reset at each CryptBlocks call.
-    fn crypt_blocks(self: Box<Self>, dst: &mut [u8], src: &[u8]);
+    fn crypt_blocks(self, dst: &mut [u8], src: &[u8]);
 }
 
 /// AEAD is a cipher mode providing authenticated encryption with associated

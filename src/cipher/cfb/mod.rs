@@ -23,10 +23,10 @@ pub struct Cfb<B: BlockCipher> {
 /// Trait for block ciphers that can be used with CFB mode
 pub trait CfbAble {
     /// Create a new CFB encryptor with the given IV
-    fn to_cfb_encrypter(self, iv: &[u8]) -> CryptoResult<Box<dyn StreamCipher>>;
+    fn to_cfb_encrypter(self, iv: &[u8]) -> CryptoResult<impl StreamCipher>;
 
     /// Create a new CFB decrypter with the given IV
-    fn to_cfb_decrypter(self, iv: &[u8]) -> CryptoResult<Box<dyn StreamCipher>>;
+    fn to_cfb_decrypter(self, iv: &[u8]) -> CryptoResult<impl StreamCipher>;
 }
 
 /// Marker trait for types that can be used with CFB
@@ -37,11 +37,11 @@ impl<T> CfbAble for T
 where
     T: BlockCipher + CfbAbleMarker + 'static,
 {
-    fn to_cfb_encrypter(self, iv: &[u8]) -> CryptoResult<Box<dyn StreamCipher>> {
+    fn to_cfb_encrypter(self, iv: &[u8]) -> CryptoResult<impl StreamCipher> {
         new_cfb(self, iv, false)
     }
 
-    fn to_cfb_decrypter(self, iv: &[u8]) -> CryptoResult<Box<dyn StreamCipher>> {
+    fn to_cfb_decrypter(self, iv: &[u8]) -> CryptoResult<impl StreamCipher> {
         new_cfb(self, iv, true)
     }
 }
@@ -102,7 +102,7 @@ impl<B: BlockCipher> StreamCipher for Cfb<B> {
 ///
 /// # Panics
 /// Panics if the IV length doesn't match the block size
-fn new_cfb<B>(block: B, iv: &[u8], decrypt: bool) -> CryptoResult<Box<dyn StreamCipher>>
+fn new_cfb<B>(block: B, iv: &[u8], decrypt: bool) -> CryptoResult<impl StreamCipher>
 where
     B: BlockCipher + 'static,
 {
@@ -122,7 +122,7 @@ where
         decrypt,
     };
 
-    Ok(Box::new(cfb))
+    Ok(cfb)
 }
 
 /// Create a new CFB encryptor
@@ -142,7 +142,7 @@ where
 ///
 /// # Errors
 /// Returns an error if the IV length doesn't match the block size
-pub fn new_cfb_encrypter<B>(block: B, iv: &[u8]) -> CryptoResult<Box<dyn StreamCipher>>
+pub fn new_cfb_encrypter<B>(block: B, iv: &[u8]) -> CryptoResult<impl StreamCipher>
 where
     B: BlockCipher + 'static,
 {
@@ -166,7 +166,7 @@ where
 ///
 /// # Errors
 /// Returns an error if the IV length doesn't match the block size
-pub fn new_cfb_decrypter<B>(block: B, iv: &[u8]) -> CryptoResult<Box<dyn StreamCipher>>
+pub fn new_cfb_decrypter<B>(block: B, iv: &[u8]) -> CryptoResult<impl StreamCipher>
 where
     B: BlockCipher + 'static,
 {

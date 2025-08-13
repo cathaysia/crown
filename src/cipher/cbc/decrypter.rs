@@ -12,24 +12,21 @@ pub trait CbcDecAble<B: BlockCipher> {
     /// # Panics
     ///
     /// Panics if the IV length doesn't match the block size
-    fn to_cbc_dec(self, iv: &[u8]) -> Box<dyn BlockMode>;
+    fn to_cbc_dec(self, iv: &[u8]) -> impl BlockMode;
 }
 
 pub trait CbcDecAbleMarker {}
 impl<T: BlockCipherMarker> CbcDecAbleMarker for T {}
 
 impl<B: BlockCipher + CbcDecAbleMarker + 'static> CbcDecAble<B> for B {
-    fn to_cbc_dec(self, iv: &[u8]) -> Box<dyn BlockMode> {
-        Box::new(CbcDecrypter(Cbc::new(self, iv)))
+    fn to_cbc_dec(self, iv: &[u8]) -> impl BlockMode {
+        CbcDecrypter(Cbc::new(self, iv))
     }
 }
 
 impl CbcDecAble<crate::aes::Aes> for crate::aes::Aes {
-    fn to_cbc_dec(self, iv: &[u8]) -> Box<dyn BlockMode> {
-        Box::new(crate::aes::cbc::CBCDecrypter::new(
-            self,
-            iv.try_into().unwrap(),
-        ))
+    fn to_cbc_dec(self, iv: &[u8]) -> impl BlockMode {
+        crate::aes::cbc::CBCDecrypter::new(self, iv.try_into().unwrap())
     }
 }
 
@@ -53,7 +50,7 @@ impl<B: BlockCipher> BlockMode for CbcDecrypter<B> {
         self.0.block_size
     }
 
-    fn crypt_blocks(mut self: Box<Self>, dst: &mut [u8], src: &[u8]) {
+    fn crypt_blocks(mut self, dst: &mut [u8], src: &[u8]) {
         if src.len() % self.0.block_size != 0 {
             panic!("crypto/cipher: input not full blocks");
         }

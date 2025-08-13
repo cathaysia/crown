@@ -1,4 +1,4 @@
-use crate::cipher::cfb::CfbAble;
+use crate::cipher::{cfb::CfbAble, StreamCipher};
 
 const TEST_CASES: [[&str; 4]; 4] = [
     [
