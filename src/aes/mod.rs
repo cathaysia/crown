@@ -14,7 +14,7 @@ pub mod gcm;
 mod tests;
 
 use crate::{
-    cipher::{ofb::OfbAbleMarker, BlockCipher},
+    cipher::{cfb::CfbAbleMarker, ofb::OfbAbleMarker, BlockCipher},
     error::{CryptoError, CryptoResult},
     utils::inexact_overlap,
 };
@@ -35,6 +35,7 @@ pub struct Aes {
 }
 
 impl OfbAbleMarker for Aes {}
+impl CfbAbleMarker for Aes {}
 
 impl Aes {
     // NewCipher creates and returns a new [cipher.Block].

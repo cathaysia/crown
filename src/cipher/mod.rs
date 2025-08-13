@@ -1,4 +1,5 @@
 pub mod cbc;
+pub mod cfb;
 pub mod ctr;
 pub mod marker;
 pub mod ofb;
