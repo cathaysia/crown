@@ -57,8 +57,8 @@ impl Aes {
         }
     }
 
-    pub fn encrypt_block_internal(&self, dst: &mut [u8], src: &[u8]) {
-        encrypt_block(self, dst, src);
+    pub fn encrypt_block_internal(&self, inout: &mut [u8]) {
+        encrypt_block(self, inout);
     }
 }
 
@@ -67,30 +67,20 @@ impl BlockCipher for Aes {
         BLOCK_SIZE
     }
 
-    fn encrypt(&self, dst: &mut [u8], src: &[u8]) {
-        if src.len() < BLOCK_SIZE {
-            panic!("crypto/aes: input not full block");
+    fn encrypt(&self, inout: &mut [u8]) {
+        if inout.len() < BLOCK_SIZE {
+            panic!("crypto/aes: inout not full block");
         }
-        if dst.len() < BLOCK_SIZE {
-            panic!("crypto/aes: output not full block");
-        }
-        if inexact_overlap(&dst[..BLOCK_SIZE], &src[..BLOCK_SIZE]) {
-            panic!("crypto/aes: invalid buffer overlap");
-        }
-        encrypt_block(self, dst, src);
+
+        encrypt_block(self, inout);
     }
 
-    fn decrypt(&self, dst: &mut [u8], src: &[u8]) {
-        if src.len() < BLOCK_SIZE {
-            panic!("crypto/aes: input not full block");
-        }
-        if dst.len() < BLOCK_SIZE {
+    fn decrypt(&self, inout: &mut [u8]) {
+        if inout.len() < BLOCK_SIZE {
             panic!("crypto/aes: output not full block");
         }
-        if inexact_overlap(&dst[..BLOCK_SIZE], &src[..BLOCK_SIZE]) {
-            panic!("crypto/aes: invalid buffer overlap");
-        }
-        decrypt_block(self, dst, src);
+
+        decrypt_block(self, inout);
     }
 }
 

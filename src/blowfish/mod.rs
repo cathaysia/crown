@@ -82,43 +82,43 @@ impl BlockCipher for Blowfish {
         Self::BLOCK_SIZE
     }
 
-    fn encrypt(&self, dst: &mut [u8], src: &[u8]) {
-        let l = ((src[0] as u32) << 24)
-            | ((src[1] as u32) << 16)
-            | ((src[2] as u32) << 8)
-            | (src[3] as u32);
-        let r = ((src[4] as u32) << 24)
-            | ((src[5] as u32) << 16)
-            | ((src[6] as u32) << 8)
-            | (src[7] as u32);
+    fn encrypt(&self, inout: &mut [u8]) {
+        let l = ((inout[0] as u32) << 24)
+            | ((inout[1] as u32) << 16)
+            | ((inout[2] as u32) << 8)
+            | (inout[3] as u32);
+        let r = ((inout[4] as u32) << 24)
+            | ((inout[5] as u32) << 16)
+            | ((inout[6] as u32) << 8)
+            | (inout[7] as u32);
         let (l, r) = encrypt_block(l, r, self);
-        dst[0] = (l >> 24) as u8;
-        dst[1] = (l >> 16) as u8;
-        dst[2] = (l >> 8) as u8;
-        dst[3] = l as u8;
-        dst[4] = (r >> 24) as u8;
-        dst[5] = (r >> 16) as u8;
-        dst[6] = (r >> 8) as u8;
-        dst[7] = r as u8;
+        inout[0] = (l >> 24) as u8;
+        inout[1] = (l >> 16) as u8;
+        inout[2] = (l >> 8) as u8;
+        inout[3] = l as u8;
+        inout[4] = (r >> 24) as u8;
+        inout[5] = (r >> 16) as u8;
+        inout[6] = (r >> 8) as u8;
+        inout[7] = r as u8;
     }
 
-    fn decrypt(&self, dst: &mut [u8], src: &[u8]) {
-        let l = ((src[0] as u32) << 24)
-            | ((src[1] as u32) << 16)
-            | ((src[2] as u32) << 8)
-            | (src[3] as u32);
-        let r = ((src[4] as u32) << 24)
-            | ((src[5] as u32) << 16)
-            | ((src[6] as u32) << 8)
-            | (src[7] as u32);
+    fn decrypt(&self, inout: &mut [u8]) {
+        let l = ((inout[0] as u32) << 24)
+            | ((inout[1] as u32) << 16)
+            | ((inout[2] as u32) << 8)
+            | (inout[3] as u32);
+        let r = ((inout[4] as u32) << 24)
+            | ((inout[5] as u32) << 16)
+            | ((inout[6] as u32) << 8)
+            | (inout[7] as u32);
         let (l, r) = decrypt_block(l, r, self);
-        dst[0] = (l >> 24) as u8;
-        dst[1] = (l >> 16) as u8;
-        dst[2] = (l >> 8) as u8;
-        dst[3] = l as u8;
-        dst[4] = (r >> 24) as u8;
-        dst[5] = (r >> 16) as u8;
-        dst[6] = (r >> 8) as u8;
-        dst[7] = r as u8;
+        inout[0] = (l >> 24) as u8;
+        inout[1] = (l >> 16) as u8;
+        inout[2] = (l >> 8) as u8;
+        inout[3] = l as u8;
+        inout[4] = (r >> 24) as u8;
+        inout[5] = (r >> 16) as u8;
+        inout[6] = (r >> 8) as u8;
+        inout[7] = r as u8;
     }
 }

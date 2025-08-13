@@ -50,15 +50,12 @@ impl<B: BlockCipher> BlockMode for CbcDecrypter<B> {
         self.0.block_size
     }
 
-    fn crypt_blocks(mut self, dst: &mut [u8], src: &[u8]) {
-        if src.len() % self.0.block_size != 0 {
+    fn crypt_blocks(mut self, inout: &mut [u8]) {
+        if inout.len() % self.0.block_size != 0 {
             panic!("crypto/cipher: input not full blocks");
         }
-        if dst.len() < src.len() {
-            panic!("crypto/cipher: output smaller than input");
-        }
 
-        if src.is_empty() {
+        if inout.is_empty() {
             return;
         }
 
@@ -66,28 +63,29 @@ impl<B: BlockCipher> BlockMode for CbcDecrypter<B> {
 
         // For each block, we need to xor the decrypted data with the previous block's ciphertext (the iv).
         // To avoid making a copy each time, we loop over the blocks BACKWARDS.
-        let mut end = src.len();
+        let mut end = inout.len();
         let mut start = end - block_size;
 
         // Copy the last block of ciphertext in preparation as the new iv
-        self.0.tmp[..block_size].copy_from_slice(&src[start..end]);
+        self.0.tmp[..block_size].copy_from_slice(&inout[start..end]);
 
         // Loop over all but the first block
         while start > 0 {
             let prev = start - block_size;
 
-            self.0.b.decrypt(&mut dst[start..end], &src[start..end]);
-            let dst2 = dst[start..end].to_vec();
-            xor_bytes(&mut dst[start..end], &dst2, &src[prev..start]);
+            self.0.b.decrypt(&mut inout[start..end]);
+            let dst2 = inout[start..end].to_vec();
+            let src = inout[start..end].to_vec();
+            xor_bytes(&mut inout[start..end], &dst2, &src);
 
             end = start;
             start = prev;
         }
 
         // The first block is special because it uses the saved iv
-        self.0.b.decrypt(&mut dst[start..end], &src[start..end]);
-        let dst2 = dst[start..end].to_vec();
-        xor_bytes(&mut dst[start..end], &dst2, &self.0.iv);
+        self.0.b.decrypt(&mut inout[start..end]);
+        let dst2 = inout[start..end].to_vec();
+        xor_bytes(&mut inout[start..end], &dst2, &self.0.iv);
 
         // Set the new iv to the first block we copied earlier
         std::mem::swap(&mut self.0.iv, &mut self.0.tmp);

@@ -79,22 +79,16 @@ impl BlockCipher for Tea {
     /// Encrypts the 8 byte buffer src using the key and stores the result in dst.
     /// Note that for amounts of data larger than a block, it is not safe to just
     /// call encrypt on successive blocks; instead, use an encryption mode like CBC.
-    fn encrypt(&self, dst: &mut [u8], src: &[u8]) {
+    fn encrypt(&self, inout: &mut [u8]) {
         assert_eq!(
-            src.len(),
+            inout.len(),
             Self::BLOCK_SIZE,
-            "Source buffer must be exactly {} bytes",
-            Self::BLOCK_SIZE
-        );
-        assert_eq!(
-            dst.len(),
-            Self::BLOCK_SIZE,
-            "Destination buffer must be exactly {} bytes",
+            "inout buffer must be exactly {} bytes",
             Self::BLOCK_SIZE
         );
 
-        let mut v0 = u32::from_be_bytes([src[0], src[1], src[2], src[3]]);
-        let mut v1 = u32::from_be_bytes([src[4], src[5], src[6], src[7]]);
+        let mut v0 = u32::from_be_bytes([inout[0], inout[1], inout[2], inout[3]]);
+        let mut v1 = u32::from_be_bytes([inout[4], inout[5], inout[6], inout[7]]);
 
         let k0 = u32::from_be_bytes([self.key[0], self.key[1], self.key[2], self.key[3]]);
         let k1 = u32::from_be_bytes([self.key[4], self.key[5], self.key[6], self.key[7]]);
@@ -117,27 +111,21 @@ impl BlockCipher for Tea {
             );
         }
 
-        dst[0..4].copy_from_slice(&v0.to_be_bytes());
-        dst[4..8].copy_from_slice(&v1.to_be_bytes());
+        inout[0..4].copy_from_slice(&v0.to_be_bytes());
+        inout[4..8].copy_from_slice(&v1.to_be_bytes());
     }
 
     /// Decrypts the 8 byte buffer src using the key and stores the result in dst.
-    fn decrypt(&self, dst: &mut [u8], src: &[u8]) {
+    fn decrypt(&self, inout: &mut [u8]) {
         assert_eq!(
-            src.len(),
+            inout.len(),
             Self::BLOCK_SIZE,
-            "Source buffer must be exactly {} bytes",
-            Self::BLOCK_SIZE
-        );
-        assert_eq!(
-            dst.len(),
-            Self::BLOCK_SIZE,
-            "Destination buffer must be exactly {} bytes",
+            "inout buffer must be exactly {} bytes",
             Self::BLOCK_SIZE
         );
 
-        let mut v0 = u32::from_be_bytes([src[0], src[1], src[2], src[3]]);
-        let mut v1 = u32::from_be_bytes([src[4], src[5], src[6], src[7]]);
+        let mut v0 = u32::from_be_bytes([inout[0], inout[1], inout[2], inout[3]]);
+        let mut v1 = u32::from_be_bytes([inout[4], inout[5], inout[6], inout[7]]);
 
         let k0 = u32::from_be_bytes([self.key[0], self.key[1], self.key[2], self.key[3]]);
         let k1 = u32::from_be_bytes([self.key[4], self.key[5], self.key[6], self.key[7]]);
@@ -160,7 +148,7 @@ impl BlockCipher for Tea {
             sum = sum.wrapping_sub(DELTA);
         }
 
-        dst[0..4].copy_from_slice(&v0.to_be_bytes());
-        dst[4..8].copy_from_slice(&v1.to_be_bytes());
+        inout[0..4].copy_from_slice(&v0.to_be_bytes());
+        inout[4..8].copy_from_slice(&v1.to_be_bytes());
     }
 }

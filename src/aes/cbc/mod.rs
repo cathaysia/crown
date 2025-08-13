@@ -2,7 +2,6 @@ use crate::{
     aes::{Aes, BLOCK_SIZE},
     cipher::{BlockCipher, BlockMode},
     subtle::xor::xor_bytes,
-    utils::inexact_overlap,
 };
 
 /// CBC encryptor structure
@@ -27,22 +26,12 @@ impl BlockMode for CBCEncryptor {
     /// * If input is not full blocks
     /// * If output buffer is smaller than input
     /// * If buffers have invalid overlap
-    fn crypt_blocks(mut self, dst: &mut [u8], src: &[u8]) {
-        if src.len() % BLOCK_SIZE != 0 {
-            panic!("crypto/cipher: input not full blocks");
-        }
-        if dst.len() < src.len() {
-            panic!("crypto/cipher: output smaller than input");
-        }
-        if inexact_overlap(&dst[..src.len()], src) {
-            panic!("crypto/cipher: invalid buffer overlap");
-        }
-
-        if src.is_empty() {
+    fn crypt_blocks(mut self, inout: &mut [u8]) {
+        if inout.is_empty() {
             return;
         }
 
-        self.crypt_blocks_enc(dst, src);
+        self.crypt_blocks_enc(inout);
     }
 }
 
@@ -71,15 +60,14 @@ impl CBCEncryptor {
     }
 
     /// Generic CBC encryption function
-    fn crypt_blocks_enc(&mut self, dst: &mut [u8], src: &[u8]) {
-        let src_chunks = src.chunks_exact(BLOCK_SIZE);
-        let dst_chunks = dst.chunks_exact_mut(BLOCK_SIZE);
+    fn crypt_blocks_enc(&mut self, inout: &mut [u8]) {
+        let inout_chunks = inout.chunks_exact_mut(BLOCK_SIZE);
 
-        for (src_block, dst_block) in src_chunks.zip(dst_chunks) {
+        for dst_block in inout_chunks {
+            let src_block = dst_block.to_vec();
             // Write the xor to dst, then encrypt in place
-            xor_bytes(dst_block, src_block, &self.iv);
-            let src = dst_block.to_vec();
-            self.block.encrypt(dst_block, &src);
+            xor_bytes(dst_block, &src_block, &self.iv);
+            self.block.encrypt(dst_block);
 
             // Move to the next block with this block as the next iv
             self.iv.copy_from_slice(dst_block);
@@ -109,22 +97,12 @@ impl BlockMode for CBCDecrypter {
     /// * If input is not full blocks
     /// * If output buffer is smaller than input
     /// * If buffers have invalid overlap
-    fn crypt_blocks(mut self, dst: &mut [u8], src: &[u8]) {
-        if src.len() % BLOCK_SIZE != 0 {
-            panic!("crypto/cipher: input not full blocks");
-        }
-        if dst.len() < src.len() {
-            panic!("crypto/cipher: output smaller than input");
-        }
-        if inexact_overlap(&dst[..src.len()], src) {
-            panic!("crypto/cipher: invalid buffer overlap");
-        }
-
-        if src.is_empty() {
+    fn crypt_blocks(mut self, inout: &mut [u8]) {
+        if inout.is_empty() {
             return;
         }
 
-        self.crypt_blocks_dec(dst, src);
+        self.crypt_blocks_dec(inout);
     }
 }
 
@@ -153,30 +131,31 @@ impl CBCDecrypter {
     }
 
     /// Generic CBC decryption function
-    fn crypt_blocks_dec(&mut self, dst: &mut [u8], src: &[u8]) {
+    fn crypt_blocks_dec(&mut self, inout: &mut [u8]) {
         // For each block, we need to xor the decrypted data with the previous
         // block's ciphertext (the iv). To avoid making a copy each time, we loop
         // over the blocks backwards.
-        let mut end = src.len();
+        let mut end = inout.len();
         let mut start = end - BLOCK_SIZE;
 
         // Copy the last block of ciphertext as the IV of the next call
         let iv = self.iv;
         if end >= BLOCK_SIZE {
-            self.iv.copy_from_slice(&src[start..end]);
+            self.iv.copy_from_slice(&inout[start..end]);
         }
 
-        while start < src.len() {
+        while start < inout.len() {
             // Decrypt the block
-            self.block.decrypt(&mut dst[start..end], &src[start..end]);
+            self.block.decrypt(&mut inout[start..end]);
 
-            let dst1 = dst[start..end].to_vec();
+            let dst1 = inout[start..end].to_vec();
             if start > 0 {
                 let prev = start - BLOCK_SIZE;
-                xor_bytes(&mut dst[start..end], &dst1, &src[prev..start]);
+                let src = inout.to_vec();
+                xor_bytes(&mut inout[start..end], &dst1, &src[prev..start]);
             } else {
                 // The first block is special because it uses the saved iv
-                xor_bytes(&mut dst[start..end], &dst1, &iv);
+                xor_bytes(&mut inout[start..end], &dst1, &iv);
             }
 
             if start == 0 {

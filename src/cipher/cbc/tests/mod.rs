@@ -32,9 +32,8 @@ fn des_cbc() {
         let mut dst = [0u8; Des::BLOCK_SIZE];
         dst.copy_from_slice(&block);
 
-        kt_enc.crypt_blocks(&mut dst, &block);
-        let src = dst.to_vec();
-        kt_dec.crypt_blocks(&mut dst, &src);
+        kt_enc.crypt_blocks(&mut dst);
+        kt_dec.crypt_blocks(&mut dst);
         assert_eq!(block, dst);
     }
 }
@@ -64,7 +63,7 @@ fn rustcrypto_des_cbc_interop() {
             let mut dst = [0u8; Des::BLOCK_SIZE];
             dst.copy_from_slice(&block);
 
-            kt_enc.crypt_blocks(&mut dst, &block);
+            kt_enc.crypt_blocks(&mut dst);
             rc_dec.decrypt_block_mut(&mut dst.into());
             assert_eq!(block, dst);
         }
@@ -80,8 +79,7 @@ fn rustcrypto_des_cbc_interop() {
             dst.copy_from_slice(&block);
 
             rc_enc.encrypt_block_mut(&mut dst.into());
-            let src = dst.to_vec();
-            kt_dec.crypt_blocks(&mut dst, &src);
+            kt_dec.crypt_blocks(&mut dst);
             assert_eq!(block, dst);
         }
     }

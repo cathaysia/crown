@@ -32,10 +32,10 @@ fn test_rc5() {
     for case in cases {
         let [key, pt, ct] = case;
         let cipher = Rc5::new(key, 12).unwrap();
-        let mut dst = vec![0u8; ct.len()];
-        cipher.encrypt(&mut dst, pt);
+        let mut dst = pt.to_vec();
+        cipher.encrypt(&mut dst);
         assert_eq!(dst, ct);
-        cipher.decrypt(&mut dst, ct);
+        cipher.decrypt(&mut dst);
         assert_eq!(pt, dst);
     }
 }

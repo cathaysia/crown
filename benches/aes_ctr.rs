@@ -1,6 +1,6 @@
 use cipher::KeyIvInit;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use kittycrypto::cipher::ctr::CtrAble;
+use kittycrypto::cipher::{ctr::CtrAble, StreamCipher};
 use std::hint::black_box;
 
 fn bench_aes_ctr(c: &mut Criterion) {

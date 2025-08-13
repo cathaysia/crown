@@ -95,8 +95,8 @@ fn test_cipher_encrypt() {
             }
         };
 
-        let mut out = vec![0u8; test.input.len()];
-        cipher.encrypt(&mut out, test.input);
+        let mut out = test.input.to_vec();
+        cipher.encrypt(&mut out);
 
         for (j, (&actual, &expected)) in out.iter().zip(test.output.iter()).enumerate() {
             if actual != expected {
@@ -119,8 +119,8 @@ fn test_cipher_decrypt() {
             }
         };
 
-        let mut plain = vec![0u8; test.input.len()];
-        cipher.decrypt(&mut plain, test.output);
+        let mut plain = test.output.to_vec();
+        cipher.decrypt(&mut plain);
 
         for (j, (&actual, &expected)) in plain.iter().zip(test.input.iter()).enumerate() {
             if actual != expected {
@@ -145,10 +145,10 @@ fn test_aes_block() {
 
                 let plaintext = vec![0u8; BLOCK_SIZE];
                 let mut ciphertext = vec![0u8; BLOCK_SIZE];
-                let mut decrypted = vec![0u8; BLOCK_SIZE];
 
-                cipher.encrypt(&mut ciphertext, &plaintext);
-                cipher.decrypt(&mut decrypted, &ciphertext);
+                cipher.encrypt(&mut ciphertext);
+                let mut decrypted = ciphertext.clone();
+                cipher.decrypt(&mut decrypted);
 
                 assert_eq!(plaintext, decrypted, "AES-{} round trip failed", keylen);
             }
@@ -179,23 +179,12 @@ fn test_block_size() {
 }
 
 #[test]
-#[should_panic(expected = "crypto/aes: input not full block")]
-fn test_encrypt_short_input() {
-    let key = vec![0u8; 16];
-    let cipher = Aes::new(&key).unwrap();
-    let mut dst = vec![0u8; 16];
-    let src = vec![0u8; 15]; // Too short
-    cipher.encrypt(&mut dst, &src);
-}
-
-#[test]
-#[should_panic(expected = "crypto/aes: output not full block")]
+#[should_panic(expected = "inout not full block")]
 fn test_encrypt_short_output() {
     let key = vec![0u8; 16];
     let cipher = Aes::new(&key).unwrap();
     let mut dst = vec![0u8; 15]; // Too short
-    let src = vec![0u8; 16];
-    cipher.encrypt(&mut dst, &src);
+    cipher.encrypt(&mut dst);
 }
 
 #[test]
@@ -215,7 +204,7 @@ fn rustcrypto_aes_interop() {
             for i in (0..src.len()).step_by(BLOCK_SIZE) {
                 let end = (i + BLOCK_SIZE).min(src.len());
                 if end - i == BLOCK_SIZE {
-                    cipher.encrypt(&mut dst[i..end], &src[i..end]);
+                    cipher.encrypt(&mut dst[i..end]);
                 }
             }
             dst

@@ -83,8 +83,8 @@ fn test_cipher_encrypt() {
         let c = Tea::new_with_rounds(&test.key, test.rounds)
             .unwrap_or_else(|_| panic!("#{}: NewCipherWithRounds should not return error", i));
 
-        let mut ciphertext = [0u8; Tea::BLOCK_SIZE];
-        c.encrypt(&mut ciphertext, &test.plaintext);
+        let mut ciphertext = test.plaintext.to_vec();
+        c.encrypt(&mut ciphertext);
 
         assert_eq!(
             ciphertext, test.ciphertext,
@@ -92,8 +92,8 @@ fn test_cipher_encrypt() {
             i, ciphertext, test.ciphertext
         );
 
-        let mut plaintext2 = [0u8; Tea::BLOCK_SIZE];
-        c.decrypt(&mut plaintext2, &ciphertext);
+        let mut plaintext2 = ciphertext.clone();
+        c.decrypt(&mut plaintext2);
 
         assert_eq!(
             plaintext2, test.plaintext,
@@ -110,13 +110,13 @@ fn test_encrypt_decrypt_roundtrip() {
     let tea = Tea::new(&key).unwrap();
 
     let plaintext = [0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
-    let mut ciphertext = [0u8; 8];
-    let mut decrypted = [0u8; 8];
+    let mut ciphertext = plaintext.to_vec();
 
-    tea.encrypt(&mut ciphertext, &plaintext);
-    tea.decrypt(&mut decrypted, &ciphertext);
+    tea.encrypt(&mut ciphertext);
+    let mut decrypted = ciphertext.to_vec();
+    tea.decrypt(&mut decrypted);
 
-    assert_eq!(plaintext, decrypted);
+    assert_eq!(&plaintext, decrypted.as_slice());
 }
 
 /// Test that odd number of rounds returns an error
@@ -138,14 +138,15 @@ fn test_different_rounds() {
     // Test with different even round counts
     for rounds in [16, 32, 64, 128].iter() {
         let tea = Tea::new_with_rounds(&key, *rounds).unwrap();
-        let mut ciphertext = [0u8; 8];
-        let mut decrypted = [0u8; 8];
+        let mut ciphertext = plaintext.to_vec();
 
-        tea.encrypt(&mut ciphertext, &plaintext);
-        tea.decrypt(&mut decrypted, &ciphertext);
+        tea.encrypt(&mut ciphertext);
+        let mut decrypted = ciphertext.to_vec();
+        tea.decrypt(&mut decrypted);
 
         assert_eq!(
-            plaintext, decrypted,
+            plaintext,
+            decrypted.as_slice(),
             "Round-trip failed for {} rounds",
             rounds
         );

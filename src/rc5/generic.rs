@@ -96,12 +96,14 @@ impl Rc5 {
         }
         Ok(())
     }
-    pub(crate) fn encrypt_generic(&self, mut pt: &[u8], mut ct: &mut [u8]) -> CryptoResult<()> {
+    pub(crate) fn encrypt_generic(&self, mut inout: &mut [u8]) -> CryptoResult<()> {
         if self.rounds < 12 || self.rounds > 24 {
             return Err(CryptoError::InvalidRound);
         }
-        let mut a = pt.get_u32_le();
-        let mut b = pt.get_u32_le();
+        let (mut a, mut b) = {
+            let mut inout = &*inout;
+            (inout.get_u32_le(), inout.get_u32_le())
+        };
 
         a = a.wrapping_add(self.key[0]);
         b = b.wrapping_add(self.key[1]);
@@ -122,17 +124,19 @@ impl Rc5 {
             });
         }
 
-        ct.put_u32_le(a);
-        ct.put_u32_le(b);
+        inout.put_u32_le(a);
+        inout.put_u32_le(b);
         Ok(())
     }
 
-    pub(crate) fn decrypt_generic(&self, mut ct: &[u8], mut pt: &mut [u8]) -> CryptoResult<()> {
+    pub(crate) fn decrypt_generic(&self, mut inout: &mut [u8]) -> CryptoResult<()> {
         if self.rounds < 12 || self.rounds > 24 {
             return Err(CryptoError::InvalidRound);
         }
-        let mut a = ct.get_u32_le();
-        let mut b = ct.get_u32_le();
+        let (mut a, mut b) = {
+            let mut inout = &*inout;
+            (inout.get_u32_le(), inout.get_u32_le())
+        };
         let mut idx = self.rounds << 1;
         if self.rounds as i32 & 1 == 0 {
             idx -= 2;
@@ -153,8 +157,8 @@ impl Rc5 {
         a = a.wrapping_sub(self.key[0]);
         b = b.wrapping_sub(self.key[1]);
 
-        pt.put_u32_le(a);
-        pt.put_u32_le(b);
+        inout.put_u32_le(a);
+        inout.put_u32_le(b);
         Ok(())
     }
 }

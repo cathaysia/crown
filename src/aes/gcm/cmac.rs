@@ -30,8 +30,8 @@ impl Cmac {
     /// Derives the subkeys k1 and k2 according to CMAC specification.
     fn derive_subkeys(&mut self) {
         // Encrypt zero block to get L
-        self.b
-            .encrypt_block_internal(&mut self.k1, &[0; BLOCK_SIZE]);
+        self.k1.copy_from_slice(&[0; BLOCK_SIZE]);
+        self.b.encrypt_block_internal(&mut self.k1);
 
         // Derive k1 from L
         let msb = shift_left(&mut self.k1);
@@ -51,8 +51,7 @@ impl Cmac {
             // Special-cased as a single empty partial final block.
             x = self.k2;
             x[0] ^= 0b10000000;
-            let src = x;
-            self.b.encrypt_block_internal(&mut x, &src);
+            self.b.encrypt_block_internal(&mut x);
             return x;
         }
 
@@ -68,8 +67,7 @@ impl Cmac {
             }
 
             // Encrypt the result
-            let src = x;
-            self.b.encrypt_block_internal(&mut x, &src);
+            self.b.encrypt_block_internal(&mut x);
             remaining = &remaining[BLOCK_SIZE..];
         }
 
@@ -79,7 +77,7 @@ impl Cmac {
             xor_bytes(&mut x, remaining, &src);
             xor_bytes(&mut x, &self.k2, &src);
             x[remaining.len()] ^= 0b10000000;
-            self.b.encrypt_block_internal(&mut x, &src);
+            self.b.encrypt_block_internal(&mut x);
         }
 
         x

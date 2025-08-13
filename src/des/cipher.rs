@@ -3,7 +3,6 @@ use crate::{
     cipher::{marker::BlockCipherMarker, BlockCipher},
     des::block::{init_feistel_box, FEISTEL_BOX_INIT},
     error::{CryptoError, CryptoResult},
-    utils::inexact_overlap,
 };
 
 #[derive(Clone)]
@@ -18,32 +17,20 @@ impl BlockCipher for Des {
         Des::BLOCK_SIZE
     }
 
-    fn encrypt(&self, dst: &mut [u8], src: &[u8]) {
-        if src.len() < Des::BLOCK_SIZE {
-            panic!("crypto/des: input not full block");
-        }
-        if dst.len() < Des::BLOCK_SIZE {
-            panic!("crypto/des: output not full block");
-        }
-        if inexact_overlap(&dst[..Des::BLOCK_SIZE], &src[..Des::BLOCK_SIZE]) {
-            panic!("crypto/des: invalid buffer overlap");
+    fn encrypt(&self, inout: &mut [u8]) {
+        if inout.len() < Des::BLOCK_SIZE {
+            panic!("crypto/des: inout not full block");
         }
 
-        crypt_block(&self.subkeys, dst, src, false);
+        crypt_block(&self.subkeys, inout, false);
     }
 
-    fn decrypt(&self, dst: &mut [u8], src: &[u8]) {
-        if src.len() < Des::BLOCK_SIZE {
-            panic!("crypto/des: input not full block");
-        }
-        if dst.len() < Des::BLOCK_SIZE {
+    fn decrypt(&self, inout: &mut [u8]) {
+        if inout.len() < Des::BLOCK_SIZE {
             panic!("crypto/des: output not full block");
         }
-        if inexact_overlap(&dst[..Des::BLOCK_SIZE], &src[..Des::BLOCK_SIZE]) {
-            panic!("crypto/des: invalid buffer overlap");
-        }
 
-        crypt_block(&self.subkeys, dst, src, true);
+        crypt_block(&self.subkeys, inout, true);
     }
 }
 
@@ -114,18 +101,12 @@ impl BlockCipher for TripleDes {
         Des::BLOCK_SIZE
     }
 
-    fn encrypt(&self, dst: &mut [u8], src: &[u8]) {
-        if src.len() < Des::BLOCK_SIZE {
-            panic!("crypto/des: input not full block");
-        }
-        if dst.len() < Des::BLOCK_SIZE {
+    fn encrypt(&self, inout: &mut [u8]) {
+        if inout.len() < Des::BLOCK_SIZE {
             panic!("crypto/des: output not full block");
         }
-        if inexact_overlap(&dst[..Des::BLOCK_SIZE], &src[..Des::BLOCK_SIZE]) {
-            panic!("crypto/des: invalid buffer overlap");
-        }
 
-        let b = u64::from_be_bytes(src[..8].try_into().unwrap());
+        let b = u64::from_be_bytes(inout[..8].try_into().unwrap());
         let b = permute_initial_block(b);
         let mut left = (b >> 32) as u32;
         let mut right = b as u32;
@@ -171,21 +152,15 @@ impl BlockCipher for TripleDes {
 
         let pre_output = ((right as u64) << 32) | (left as u64);
         let result = permute_final_block(pre_output);
-        dst[..8].copy_from_slice(&result.to_be_bytes());
+        inout[..8].copy_from_slice(&result.to_be_bytes());
     }
 
-    fn decrypt(&self, dst: &mut [u8], src: &[u8]) {
-        if src.len() < Des::BLOCK_SIZE {
-            panic!("crypto/des: input not full block");
-        }
-        if dst.len() < Des::BLOCK_SIZE {
+    fn decrypt(&self, inout: &mut [u8]) {
+        if inout.len() < Des::BLOCK_SIZE {
             panic!("crypto/des: output not full block");
         }
-        if inexact_overlap(&dst[..Des::BLOCK_SIZE], &src[..Des::BLOCK_SIZE]) {
-            panic!("crypto/des: invalid buffer overlap");
-        }
 
-        let b = u64::from_be_bytes(src[..8].try_into().unwrap());
+        let b = u64::from_be_bytes(inout[..8].try_into().unwrap());
         let b = permute_initial_block(b);
         let mut left = (b >> 32) as u32;
         let mut right = b as u32;
@@ -231,6 +206,6 @@ impl BlockCipher for TripleDes {
 
         let pre_output = ((right as u64) << 32) | (left as u64);
         let result = permute_final_block(pre_output);
-        dst[..8].copy_from_slice(&result.to_be_bytes());
+        inout[..8].copy_from_slice(&result.to_be_bytes());
     }
 }

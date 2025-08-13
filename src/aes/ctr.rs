@@ -176,9 +176,7 @@ pub(crate) fn ctr_blocks(b: &Aes, dst: &mut [u8], src: &[u8], mut ivlo: u64, mut
         ivlo = new_ivlo;
         ivhi = new_ivhi;
 
-        let src = chunk.to_vec();
-
-        b.encrypt(chunk, &src);
+        b.encrypt(chunk);
     }
 
     let b = buf.to_vec();

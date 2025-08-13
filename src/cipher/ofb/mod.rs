@@ -62,8 +62,7 @@ impl<B: BlockCipher> Ofb<B> {
 
         let mut remain = remain;
         while remain < self.out.len() - bs {
-            let src = self.cipher.clone();
-            self.b.encrypt(&mut self.cipher, &src);
+            self.b.encrypt(&mut self.cipher);
             self.out[remain..remain + bs].copy_from_slice(&self.cipher);
             remain += bs;
         }

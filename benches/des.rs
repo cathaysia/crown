@@ -23,7 +23,7 @@ fn bench_des(c: &mut Criterion) {
             for i in (0..block.len()).step_by(Des::BLOCK_SIZE) {
                 let end = (i + Des::BLOCK_SIZE).min(block.len());
                 if end - i == Des::BLOCK_SIZE {
-                    cipher.encrypt(black_box(&mut dst[i..end]), black_box(&block[i..end]));
+                    cipher.encrypt(black_box(&mut dst[i..end]));
                 }
             }
         })

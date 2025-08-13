@@ -1,6 +1,9 @@
 use cipher::KeyIvInit;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use kittycrypto::{cipher::ctr::CtrAble, des::Des};
+use kittycrypto::{
+    cipher::{ctr::CtrAble, StreamCipher},
+    des::Des,
+};
 use std::hint::black_box;
 
 fn bench_des_ctr(c: &mut Criterion) {

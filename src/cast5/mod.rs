@@ -101,9 +101,9 @@ impl BlockCipher for Cast5 {
         Self::BLOCK_SIZE
     }
 
-    fn encrypt(&self, dst: &mut [u8], src: &[u8]) {
-        let mut l = u32::from_be_bytes([src[0], src[1], src[2], src[3]]);
-        let mut r = u32::from_be_bytes([src[4], src[5], src[6], src[7]]);
+    fn encrypt(&self, inout: &mut [u8]) {
+        let mut l = u32::from_be_bytes([inout[0], inout[1], inout[2], inout[3]]);
+        let mut r = u32::from_be_bytes([inout[4], inout[5], inout[6], inout[7]]);
 
         (l, r) = (r, l ^ f1(r, self.masking[0], self.rotate[0]));
         (l, r) = (r, l ^ f2(r, self.masking[1], self.rotate[1]));
@@ -125,19 +125,19 @@ impl BlockCipher for Cast5 {
         (l, r) = (r, l ^ f3(r, self.masking[14], self.rotate[14]));
         (l, r) = (r, l ^ f1(r, self.masking[15], self.rotate[15]));
 
-        dst[0] = (r >> 24) as u8;
-        dst[1] = (r >> 16) as u8;
-        dst[2] = (r >> 8) as u8;
-        dst[3] = r as u8;
-        dst[4] = (l >> 24) as u8;
-        dst[5] = (l >> 16) as u8;
-        dst[6] = (l >> 8) as u8;
-        dst[7] = l as u8;
+        inout[0] = (r >> 24) as u8;
+        inout[1] = (r >> 16) as u8;
+        inout[2] = (r >> 8) as u8;
+        inout[3] = r as u8;
+        inout[4] = (l >> 24) as u8;
+        inout[5] = (l >> 16) as u8;
+        inout[6] = (l >> 8) as u8;
+        inout[7] = l as u8;
     }
 
-    fn decrypt(&self, dst: &mut [u8], src: &[u8]) {
-        let mut l = u32::from_be_bytes([src[0], src[1], src[2], src[3]]);
-        let mut r = u32::from_be_bytes([src[4], src[5], src[6], src[7]]);
+    fn decrypt(&self, inout: &mut [u8]) {
+        let mut l = u32::from_be_bytes([inout[0], inout[1], inout[2], inout[3]]);
+        let mut r = u32::from_be_bytes([inout[4], inout[5], inout[6], inout[7]]);
 
         (l, r) = (r, l ^ f1(r, self.masking[15], self.rotate[15]));
         (l, r) = (r, l ^ f3(r, self.masking[14], self.rotate[14]));
@@ -159,14 +159,14 @@ impl BlockCipher for Cast5 {
         (l, r) = (r, l ^ f2(r, self.masking[1], self.rotate[1]));
         (l, r) = (r, l ^ f1(r, self.masking[0], self.rotate[0]));
 
-        dst[0] = (r >> 24) as u8;
-        dst[1] = (r >> 16) as u8;
-        dst[2] = (r >> 8) as u8;
-        dst[3] = r as u8;
-        dst[4] = (l >> 24) as u8;
-        dst[5] = (l >> 16) as u8;
-        dst[6] = (l >> 8) as u8;
-        dst[7] = l as u8;
+        inout[0] = (r >> 24) as u8;
+        inout[1] = (r >> 16) as u8;
+        inout[2] = (r >> 8) as u8;
+        inout[3] = r as u8;
+        inout[4] = (l >> 24) as u8;
+        inout[5] = (l >> 16) as u8;
+        inout[6] = (l >> 8) as u8;
+        inout[7] = l as u8;
     }
 }
 

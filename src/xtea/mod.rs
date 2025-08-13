@@ -63,13 +63,13 @@ impl BlockCipher for Xtea {
     /// Note that for amounts of data larger than a block,
     /// it is not safe to just call encrypt on successive blocks;
     /// instead, use an encryption mode like CBC.
-    fn encrypt(&self, dst: &mut [u8], src: &[u8]) {
-        block::encrypt_block(self, dst, src);
+    fn encrypt(&self, inout: &mut [u8]) {
+        block::encrypt_block(self, inout);
     }
 
     /// Decrypts the 8 byte buffer src using the key and stores the result in dst.
-    fn decrypt(&self, dst: &mut [u8], src: &[u8]) {
-        block::decrypt_block(self, dst, src);
+    fn decrypt(&self, inout: &mut [u8]) {
+        block::decrypt_block(self, inout);
     }
 }
 

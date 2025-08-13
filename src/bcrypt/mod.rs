@@ -263,8 +263,7 @@ fn bcrypt(password: &[u8], cost: u32, salt: &[u8]) -> Result<Vec<u8>, BcryptErro
 
     for i in (0..24).step_by(8) {
         for _ in 0..64 {
-            let src = cipher_data.clone();
-            c.encrypt(&mut cipher_data[i..i + 8], &src[i..i + 8]);
+            c.encrypt(&mut cipher_data[i..i + 8]);
         }
     }
 

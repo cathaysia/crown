@@ -180,17 +180,17 @@ impl BlockCipher for Twofish {
     // Note that for amounts of data larger than a block,
     // it is not safe to just call Encrypt on successive blocks;
     // instead, use an encryption mode like CBC (see crypto/cipher/cbc.go).
-    fn encrypt(&self, dst: &mut [u8], src: &[u8]) {
+    fn encrypt(&self, inout: &mut [u8]) {
         let s1 = &self.s[0];
         let s2 = &self.s[1];
         let s3 = &self.s[2];
         let s4 = &self.s[3];
 
         // Load input
-        let mut ia = load32l(&src[0..4]);
-        let mut ib = load32l(&src[4..8]);
-        let mut ic = load32l(&src[8..12]);
-        let mut id = load32l(&src[12..16]);
+        let mut ia = load32l(&inout[0..4]);
+        let mut ib = load32l(&inout[4..8]);
+        let mut ic = load32l(&inout[8..12]);
+        let mut id = load32l(&inout[12..16]);
 
         // Pre-whitening
         ia ^= self.k[0];
@@ -231,24 +231,24 @@ impl BlockCipher for Twofish {
         let tc = ia ^ self.k[6];
         let td = ib ^ self.k[7];
 
-        store32l(&mut dst[0..4], ta);
-        store32l(&mut dst[4..8], tb);
-        store32l(&mut dst[8..12], tc);
-        store32l(&mut dst[12..16], td);
+        store32l(&mut inout[0..4], ta);
+        store32l(&mut inout[4..8], tb);
+        store32l(&mut inout[8..12], tc);
+        store32l(&mut inout[12..16], td);
     }
 
     // Decrypt decrypts a 16-byte block from src to dst, which may overlap.
-    fn decrypt(&self, dst: &mut [u8], src: &[u8]) {
+    fn decrypt(&self, inout: &mut [u8]) {
         let s1 = &self.s[0];
         let s2 = &self.s[1];
         let s3 = &self.s[2];
         let s4 = &self.s[3];
 
         // Load input
-        let ta = load32l(&src[0..4]);
-        let tb = load32l(&src[4..8]);
-        let tc = load32l(&src[8..12]);
-        let td = load32l(&src[12..16]);
+        let ta = load32l(&inout[0..4]);
+        let tb = load32l(&inout[4..8]);
+        let tc = load32l(&inout[8..12]);
+        let td = load32l(&inout[12..16]);
 
         // Undo undo final swap
         let mut ia = tc ^ self.k[6];
@@ -289,10 +289,10 @@ impl BlockCipher for Twofish {
         ic ^= self.k[2];
         id ^= self.k[3];
 
-        store32l(&mut dst[0..4], ia);
-        store32l(&mut dst[4..8], ib);
-        store32l(&mut dst[8..12], ic);
-        store32l(&mut dst[12..16], id);
+        store32l(&mut inout[0..4], ia);
+        store32l(&mut inout[4..8], ib);
+        store32l(&mut inout[8..12], ic);
+        store32l(&mut inout[12..16], id);
     }
 }
 

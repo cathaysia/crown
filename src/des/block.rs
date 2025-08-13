@@ -3,8 +3,8 @@ use std::sync::Once;
 pub static FEISTEL_BOX_INIT: Once = Once::new();
 static mut FEISTEL_BOX: [[u32; 64]; 8] = [[0; 64]; 8];
 
-pub fn crypt_block(subkeys: &[u64], dst: &mut [u8], src: &[u8], decrypt: bool) {
-    let b = u64::from_be_bytes(src[..8].try_into().unwrap());
+pub fn crypt_block(subkeys: &[u64], inout: &mut [u8], decrypt: bool) {
+    let b = u64::from_be_bytes(inout[..8].try_into().unwrap());
     let b = permute_initial_block(b);
     let mut left = (b >> 32) as u32;
     let mut right = b as u32;
@@ -32,7 +32,7 @@ pub fn crypt_block(subkeys: &[u64], dst: &mut [u8], src: &[u8], decrypt: bool) {
 
     let pre_output = ((right as u64) << 32) | (left as u64);
     let result = permute_final_block(pre_output);
-    dst[..8].copy_from_slice(&result.to_be_bytes());
+    inout[..8].copy_from_slice(&result.to_be_bytes());
 }
 
 pub(crate) fn feistel(l: u32, r: u32, k0: u64, k1: u64) -> (u32, u32) {

@@ -20,10 +20,7 @@ pub fn seal_generic(
     let mut counter = [0u8; GCM_BLOCK_SIZE];
     let mut tag_mask = [0u8; GCM_BLOCK_SIZE];
 
-    {
-        let src = h;
-        g.cipher.encrypt_block_internal(&mut h, &src);
-    }
+    g.cipher.encrypt_block_internal(&mut h);
     derive_counter_generic(&h, &mut counter, nonce);
     {
         let src = tag_mask;
@@ -59,10 +56,7 @@ pub fn open_generic(
     let mut counter = [0u8; GCM_BLOCK_SIZE];
     let mut tag_mask = [0u8; GCM_BLOCK_SIZE];
 
-    {
-        let src = h;
-        g.cipher.encrypt_block_internal(&mut h, &src);
-    }
+    g.cipher.encrypt_block_internal(&mut h);
     derive_counter_generic(&h, &mut counter, nonce);
     {
         let src = tag_mask;
@@ -129,7 +123,8 @@ fn gcm_counter_crypt_generic(
     let mut out = out;
 
     while src.len() >= GCM_BLOCK_SIZE {
-        b.encrypt_block_internal(&mut mask, counter);
+        mask.copy_from_slice(counter);
+        b.encrypt_block_internal(&mut mask);
         gcm_inc32(counter);
 
         xor_bytes(&mut out[..GCM_BLOCK_SIZE], &src[..GCM_BLOCK_SIZE], &mask);
@@ -138,7 +133,8 @@ fn gcm_counter_crypt_generic(
     }
 
     if !src.is_empty() {
-        b.encrypt_block_internal(&mut mask, counter);
+        mask.copy_from_slice(counter);
+        b.encrypt_block_internal(&mut mask);
         gcm_inc32(counter);
         xor_bytes(&mut out[..src.len()], src, &mask[..src.len()]);
     }

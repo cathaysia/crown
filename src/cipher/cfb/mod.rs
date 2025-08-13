@@ -61,7 +61,8 @@ impl<B: BlockCipher> StreamCipher for Cfb<B> {
 
         while !src.is_empty() {
             if self.out_used == self.out.len() {
-                self.b.encrypt(&mut self.out, &self.next);
+                self.out.copy_from_slice(&self.next);
+                self.b.encrypt(&mut self.out);
                 self.out_used = 0;
             }
 

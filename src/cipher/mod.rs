@@ -19,11 +19,11 @@ pub trait BlockCipher {
 
     /// Encrypt encrypts the first block in src into dst.
     /// Dst and src must overlap entirely or not at all.
-    fn encrypt(&self, dst: &mut [u8], src: &[u8]);
+    fn encrypt(&self, inout: &mut [u8]);
 
     /// Decrypt decrypts the first block in src into dst.
     /// Dst and src must overlap entirely or not at all.
-    fn decrypt(&self, dst: &mut [u8], src: &[u8]);
+    fn decrypt(&self, inout: &mut [u8]);
 }
 
 /// A Stream represents a stream cipher.
@@ -58,7 +58,7 @@ pub trait BlockMode {
     /// Multiple calls to CryptBlocks behave as if the concatenation of
     /// the src buffers was passed in a single run. That is, BlockMode
     /// maintains state and does not reset at each CryptBlocks call.
-    fn crypt_blocks(self, dst: &mut [u8], src: &[u8]);
+    fn crypt_blocks(self, inout: &mut [u8]);
 }
 
 /// AEAD is a cipher mode providing authenticated encryption with associated

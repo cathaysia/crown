@@ -49,10 +49,10 @@ fn test_encrypt_decrypt() {
         let expected_cipher = hex::decode(cipher_hex).unwrap();
 
         let cipher = Rc2::new(&key, t1).unwrap();
-        let mut dst = [0u8; 8];
+        let mut dst = plain.clone();
 
         // Test encryption
-        cipher.encrypt(&mut dst, &plain);
+        cipher.encrypt(&mut dst);
         assert_eq!(
             dst.as_slice(),
             expected_cipher.as_slice(),
@@ -62,7 +62,7 @@ fn test_encrypt_decrypt() {
         );
 
         // Test decryption
-        cipher.decrypt(&mut dst, &expected_cipher);
+        cipher.decrypt(&mut dst);
         assert_eq!(
             dst.as_slice(),
             plain.as_slice(),

@@ -103,11 +103,16 @@ pub fn rc6_setup(
     Ok(())
 }
 
-pub fn rc6_ecb_encrypt(mut pt: &[u8], mut ct: &mut [u8], skey: &Rc6Key) -> CryptoResult<()> {
-    let mut a = pt.get_u32_le();
-    let mut b = pt.get_u32_le();
-    let mut c = pt.get_u32_le();
-    let mut d = pt.get_u32_le();
+pub fn rc6_ecb_encrypt(mut inout: &mut [u8], skey: &Rc6Key) -> CryptoResult<()> {
+    let (mut a, mut b, mut c, mut d) = {
+        let mut inout = &*inout;
+        (
+            inout.get_u32_le(),
+            inout.get_u32_le(),
+            inout.get_u32_le(),
+            inout.get_u32_le(),
+        )
+    };
 
     b = b.wrapping_add(skey.key[0]);
     d = d.wrapping_add(skey.key[1]);
@@ -137,22 +142,27 @@ pub fn rc6_ecb_encrypt(mut pt: &[u8], mut ct: &mut [u8], skey: &Rc6Key) -> Crypt
     a = a.wrapping_add(skey.key[42]);
     c = c.wrapping_add(skey.key[43]);
 
-    ct.put_u32_le(a);
-    ct.put_u32_le(b);
-    ct.put_u32_le(c);
-    ct.put_u32_le(d);
+    inout.put_u32_le(a);
+    inout.put_u32_le(b);
+    inout.put_u32_le(c);
+    inout.put_u32_le(d);
 
     Ok(())
 }
 
-pub fn rc6_ecb_decrypt(mut ct: &[u8], mut pt: &mut [u8], skey: &Rc6Key) -> Result<(), CryptoError> {
+pub fn rc6_ecb_decrypt(mut inout: &mut [u8], skey: &Rc6Key) -> Result<(), CryptoError> {
     let mut t: u32;
     let mut u: u32;
 
-    let mut a = ct.get_u32_le();
-    let mut b = ct.get_u32_le();
-    let mut c = ct.get_u32_le();
-    let mut d = ct.get_u32_le();
+    let (mut a, mut b, mut c, mut d) = {
+        let mut inout = &*inout;
+        (
+            inout.get_u32_le(),
+            inout.get_u32_le(),
+            inout.get_u32_le(),
+            inout.get_u32_le(),
+        )
+    };
 
     a = a.wrapping_sub(skey.key[42]);
     c = c.wrapping_sub(skey.key[43]);
@@ -179,9 +189,9 @@ pub fn rc6_ecb_decrypt(mut ct: &[u8], mut pt: &mut [u8], skey: &Rc6Key) -> Resul
     b = b.wrapping_sub(skey.key[0]);
     d = d.wrapping_sub(skey.key[1]);
 
-    pt.put_u32_le(a);
-    pt.put_u32_le(b);
-    pt.put_u32_le(c);
-    pt.put_u32_le(d);
+    inout.put_u32_le(a);
+    inout.put_u32_le(b);
+    inout.put_u32_le(c);
+    inout.put_u32_le(d);
     Ok(())
 }

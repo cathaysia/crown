@@ -22,7 +22,7 @@ fn bench_aes(c: &mut Criterion) {
             for i in (0..block.len()).step_by(BLOCK_SIZE) {
                 let end = (i + BLOCK_SIZE).min(block.len());
                 if end - i == BLOCK_SIZE {
-                    cipher.encrypt(black_box(&mut dst[i..end]), black_box(&block[i..end]));
+                    cipher.encrypt(black_box(&mut dst[i..end]));
                 }
             }
         })

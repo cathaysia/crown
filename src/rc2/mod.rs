@@ -50,15 +50,15 @@ impl BlockCipher for Rc2 {
         BLOCK_SIZE
     }
 
-    fn encrypt(&self, dst: &mut [u8], src: &[u8]) {
-        if src.len() < BLOCK_SIZE || dst.len() < BLOCK_SIZE {
+    fn encrypt(&self, inout: &mut [u8]) {
+        if inout.len() < BLOCK_SIZE {
             panic!("src and dst must be at least {} bytes", BLOCK_SIZE);
         }
 
-        let mut r0 = u16::from_le_bytes(src[0..2].try_into().unwrap());
-        let mut r1 = u16::from_le_bytes(src[2..4].try_into().unwrap());
-        let mut r2 = u16::from_le_bytes(src[4..6].try_into().unwrap());
-        let mut r3 = u16::from_le_bytes(src[6..8].try_into().unwrap());
+        let mut r0 = u16::from_le_bytes(inout[0..2].try_into().unwrap());
+        let mut r1 = u16::from_le_bytes(inout[2..4].try_into().unwrap());
+        let mut r2 = u16::from_le_bytes(inout[4..6].try_into().unwrap());
+        let mut r3 = u16::from_le_bytes(inout[6..8].try_into().unwrap());
 
         let mut j = 0;
 
@@ -174,21 +174,21 @@ impl BlockCipher for Rc2 {
             j += 1;
         }
 
-        dst[0..2].copy_from_slice(&r0.to_le_bytes());
-        dst[2..4].copy_from_slice(&r1.to_le_bytes());
-        dst[4..6].copy_from_slice(&r2.to_le_bytes());
-        dst[6..8].copy_from_slice(&r3.to_le_bytes());
+        inout[0..2].copy_from_slice(&r0.to_le_bytes());
+        inout[2..4].copy_from_slice(&r1.to_le_bytes());
+        inout[4..6].copy_from_slice(&r2.to_le_bytes());
+        inout[6..8].copy_from_slice(&r3.to_le_bytes());
     }
 
-    fn decrypt(&self, dst: &mut [u8], src: &[u8]) {
-        if src.len() < BLOCK_SIZE || dst.len() < BLOCK_SIZE {
+    fn decrypt(&self, inout: &mut [u8]) {
+        if inout.len() < BLOCK_SIZE {
             panic!("src and dst must be at least {} bytes", BLOCK_SIZE);
         }
 
-        let mut r0 = u16::from_le_bytes(src[0..2].try_into().unwrap());
-        let mut r1 = u16::from_le_bytes(src[2..4].try_into().unwrap());
-        let mut r2 = u16::from_le_bytes(src[4..6].try_into().unwrap());
-        let mut r3 = u16::from_le_bytes(src[6..8].try_into().unwrap());
+        let mut r0 = u16::from_le_bytes(inout[0..2].try_into().unwrap());
+        let mut r1 = u16::from_le_bytes(inout[2..4].try_into().unwrap());
+        let mut r2 = u16::from_le_bytes(inout[4..6].try_into().unwrap());
+        let mut r3 = u16::from_le_bytes(inout[6..8].try_into().unwrap());
 
         let mut j = 63;
 
@@ -316,10 +316,10 @@ impl BlockCipher for Rc2 {
             j -= 1;
         }
 
-        dst[0..2].copy_from_slice(&r0.to_le_bytes());
-        dst[2..4].copy_from_slice(&r1.to_le_bytes());
-        dst[4..6].copy_from_slice(&r2.to_le_bytes());
-        dst[6..8].copy_from_slice(&r3.to_le_bytes());
+        inout[0..2].copy_from_slice(&r0.to_le_bytes());
+        inout[2..4].copy_from_slice(&r1.to_le_bytes());
+        inout[4..6].copy_from_slice(&r2.to_le_bytes());
+        inout[6..8].copy_from_slice(&r3.to_le_bytes());
     }
 }
 

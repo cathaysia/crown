@@ -33,13 +33,13 @@ impl BlockCipher for Rc6 {
         16
     }
 
-    fn encrypt(&self, dst: &mut [u8], src: &[u8]) {
-        let ret = rc6_ecb_encrypt(src, dst, &self.skey);
+    fn encrypt(&self, inout: &mut [u8]) {
+        let ret = rc6_ecb_encrypt(inout, &self.skey);
         assert!(ret.is_ok());
     }
 
-    fn decrypt(&self, dst: &mut [u8], src: &[u8]) {
-        let ret = rc6_ecb_decrypt(src, dst, &self.skey);
+    fn decrypt(&self, inout: &mut [u8]) {
+        let ret = rc6_ecb_decrypt(inout, &self.skey);
         assert!(ret.is_ok());
     }
 }

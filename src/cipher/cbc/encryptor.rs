@@ -1,7 +1,6 @@
 use crate::{
     cipher::{marker::BlockCipherMarker, BlockCipher, BlockMode},
     subtle::xor::xor_bytes,
-    utils::inexact_overlap,
 };
 
 use super::Cbc;
@@ -52,27 +51,19 @@ impl<B: BlockCipher> BlockMode for CbcEncrypter<B> {
         self.0.block_size
     }
 
-    fn crypt_blocks(mut self, dst: &mut [u8], src: &[u8]) {
-        if src.len() % self.0.block_size != 0 {
+    fn crypt_blocks(mut self, inout: &mut [u8]) {
+        if inout.len() % self.0.block_size != 0 {
             panic!("crypto/cipher: input not full blocks");
-        }
-        if dst.len() < src.len() {
-            panic!("crypto/cipher: output smaller than input");
-        }
-
-        if inexact_overlap(&dst[..src.len()], src) {
-            panic!("crypto/cipher: invalid buffer overlap");
         }
 
         let mut iv = self.0.iv.clone();
-        let mut src_chunks = src.chunks_exact(self.0.block_size);
-        let mut dst_chunks = dst.chunks_exact_mut(self.0.block_size);
+        let dst_chunks = inout.chunks_exact_mut(self.0.block_size);
 
-        while let (Some(src_block), Some(dst_block)) = (src_chunks.next(), dst_chunks.next()) {
+        for dst_block in dst_chunks {
+            let src_block = dst_block.to_vec();
             // Write the xor to dst, then encrypt in place
-            xor_bytes(dst_block, src_block, &iv);
-            let src = dst_block.to_vec();
-            self.0.b.encrypt(dst_block, &src);
+            xor_bytes(dst_block, &src_block, &iv);
+            self.0.b.encrypt(dst_block);
 
             // Move to the next block with this block as the next iv
             iv.copy_from_slice(dst_block);

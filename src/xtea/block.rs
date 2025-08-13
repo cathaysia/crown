@@ -36,8 +36,8 @@ fn u32_to_block(v0: u32, v1: u32, dst: &mut [u8]) {
 }
 
 /// Encrypts a single 8 byte block using XTEA.
-pub fn encrypt_block(c: &Xtea, dst: &mut [u8], src: &[u8]) {
-    let (mut v0, mut v1) = block_to_u32(src);
+pub fn encrypt_block(c: &Xtea, inout: &mut [u8]) {
+    let (mut v0, mut v1) = block_to_u32(inout);
 
     // Two rounds of XTEA applied per loop
     let mut i = 0;
@@ -48,12 +48,12 @@ pub fn encrypt_block(c: &Xtea, dst: &mut [u8], src: &[u8]) {
         i += 1;
     }
 
-    u32_to_block(v0, v1, dst);
+    u32_to_block(v0, v1, inout);
 }
 
 /// Decrypts a single 8 byte block using XTEA.
-pub fn decrypt_block(c: &Xtea, dst: &mut [u8], src: &[u8]) {
-    let (mut v0, mut v1) = block_to_u32(src);
+pub fn decrypt_block(c: &Xtea, inout: &mut [u8]) {
+    let (mut v0, mut v1) = block_to_u32(inout);
 
     // Two rounds of XTEA applied per loop
     let mut i = NUM_ROUNDS;
@@ -64,5 +64,5 @@ pub fn decrypt_block(c: &Xtea, dst: &mut [u8], src: &[u8]) {
         v0 = v0.wrapping_sub((((v1 << 4) ^ (v1 >> 5)).wrapping_add(v1)) ^ c.table[i]);
     }
 
-    u32_to_block(v0, v1, dst);
+    u32_to_block(v0, v1, inout);
 }
