@@ -37,26 +37,9 @@ pub struct Sha1 {
     len: u64,
 }
 
-impl Default for Sha1 {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Sha1 {
     pub const SIZE: usize = 20;
     pub const BLOCK_SIZE: usize = 64;
-
-    pub fn new() -> Self {
-        let mut d = Sha1 {
-            h: [0; 5],
-            x: [0; CHUNK],
-            nx: 0,
-            len: 0,
-        };
-        d.reset();
-        d
-    }
 
     fn append_binary(&self, b: &mut Vec<u8>) {
         b.put_slice(MAGIC);
@@ -289,7 +272,18 @@ impl Marshalable for Sha1 {
 }
 
 pub fn sum(data: &[u8]) -> [u8; Sha1::SIZE] {
-    let mut d = Sha1::new();
+    let mut d = new();
     d.write_all(data).unwrap();
     d.check_sum()
+}
+
+pub fn new() -> Sha1 {
+    let mut d = Sha1 {
+        h: [0; 5],
+        x: [0; CHUNK],
+        nx: 0,
+        len: 0,
+    };
+    d.reset();
+    d
 }

@@ -4,7 +4,7 @@ use super::*;
 
 #[test]
 fn test_example() {
-    let mut h = Sha1::default();
+    let mut h = crate::sha1::new();
     h.write_all(b"His money is twice tainted:").unwrap();
     h.write_all(b" 'taint yours and 'taint mine.").unwrap();
     assert_eq!(

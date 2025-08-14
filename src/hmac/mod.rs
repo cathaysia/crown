@@ -39,8 +39,6 @@ pub struct HMAC<const N: usize, H: Hash<N> + Marshalable> {
     inner: H,
     /// If true, opad and ipad contain marshaled state instead of padded key
     marshaled: bool,
-    /// Whether this HMAC is used for HKDF
-    for_hkdf: bool,
 }
 
 pub fn equal(mac1: &[u8], mac2: &[u8]) -> bool {
@@ -93,14 +91,7 @@ impl<const N: usize, H: Hash<N> + Marshalable> HMAC<N, H> {
             outer,
             inner,
             marshaled: false,
-            for_hkdf: false,
         }
-    }
-
-    /// Mark this HMAC instance as being used in a Key Derivation Function.
-    /// This affects FIPS compliance checking for short keys.
-    pub(crate) fn mark_as_used_in_kdf(&mut self) {
-        self.for_hkdf = true;
     }
 }
 
@@ -118,11 +109,7 @@ impl<const N: usize, H: Hash<N> + Marshalable> HashUser for HMAC<N, H> {
     /// Reset the HMAC to its initial state.
     fn reset(&mut self) {
         if self.marshaled {
-            let opad = unsafe {
-                let ptr = self.opad.as_ptr();
-                std::slice::from_raw_parts(ptr, self.opad.len())
-            };
-            self.outer.unmarshal_binary(opad).unwrap();
+            self.inner.unmarshal_binary(&self.ipad).unwrap();
             return;
         }
 
@@ -135,6 +122,10 @@ impl<const N: usize, H: Hash<N> + Marshalable> HashUser for HMAC<N, H> {
         let Ok(imarshal) = self.inner.marshal_binary() else {
             return;
         };
+        self.outer.reset();
+        self.outer
+            .write_all(&self.opad)
+            .expect("Hash write should not fail");
         let Ok(omarshal) = self.outer.marshal_binary() else {
             return;
         };
