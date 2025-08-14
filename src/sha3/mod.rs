@@ -45,7 +45,7 @@ macro_rules! impl_sum_for {
                 let mut h = [<new $len>]();
                 h.write_all(data).unwrap();
 
-                let sum = h.sum(&[]);
+                let sum = h.sum();
 
                 sum.try_into().unwrap()
             }
@@ -56,13 +56,13 @@ macro_rules! impl_sum_for {
 macro_rules! impl_shakesum_for {
     ($len:literal) => {
         paste::paste! {
-            pub fn [<sum_shake_ $len>](data: &[u8]) -> [u8; $len / 8] {
+            pub fn [<sum_shake_ $len>](data: &[u8]) -> [u8; $len / 8*2] {
                 let mut h = shake::[<new_ shake $len>]();
                 h.write_all(data).unwrap();
 
-                let sum = h.sum(&[]);
+                let sum = h.sum();
 
-                sum.try_into().unwrap()
+                sum
             }
         }
     };
@@ -77,75 +77,69 @@ impl_shakesum_for!(128);
 impl_shakesum_for!(256);
 
 /// New224 returns a new Digest computing the SHA3-224 hash.
-pub fn new224() -> Sha3 {
+pub fn new224() -> Sha3<28> {
     Sha3 {
         a: [0; 200],
         n: 0,
         rate: RATE_K448,
         dsbyte: DSBYTE_SHA3,
-        output_len: 28,
         state: digest::SpongeDirection::Absorbing,
     }
 }
 
 /// New256 returns a new Digest computing the SHA3-256 hash.
-pub fn new256() -> Sha3 {
+pub fn new256() -> Sha3<32> {
     Sha3 {
         a: [0; 200],
         n: 0,
         rate: RATE_K512,
         dsbyte: DSBYTE_SHA3,
-        output_len: 32,
         state: digest::SpongeDirection::Absorbing,
     }
 }
 
 /// New384 returns a new Digest computing the SHA3-384 hash.
-pub fn new384() -> Sha3 {
+pub fn new384() -> Sha3<48> {
     Sha3 {
         a: [0; 200],
         n: 0,
         rate: RATE_K768,
         dsbyte: DSBYTE_SHA3,
-        output_len: 48,
         state: digest::SpongeDirection::Absorbing,
     }
 }
 
 /// New512 returns a new Digest computing the SHA3-512 hash.
-pub fn new512() -> Sha3 {
+pub fn new512() -> Sha3<64> {
     Sha3 {
         a: [0; 200],
         n: 0,
         rate: RATE_K1024,
         dsbyte: DSBYTE_SHA3,
-        output_len: 64,
         state: digest::SpongeDirection::Absorbing,
     }
 }
 
 /// NewLegacyKeccak256 returns a new Digest computing the legacy, non-standard
 /// Keccak-256 hash.
-pub fn new_legacy_keccak256() -> Sha3 {
+pub fn new_legacy_keccak256() -> Sha3<32> {
     Sha3 {
         a: [0; 200],
         n: 0,
         rate: RATE_K512,
         dsbyte: DSBYTE_KECCAK,
-        output_len: 32,
         state: digest::SpongeDirection::Absorbing,
     }
 }
 
 /// NewLegacyKeccak512 returns a new Digest computing the legacy, non-standard
 /// Keccak-512 hash.
-pub fn new_legacy_keccak512() -> Sha3 {
+pub fn new_legacy_keccak512() -> Sha3<64> {
     Sha3 {
         a: [0; 200],
         n: 0,
         rate: RATE_K1024,
         dsbyte: DSBYTE_KECCAK,
-        output_len: 64,
         state: digest::SpongeDirection::Absorbing,
     }
 }

@@ -1,5 +1,6 @@
 use crate::{
     error::{CryptoError, CryptoResult},
+    hash::HashUser,
     hmac::Marshalable,
 };
 
@@ -17,7 +18,7 @@ pub(super) enum SpongeDirection {
 }
 
 #[derive(Debug, Clone)]
-pub struct Sha3 {
+pub struct Sha3<const N: usize> {
     /// main state of the hash
     pub(super) a: [u8; 1600 / 8], // 200 bytes
 
@@ -41,13 +42,11 @@ pub struct Sha3 {
     ///      Extendable-Output Functions (May 2014)"
     pub(super) dsbyte: u8,
 
-    /// the default output size in bytes
-    pub(super) output_len: usize,
     /// whether the sponge is absorbing or squeezing
     pub(super) state: SpongeDirection,
 }
 
-impl Sha3 {
+impl<const N: usize> Sha3<N> {
     /// permute applies the KeccakF-1600 permutation.
     fn permute(&mut self) {
         keccak_f1600(&mut self.a);
@@ -97,7 +96,7 @@ impl Sha3 {
         Ok(n)
     }
 
-    fn sum_generic(&self, b: &[u8]) -> Vec<u8> {
+    fn sum_generic(&self) -> Vec<u8> {
         if self.state != SpongeDirection::Absorbing {
             panic!("sha3: Sum after Read");
         }
@@ -105,12 +104,10 @@ impl Sha3 {
         // Make a copy of the original hash so that caller can keep writing
         // and summing.
         let mut dup = self.clone();
-        let mut hash = vec![0u8; dup.output_len];
+        let mut hash = vec![0u8; N];
         dup.read_generic(&mut hash).unwrap();
 
-        let mut result = b.to_vec();
-        result.extend_from_slice(&hash);
-        result
+        hash
     }
 
     pub(crate) fn append_binary(&self, b: &mut Vec<u8>) -> CryptoResult<Vec<u8>> {
@@ -130,7 +127,7 @@ impl Sha3 {
     }
 }
 
-impl Marshalable for Sha3 {
+impl<const N: usize> Marshalable for Sha3<N> {
     fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
         let mut b = Vec::with_capacity(MARSHALED_SIZE);
         self.append_binary(&mut b)
@@ -184,7 +181,7 @@ impl Marshalable for Sha3 {
     }
 }
 
-impl Write for Sha3 {
+impl<const N: usize> Write for Sha3<N> {
     fn write(&mut self, p: &[u8]) -> io::Result<usize> {
         if self.state != SpongeDirection::Absorbing {
             panic!("sha3: Write after Read");
@@ -216,7 +213,7 @@ impl Write for Sha3 {
     }
 }
 
-impl crate::hash::Hash for Sha3 {
+impl<const N: usize> HashUser for Sha3<N> {
     /// BlockSize returns the rate of sponge underlying this hash function.
     fn block_size(&self) -> usize {
         self.rate
@@ -224,7 +221,7 @@ impl crate::hash::Hash for Sha3 {
 
     /// Size returns the output size of the hash function in bytes.
     fn size(&self) -> usize {
-        self.output_len
+        N
     }
 
     /// Reset resets the Digest to its initial state.
@@ -236,12 +233,13 @@ impl crate::hash::Hash for Sha3 {
         self.state = SpongeDirection::Absorbing;
         self.n = 0;
     }
+}
 
+impl<const N: usize> crate::hash::Hash<N> for Sha3<N> {
     /// Sum appends the current hash to b and returns the resulting slice.
     /// It does not change the underlying hash state.
-    fn sum(&mut self, b: &[u8]) -> Vec<u8> {
-        // record_approved(); // FIPS 140 compliance - would need implementation
-        self.sum_generic(b)
+    fn sum(&mut self) -> [u8; N] {
+        self.sum_generic().try_into().unwrap()
     }
 }
 

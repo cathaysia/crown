@@ -6,7 +6,7 @@
 //! strong secret keys.
 
 use crate::{
-    hash::Hash,
+    hash::{Hash, HashUser},
     hmac::{self, Marshalable},
 };
 use std::io::Write;
@@ -16,9 +16,9 @@ use std::io::Write;
 /// This is the "extract" step of HKDF as defined in RFC 5869.
 /// It takes optional salt and input keying material (IKM) and produces
 /// a pseudorandom key (PRK) of fixed length.
-pub fn extract<H, F>(hash_fn: F, secret: &[u8], salt: Option<&[u8]>) -> Vec<u8>
+pub fn extract<const N: usize, H, F>(hash_fn: F, secret: &[u8], salt: Option<&[u8]>) -> [u8; N]
 where
-    H: Hash + Marshalable,
+    H: Hash<N> + Marshalable,
     F: Fn() -> H,
 {
     let salt = match salt {
@@ -32,7 +32,7 @@ where
         .write_all(secret)
         .expect("HMAC write should not fail");
 
-    extractor.sum(&[])
+    extractor.sum()
 }
 
 /// Expand a pseudorandom key to the desired length.
@@ -40,9 +40,14 @@ where
 /// This is the "expand" step of HKDF as defined in RFC 5869.
 /// It takes a pseudorandom key (PRK), optional context info, and desired
 /// output length, and produces the output keying material (OKM).
-pub fn expand<H, F>(hash_fn: F, pseudorandom_key: &[u8], info: &str, key_len: usize) -> Vec<u8>
+pub fn expand<const N: usize, H, F>(
+    hash_fn: F,
+    pseudorandom_key: &[u8],
+    info: &str,
+    key_len: usize,
+) -> [u8; N]
 where
-    H: Hash + Marshalable,
+    H: Hash<N> + Marshalable,
     F: Fn() -> H,
 {
     let mut out = Vec::with_capacity(key_len);
@@ -68,28 +73,28 @@ where
             .write_all(&[counter])
             .expect("HMAC write should not fail");
 
-        buf = expander.sum(&[]);
+        buf = expander.sum().to_vec();
 
         let remain = std::cmp::min(key_len - out.len(), buf.len());
         out.extend_from_slice(&buf[..remain]);
     }
 
-    out
+    out.try_into().unwrap()
 }
 
 /// Derive key material using HKDF.
 ///
 /// This is a convenience function that combines the extract and expand steps.
 /// It's equivalent to calling extract() followed by expand().
-pub fn key<H, F>(
+pub fn key<const N: usize, H, F>(
     hash_fn: F,
     secret: &[u8],
     salt: Option<&[u8]>,
     info: &str,
     key_len: usize,
-) -> Vec<u8>
+) -> [u8; N]
 where
-    H: Hash + Marshalable,
+    H: Hash<N> + Marshalable,
     F: Fn() -> H + Clone,
 {
     let prk = extract(hash_fn.clone(), secret, salt);

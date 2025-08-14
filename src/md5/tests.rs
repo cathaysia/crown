@@ -96,7 +96,7 @@ fn test_golden() {
                 Ordering::Equal => {
                     let half = test.input.len() / 2;
                     c.write_all(&test.input.as_bytes()[..half]).unwrap();
-                    c.sum(&[]);
+                    c.sum();
                     c.write_all(&test.input.as_bytes()[half..]).unwrap();
                 }
                 _ => {
@@ -108,7 +108,7 @@ fn test_golden() {
                 }
             }
 
-            let result = c.sum(&[]);
+            let result = c.sum();
             let s = hex_encode(&result);
             assert_eq!(
                 s, test.out,
@@ -149,8 +149,8 @@ fn test_golden_marshal() {
         h.write_all(&test.input.as_bytes()[half..]).unwrap();
         h2.write_all(&test.input.as_bytes()[half..]).unwrap();
 
-        let actual = h.sum(&[]);
-        let actual2 = h2.sum(&[]);
+        let actual = h.sum();
+        let actual2 = h2.sum();
         assert_eq!(
             actual, actual2,
             "md5({:?}) = {:?} != marshaled {:?}",
@@ -181,7 +181,7 @@ fn test_large() {
                 c.write_all(b).unwrap();
             }
 
-            let result = c.sum(&[]);
+            let result = c.sum();
             let s = hex_encode(&result);
             assert_eq!(
                 s, ok,
@@ -216,7 +216,7 @@ fn test_extra_large() {
                 c.write_all(b).unwrap();
             }
 
-            let result = c.sum(&[]);
+            let result = c.sum();
             let s = hex_encode(&result);
             assert_eq!(
                 s, ok,
@@ -274,8 +274,8 @@ static LARGE_UNMARSHAL_TESTS: &[UnmarshalTest] = &[
     },
 ];
 
-fn safe_sum(h: &mut Md5) -> Result<Vec<u8>, String> {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| h.sum(&[])))
+fn safe_sum(h: &mut Md5) -> Result<[u8; 16], String> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| h.sum()))
         .map_err(|_| "sum panic".to_string())
 }
 

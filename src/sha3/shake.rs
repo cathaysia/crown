@@ -1,14 +1,14 @@
 use super::*;
 use crate::{
     error::{CryptoError, CryptoResult},
-    hash::Hash,
+    hash::{Hash, HashUser},
     hmac::Marshalable,
 };
 use std::io::{self, Read, Write};
 
 #[derive(Clone)]
-pub struct Shake {
-    d: Sha3, // SHA-3 state context and Read/Write operations
+pub struct Shake<const N: usize> {
+    d: Sha3<N>, // SHA-3 state context and Read/Write operations
 
     // initBlock is the cSHAKE specific initialization set of bytes. It is initialized
     // by newCShake function and stores concatenation of N followed by S, encoded
@@ -48,14 +48,13 @@ fn left_encode(x: u64) -> Vec<u8> {
     b
 }
 
-fn new_cshake(n: &[u8], s: &[u8], rate: usize, output_len: usize, dsbyte: u8) -> Shake {
+fn new_cshake<const N: usize>(n: &[u8], s: &[u8], rate: usize, dsbyte: u8) -> Shake<N> {
     let mut c = Shake {
         d: Sha3 {
             a: [0; 200],
             n: 0,
             rate,
             dsbyte,
-            output_len,
             state: digest::SpongeDirection::Absorbing,
         },
         init_block: Vec::with_capacity(9 + n.len() + 9 + s.len()), // leftEncode returns max 9 bytes
@@ -73,7 +72,7 @@ fn new_cshake(n: &[u8], s: &[u8], rate: usize, output_len: usize, dsbyte: u8) ->
     c
 }
 
-impl Shake {
+impl<const N: usize> Shake<N> {
     fn append_binary(&self, b: &mut Vec<u8>) -> CryptoResult<Vec<u8>> {
         self.d.append_binary(b)?;
         b.extend_from_slice(&self.init_block);
@@ -81,7 +80,7 @@ impl Shake {
     }
 }
 
-impl Marshalable for Shake {
+impl<const N: usize> Marshalable for Shake<N> {
     fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
         let mut b = Vec::with_capacity(207 + self.init_block.len()); // magic(4) + rate(1) + state(200) + n(1) + direction(1)
         self.append_binary(&mut b)
@@ -100,7 +99,7 @@ impl Marshalable for Shake {
     }
 }
 
-impl Write for Shake {
+impl<const N: usize> Write for Shake<N> {
     fn write(&mut self, p: &[u8]) -> io::Result<usize> {
         self.d.write(p)
     }
@@ -110,7 +109,7 @@ impl Write for Shake {
     }
 }
 
-impl Read for Shake {
+impl<const N: usize> Read for Shake<N> {
     fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
         // Note that read is not exposed on Digest since SHA-3 does not offer
         // variable output length. It is only used internally by Sum.
@@ -153,21 +152,13 @@ impl Read for Shake {
     }
 }
 
-impl Hash for Shake {
+impl<const N: usize> HashUser for Shake<N> {
     fn block_size(&self) -> usize {
         self.d.block_size()
     }
 
     fn size(&self) -> usize {
         self.d.size()
-    }
-
-    // Sum appends a portion of output to b and returns the resulting slice. The
-    // output length is selected to provide full-strength generic security: 32 bytes
-    // for SHAKE128 and 64 bytes for SHAKE256. It does not change the underlying
-    // state. It panics if any output has already been read.
-    fn sum(&mut self, input: &[u8]) -> Vec<u8> {
-        self.d.sum(input)
     }
 
     // Reset resets the hash to initial state.
@@ -179,16 +170,24 @@ impl Hash for Shake {
         }
     }
 }
+impl<const N: usize> Hash<N> for Shake<N> {
+    // Sum appends a portion of output to b and returns the resulting slice. The
+    // output length is selected to provide full-strength generic security: 32 bytes
+    // for SHAKE128 and 64 bytes for SHAKE256. It does not change the underlying
+    // state. It panics if any output has already been read.
+    fn sum(&mut self) -> [u8; N] {
+        self.d.sum()
+    }
+}
 
 // NewShake128 creates a new SHAKE128 XOF.
-pub fn new_shake128() -> Shake {
+pub fn new_shake128() -> Shake<32> {
     Shake {
         d: Sha3 {
             a: [0; 200],
             n: 0,
             rate: RATE_K256,
             dsbyte: DSBYTE_SHAKE,
-            output_len: 32,
             state: digest::SpongeDirection::Absorbing,
         },
         init_block: Vec::new(),
@@ -196,14 +195,13 @@ pub fn new_shake128() -> Shake {
 }
 
 // NewShake256 creates a new SHAKE256 XOF.
-pub fn new_shake256() -> Shake {
+pub fn new_shake256() -> Shake<64> {
     Shake {
         d: Sha3 {
             a: [0; 200],
             n: 0,
             rate: RATE_K512,
             dsbyte: DSBYTE_SHAKE,
-            output_len: 64,
             state: digest::SpongeDirection::Absorbing,
         },
         init_block: Vec::new(),
@@ -215,11 +213,11 @@ pub fn new_shake256() -> Shake {
 // N is used to define functions based on cSHAKE, it can be empty when plain
 // cSHAKE is desired. S is a customization byte string used for domain
 // separation. When N and S are both empty, this is equivalent to NewShake128.
-pub fn new_cshake128(n: &[u8], s: &[u8]) -> Shake {
+pub fn new_cshake128(n: &[u8], s: &[u8]) -> Shake<32> {
     if n.is_empty() && s.is_empty() {
         return new_shake128();
     }
-    new_cshake(n, s, RATE_K256, 32, DSBYTE_CSHAKE)
+    new_cshake(n, s, RATE_K256, DSBYTE_CSHAKE)
 }
 
 // NewCShake256 creates a new cSHAKE256 XOF.
@@ -227,9 +225,9 @@ pub fn new_cshake128(n: &[u8], s: &[u8]) -> Shake {
 // N is used to define functions based on cSHAKE, it can be empty when plain
 // cSHAKE is desired. S is a customization byte string used for domain
 // separation. When N and S are both empty, this is equivalent to NewShake256.
-pub fn new_cshake256(n: &[u8], s: &[u8]) -> Shake {
+pub fn new_cshake256(n: &[u8], s: &[u8]) -> Shake<64> {
     if n.is_empty() && s.is_empty() {
         return new_shake256();
     }
-    new_cshake(n, s, RATE_K512, 64, DSBYTE_CSHAKE)
+    new_cshake(n, s, RATE_K512, DSBYTE_CSHAKE)
 }

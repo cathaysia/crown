@@ -5,7 +5,11 @@
 #[cfg(test)]
 mod tests;
 
-use crate::{error::CryptoResult, hash::Hash};
+use crate::{
+    error::CryptoResult,
+    hash::{Hash, HashUser},
+    utils::constant_time_eq,
+};
 use std::io::{self, Write};
 
 /// Trait for types that can be marshaled and unmarshaled to/from binary format.
@@ -24,7 +28,7 @@ pub trait Marshalable {
 /// - ipad = 0x36 byte repeated for key length
 /// - opad = 0x5c byte repeated for key length
 /// - hmac = H([key ^ opad] H([key ^ ipad] text))
-pub struct HMAC<H: Hash + Marshalable> {
+pub struct HMAC<const N: usize, H: Hash<N> + Marshalable> {
     /// Outer padding (key XOR 0x5c)
     opad: Vec<u8>,
     /// Inner padding (key XOR 0x36)
@@ -37,11 +41,13 @@ pub struct HMAC<H: Hash + Marshalable> {
     marshaled: bool,
     /// Whether this HMAC is used for HKDF
     for_hkdf: bool,
-    /// Original key length for FIPS compliance checking
-    key_len: usize,
 }
 
-impl<H: Hash + Marshalable> HMAC<H> {
+pub fn equal(mac1: &[u8], mac2: &[u8]) -> bool {
+    constant_time_eq(mac1, mac2)
+}
+
+impl<const N: usize, H: Hash<N> + Marshalable> HMAC<N, H> {
     /// Create a new HMAC instance with the given hash function and key.
     pub fn new<F>(hash_fn: F, key: &[u8]) -> Self
     where
@@ -62,7 +68,7 @@ impl<H: Hash + Marshalable> HMAC<H> {
         // If key is longer than block size, hash it first
         if key.len() > block_size {
             outer.write_all(key).expect("Hash write should not fail");
-            processed_key = outer.sum(&[]);
+            processed_key = outer.sum().to_vec();
             outer.reset();
         }
 
@@ -88,7 +94,6 @@ impl<H: Hash + Marshalable> HMAC<H> {
             inner,
             marshaled: false,
             for_hkdf: false,
-            key_len: key.len(),
         }
     }
 
@@ -99,7 +104,7 @@ impl<H: Hash + Marshalable> HMAC<H> {
     }
 }
 
-impl<H: Hash + Marshalable> Write for HMAC<H> {
+impl<const N: usize, H: Hash<N> + Marshalable> Write for HMAC<N, H> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.inner.write(buf)
     }
@@ -109,50 +114,7 @@ impl<H: Hash + Marshalable> Write for HMAC<H> {
     }
 }
 
-impl<H: Hash + Marshalable> Hash for HMAC<H> {
-    /// Compute the HMAC of the current state and return it appended to `input`.
-    fn sum(&mut self, input: &[u8]) -> Vec<u8> {
-        // FIPS 140-3 IG C.M compliance check
-        // Key lengths below 112 bits (14 bytes) are only allowed for legacy use
-        // However, HKDF uses HMAC key for salt, which is allowed to be shorter
-        if self.key_len < 14 && !self.for_hkdf {
-            // In the original Go code, this would call fips140.RecordNonApproved()
-            // We're ignoring this as requested
-        }
-
-        let orig_len = input.len();
-        let mut result = input.to_vec();
-
-        // Get the inner hash result
-        let inner_result = self.inner.sum(&[]);
-        result.extend_from_slice(&inner_result);
-
-        // Prepare outer hash
-        if self.marshaled {
-            // If we have marshaled state, restore it
-            let opad = unsafe {
-                let ptr = self.opad.as_ptr();
-                std::slice::from_raw_parts(ptr, self.opad.len())
-            };
-            self.outer.unmarshal_binary(opad).unwrap();
-        } else {
-            // Reset outer hash and write opad
-            self.outer.reset();
-            self.outer
-                .write_all(&self.opad)
-                .expect("Hash write should not fail");
-        }
-
-        // Write the inner hash result to outer hash
-        self.outer
-            .write_all(&result[orig_len..])
-            .expect("Hash write should not fail");
-
-        // Get final result
-
-        self.outer.sum(&result[..orig_len])
-    }
-
+impl<const N: usize, H: Hash<N> + Marshalable> HashUser for HMAC<N, H> {
     /// Reset the HMAC to its initial state.
     fn reset(&mut self) {
         if self.marshaled {
@@ -192,11 +154,39 @@ impl<H: Hash + Marshalable> Hash for HMAC<H> {
     }
 }
 
+impl<const N: usize, H: Hash<N> + Marshalable> Hash<N> for HMAC<N, H> {
+    /// Compute the HMAC of the current state and return it.
+    fn sum(&mut self) -> [u8; N] {
+        // Prepare outer hash
+        if self.marshaled {
+            // If we have marshaled state, restore it
+            let opad = unsafe {
+                let ptr = self.opad.as_ptr();
+                std::slice::from_raw_parts(ptr, self.opad.len())
+            };
+            self.outer.unmarshal_binary(opad).unwrap();
+        } else {
+            // Reset outer hash and write opad
+            self.outer.reset();
+            self.outer
+                .write_all(&self.opad)
+                .expect("Hash write should not fail");
+        }
+
+        // Write the inner hash result to outer hash
+        self.outer
+            .write_all(&self.inner.sum())
+            .expect("Hash write should not fail");
+
+        self.outer.sum()
+    }
+}
+
 /// Convenience function to create a new HMAC instance.
 /// This is equivalent to HMAC::new but matches the Go API style.
-pub fn new<H, F>(hash_fn: F, key: &[u8]) -> HMAC<H>
+pub fn new<const N: usize, H, F>(hash_fn: F, key: &[u8]) -> HMAC<N, H>
 where
-    H: Hash + Marshalable,
+    H: Hash<N> + Marshalable,
     F: Fn() -> H,
 {
     HMAC::new(hash_fn, key)

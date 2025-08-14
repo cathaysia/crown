@@ -14,7 +14,7 @@ use md5_generic::*;
 
 use crate::{
     error::{CryptoError, CryptoResult},
-    hash::Hash,
+    hash::{Hash, HashUser},
     hmac::Marshalable,
 };
 
@@ -186,7 +186,7 @@ impl Marshalable for Md5 {
     }
 }
 
-impl Hash for Md5 {
+impl HashUser for Md5 {
     fn reset(&mut self) {
         self.s[0] = INIT0;
         self.s[1] = INIT1;
@@ -203,14 +203,15 @@ impl Hash for Md5 {
     fn block_size(&self) -> usize {
         Md5::BLOCK_SIZE
     }
+}
 
-    fn sum(&mut self, input: &[u8]) -> Vec<u8> {
+impl Hash<16> for Md5 {
+    fn sum(&mut self) -> [u8; 16] {
         let mut d0 = self.clone();
         let hash = d0.check_sum();
-        let mut result = Vec::with_capacity(input.len() + Md5::SIZE);
-        result.extend_from_slice(input);
+        let mut result = Vec::with_capacity(Md5::SIZE);
         result.extend_from_slice(&hash);
-        result
+        result.try_into().unwrap()
     }
 }
 

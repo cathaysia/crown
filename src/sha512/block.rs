@@ -93,7 +93,7 @@ const K: [u64; 80] = [
 const CHUNK: usize = 128;
 
 /// Generic SHA512 block processing function
-pub fn block_generic(dig: &mut Sha512, mut p: &[u8]) -> CryptoResult<()> {
+pub fn block_generic<const N: usize>(dig: &mut Sha512<N>, mut p: &[u8]) -> CryptoResult<()> {
     let mut w = [0u64; 80];
     let mut h0 = dig.h[0];
     let mut h1 = dig.h[1];

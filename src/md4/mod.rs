@@ -11,7 +11,7 @@ mod block;
 #[cfg(test)]
 mod tests;
 
-use crate::hash::Hash;
+use crate::hash::{Hash, HashUser};
 use std::io::{self, Write};
 
 const CHUNK: usize = 64;
@@ -86,8 +86,27 @@ impl Write for Md4 {
     }
 }
 
-impl Hash for Md4 {
-    fn sum(&mut self, input: &[u8]) -> Vec<u8> {
+impl HashUser for Md4 {
+    fn reset(&mut self) {
+        self.s[0] = INIT0;
+        self.s[1] = INIT1;
+        self.s[2] = INIT2;
+        self.s[3] = INIT3;
+        self.nx = 0;
+        self.len = 0;
+    }
+
+    fn size(&self) -> usize {
+        Self::SIZE
+    }
+
+    fn block_size(&self) -> usize {
+        Self::BLOCK_SIZE
+    }
+}
+
+impl Hash<16> for Md4 {
+    fn sum(&mut self) -> [u8; 16] {
         // Make a copy of self, so that caller can keep writing and summing.
         let mut d = self.clone();
 
@@ -113,36 +132,19 @@ impl Hash for Md4 {
             panic!("d.nx != 0");
         }
 
-        let mut result = input.to_vec();
+        let mut result = vec![];
         for s in &d.s {
             result.push(*s as u8);
             result.push((s >> 8) as u8);
             result.push((s >> 16) as u8);
             result.push((s >> 24) as u8);
         }
-        result
-    }
-
-    fn reset(&mut self) {
-        self.s[0] = INIT0;
-        self.s[1] = INIT1;
-        self.s[2] = INIT2;
-        self.s[3] = INIT3;
-        self.nx = 0;
-        self.len = 0;
-    }
-
-    fn size(&self) -> usize {
-        Self::SIZE
-    }
-
-    fn block_size(&self) -> usize {
-        Self::BLOCK_SIZE
+        result.try_into().unwrap()
     }
 }
 
 pub fn sum(input: &[u8]) -> [u8; 16] {
     let mut h = Md4::new();
     h.write_all(input).unwrap();
-    h.sum(&[]).try_into().unwrap()
+    h.sum()
 }

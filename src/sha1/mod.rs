@@ -12,7 +12,7 @@ mod tests;
 
 use crate::{
     error::{CryptoError, CryptoResult},
-    hash::Hash,
+    hash::{Hash, HashUser},
     hmac::Marshalable,
 };
 use std::io::{self, Write};
@@ -211,15 +211,7 @@ impl Write for Sha1 {
     }
 }
 
-impl Hash for Sha1 {
-    fn sum(&mut self, input: &[u8]) -> Vec<u8> {
-        let mut d0 = self.clone();
-        let hash = d0.check_sum();
-        let mut result = Vec::from(input);
-        result.extend_from_slice(&hash);
-        result
-    }
-
+impl HashUser for Sha1 {
     fn reset(&mut self) {
         self.h[0] = INIT0;
         self.h[1] = INIT1;
@@ -236,6 +228,13 @@ impl Hash for Sha1 {
 
     fn block_size(&self) -> usize {
         Sha1::BLOCK_SIZE
+    }
+}
+
+impl Hash<20> for Sha1 {
+    fn sum(&mut self) -> [u8; 20] {
+        let mut d0 = self.clone();
+        d0.check_sum()
     }
 }
 

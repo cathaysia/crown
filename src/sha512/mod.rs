@@ -5,7 +5,7 @@ use std::io::Write;
 
 use crate::{
     error::{CryptoError, CryptoResult},
-    hash::Hash,
+    hash::{Hash, HashUser},
     hmac::Marshalable,
 };
 
@@ -74,15 +74,14 @@ const MARSHALED_SIZE: usize = 4 + 8 * 8 + CHUNK + 8;
 
 /// SHA-384, SHA-512, SHA-512/224, or SHA-512/256 digest implementation
 #[derive(Clone)]
-pub struct Sha512 {
+pub struct Sha512<const N: usize> {
     h: [u64; 8],
     x: [u8; CHUNK],
     nx: usize,
     len: u64,
-    size: usize,
 }
 
-impl Sha512 {
+impl<const N: usize> Sha512<N> {
     pub const SIZE_512: usize = 64;
     pub const SIZE_224: usize = 28;
     pub const SIZE_256: usize = 32;
@@ -91,7 +90,7 @@ impl Sha512 {
 
     /// Append the digest state to the provided buffer
     fn append_binary(&self, b: &mut Vec<u8>) {
-        match self.size {
+        match N {
             Self::SIZE_384 => b.extend_from_slice(MAGIC_384),
             Self::SIZE_224 => b.extend_from_slice(MAGIC_512_224),
             Self::SIZE_256 => b.extend_from_slice(MAGIC_512_256),
@@ -112,7 +111,7 @@ impl Sha512 {
         b.extend_from_slice(&self.len.to_be_bytes());
     }
 
-    fn check_sum(&mut self) -> [u8; Self::SIZE_512] {
+    fn check_sum(&mut self) -> [u8; 64] {
         // Padding. Add a 1 bit and 0 bits until 112 bytes mod 128.
         let len = self.len;
         let mut tmp = [0u8; 128 + 16]; // padding + length buffer
@@ -138,7 +137,7 @@ impl Sha512 {
             panic!("d.nx != 0");
         }
 
-        let mut digest = [0u8; Self::SIZE_512];
+        let mut digest = [0u8; 64];
         for (i, &h) in self.h.iter().enumerate() {
             let bytes = h.to_be_bytes();
             digest[i * 8..(i + 1) * 8].copy_from_slice(&bytes);
@@ -148,7 +147,7 @@ impl Sha512 {
     }
 }
 
-impl Marshalable for Sha512 {
+impl<const N: usize> Marshalable for Sha512<N> {
     /// Marshal the digest state to binary format
     fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
         let mut result = Vec::with_capacity(MARSHALED_SIZE);
@@ -161,7 +160,7 @@ impl Marshalable for Sha512 {
             return Err(CryptoError::InvalidHashIdentifier);
         }
 
-        let valid = match self.size {
+        let valid = match N {
             Self::SIZE_384 => b.starts_with(MAGIC_384),
             Self::SIZE_224 => b.starts_with(MAGIC_512_224),
             Self::SIZE_256 => b.starts_with(MAGIC_512_256),
@@ -215,7 +214,7 @@ impl Marshalable for Sha512 {
     }
 }
 
-impl Write for Sha512 {
+impl<const N: usize> Write for Sha512<N> {
     /// Write data to the digest
     fn write(&mut self, p: &[u8]) -> std::io::Result<usize> {
         let nn = p.len();
@@ -257,10 +256,10 @@ impl Write for Sha512 {
     }
 }
 
-impl Hash for Sha512 {
+impl<const N: usize> HashUser for Sha512<N> {
     /// Get the output size of this digest
     fn size(&self) -> usize {
-        self.size
+        N
     }
 
     /// Get the block size
@@ -268,20 +267,9 @@ impl Hash for Sha512 {
         Self::BLOCK_SIZE
     }
 
-    /// Compute the final hash and append it to the input
-    fn sum(&mut self, input: &[u8]) -> Vec<u8> {
-        // Make a copy so caller can keep writing and summing
-        let mut d0 = self.clone();
-        let hash = d0.check_sum();
-        let mut result = Vec::with_capacity(input.len() + self.size);
-        result.extend_from_slice(input);
-        result.extend_from_slice(&hash[..self.size]);
-        result
-    }
-
     /// Reset the digest to its initial state
     fn reset(&mut self) {
-        match self.size {
+        match N {
             Self::SIZE_384 => self.h = INIT_384,
             Self::SIZE_224 => self.h = INIT_224,
             Self::SIZE_256 => self.h = INIT_256,
@@ -293,60 +281,68 @@ impl Hash for Sha512 {
     }
 }
 
+impl<const N: usize> Hash<N> for Sha512<N> {
+    /// Compute the final hash and append it to the input
+    fn sum(&mut self) -> [u8; N] {
+        // Make a copy so caller can keep writing and summing
+        let mut d0 = self.clone();
+        let hash = d0.check_sum();
+        let mut result = Vec::with_capacity(N);
+        result.extend_from_slice(&hash[..N]);
+        result.try_into().unwrap()
+    }
+}
+
 /// Create a new SHA-512 digest
-pub fn new() -> Sha512 {
+pub fn new() -> Sha512<64> {
     let mut d = Sha512 {
         h: [0; 8],
         x: [0; CHUNK],
         nx: 0,
         len: 0,
-        size: Sha512::SIZE_512,
     };
     d.reset();
     d
 }
 
 /// Create a new SHA-512/224 digest
-pub fn new_512_224() -> Sha512 {
+pub fn new_512_224() -> Sha512<28> {
     let mut d = Sha512 {
         h: [0; 8],
         x: [0; CHUNK],
         nx: 0,
         len: 0,
-        size: Sha512::SIZE_224,
     };
     d.reset();
     d
 }
 
 /// Create a new SHA-512/256 digest
-pub fn new_512_256() -> Sha512 {
+pub fn new_512_256() -> Sha512<32> {
     let mut d = Sha512 {
         h: [0; 8],
         x: [0; CHUNK],
         nx: 0,
         len: 0,
-        size: Sha512::SIZE_256,
     };
     d.reset();
     d
 }
 
 /// Create a new SHA-384 digest
-pub fn new_384() -> Sha512 {
+pub fn new384() -> Sha512<48> {
     let mut d = Sha512 {
         h: [0; 8],
         x: [0; CHUNK],
         nx: 0,
         len: 0,
-        size: Sha512::SIZE_384,
     };
     d.reset();
     d
 }
 
-pub fn sum512(input: &[u8]) -> Vec<u8> {
+pub fn sum512(input: &[u8]) -> [u8; 64] {
     let mut d = new();
     d.write_all(input).unwrap();
-    d.sum(&[])
+    d.sum()
 }

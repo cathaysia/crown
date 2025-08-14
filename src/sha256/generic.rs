@@ -15,7 +15,10 @@ const K: [u32; 64] = [
 
 const CHUNK: usize = 64;
 
-pub fn block_generic(dig: &mut super::Sha256, mut p: &[u8]) {
+pub fn block_generic<const N: usize, const IS_224: bool>(
+    dig: &mut super::Sha256<N, IS_224>,
+    mut p: &[u8],
+) {
     let mut w = [0u32; 64];
     let (mut h0, mut h1, mut h2, mut h3, mut h4, mut h5, mut h6, mut h7) = (
         dig.h[0], dig.h[1], dig.h[2], dig.h[3], dig.h[4], dig.h[5], dig.h[6], dig.h[7],
