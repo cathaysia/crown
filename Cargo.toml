@@ -41,6 +41,9 @@ cast5 = "0.11.1"
 cbc = "0.1.2"
 sha1 = "0.10.6"
 digest = "0.10.7"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.142"
+typify = "0.4.2"
 
 [[bench]]
 name = "md5"
