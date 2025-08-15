@@ -24,10 +24,12 @@ fn bench_chacha20poly1305(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(size as u64));
 
         group.bench_function(format!("kittycrypto_{size}",), |b| {
-            let cipher = kittycrypto::chacha20ploy1305::ChaCha20Poly1305::new(&key).unwrap();
+            let cipher = kittycrypto::chacha20poly1305::ChaCha20Poly1305::new(&key).unwrap();
             b.iter(|| {
                 let mut dst = vec![];
-                cipher.seal(&mut dst, &nonce, &data, &[]).unwrap();
+                cipher
+                    .seal_in_place_append_tag(&mut dst, &nonce, &data)
+                    .unwrap();
             })
         });
 

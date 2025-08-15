@@ -2,6 +2,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum CryptoError {
+    #[error("invalid tag size: {0}")]
+    InvalidTagSize(usize),
     #[error("invalid parameter: {0}")]
     InvalidParameter(String),
     #[error("invalid round")]

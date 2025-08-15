@@ -1,6 +1,7 @@
 pub mod cbc;
 pub mod cfb;
 pub mod ctr;
+pub mod erased;
 pub mod marker;
 pub mod ofb;
 
@@ -61,10 +62,7 @@ pub trait BlockMode {
     fn crypt_blocks(self, inout: &mut [u8]);
 }
 
-/// AEAD is a cipher mode providing authenticated encryption with associated
-/// data. For a description of the methodology, see
-/// <https://en.wikipedia.org/wiki/Authenticated_encryption>.
-pub trait Aead {
+pub trait AeadUser {
     /// NonceSize returns the size of the nonce that must be passed to Seal
     /// and Open.
     fn nonce_size() -> usize;
@@ -72,7 +70,12 @@ pub trait Aead {
     /// Overhead returns the maximum difference between the lengths of a
     /// plaintext and its ciphertext.
     fn overhead() -> usize;
+}
 
+/// AEAD is a cipher mode providing authenticated encryption with associated
+/// data. For a description of the methodology, see
+/// <https://en.wikipedia.org/wiki/Authenticated_encryption>.
+pub trait Aead<const N: usize>: AeadUser {
     /// Seal encrypts and authenticates plaintext, authenticates the
     /// additional data and appends the result to dst, returning the updated
     /// slice. The nonce must be NonceSize() bytes long and unique for all
@@ -81,14 +84,23 @@ pub trait Aead {
     /// To reuse plaintext's storage for the encrypted output, use `plaintext[:0]`
     /// as dst. Otherwise, the remaining capacity of dst must not overlap plaintext.
     /// dst and additionalData may not overlap.
-    fn seal(
+    fn seal_in_place_separate_tag(
         &self,
-        dst: &mut Vec<u8>,
+        inout: &mut [u8],
         nonce: &[u8],
-        plaintext: &[u8],
         additional_data: &[u8],
-    ) -> CryptoResult<()>;
+    ) -> CryptoResult<[u8; N]>;
 
+    fn seal_in_place_append_tag(
+        &self,
+        inout: &mut Vec<u8>,
+        nonce: &[u8],
+        additional_data: &[u8],
+    ) -> CryptoResult<()> {
+        let tag = self.seal_in_place_separate_tag(inout, nonce, additional_data)?;
+        inout.extend_from_slice(&tag);
+        Ok(())
+    }
     /// Open decrypts and authenticates ciphertext, authenticates the
     /// additional data and, if successful, appends the resulting plaintext
     /// to dst, returning the updated slice. The nonce must be NonceSize()
@@ -101,11 +113,24 @@ pub trait Aead {
     ///
     /// Even if the function fails, the contents of dst, up to its capacity,
     /// may be overwritten.
-    fn open(
+    fn open_in_place_separate_tag(
         &self,
-        dst: &mut Vec<u8>,
+        inout: &mut [u8],
+        tag: &[u8],
         nonce: &[u8],
-        ciphertext: &[u8],
         additional_data: &[u8],
     ) -> CryptoResult<()>;
+
+    fn open_in_place(
+        &self,
+        inout: &mut Vec<u8>,
+        nonce: &[u8],
+        additional_data: &[u8],
+    ) -> CryptoResult<()> {
+        let pos = inout.len() - N;
+        let (inout1, tag) = inout.split_at_mut(pos);
+        self.open_in_place_separate_tag(inout1, tag, nonce, additional_data)?;
+        inout.truncate(pos);
+        Ok(())
+    }
 }

@@ -1,12 +1,12 @@
 use crate::{
-    chacha20ploy1305::ChaCha20Poly1305,
+    chacha20poly1305::ChaCha20Poly1305,
     cipher::StreamCipher,
     error::{CryptoError, CryptoResult},
-    utils::{constant_time_eq, copy},
+    utils::constant_time_eq,
 };
 
 type ChaCha20 = crate::chacha20::Chacha20;
-type Poly1305 = crate::ploy1305::MAC;
+type Poly1305 = crate::poly1305::MAC;
 
 const POLY1305_TAG_SIZE: usize = 16;
 
@@ -26,21 +26,14 @@ impl ChaCha20Poly1305 {
         poly.write(&bytes);
     }
 
-    fn slice_for_append(dst: &mut Vec<u8>, n: usize) -> usize {
-        let start = dst.len();
-        dst.resize(start + n, 0);
-        start
-    }
-
     pub(crate) fn seal_generic(
         &self,
-        dst: &mut Vec<u8>,
+        inout: &mut [u8],
         nonce: &[u8],
-        plaintext: &[u8],
         additional_data: &[u8],
-    ) -> CryptoResult<()> {
-        let start = Self::slice_for_append(dst, plaintext.len() + POLY1305_TAG_SIZE);
-        let (ciphertext, tag) = dst[start..].split_at_mut(plaintext.len());
+    ) -> CryptoResult<[u8; 16]> {
+        let mut ttag = [0u8; 16];
+        let (ciphertext, tag) = (inout, &mut ttag);
 
         // Generate poly1305 key using ChaCha20
         let mut poly_key = [0u8; 32];
@@ -49,7 +42,6 @@ impl ChaCha20Poly1305 {
 
         // Set counter to 1, skipping first 32 bytes
         cipher.set_counter(1);
-        copy(ciphertext, plaintext);
         cipher.xor_key_stream(ciphertext)?;
 
         // Authenticate with Poly1305
@@ -57,28 +49,27 @@ impl ChaCha20Poly1305 {
         Self::write_with_padding(&mut poly, additional_data);
         Self::write_with_padding(&mut poly, ciphertext);
         Self::write_uint64(&mut poly, additional_data.len());
-        Self::write_uint64(&mut poly, plaintext.len());
+        Self::write_uint64(&mut poly, ciphertext.len());
 
         let mut computed_tag = unsafe { std::mem::zeroed() };
         poly.sum(&mut computed_tag);
         tag[..POLY1305_TAG_SIZE].copy_from_slice(&computed_tag);
 
-        Ok(())
+        Ok(ttag)
     }
 
     pub(crate) fn open_generic(
         &self,
-        dst: &mut Vec<u8>,
+        inout: &mut [u8],
+        tag: &[u8],
         nonce: &[u8],
-        ciphertext_with_tag: &[u8],
         additional_data: &[u8],
     ) -> CryptoResult<()> {
-        if ciphertext_with_tag.len() < POLY1305_TAG_SIZE {
-            return Err(CryptoError::InvalidLength);
+        if tag.len() != POLY1305_TAG_SIZE {
+            return Err(CryptoError::InvalidTagSize(tag.len()));
         }
 
-        let (ciphertext, tag) =
-            ciphertext_with_tag.split_at(ciphertext_with_tag.len() - POLY1305_TAG_SIZE);
+        let (ciphertext, tag) = (inout, tag);
 
         // Generate poly1305 key using ChaCha20
         let mut poly_key = [0u8; 32];
@@ -102,10 +93,7 @@ impl ChaCha20Poly1305 {
         }
 
         // Decrypt
-        let start = Self::slice_for_append(dst, ciphertext.len());
-        let plaintext = &mut dst[start..];
-        copy(plaintext, ciphertext);
-        cipher.xor_key_stream(plaintext)?;
+        cipher.xor_key_stream(ciphertext)?;
 
         Ok(())
     }
