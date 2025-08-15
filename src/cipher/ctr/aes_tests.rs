@@ -18,7 +18,7 @@ fn rustcrypto_aes_ctr_interop() {
                 .unwrap()
                 .to_ctr(&[0u8; 16])
                 .unwrap();
-            ctr.xor_key_stream(&mut dst, &src).unwrap();
+            ctr.xor_key_stream(&mut dst).unwrap();
             dst
         };
 

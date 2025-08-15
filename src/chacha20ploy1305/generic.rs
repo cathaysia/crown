@@ -2,7 +2,7 @@ use crate::{
     chacha20ploy1305::ChaCha20Poly1305,
     cipher::StreamCipher,
     error::{CryptoError, CryptoResult},
-    utils::constant_time_eq,
+    utils::{constant_time_eq, copy},
 };
 
 type ChaCha20 = crate::chacha20::Chacha20;
@@ -45,12 +45,12 @@ impl ChaCha20Poly1305 {
         // Generate poly1305 key using ChaCha20
         let mut poly_key = [0u8; 32];
         let mut cipher = ChaCha20::new_unauthenticated_cipher(&self.key, nonce)?;
-        let src = poly_key;
-        cipher.xor_key_stream(&mut poly_key, &src)?;
+        cipher.xor_key_stream(&mut poly_key)?;
 
         // Set counter to 1, skipping first 32 bytes
         cipher.set_counter(1);
-        cipher.xor_key_stream(ciphertext, plaintext)?;
+        copy(ciphertext, plaintext);
+        cipher.xor_key_stream(ciphertext)?;
 
         // Authenticate with Poly1305
         let mut poly = Poly1305::new(&poly_key);
@@ -83,8 +83,7 @@ impl ChaCha20Poly1305 {
         // Generate poly1305 key using ChaCha20
         let mut poly_key = [0u8; 32];
         let mut cipher = ChaCha20::new_unauthenticated_cipher(&self.key, nonce)?;
-        let src = poly_key;
-        cipher.xor_key_stream(&mut poly_key, &src)?;
+        cipher.xor_key_stream(&mut poly_key)?;
 
         // Set counter to 1, skipping first 32 bytes
         cipher.set_counter(1);
@@ -105,7 +104,8 @@ impl ChaCha20Poly1305 {
         // Decrypt
         let start = Self::slice_for_append(dst, ciphertext.len());
         let plaintext = &mut dst[start..];
-        cipher.xor_key_stream(plaintext, ciphertext)?;
+        copy(plaintext, ciphertext);
+        cipher.xor_key_stream(plaintext)?;
 
         Ok(())
     }

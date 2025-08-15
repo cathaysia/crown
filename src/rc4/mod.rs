@@ -9,7 +9,6 @@ mod tests;
 use crate::{
     cipher::StreamCipher,
     error::{CryptoError, CryptoResult},
-    utils::inexact_overlap,
 };
 
 /// RC4 cipher instance using a particular key
@@ -53,29 +52,22 @@ impl Rc4 {
 impl StreamCipher for Rc4 {
     /// Sets dst to the result of XORing src with the key stream.
     /// Dst and src must overlap entirely or not at all.
-    fn xor_key_stream(&mut self, dst: &mut [u8], src: &[u8]) -> CryptoResult<()> {
-        if src.is_empty() {
+    fn xor_key_stream(&mut self, inout: &mut [u8]) -> CryptoResult<()> {
+        if inout.is_empty() {
             return Ok(());
-        }
-
-        // Check for invalid buffer overlap
-        if inexact_overlap(&dst[..src.len()], src) {
-            return Err(CryptoError::InvalidBufferOverlap);
         }
 
         let mut i = self.i;
         let mut j = self.j;
 
-        let dst = &mut dst[..src.len()]; // eliminate bounds check from loop
-
-        for (k, &v) in src.iter().enumerate() {
+        for v in inout.iter_mut() {
             i = i.wrapping_add(1);
             let x = self.s[i as usize];
             j = j.wrapping_add(x as u8);
             let y = self.s[j as usize];
             self.s[i as usize] = y;
             self.s[j as usize] = x;
-            dst[k] = v ^ (self.s[(x.wrapping_add(y) as u8) as usize] as u8);
+            *v ^= self.s[(x.wrapping_add(y) as u8) as usize] as u8;
         }
 
         self.i = i;

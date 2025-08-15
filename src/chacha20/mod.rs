@@ -8,7 +8,6 @@ mod generic;
 
 use crate::cipher::StreamCipher;
 use crate::error::{CryptoError, CryptoResult};
-use crate::utils::inexact_overlap;
 use bytes::{Buf, BufMut};
 
 const BUF_SIZE: usize = 64;
@@ -56,41 +55,33 @@ pub struct Chacha20 {
 }
 
 impl StreamCipher for Chacha20 {
-    fn xor_key_stream(&mut self, dst: &mut [u8], mut src: &[u8]) -> CryptoResult<()> {
-        if src.is_empty() {
+    fn xor_key_stream(&mut self, mut inout: &mut [u8]) -> CryptoResult<()> {
+        if inout.is_empty() {
             return Ok(());
-        }
-        if dst.len() < src.len() {
-            return Err(CryptoError::InvalidLength);
-        }
-        let mut dst = &mut dst[..src.len()];
-        if inexact_overlap(dst, src) {
-            return Err(CryptoError::InvalidBufferOverlap);
         }
 
         // First, drain any remaining key stream from a previous xor_key_stream.
         if self.len != 0 {
             let mut key_stream = &self.buf[BUF_SIZE - self.len..];
-            if src.len() < key_stream.len() {
-                key_stream = &key_stream[..src.len()];
+            if inout.len() < key_stream.len() {
+                key_stream = &key_stream[..inout.len()];
             }
             let key_stream = key_stream;
             for i in 0..key_stream.len() {
-                dst[i] = src[i] ^ key_stream[i];
+                inout[i] ^= key_stream[i];
             }
             self.len -= key_stream.len();
-            dst = &mut dst[key_stream.len()..];
-            src = &src[key_stream.len()..];
+            inout = &mut inout[key_stream.len()..];
         }
 
-        if src.is_empty() {
+        if inout.is_empty() {
             return Ok(());
         }
 
         // If we'd need to let the counter overflow and keep generating output,
         // panic immediately. If instead we'd only reach the last block, remember
         // not to generate any more output after the buffer is drained.
-        let num_blocks = src.len().div_ceil(Self::block_size());
+        let num_blocks = inout.len().div_ceil(Self::block_size());
         if self.overflow || u64::from(self.counter) + num_blocks as u64 > 1 << 32 {
             return Err(CryptoError::CounterOverflow);
         } else if u64::from(self.counter) + num_blocks as u64 == 1 << 32 {
@@ -100,52 +91,45 @@ impl StreamCipher for Chacha20 {
         // xor_key_stream_blocks implementations expect input lengths that are a
         // multiple of BUF_SIZE. Platform-specific ones process multiple blocks at a
         // time, so have BUF_SIZE that are a multiple of Self::block_size().
-        let full = src.len() - src.len() % BUF_SIZE;
+        let full = inout.len() - inout.len() % BUF_SIZE;
         if full > 0 {
-            self.xor_key_stream_blocks(&mut dst[..full], &src[..full]);
+            self.xor_key_stream_blocks(&mut inout[..full]);
         }
-        let dst = &mut dst[full..];
-        let src = &src[full..];
+        let dst = &mut inout[full..];
 
         // If using a multi-block xor_key_stream_blocks would overflow, use the generic
         // one that does one block at a time.
         const BLOCKS_PER_BUF: u64 = BUF_SIZE as u64 / Chacha20::block_size() as u64;
         if u64::from(self.counter) + BLOCKS_PER_BUF > 1 << 32 {
             self.buf = [0; BUF_SIZE];
-            let num_blocks = src.len().div_ceil(Self::block_size());
+            let num_blocks = dst.len().div_ceil(Self::block_size());
             let buf_len = num_blocks * Self::block_size();
             let buf = &mut self.buf[BUF_SIZE - buf_len..];
-            buf[..src.len()].copy_from_slice(src);
+            buf[..dst.len()].copy_from_slice(dst);
             let buf = unsafe {
                 let ptr = buf.as_mut_ptr();
                 std::slice::from_raw_parts_mut(ptr, buf_len)
             };
-            let src = unsafe {
-                let ptr = buf.as_ptr();
-                std::slice::from_raw_parts(ptr, buf_len)
-            };
-            self.xor_key_stream_blocks_generic(buf, src);
-            self.len = buf_len - src.len();
+
+            self.xor_key_stream_blocks_generic(buf);
+            self.len = buf_len - dst.len();
             return Ok(());
         }
 
         // If we have a partial (multi-)block, pad it for xor_key_stream_blocks, and
         // keep the leftover keystream for the next xor_key_stream invocation.
-        if !src.is_empty() {
+        if !dst.is_empty() {
             self.buf = [0; BUF_SIZE];
-            self.buf[..src.len()].copy_from_slice(src);
+            self.buf[..dst.len()].copy_from_slice(dst);
             let buf = unsafe {
                 let ptr = self.buf.as_mut_ptr();
                 std::slice::from_raw_parts_mut(ptr, self.buf.len())
             };
-            let src = unsafe {
-                let ptr = buf.as_ptr();
-                std::slice::from_raw_parts(ptr, self.buf.len())
-            };
-            self.xor_key_stream_blocks(&mut buf[..BUF_SIZE], &src[..BUF_SIZE]);
+
+            self.xor_key_stream_blocks(&mut buf[..BUF_SIZE]);
             let len = dst.len().min(self.buf.len());
             dst[..len].copy_from_slice(&self.buf[..len]);
-            self.len = BUF_SIZE - src.len();
+            self.len = BUF_SIZE - dst.len();
         }
 
         Ok(())
@@ -272,8 +256,8 @@ impl Chacha20 {
         }
     }
 
-    fn xor_key_stream_blocks_generic(&mut self, dst: &mut [u8], src: &[u8]) {
-        if dst.len() != src.len() || dst.len() % Self::block_size() != 0 {
+    fn xor_key_stream_blocks_generic(&mut self, inout: &mut [u8]) {
+        if inout.len() % Self::block_size() != 0 {
             panic!("chacha20: internal error: wrong dst and/or src length");
         }
 
@@ -304,9 +288,8 @@ impl Chacha20 {
             self.precomp_done = true;
         }
 
-        let mut src = src;
-        let mut dst = dst;
-        while src.len() >= 64 && dst.len() >= 64 {
+        let mut dst = inout;
+        while dst.len() >= 64 && dst.len() >= 64 {
             // The remainder of the first column round.
             let (fcr0, fcr4, fcr8, fcr12) = quarter_round(c0, c4, c8, self.counter);
 
@@ -338,26 +321,25 @@ impl Chacha20 {
 
             // Add back the initial state to generate the key stream, then
             // XOR the key stream with the source and write out the result.
-            add_xor(&mut dst[0..4], &src[0..4], x0, c0);
-            add_xor(&mut dst[4..8], &src[4..8], x1, c1);
-            add_xor(&mut dst[8..12], &src[8..12], x2, c2);
-            add_xor(&mut dst[12..16], &src[12..16], x3, c3);
-            add_xor(&mut dst[16..20], &src[16..20], x4, c4);
-            add_xor(&mut dst[20..24], &src[20..24], x5, c5);
-            add_xor(&mut dst[24..28], &src[24..28], x6, c6);
-            add_xor(&mut dst[28..32], &src[28..32], x7, c7);
-            add_xor(&mut dst[32..36], &src[32..36], x8, c8);
-            add_xor(&mut dst[36..40], &src[36..40], x9, c9);
-            add_xor(&mut dst[40..44], &src[40..44], x10, c10);
-            add_xor(&mut dst[44..48], &src[44..48], x11, c11);
-            add_xor(&mut dst[48..52], &src[48..52], x12, self.counter);
-            add_xor(&mut dst[52..56], &src[52..56], x13, c13);
-            add_xor(&mut dst[56..60], &src[56..60], x14, c14);
-            add_xor(&mut dst[60..64], &src[60..64], x15, c15);
+            add_xor(&mut dst[0..4], x0, c0);
+            add_xor(&mut dst[4..8], x1, c1);
+            add_xor(&mut dst[8..12], x2, c2);
+            add_xor(&mut dst[12..16], x3, c3);
+            add_xor(&mut dst[16..20], x4, c4);
+            add_xor(&mut dst[20..24], x5, c5);
+            add_xor(&mut dst[24..28], x6, c6);
+            add_xor(&mut dst[28..32], x7, c7);
+            add_xor(&mut dst[32..36], x8, c8);
+            add_xor(&mut dst[36..40], x9, c9);
+            add_xor(&mut dst[40..44], x10, c10);
+            add_xor(&mut dst[44..48], x11, c11);
+            add_xor(&mut dst[48..52], x12, self.counter);
+            add_xor(&mut dst[52..56], x13, c13);
+            add_xor(&mut dst[56..60], x14, c14);
+            add_xor(&mut dst[60..64], x15, c15);
 
             self.counter += 1;
 
-            src = &src[Self::block_size()..];
             dst = &mut dst[Self::block_size()..];
         }
     }
@@ -393,11 +375,11 @@ fn quarter_round(a: u32, b: u32, c: u32, d: u32) -> (u32, u32, u32, u32) {
 
 /// add_xor adds the first two arguments, XORs the result with the third, and
 /// writes it to the destination.
-fn add_xor(dst: &mut [u8], src: &[u8], a: u32, b: u32) {
+fn add_xor(inout: &mut [u8], a: u32, b: u32) {
     let v = a.wrapping_add(b);
     let v_bytes = v.to_le_bytes();
     for i in 0..4 {
-        dst[i] = src[i] ^ v_bytes[i];
+        inout[i] ^= v_bytes[i];
     }
 }
 

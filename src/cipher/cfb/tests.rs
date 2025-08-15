@@ -39,14 +39,14 @@ fn test_cfb_vectors() {
         let ct = hex::decode(ct).unwrap();
 
         let mut block = aes::Aes::new(&key).unwrap().to_cfb_encrypter(&iv).unwrap();
-        let mut dst = vec![0u8; ct.len()];
-        block.xor_key_stream(&mut dst, &pt).unwrap();
+        let mut dst = pt.to_vec();
+        block.xor_key_stream(&mut dst).unwrap();
 
         assert_eq!(dst, ct);
 
         let mut block = aes::Aes::new(&key).unwrap().to_cfb_decrypter(&iv).unwrap();
-        let mut dst2 = dst.clone();
-        block.xor_key_stream(&mut dst2, &dst).unwrap();
-        assert_eq!(dst2, pt);
+        let mut dst = dst.clone();
+        block.xor_key_stream(&mut dst).unwrap();
+        assert_eq!(dst, pt);
     }
 }

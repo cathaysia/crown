@@ -6,7 +6,7 @@ use crate::cipher::marker::BlockCipherMarker;
 use crate::cipher::StreamCipher;
 use crate::error::{CryptoError, CryptoResult};
 use crate::subtle::xor::xor_bytes;
-use crate::utils::{copy, inexact_overlap};
+use crate::utils::copy;
 
 #[cfg(test)]
 mod tests;
@@ -47,19 +47,10 @@ where
 }
 
 impl<B: BlockCipher> StreamCipher for Cfb<B> {
-    fn xor_key_stream(&mut self, dst: &mut [u8], src: &[u8]) -> CryptoResult<()> {
-        if dst.len() < src.len() {
-            panic!("crypto/cipher: output smaller than input");
-        }
+    fn xor_key_stream(&mut self, inout: &mut [u8]) -> CryptoResult<()> {
+        let mut inout = inout;
 
-        if inexact_overlap(&dst[..src.len()], src) {
-            panic!("crypto/cipher: invalid buffer overlap");
-        }
-
-        let mut dst = &mut dst[..src.len()];
-        let mut src = src;
-
-        while !src.is_empty() {
+        while !inout.is_empty() {
             if self.out_used == self.out.len() {
                 self.out.copy_from_slice(&self.next);
                 self.b.encrypt(&mut self.out);
@@ -71,24 +62,18 @@ impl<B: BlockCipher> StreamCipher for Cfb<B> {
                 // keystream on decryption. This will allow
                 // larger batches for xor, and we should be
                 // able to match CTR/OFB performance.
-                let copy_len = copy(&mut self.next[self.out_used..], src);
+                let copy_len = copy(&mut self.next[self.out_used..], inout);
                 let _ = copy_len; // Suppress unused variable warning
             }
 
-            {
-                let len = dst.len().min(self.out.len() - self.out_used);
-                copy(dst, &src[..len]);
-            }
-
-            let n = xor_bytes(dst, &self.out[self.out_used..]);
+            let n = xor_bytes(inout, &self.out[self.out_used..]);
 
             if !self.decrypt {
-                let copy_len = copy(&mut self.next[self.out_used..], &dst[..n]);
+                let copy_len = copy(&mut self.next[self.out_used..], &inout[..n]);
                 let _ = copy_len; // Suppress unused variable warning
             }
 
-            dst = &mut dst[n..];
-            src = &src[n..];
+            inout = &mut inout[n..];
             self.out_used += n;
         }
 

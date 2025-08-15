@@ -68,8 +68,8 @@ fn test_ofb() {
 
             let plaintext = &test.input[..test.input.len() - j];
             let mut ofb = cipher.to_ofb(test.iv).unwrap();
-            let mut ciphertext = vec![0u8; plaintext.len()];
-            ofb.xor_key_stream(&mut ciphertext, plaintext).unwrap();
+            let mut ciphertext = plaintext.to_vec();
+            ofb.xor_key_stream(&mut ciphertext).unwrap();
 
             let expected = &test.output[..plaintext.len()];
             if ciphertext != expected {
@@ -94,8 +94,8 @@ fn test_ofb() {
             };
             let ciphertext = &test.output[..test.input.len() - j];
             let mut ofb = cipher.to_ofb(test.iv).unwrap();
-            let mut plaintext = vec![0u8; ciphertext.len()];
-            ofb.xor_key_stream(&mut plaintext, ciphertext).unwrap();
+            let mut plaintext = ciphertext.to_vec();
+            ofb.xor_key_stream(&mut plaintext).unwrap();
 
             let expected = &test.input[..ciphertext.len()];
             if plaintext != expected {
@@ -178,26 +178,25 @@ fn test_stream_cipher<B: BlockCipher + OfbAbleMarker + Clone + 'static>(cipher: 
 
     // Encrypt
     let mut ofb1 = cipher.clone().to_ofb(iv).unwrap();
-    let mut ciphertext = vec![0u8; plaintext.len()];
-    ofb1.xor_key_stream(&mut ciphertext, &plaintext).unwrap();
+    let mut ciphertext = plaintext.to_vec();
+    ofb1.xor_key_stream(&mut ciphertext).unwrap();
 
     // Decrypt
     let mut ofb2 = cipher.clone().to_ofb(iv).unwrap();
-    let mut decrypted = vec![0u8; ciphertext.len()];
-    ofb2.xor_key_stream(&mut decrypted, &ciphertext).unwrap();
+    let mut decrypted = ciphertext.to_vec();
+    ofb2.xor_key_stream(&mut decrypted).unwrap();
 
     assert_eq!(plaintext, decrypted);
 
     // Test streaming behavior - encrypt in chunks
     let mut ofb3 = cipher.clone().to_ofb(iv).unwrap();
-    let mut ciphertext2 = vec![0u8; plaintext.len()];
+    let mut ciphertext2 = plaintext.to_vec();
     let chunk_size = rng.random_range(1..=plaintext.len().min(50));
 
     let mut pos = 0;
     while pos < plaintext.len() {
         let end = (pos + chunk_size).min(plaintext.len());
-        ofb3.xor_key_stream(&mut ciphertext2[pos..end], &plaintext[pos..end])
-            .unwrap();
+        ofb3.xor_key_stream(&mut ciphertext2[pos..end]).unwrap();
         pos = end;
     }
 

@@ -40,95 +40,67 @@ impl CTR {
         Ok(())
     }
 
-    pub fn xor_key_stream_at(
-        &self,
-        dst: &mut [u8],
-        src: &[u8],
-        offset: u64,
-    ) -> Result<(), CryptoError> {
-        if dst.len() < src.len() {
-            return Err(CryptoError::InvalidLength);
-        }
-
-        let dst = &mut dst[..src.len()];
-
-        // Check for inexact overlap
-        if inexact_overlap(dst, src) {
-            return Err(CryptoError::InvalidBufferOverlap);
-        }
-
+    pub fn xor_key_stream_at(&self, inout: &mut [u8], offset: u64) -> Result<(), CryptoError> {
         let (mut ivlo, mut ivhi) = add128(self.ivlo, self.ivhi, offset / BLOCK_SIZE as u64);
-        let mut src = src;
-        let mut dst = dst;
+        let mut inout = inout;
 
         let block_offset = (offset % BLOCK_SIZE as u64) as usize;
         if block_offset != 0 {
-            let mut input = [0u8; BLOCK_SIZE];
             let mut output = [0u8; BLOCK_SIZE];
 
-            let copy_len = std::cmp::min(src.len(), BLOCK_SIZE - block_offset);
-            input[block_offset..block_offset + copy_len].copy_from_slice(&src[..copy_len]);
+            let copy_len = std::cmp::min(inout.len(), BLOCK_SIZE - block_offset);
+            output[block_offset..block_offset + copy_len].copy_from_slice(&inout[..copy_len]);
 
-            ctr_blocks_1(&self.b, &mut output, &input, ivlo, ivhi);
+            ctr_blocks_1(&self.b, &mut output, ivlo, ivhi);
 
-            dst[..copy_len].copy_from_slice(&output[block_offset..block_offset + copy_len]);
-            src = &src[copy_len..];
-            dst = &mut dst[copy_len..];
+            inout[..copy_len].copy_from_slice(&output[block_offset..block_offset + copy_len]);
+            inout = &mut inout[copy_len..];
             let (new_ivlo, new_ivhi) = add128(ivlo, ivhi, 1);
             ivlo = new_ivlo;
             ivhi = new_ivhi;
         }
 
-        while src.len() >= 8 * BLOCK_SIZE {
-            let src_chunk = &src[..8 * BLOCK_SIZE];
-            let dst_chunk = &mut dst[..8 * BLOCK_SIZE];
-            ctr_blocks_8(&self.b, dst_chunk, src_chunk, ivlo, ivhi);
-            src = &src[8 * BLOCK_SIZE..];
-            dst = &mut dst[8 * BLOCK_SIZE..];
+        while inout.len() >= 8 * BLOCK_SIZE {
+            let dst_chunk = &mut inout[..8 * BLOCK_SIZE];
+            ctr_blocks_8(&self.b, dst_chunk, ivlo, ivhi);
+            inout = &mut inout[8 * BLOCK_SIZE..];
             let (new_ivlo, new_ivhi) = add128(ivlo, ivhi, 8);
             ivlo = new_ivlo;
             ivhi = new_ivhi;
         }
 
-        if src.len() >= 4 * BLOCK_SIZE {
-            let src_chunk = &src[..4 * BLOCK_SIZE];
-            let dst_chunk = &mut dst[..4 * BLOCK_SIZE];
-            ctr_blocks_4(&self.b, dst_chunk, src_chunk, ivlo, ivhi);
-            src = &src[4 * BLOCK_SIZE..];
-            dst = &mut dst[4 * BLOCK_SIZE..];
+        if inout.len() >= 4 * BLOCK_SIZE {
+            let dst_chunk = &mut inout[..4 * BLOCK_SIZE];
+            ctr_blocks_4(&self.b, dst_chunk, ivlo, ivhi);
+            inout = &mut inout[4 * BLOCK_SIZE..];
             let (new_ivlo, new_ivhi) = add128(ivlo, ivhi, 4);
             ivlo = new_ivlo;
             ivhi = new_ivhi;
         }
 
-        if src.len() >= 2 * BLOCK_SIZE {
-            let src_chunk = &src[..2 * BLOCK_SIZE];
-            let dst_chunk = &mut dst[..2 * BLOCK_SIZE];
-            ctr_blocks_2(&self.b, dst_chunk, src_chunk, ivlo, ivhi);
-            src = &src[2 * BLOCK_SIZE..];
-            dst = &mut dst[2 * BLOCK_SIZE..];
+        if inout.len() >= 2 * BLOCK_SIZE {
+            let dst_chunk = &mut inout[..2 * BLOCK_SIZE];
+            ctr_blocks_2(&self.b, dst_chunk, ivlo, ivhi);
+            inout = &mut inout[2 * BLOCK_SIZE..];
             let (new_ivlo, new_ivhi) = add128(ivlo, ivhi, 2);
             ivlo = new_ivlo;
             ivhi = new_ivhi;
         }
 
-        if src.len() >= BLOCK_SIZE {
-            let src_chunk = &src[..BLOCK_SIZE];
-            let dst_chunk = &mut dst[..BLOCK_SIZE];
-            ctr_blocks_1(&self.b, dst_chunk, src_chunk, ivlo, ivhi);
-            src = &src[BLOCK_SIZE..];
-            dst = &mut dst[BLOCK_SIZE..];
+        if inout.len() >= BLOCK_SIZE {
+            let dst_chunk = &mut inout[..BLOCK_SIZE];
+            ctr_blocks_1(&self.b, dst_chunk, ivlo, ivhi);
+            inout = &mut inout[BLOCK_SIZE..];
             let (new_ivlo, new_ivhi) = add128(ivlo, ivhi, 1);
             ivlo = new_ivlo;
             ivhi = new_ivhi;
         }
 
-        if !src.is_empty() {
-            let mut input = [0u8; BLOCK_SIZE];
+        if !inout.is_empty() {
             let mut output = [0u8; BLOCK_SIZE];
-            input[..src.len()].copy_from_slice(src);
-            ctr_blocks_1(&self.b, &mut output, &input, ivlo, ivhi);
-            dst[..src.len()].copy_from_slice(&output[..src.len()]);
+            output[..inout.len()].copy_from_slice(inout);
+            ctr_blocks_1(&self.b, &mut output, ivlo, ivhi);
+            inout.copy_from_slice(&output[..inout.len()]);
         }
 
         Ok(())
@@ -136,10 +108,10 @@ impl CTR {
 }
 
 impl StreamCipher for CTR {
-    fn xor_key_stream(&mut self, dst: &mut [u8], src: &[u8]) -> CryptoResult<()> {
-        self.xor_key_stream_at(dst, src, self.offset)?;
+    fn xor_key_stream(&mut self, inout: &mut [u8]) -> CryptoResult<()> {
+        self.xor_key_stream_at(inout, self.offset)?;
 
-        let (new_offset, carry) = self.offset.overflowing_add(src.len() as u64);
+        let (new_offset, carry) = self.offset.overflowing_add(inout.len() as u64);
         if carry {
             return Err(CryptoError::CounterOverflow);
         }
@@ -148,8 +120,8 @@ impl StreamCipher for CTR {
     }
 }
 
-pub(crate) fn ctr_blocks(b: &Aes, dst: &mut [u8], src: &[u8], mut ivlo: u64, mut ivhi: u64) {
-    let mut buf = vec![0u8; src.len()];
+pub(crate) fn ctr_blocks(b: &Aes, inout: &mut [u8], mut ivlo: u64, mut ivhi: u64) {
+    let mut buf = vec![0u8; inout.len()];
 
     for chunk in buf.chunks_mut(BLOCK_SIZE) {
         let counter_bytes = [
@@ -179,8 +151,8 @@ pub(crate) fn ctr_blocks(b: &Aes, dst: &mut [u8], src: &[u8], mut ivlo: u64, mut
         b.encrypt(chunk);
     }
 
-    xor_bytes(&mut buf, src);
-    dst.copy_from_slice(&buf);
+    xor_bytes(&mut buf, inout);
+    inout.copy_from_slice(&buf);
 }
 
 fn add128(lo: u64, hi: u64, x: u64) -> (u64, u64) {

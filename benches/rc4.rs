@@ -20,7 +20,7 @@ fn bench_rc4(c: &mut Criterion) {
             let mut cipher = kittycrypto::rc4::Rc4::new(&KEY).unwrap();
             let mut dst = data.clone();
             b.iter(|| {
-                let _ = cipher.xor_key_stream(black_box(&mut dst), black_box(&data));
+                let _ = cipher.xor_key_stream(black_box(&mut dst));
             })
         });
 

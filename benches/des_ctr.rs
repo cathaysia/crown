@@ -30,7 +30,7 @@ fn bench_des_ctr(c: &mut Criterion) {
                 .unwrap();
             let mut dst = src.clone();
             b.iter(|| {
-                let _ = cipher.xor_key_stream(black_box(&mut dst), black_box(&src));
+                let _ = cipher.xor_key_stream(black_box(&mut dst));
             })
         });
 

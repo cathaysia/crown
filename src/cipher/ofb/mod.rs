@@ -5,7 +5,6 @@ use crate::cipher::marker::BlockCipherMarker;
 use crate::cipher::StreamCipher;
 use crate::error::{CryptoError, CryptoResult};
 use crate::subtle::xor::xor_bytes;
-use crate::utils::{copy, inexact_overlap};
 
 #[cfg(test)]
 mod tests;
@@ -73,28 +72,14 @@ impl<B: BlockCipher> Ofb<B> {
 }
 
 impl<B: BlockCipher> StreamCipher for Ofb<B> {
-    fn xor_key_stream(&mut self, dst: &mut [u8], src: &[u8]) -> CryptoResult<()> {
-        if dst.len() < src.len() {
-            panic!("crypto/cipher: output smaller than input");
-        }
-
-        if inexact_overlap(&dst[..src.len()], src) {
-            panic!("crypto/cipher: invalid buffer overlap");
-        }
-
-        let mut dst = &mut dst[..src.len()];
-        let mut src = src;
-
-        while !src.is_empty() {
+    fn xor_key_stream(&mut self, mut inout: &mut [u8]) -> CryptoResult<()> {
+        while !inout.is_empty() {
             if self.out_used >= self.out.len().saturating_sub(self.b.block_size()) {
                 self.refill();
             }
 
-            copy(dst, src);
-
-            let n = xor_bytes(dst, &self.out[self.out_used..]);
-            dst = &mut dst[n..];
-            src = &src[n..];
+            let n = xor_bytes(inout, &self.out[self.out_used..]);
+            inout = &mut inout[n..];
             self.out_used += n;
         }
 

@@ -16,7 +16,6 @@ mod tests;
 use crate::{
     cipher::{cfb::CfbAbleMarker, ofb::OfbAbleMarker, BlockCipher},
     error::{CryptoError, CryptoResult},
-    utils::inexact_overlap,
 };
 
 pub const BLOCK_SIZE: usize = 16;

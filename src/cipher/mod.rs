@@ -38,7 +38,7 @@ pub trait StreamCipher {
     /// Multiple calls to XORKeyStream behave as if the concatenation of
     /// the src buffers was passed in a single run. That is, Stream
     /// maintains state and does not reset at each XORKeyStream call.
-    fn xor_key_stream(&mut self, dst: &mut [u8], src: &[u8]) -> CryptoResult<()>;
+    fn xor_key_stream(&mut self, inout: &mut [u8]) -> CryptoResult<()>;
 }
 
 /// A BlockMode represents a block cipher running in a block-based mode (CBC,

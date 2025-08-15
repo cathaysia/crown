@@ -27,7 +27,7 @@ fn bench_aes_ctr(c: &mut Criterion) {
                 .unwrap();
             let mut dst = data.clone();
             b.iter(|| {
-                let _ = cipher.xor_key_stream(black_box(&mut dst), black_box(&data));
+                let _ = cipher.xor_key_stream(black_box(&mut dst));
             })
         });
 

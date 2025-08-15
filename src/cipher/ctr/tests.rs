@@ -21,7 +21,7 @@ fn rustcrypto_des_ctr_interop() {
                 .unwrap()
                 .to_ctr(&[0u8; Des::BLOCK_SIZE])
                 .unwrap();
-            ctr.xor_key_stream(&mut dst, &src).unwrap();
+            ctr.xor_key_stream(&mut dst).unwrap();
             dst
         };
 
