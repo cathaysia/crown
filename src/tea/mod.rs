@@ -15,6 +15,8 @@
 #[cfg(test)]
 mod tests;
 
+use bytes::BufMut;
+
 use crate::cipher::marker::BlockCipherMarker;
 use crate::cipher::BlockCipher;
 
@@ -111,8 +113,9 @@ impl BlockCipher for Tea {
             );
         }
 
-        inout[0..4].copy_from_slice(&v0.to_be_bytes());
-        inout[4..8].copy_from_slice(&v1.to_be_bytes());
+        let mut inout = inout;
+        inout.put_u32(v0);
+        inout.put_u32(v1);
     }
 
     /// Decrypts the 8 byte buffer src using the key and stores the result in dst.

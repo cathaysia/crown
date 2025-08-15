@@ -1,3 +1,5 @@
+use bytes::{Buf, BufMut};
+
 use crate::aes::{BlockExpanded, POWX, SBOX0, SBOX1, TD0, TD1, TD2, TD3, TE0, TE1, TE2, TE3};
 
 fn check_generic_is_expected() {
@@ -9,10 +11,15 @@ pub fn encrypt_block_generic(c: &BlockExpanded, inout: &mut [u8]) {
     let xk = &c.enc;
 
     assert!(inout.len() >= 16);
-    let s0 = u32::from_be_bytes([inout[0], inout[1], inout[2], inout[3]]);
-    let s1 = u32::from_be_bytes([inout[4], inout[5], inout[6], inout[7]]);
-    let s2 = u32::from_be_bytes([inout[8], inout[9], inout[10], inout[11]]);
-    let s3 = u32::from_be_bytes([inout[12], inout[13], inout[14], inout[15]]);
+    let (s0, s1, s2, s3) = {
+        let mut inout = &*inout;
+        (
+            inout.get_u32(),
+            inout.get_u32(),
+            inout.get_u32(),
+            inout.get_u32(),
+        )
+    };
 
     let mut s0 = s0 ^ xk[0];
     let mut s1 = s1 ^ xk[1];
@@ -76,10 +83,12 @@ pub fn encrypt_block_generic(c: &BlockExpanded, inout: &mut [u8]) {
     s3 ^= xk[k + 3];
 
     assert!(inout.len() >= 16);
-    inout[0..4].copy_from_slice(&s0.to_be_bytes());
-    inout[4..8].copy_from_slice(&s1.to_be_bytes());
-    inout[8..12].copy_from_slice(&s2.to_be_bytes());
-    inout[12..16].copy_from_slice(&s3.to_be_bytes());
+
+    let mut inout = inout;
+    inout.put_u32(s0);
+    inout.put_u32(s1);
+    inout.put_u32(s2);
+    inout.put_u32(s3);
 }
 
 pub fn decrypt_block_generic(c: &BlockExpanded, inout: &mut [u8]) {
@@ -87,10 +96,15 @@ pub fn decrypt_block_generic(c: &BlockExpanded, inout: &mut [u8]) {
     let xk = &c.dec;
 
     assert!(inout.len() >= 16);
-    let s0 = u32::from_be_bytes([inout[0], inout[1], inout[2], inout[3]]);
-    let s1 = u32::from_be_bytes([inout[4], inout[5], inout[6], inout[7]]);
-    let s2 = u32::from_be_bytes([inout[8], inout[9], inout[10], inout[11]]);
-    let s3 = u32::from_be_bytes([inout[12], inout[13], inout[14], inout[15]]);
+    let (s0, s1, s2, s3) = {
+        let mut inout = &*inout;
+        (
+            inout.get_u32(),
+            inout.get_u32(),
+            inout.get_u32(),
+            inout.get_u32(),
+        )
+    };
 
     let mut s0 = s0 ^ xk[0];
     let mut s1 = s1 ^ xk[1];
@@ -154,10 +168,11 @@ pub fn decrypt_block_generic(c: &BlockExpanded, inout: &mut [u8]) {
     s3 ^= xk[k + 3];
 
     assert!(inout.len() >= 16);
-    inout[0..4].copy_from_slice(&s0.to_be_bytes());
-    inout[4..8].copy_from_slice(&s1.to_be_bytes());
-    inout[8..12].copy_from_slice(&s2.to_be_bytes());
-    inout[12..16].copy_from_slice(&s3.to_be_bytes());
+    let mut inout = inout;
+    inout.put_u32(s0);
+    inout.put_u32(s1);
+    inout.put_u32(s2);
+    inout.put_u32(s3);
 }
 
 fn subw(w: u32) -> u32 {

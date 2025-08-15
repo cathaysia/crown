@@ -3,6 +3,9 @@
 
 use std::io::Write;
 
+use bytes::Buf;
+use bytes::BufMut;
+
 use crate::{
     error::{CryptoError, CryptoResult},
     hash::{Hash, HashUser},
@@ -62,21 +65,21 @@ const MARSHALED_SIZE: usize = 4 + 8 * 4 + CHUNK + 8;
 impl<const N: usize, const IS_224: bool> Sha256<N, IS_224> {
     fn append_binary(&self, b: &mut Vec<u8>) {
         if IS_224 {
-            b.extend_from_slice(MAGIC224);
+            b.put_slice(MAGIC224);
         } else {
-            b.extend_from_slice(MAGIC256);
+            b.put_slice(MAGIC256);
         }
-        b.extend_from_slice(&self.h[0].to_be_bytes());
-        b.extend_from_slice(&self.h[1].to_be_bytes());
-        b.extend_from_slice(&self.h[2].to_be_bytes());
-        b.extend_from_slice(&self.h[3].to_be_bytes());
-        b.extend_from_slice(&self.h[4].to_be_bytes());
-        b.extend_from_slice(&self.h[5].to_be_bytes());
-        b.extend_from_slice(&self.h[6].to_be_bytes());
-        b.extend_from_slice(&self.h[7].to_be_bytes());
-        b.extend_from_slice(&self.x[..self.nx]);
-        b.extend_from_slice(&vec![0; CHUNK - self.nx]);
-        b.extend_from_slice(&self.len.to_be_bytes());
+        b.put_u32(self.h[0]);
+        b.put_u32(self.h[1]);
+        b.put_u32(self.h[2]);
+        b.put_u32(self.h[3]);
+        b.put_u32(self.h[4]);
+        b.put_u32(self.h[5]);
+        b.put_u32(self.h[6]);
+        b.put_u32(self.h[7]);
+        b.put_slice(&self.x[..self.nx]);
+        b.put_bytes(0, CHUNK - self.nx);
+        b.put_slice(&self.len.to_be_bytes());
     }
 
     fn check_sum(&mut self) -> [u8; SIZE] {
@@ -101,15 +104,18 @@ impl<const N: usize, const IS_224: bool> Sha256<N, IS_224> {
         }
 
         let mut digest = [0u8; SIZE];
-        digest[0..4].copy_from_slice(&self.h[0].to_be_bytes());
-        digest[4..8].copy_from_slice(&self.h[1].to_be_bytes());
-        digest[8..12].copy_from_slice(&self.h[2].to_be_bytes());
-        digest[12..16].copy_from_slice(&self.h[3].to_be_bytes());
-        digest[16..20].copy_from_slice(&self.h[4].to_be_bytes());
-        digest[20..24].copy_from_slice(&self.h[5].to_be_bytes());
-        digest[24..28].copy_from_slice(&self.h[6].to_be_bytes());
-        if !IS_224 {
-            digest[28..32].copy_from_slice(&self.h[7].to_be_bytes());
+        {
+            let mut digest = &mut digest as &mut [u8];
+            digest.put_u32(self.h[0]);
+            digest.put_u32(self.h[1]);
+            digest.put_u32(self.h[2]);
+            digest.put_u32(self.h[3]);
+            digest.put_u32(self.h[4]);
+            digest.put_u32(self.h[5]);
+            digest.put_u32(self.h[6]);
+            if !IS_224 {
+                digest.put_u32(self.h[7]);
+            }
         }
 
         digest
@@ -134,37 +140,19 @@ impl<const N: usize, const IS_224: bool> Marshalable for Sha256<N, IS_224> {
             return Err(CryptoError::InvalidHashState);
         }
 
-        let mut offset = MAGIC224.len();
-        self.h[0] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[1] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[2] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[3] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[4] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[5] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[6] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[7] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-
-        self.x.copy_from_slice(&b[offset..offset + CHUNK]);
-        offset += CHUNK;
-
-        self.len = u64::from_be_bytes([
-            b[offset],
-            b[offset + 1],
-            b[offset + 2],
-            b[offset + 3],
-            b[offset + 4],
-            b[offset + 5],
-            b[offset + 6],
-            b[offset + 7],
-        ]);
+        {
+            let mut b = &b[MAGIC224.len()..];
+            self.h[0] = b.get_u32();
+            self.h[1] = b.get_u32();
+            self.h[2] = b.get_u32();
+            self.h[3] = b.get_u32();
+            self.h[4] = b.get_u32();
+            self.h[5] = b.get_u32();
+            self.h[6] = b.get_u32();
+            self.h[7] = b.get_u32();
+            b.copy_to_slice(&mut self.x);
+            self.len = b.get_u64();
+        }
 
         self.nx = (self.len % CHUNK as u64) as usize;
         Ok(())
@@ -227,23 +215,12 @@ impl<const N: usize, const IS_224: bool> HashUser for Sha256<N, IS_224> {
 
     fn reset(&mut self) {
         if !IS_224 {
-            self.h[0] = INIT0;
-            self.h[1] = INIT1;
-            self.h[2] = INIT2;
-            self.h[3] = INIT3;
-            self.h[4] = INIT4;
-            self.h[5] = INIT5;
-            self.h[6] = INIT6;
-            self.h[7] = INIT7;
+            self.h = [INIT0, INIT1, INIT2, INIT3, INIT4, INIT5, INIT6, INIT7];
         } else {
-            self.h[0] = INIT0_224;
-            self.h[1] = INIT1_224;
-            self.h[2] = INIT2_224;
-            self.h[3] = INIT3_224;
-            self.h[4] = INIT4_224;
-            self.h[5] = INIT5_224;
-            self.h[6] = INIT6_224;
-            self.h[7] = INIT7_224;
+            self.h = [
+                INIT0_224, INIT1_224, INIT2_224, INIT3_224, INIT4_224, INIT5_224, INIT6_224,
+                INIT7_224,
+            ];
         }
         self.nx = 0;
         self.len = 0;

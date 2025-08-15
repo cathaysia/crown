@@ -8,6 +8,8 @@ mod tests;
 
 use std::convert::TryInto;
 
+use bytes::BufMut;
+
 use crate::cipher::{marker::BlockCipherMarker, BlockCipher};
 
 const BLOCK_SIZE: usize = 8;
@@ -174,10 +176,11 @@ impl BlockCipher for Rc2 {
             j += 1;
         }
 
-        inout[0..2].copy_from_slice(&r0.to_le_bytes());
-        inout[2..4].copy_from_slice(&r1.to_le_bytes());
-        inout[4..6].copy_from_slice(&r2.to_le_bytes());
-        inout[6..8].copy_from_slice(&r3.to_le_bytes());
+        let mut inout = inout;
+        inout.put_u16_le(r0);
+        inout.put_u16_le(r1);
+        inout.put_u16_le(r2);
+        inout.put_u16_le(r3);
     }
 
     fn decrypt(&self, inout: &mut [u8]) {
@@ -316,10 +319,11 @@ impl BlockCipher for Rc2 {
             j -= 1;
         }
 
-        inout[0..2].copy_from_slice(&r0.to_le_bytes());
-        inout[2..4].copy_from_slice(&r1.to_le_bytes());
-        inout[4..6].copy_from_slice(&r2.to_le_bytes());
-        inout[6..8].copy_from_slice(&r3.to_le_bytes());
+        let mut inout = inout;
+        inout.put_u16_le(r0);
+        inout.put_u16_le(r1);
+        inout.put_u16_le(r2);
+        inout.put_u16_le(r3);
     }
 }
 

@@ -5,6 +5,7 @@
 mod block;
 
 mod generic;
+use bytes::BufMut;
 use generic::*;
 
 #[cfg(test)]
@@ -58,15 +59,15 @@ impl Sha1 {
     }
 
     fn append_binary(&self, b: &mut Vec<u8>) {
-        b.extend_from_slice(MAGIC);
-        b.extend_from_slice(&self.h[0].to_be_bytes());
-        b.extend_from_slice(&self.h[1].to_be_bytes());
-        b.extend_from_slice(&self.h[2].to_be_bytes());
-        b.extend_from_slice(&self.h[3].to_be_bytes());
-        b.extend_from_slice(&self.h[4].to_be_bytes());
-        b.extend_from_slice(&self.x[..self.nx]);
-        b.extend_from_slice(&vec![0u8; CHUNK - self.nx]);
-        b.extend_from_slice(&self.len.to_be_bytes());
+        b.put_slice(MAGIC);
+        b.put_u32(self.h[0]);
+        b.put_u32(self.h[1]);
+        b.put_u32(self.h[2]);
+        b.put_u32(self.h[3]);
+        b.put_u32(self.h[4]);
+        b.put_slice(&self.x[..self.nx]);
+        b.put_bytes(0, CHUNK - self.nx);
+        b.put_u64(self.len);
     }
 
     fn check_sum(&mut self) -> [u8; Sha1::SIZE] {
@@ -94,11 +95,14 @@ impl Sha1 {
         }
 
         let mut digest = [0u8; Sha1::SIZE];
-        digest[0..4].copy_from_slice(&self.h[0].to_be_bytes());
-        digest[4..8].copy_from_slice(&self.h[1].to_be_bytes());
-        digest[8..12].copy_from_slice(&self.h[2].to_be_bytes());
-        digest[12..16].copy_from_slice(&self.h[3].to_be_bytes());
-        digest[16..20].copy_from_slice(&self.h[4].to_be_bytes());
+        {
+            let mut digest = &mut digest as &mut [u8];
+            digest.put_u32(self.h[0]);
+            digest.put_u32(self.h[1]);
+            digest.put_u32(self.h[2]);
+            digest.put_u32(self.h[3]);
+            digest.put_u32(self.h[4]);
+        }
 
         digest
     }
