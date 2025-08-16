@@ -2,6 +2,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum CryptoError {
+    #[error("invalid nonce length: {0}")]
+    InvalidNonceLength(usize),
     #[error("invalid tag size: {0}")]
     InvalidTagSize(usize),
     #[error("invalid parameter: {0}")]
