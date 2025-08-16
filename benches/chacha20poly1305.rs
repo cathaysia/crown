@@ -14,11 +14,8 @@ fn bench_chacha20poly1305(c: &mut Criterion) {
     let nonce = nonce;
 
     for size in case {
-        let mut buf = vec![0u8; size + 1];
-        for (i, byte) in buf.iter_mut().enumerate() {
-            *byte = (i % 256) as u8;
-        }
-        let data = vec![0u8; size];
+        let mut data = vec![0u8; size];
+        rand::fill(data.as_mut_slice());
 
         let mut group = c.benchmark_group("chacha20_poly1305");
         group.throughput(Throughput::Bytes(size as u64));
@@ -26,7 +23,7 @@ fn bench_chacha20poly1305(c: &mut Criterion) {
         group.bench_function(format!("kittycrypto_{size}",), |b| {
             let cipher = kittycrypto::chacha20poly1305::ChaCha20Poly1305::new(&key).unwrap();
             b.iter(|| {
-                let mut dst = vec![];
+                let mut dst = data.clone();
                 cipher
                     .seal_in_place_append_tag(&mut dst, &nonce, &data)
                     .unwrap();
