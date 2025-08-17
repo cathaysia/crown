@@ -95,3 +95,7 @@ harness = false
 [[bench]]
 name = "xchacha20poly1305"
 harness = false
+
+[[bench]]
+name = "twofish"
+harness = false
