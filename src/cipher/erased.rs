@@ -2,6 +2,7 @@ use crate::{cipher::Aead, error::CryptoResult};
 
 trait ErasedAeadInner {
     fn overhead(&self) -> usize;
+    fn nonce_size(&self) -> usize;
 
     fn open_in_place_separate_tag(
         &self,
@@ -29,6 +30,10 @@ impl ErasedAead {
         where
             T: Aead<N> + 'static,
         {
+            fn nonce_size(&self) -> usize {
+                T::nonce_size()
+            }
+
             fn overhead(&self) -> usize {
                 T::overhead()
             }
@@ -56,6 +61,14 @@ impl ErasedAead {
             }
         }
         Self(Box::new(Wrapper(aead)))
+    }
+
+    pub fn nonce_size(&self) -> usize {
+        self.0.nonce_size()
+    }
+
+    pub fn overhead(&self) -> usize {
+        self.0.overhead()
     }
 
     pub fn seal_in_place_separate_tag(
