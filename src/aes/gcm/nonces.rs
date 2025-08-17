@@ -1,4 +1,5 @@
 use crate::aes::Aes;
+use crate::cipher::Aead;
 use crate::error::CryptoResult;
 use crate::{aes::gcm::GCM, utils};
 
@@ -18,29 +19,26 @@ const GCM_TAG_SIZE: usize = 16;
 pub fn seal_with_random_nonce(
     g: &GCM,
     nonce: &mut [u8],
-    out: &mut [u8],
-    plaintext: &[u8],
+    inout: &mut [u8],
     additional_data: &[u8],
-) {
-    if plaintext.len() as u64 > (1u64 << 32) - 2 * GCM_BLOCK_SIZE as u64 {
+) -> [u8; GCM_TAG_SIZE] {
+    if inout.len() as u64 > (1u64 << 32) - 2 * GCM_BLOCK_SIZE as u64 {
         panic!("crypto/cipher: message too large for GCM");
     }
     if nonce.len() != GCM_STANDARD_NONCE_SIZE {
         panic!("crypto/cipher: incorrect nonce length given to GCMWithRandomNonce");
     }
-    if out.len() != plaintext.len() + GCM_TAG_SIZE {
-        panic!("crypto/cipher: incorrect output length given to GCMWithRandomNonce");
-    }
-    if utils::inexact_overlap(out, plaintext) {
+
+    if utils::inexact_overlap(inout, inout) {
         panic!("crypto/cipher: invalid buffer overlap of output and input");
     }
-    if utils::inexact_overlap(out, additional_data) {
+    if utils::inexact_overlap(inout, additional_data) {
         panic!("crypto/cipher: invalid buffer overlap of output and additional data");
     }
 
     // fips140.RecordApproved() - Not applicable in Rust implementation
     rand::fill(nonce);
-    super::seal(out, g, nonce, plaintext, additional_data);
+    super::seal(inout, g, nonce, additional_data)
 }
 
 // NewGCMWithCounterNonce returns a new AEAD that works like GCM, but enforces
@@ -50,7 +48,7 @@ pub fn seal_with_random_nonce(
 //
 // This complies with FIPS 140-3 IG C.H Scenario 3.
 pub fn new_gcm_with_counter_nonce(cipher: Aes) -> Result<GCMWithCounterNonce, &'static str> {
-    let g = super::GCM::new_gcm(cipher, GCM_STANDARD_NONCE_SIZE, GCM_TAG_SIZE).unwrap();
+    let g = super::GCM::new(cipher).unwrap();
     Ok(GCMWithCounterNonce {
         g,
         ready: false,
@@ -79,11 +77,10 @@ impl GCMWithCounterNonce {
 
     pub fn seal(
         &mut self,
-        dst: &mut Vec<u8>,
+        inout: &mut [u8],
         nonce: &[u8],
-        plaintext: &[u8],
         data: &[u8],
-    ) -> CryptoResult<()> {
+    ) -> CryptoResult<[u8; GCM_TAG_SIZE]> {
         if nonce.len() != GCM_STANDARD_NONCE_SIZE {
             panic!("crypto/cipher: incorrect nonce length given to GCM");
         }
@@ -121,21 +118,17 @@ impl GCMWithCounterNonce {
         }
         self.next = counter + 1;
 
-        self.g
-            .seal_after_indicator(dst, nonce, plaintext, data)
-            .unwrap();
-        Ok(())
+        self.g.seal_after_indicator(inout, nonce, data)
     }
 
     pub fn open(
         &self,
-        dst: &mut Vec<u8>,
+        inout: &mut [u8],
         nonce: &[u8],
-        ciphertext: &[u8],
         data: &[u8],
+        tag: &[u8],
     ) -> CryptoResult<()> {
-        // fips140.RecordApproved() - Not applicable in Rust implementation
-        self.g.open(dst, nonce, ciphertext, data)
+        self.g.open_in_place_separate_tag(inout, nonce, data, tag)
     }
 }
 
@@ -145,7 +138,7 @@ impl GCMWithCounterNonce {
 //
 // This complies with FIPS 140-3 IG C.H Scenario 1.a.
 pub fn new_gcm_for_tls12(cipher: Aes) -> CryptoResult<GCMForTLS12> {
-    let g = GCM::new_gcm(cipher, GCM_STANDARD_NONCE_SIZE, GCM_TAG_SIZE)?;
+    let g = GCM::new(cipher)?;
     Ok(GCMForTLS12 { g, next: 0 })
 }
 
@@ -165,11 +158,10 @@ impl GCMForTLS12 {
 
     pub fn seal(
         &mut self,
-        dst: &mut Vec<u8>,
+        inout: &mut [u8],
         nonce: &[u8],
-        plaintext: &[u8],
-        data: &[u8],
-    ) -> CryptoResult<()> {
+        aad: &[u8],
+    ) -> CryptoResult<[u8; GCM_BLOCK_SIZE]> {
         if nonce.len() != GCM_STANDARD_NONCE_SIZE {
             panic!("crypto/cipher: incorrect nonce length given to GCM");
         }
@@ -195,25 +187,18 @@ impl GCMForTLS12 {
         self.next = counter + 1;
 
         // fips140.RecordApproved() - Not applicable in Rust implementation
-        self.g.seal_after_indicator(dst, nonce, plaintext, data)
+        self.g.seal_after_indicator(inout, nonce, aad)
     }
 
-    pub fn open(
-        &self,
-        dst: &mut Vec<u8>,
-        nonce: &[u8],
-        ciphertext: &[u8],
-        data: &[u8],
-    ) -> CryptoResult<()> {
-        // fips140.RecordApproved() - Not applicable in Rust implementation
-        self.g.open(dst, nonce, ciphertext, data)
+    pub fn open(&self, inout: &mut [u8], nonce: &[u8], aad: &[u8], tag: &[u8]) -> CryptoResult<()> {
+        self.g.open_in_place_separate_tag(inout, nonce, aad, tag)
     }
 }
 
 // NewGCMForTLS13 returns a new AEAD that works like GCM, but enforces the
 // construction of nonces as specified in RFC 8446, Section 5.3.
 pub fn new_gcm_for_tls13(cipher: Aes) -> CryptoResult<GCMForTLS13> {
-    let g = GCM::new_gcm(cipher, GCM_STANDARD_NONCE_SIZE, GCM_TAG_SIZE)?;
+    let g = GCM::new(cipher)?;
     Ok(GCMForTLS13 {
         g,
         ready: false,
@@ -240,11 +225,10 @@ impl GCMForTLS13 {
 
     pub fn seal(
         &mut self,
-        dst: &mut Vec<u8>,
+        inout: &mut [u8],
         nonce: &[u8],
-        plaintext: &[u8],
-        data: &[u8],
-    ) -> CryptoResult<()> {
+        aad: &[u8],
+    ) -> CryptoResult<[u8; GCM_TAG_SIZE]> {
         if nonce.len() != GCM_STANDARD_NONCE_SIZE {
             panic!("crypto/cipher: incorrect nonce length given to GCM");
         }
@@ -277,18 +261,12 @@ impl GCMForTLS13 {
         self.next = counter + 1;
 
         // fips140.RecordApproved() - Not applicable in Rust implementation
-        self.g.seal_after_indicator(dst, nonce, plaintext, data)
+        self.g.seal_after_indicator(inout, nonce, aad)
     }
 
-    pub fn open(
-        &self,
-        dst: &mut Vec<u8>,
-        nonce: &[u8],
-        ciphertext: &[u8],
-        data: &[u8],
-    ) -> CryptoResult<()> {
+    pub fn open(&self, inout: &mut [u8], nonce: &[u8], aad: &[u8], tag: &[u8]) -> CryptoResult<()> {
         // fips140.RecordApproved() - Not applicable in Rust implementation
-        self.g.open(dst, nonce, ciphertext, data)
+        self.g.open_in_place_separate_tag(inout, nonce, aad, tag)
     }
 }
 
@@ -297,7 +275,7 @@ impl GCMForTLS13 {
 //
 // This complies with FIPS 140-3 IG C.H Scenario 1.d.
 pub fn new_gcm_for_ssh(cipher: Aes) -> CryptoResult<GCMForSSH> {
-    let g = GCM::new_gcm(cipher, GCM_STANDARD_NONCE_SIZE, GCM_TAG_SIZE)?;
+    let g = GCM::new(cipher)?;
     Ok(GCMForSSH {
         g,
         ready: false,
@@ -324,11 +302,10 @@ impl GCMForSSH {
 
     pub fn seal(
         &mut self,
-        dst: &mut Vec<u8>,
+        inout: &mut [u8],
         nonce: &[u8],
-        plaintext: &[u8],
-        data: &[u8],
-    ) -> CryptoResult<()> {
+        aad: &[u8],
+    ) -> CryptoResult<[u8; GCM_TAG_SIZE]> {
         if nonce.len() != GCM_STANDARD_NONCE_SIZE {
             panic!("crypto/cipher: incorrect nonce length given to GCM");
         }
@@ -360,18 +337,10 @@ impl GCMForSSH {
         }
         self.next = counter + 1;
 
-        // fips140.RecordApproved() - Not applicable in Rust implementation
-        self.g.seal_after_indicator(dst, nonce, plaintext, data)
+        self.g.seal_after_indicator(inout, nonce, aad)
     }
 
-    pub fn open(
-        &self,
-        dst: &mut Vec<u8>,
-        nonce: &[u8],
-        ciphertext: &[u8],
-        data: &[u8],
-    ) -> CryptoResult<()> {
-        // fips140.RecordApproved() - Not applicable in Rust implementation
-        self.g.open(dst, nonce, ciphertext, data)
+    pub fn open(&self, inout: &mut [u8], nonce: &[u8], aad: &[u8], tag: &[u8]) -> CryptoResult<()> {
+        self.g.open_in_place_separate_tag(inout, nonce, aad, tag)
     }
 }

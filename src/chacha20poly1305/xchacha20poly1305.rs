@@ -36,11 +36,11 @@ impl XChaCha20Poly1305 {
 }
 
 impl AeadUser for XChaCha20Poly1305 {
-    fn nonce_size() -> usize {
+    fn nonce_size(&self) -> usize {
         Self::NONCE_SIZE
     }
 
-    fn overhead() -> usize {
+    fn overhead(&self) -> usize {
         Self::OVERHEAD
     }
 }
@@ -53,7 +53,7 @@ impl Aead<16> for XChaCha20Poly1305 {
         additional_data: &[u8],
     ) -> CryptoResult<[u8; 16]> {
         if nonce.len() != Self::NONCE_SIZE {
-            return Err(CryptoError::InvalidNonceLength(nonce.len()));
+            return Err(CryptoError::InvalidNonceSize(nonce.len()));
         }
 
         // XChaCha20-Poly1305 technically supports a 64-bit counter, so there is no

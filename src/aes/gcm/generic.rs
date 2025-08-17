@@ -9,48 +9,34 @@ const GCM_BLOCK_SIZE: usize = 16;
 const GCM_TAG_SIZE: usize = 16;
 const GCM_STANDARD_NONCE_SIZE: usize = 12;
 
-pub fn seal_generic(
-    out: &mut [u8],
-    g: &GCM,
+pub fn seal_generic<const N: usize, const T: usize>(
+    inout: &mut [u8],
+    g: &GCM<N, T>,
     nonce: &[u8],
-    plaintext: &[u8],
     additional_data: &[u8],
-) {
+) -> [u8; GCM_TAG_SIZE] {
     let mut h = [0u8; GCM_BLOCK_SIZE];
     let mut counter = [0u8; GCM_BLOCK_SIZE];
     let mut tag_mask = [0u8; GCM_BLOCK_SIZE];
 
     g.cipher.encrypt_block_internal(&mut h);
     derive_counter_generic(&h, &mut counter, nonce);
-    {
-        let src = tag_mask;
-        gcm_counter_crypt_generic(&g.cipher, &mut tag_mask, &src, &mut counter);
-    }
+    gcm_counter_crypt_generic(&g.cipher, &mut tag_mask, &mut counter);
 
-    gcm_counter_crypt_generic(
-        &g.cipher,
-        &mut out[..plaintext.len()],
-        plaintext,
-        &mut counter,
-    );
+    gcm_counter_crypt_generic(&g.cipher, inout, &mut counter);
 
     let mut tag = [0u8; GCM_TAG_SIZE];
-    gcm_auth_generic(
-        &mut tag,
-        &h,
-        &tag_mask,
-        &out[..plaintext.len()],
-        additional_data,
-    );
-    out[plaintext.len()..plaintext.len() + tag.len()].copy_from_slice(&tag);
+    gcm_auth_generic(&mut tag, &h, &tag_mask, &inout, additional_data);
+
+    tag
 }
 
-pub fn open_generic(
-    out: &mut [u8],
-    g: &GCM,
+pub fn open_generic<const N: usize, const T: usize>(
+    inout: &mut [u8],
+    g: &GCM<N, T>,
     nonce: &[u8],
-    ciphertext: &[u8],
     additional_data: &[u8],
+    tag: &[u8],
 ) -> CryptoResult<()> {
     let mut h = [0u8; GCM_BLOCK_SIZE];
     let mut counter = [0u8; GCM_BLOCK_SIZE];
@@ -58,28 +44,16 @@ pub fn open_generic(
 
     g.cipher.encrypt_block_internal(&mut h);
     derive_counter_generic(&h, &mut counter, nonce);
-    {
-        let src = tag_mask;
-        gcm_counter_crypt_generic(&g.cipher, &mut tag_mask, &src, &mut counter);
-    }
-
-    let tag = &ciphertext[ciphertext.len() - g.tag_size..];
-    let ciphertext = &ciphertext[..ciphertext.len() - g.tag_size];
+    gcm_counter_crypt_generic(&g.cipher, &mut tag_mask, &mut counter);
 
     let mut expected_tag = [0u8; GCM_TAG_SIZE];
-    gcm_auth_generic(
-        &mut expected_tag,
-        &h,
-        &tag_mask,
-        ciphertext,
-        additional_data,
-    );
+    gcm_auth_generic(&mut expected_tag, &h, &tag_mask, &inout, additional_data);
 
-    if !constant_time_eq(&expected_tag[..g.tag_size], tag) {
+    if !constant_time_eq(&expected_tag[..T], tag) {
         return Err(CryptoError::AuthenticationFailed);
     }
 
-    gcm_counter_crypt_generic(&g.cipher, out, ciphertext, &mut counter);
+    gcm_counter_crypt_generic(&g.cipher, inout, &mut counter);
 
     Ok(())
 }
@@ -112,33 +86,26 @@ fn derive_counter_generic(
 // gcmCounterCryptGeneric encrypts src using AES in counter mode with 32-bit
 // wrapping (which is different from AES-CTR) and places the result into out.
 // counter is the initial value and will be updated with the next value.
-fn gcm_counter_crypt_generic(
-    b: &Aes,
-    out: &mut [u8],
-    src: &[u8],
-    counter: &mut [u8; GCM_BLOCK_SIZE],
-) {
+fn gcm_counter_crypt_generic(b: &Aes, inout: &mut [u8], counter: &mut [u8; GCM_BLOCK_SIZE]) {
     let mut mask = [0u8; GCM_BLOCK_SIZE];
-    let mut src = src;
-    let mut out = out;
+    let mut out = inout;
 
-    while src.len() >= GCM_BLOCK_SIZE {
+    while out.len() >= GCM_BLOCK_SIZE {
         mask.copy_from_slice(counter);
         b.encrypt_block_internal(&mut mask);
         gcm_inc32(counter);
 
-        copy(&mut out[..GCM_BLOCK_SIZE], &src[..GCM_BLOCK_SIZE]);
         xor_bytes(&mut out[..GCM_BLOCK_SIZE], &mask);
         out = &mut out[GCM_BLOCK_SIZE..];
-        src = &src[GCM_BLOCK_SIZE..];
     }
 
-    if !src.is_empty() {
+    if !out.is_empty() {
         mask.copy_from_slice(counter);
         b.encrypt_block_internal(&mut mask);
         gcm_inc32(counter);
-        copy(&mut out[..src.len()], src);
-        xor_bytes(&mut out[..src.len()], &mask[..src.len()]);
+
+        let len = out.len();
+        xor_bytes(&mut out, &mask[..len]);
     }
 }
 

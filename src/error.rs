@@ -2,8 +2,14 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum CryptoError {
+    #[error("unsupported block size: {0}")]
+    UnsupportedBlockSize(usize),
+    #[error("invalid cipher")]
+    MessageTooLarge,
+    #[error("unsupported operation: {0}")]
+    UnsupportedOperation(String),
     #[error("invalid nonce length: {0}")]
-    InvalidNonceLength(usize),
+    InvalidNonceSize(usize),
     #[error("invalid tag size: {0}")]
     InvalidTagSize(usize),
     #[error("invalid parameter: {0}")]

@@ -31,11 +31,11 @@ impl ErasedAead {
             T: Aead<N> + 'static,
         {
             fn nonce_size(&self) -> usize {
-                T::nonce_size()
+                self.0.nonce_size()
             }
 
             fn overhead(&self) -> usize {
-                T::overhead()
+                self.0.overhead()
             }
 
             fn open_in_place_separate_tag(

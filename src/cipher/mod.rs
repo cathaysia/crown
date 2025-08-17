@@ -2,6 +2,7 @@ pub mod cbc;
 pub mod cfb;
 pub mod ctr;
 pub mod erased;
+pub mod gcm;
 pub mod marker;
 pub mod ofb;
 
@@ -65,11 +66,11 @@ pub trait BlockMode {
 pub trait AeadUser {
     /// NonceSize returns the size of the nonce that must be passed to Seal
     /// and Open.
-    fn nonce_size() -> usize;
+    fn nonce_size(&self) -> usize;
 
     /// Overhead returns the maximum difference between the lengths of a
     /// plaintext and its ciphertext.
-    fn overhead() -> usize;
+    fn overhead(&self) -> usize;
 }
 
 /// AEAD is a cipher mode providing authenticated encryption with associated
