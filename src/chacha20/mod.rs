@@ -376,10 +376,11 @@ fn quarter_round(a: u32, b: u32, c: u32, d: u32) -> (u32, u32, u32, u32) {
 /// add_xor adds the first two arguments, XORs the result with the third, and
 /// writes it to the destination.
 fn add_xor(inout: &mut [u8], a: u32, b: u32) {
-    let v = a.wrapping_add(b);
-    let v_bytes = v.to_le_bytes();
-    for i in 0..4 {
-        inout[i] ^= v_bytes[i];
+    unsafe {
+        let p_src = inout.as_ptr() as *const u32;
+        let p_dst = inout.as_mut_ptr() as *mut u32;
+        let v = p_src.read_unaligned() ^ a.wrapping_add(b).to_le();
+        p_dst.write_unaligned(v);
     }
 }
 
