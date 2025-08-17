@@ -14,8 +14,8 @@
 #[cfg(test)]
 mod tests;
 
-mod generic;
-pub use generic::*;
+mod sum;
+pub use sum::*;
 
 mod no_asm;
 use no_asm::*;

@@ -1,3 +1,3 @@
-use super::generic::MacGeneric;
+use super::sum::MacGeneric;
 
 pub type Mac = MacGeneric;
