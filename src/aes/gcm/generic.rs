@@ -26,7 +26,7 @@ pub fn seal_generic<const N: usize, const T: usize>(
     gcm_counter_crypt_generic(&g.cipher, inout, &mut counter);
 
     let mut tag = [0u8; GCM_TAG_SIZE];
-    gcm_auth_generic(&mut tag, &h, &tag_mask, &inout, additional_data);
+    gcm_auth_generic(&mut tag, &h, &tag_mask, inout, additional_data);
 
     tag
 }
@@ -47,7 +47,7 @@ pub fn open_generic<const N: usize, const T: usize>(
     gcm_counter_crypt_generic(&g.cipher, &mut tag_mask, &mut counter);
 
     let mut expected_tag = [0u8; GCM_TAG_SIZE];
-    gcm_auth_generic(&mut expected_tag, &h, &tag_mask, &inout, additional_data);
+    gcm_auth_generic(&mut expected_tag, &h, &tag_mask, inout, additional_data);
 
     if !constant_time_eq(&expected_tag[..T], tag) {
         return Err(CryptoError::AuthenticationFailed);
@@ -105,7 +105,7 @@ fn gcm_counter_crypt_generic(b: &Aes, inout: &mut [u8], counter: &mut [u8; GCM_B
         gcm_inc32(counter);
 
         let len = out.len();
-        xor_bytes(&mut out, &mask[..len]);
+        xor_bytes(out, &mask[..len]);
     }
 }
 

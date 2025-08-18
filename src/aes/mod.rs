@@ -37,10 +37,10 @@ impl OfbAbleMarker for Aes {}
 impl CfbAbleMarker for Aes {}
 
 impl Aes {
-    // NewCipher creates and returns a new [cipher.Block].
-    // The key argument should be the AES key,
-    // either 16, 24, or 32 bytes to select
-    // AES-128, AES-192, or AES-256.
+    /// creates and returns a new [cipher.Block].
+    /// The key argument should be the AES key,
+    /// either 16, 24, or 32 bytes to select
+    /// AES-128, AES-192, or AES-256.
     pub fn new(key: &[u8]) -> CryptoResult<Self> {
         match key.len() {
             AES128_KEY_SIZE | AES192_KEY_SIZE | AES256_KEY_SIZE => {
@@ -49,7 +49,7 @@ impl Aes {
                     enc: [0; 60],
                     dec: [0; 60],
                 };
-                BlockExpanded::expand(&mut block, key);
+                block.expand(key);
                 Ok(Aes { block })
             }
             len => Err(CryptoError::InvalidKeySize(len)),
@@ -84,21 +84,21 @@ impl BlockCipher for Aes {
 }
 
 #[derive(Clone)]
-pub struct BlockExpanded {
+struct BlockExpanded {
     pub rounds: usize,
     pub enc: [u32; 60],
     pub dec: [u32; 60],
 }
 
 impl BlockExpanded {
-    fn expand(c: &mut BlockExpanded, key: &[u8]) {
+    fn expand(&mut self, key: &[u8]) {
         match key.len() {
-            AES128_KEY_SIZE => c.rounds = AES128_ROUNDS,
-            AES192_KEY_SIZE => c.rounds = AES192_ROUNDS,
-            AES256_KEY_SIZE => c.rounds = AES256_ROUNDS,
+            AES128_KEY_SIZE => self.rounds = AES128_ROUNDS,
+            AES192_KEY_SIZE => self.rounds = AES192_ROUNDS,
+            AES256_KEY_SIZE => self.rounds = AES256_ROUNDS,
             _ => unreachable!(),
         }
-        generic::expand_key_generic(c, key);
+        self.expand_key_generic(key);
     }
 
     pub fn round_keys_size(&self) -> usize {

@@ -2,12 +2,7 @@ use bytes::{Buf, BufMut};
 
 use crate::aes::{BlockExpanded, POWX, SBOX0, SBOX1, TD0, TD1, TD2, TD3, TE0, TE1, TE2, TE3};
 
-fn check_generic_is_expected() {
-    // Implementation specific check
-}
-
 pub fn encrypt_block_generic(c: &BlockExpanded, inout: &mut [u8]) {
-    check_generic_is_expected();
     let xk = &c.enc;
 
     assert!(inout.len() >= 16);
@@ -92,7 +87,6 @@ pub fn encrypt_block_generic(c: &BlockExpanded, inout: &mut [u8]) {
 }
 
 pub fn decrypt_block_generic(c: &BlockExpanded, inout: &mut [u8]) {
-    check_generic_is_expected();
     let xk = &c.dec;
 
     assert!(inout.len() >= 16);
@@ -186,42 +180,43 @@ fn rotw(w: u32) -> u32 {
     w.rotate_left(8)
 }
 
-pub fn expand_key_generic(c: &mut BlockExpanded, key: &[u8]) {
-    check_generic_is_expected();
+impl BlockExpanded {
+    pub(crate) fn expand_key_generic(&mut self, key: &[u8]) {
+        let nk = key.len() / 4;
+        let mut i = 0;
 
-    let nk = key.len() / 4;
-    let mut i = 0;
-
-    for j in 0..nk {
-        c.enc[j] = u32::from_be_bytes([key[4 * j], key[4 * j + 1], key[4 * j + 2], key[4 * j + 3]]);
-        i += 1;
-    }
-
-    while i < c.round_keys_size() {
-        let mut t = c.enc[i - 1];
-        if i % nk == 0 {
-            t = subw(rotw(t)) ^ ((POWX[i / nk - 1] as u32) << 24);
-        } else if nk > 6 && i % nk == 4 {
-            t = subw(t);
+        for j in 0..nk {
+            self.enc[j] =
+                u32::from_be_bytes([key[4 * j], key[4 * j + 1], key[4 * j + 2], key[4 * j + 3]]);
+            i += 1;
         }
-        c.enc[i] = c.enc[i - nk] ^ t;
-        i += 1;
-    }
 
-    let n = c.round_keys_size();
-    let mut i = 0;
-    while i < n {
-        let ei = n - i - 4;
-        for j in 0..4 {
-            let mut x = c.enc[ei + j];
-            if i > 0 && i + 4 < n {
-                x = TD0[SBOX0[((x >> 24) & 0xff) as usize] as usize]
-                    ^ TD1[SBOX0[((x >> 16) & 0xff) as usize] as usize]
-                    ^ TD2[SBOX0[((x >> 8) & 0xff) as usize] as usize]
-                    ^ TD3[SBOX0[(x & 0xff) as usize] as usize];
+        while i < self.round_keys_size() {
+            let mut t = self.enc[i - 1];
+            if i % nk == 0 {
+                t = subw(rotw(t)) ^ ((POWX[i / nk - 1] as u32) << 24);
+            } else if nk > 6 && i % nk == 4 {
+                t = subw(t);
             }
-            c.dec[i + j] = x;
+            self.enc[i] = self.enc[i - nk] ^ t;
+            i += 1;
         }
-        i += 4;
+
+        let n = self.round_keys_size();
+        let mut i = 0;
+        while i < n {
+            let ei = n - i - 4;
+            for j in 0..4 {
+                let mut x = self.enc[ei + j];
+                if i > 0 && i + 4 < n {
+                    x = TD0[SBOX0[((x >> 24) & 0xff) as usize] as usize]
+                        ^ TD1[SBOX0[((x >> 16) & 0xff) as usize] as usize]
+                        ^ TD2[SBOX0[((x >> 8) & 0xff) as usize] as usize]
+                        ^ TD3[SBOX0[(x & 0xff) as usize] as usize];
+                }
+                self.dec[i + j] = x;
+            }
+            i += 4;
+        }
     }
 }
