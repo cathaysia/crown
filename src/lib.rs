@@ -18,6 +18,7 @@ pub mod rc4;
 pub mod rc5;
 pub mod rc6;
 pub mod sala20;
+pub mod scrypt;
 pub mod sha1;
 pub mod sha256;
 pub mod sha3;
