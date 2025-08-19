@@ -8,14 +8,14 @@ use std::io::{self, Read, Write};
 
 #[derive(Clone)]
 pub struct Shake<const N: usize> {
-    d: Sha3<N>, // SHA-3 state context and Read/Write operations
+    pub(crate) d: Sha3<N>, // SHA-3 state context and Read/Write operations
 
     // initBlock is the cSHAKE specific initialization set of bytes. It is initialized
     // by newCShake function and stores concatenation of N followed by S, encoded
     // by the method specified in 3.3 of [1].
     // It is stored here in order for Reset() to be able to put context into
     // initial state.
-    init_block: Vec<u8>,
+    pub(crate) init_block: Vec<u8>,
 }
 
 fn bytepad(data: &[u8], rate: usize) -> Vec<u8> {
@@ -48,7 +48,7 @@ fn left_encode(x: u64) -> Vec<u8> {
     b
 }
 
-fn new_cshake<const N: usize>(n: &[u8], s: &[u8], rate: usize, dsbyte: u8) -> Shake<N> {
+pub(crate) fn new_cshake<const N: usize>(n: &[u8], s: &[u8], rate: usize, dsbyte: u8) -> Shake<N> {
     let mut c = Shake {
         d: Sha3 {
             a: [0; 200],
@@ -178,56 +178,4 @@ impl<const N: usize> Hash<N> for Shake<N> {
     fn sum(&mut self) -> [u8; N] {
         self.d.sum()
     }
-}
-
-// NewShake128 creates a new SHAKE128 XOF.
-pub fn new_shake128() -> Shake<32> {
-    Shake {
-        d: Sha3 {
-            a: [0; 200],
-            n: 0,
-            rate: RATE_K256,
-            dsbyte: DSBYTE_SHAKE,
-            state: digest::SpongeDirection::Absorbing,
-        },
-        init_block: Vec::new(),
-    }
-}
-
-// NewShake256 creates a new SHAKE256 XOF.
-pub fn new_shake256() -> Shake<64> {
-    Shake {
-        d: Sha3 {
-            a: [0; 200],
-            n: 0,
-            rate: RATE_K512,
-            dsbyte: DSBYTE_SHAKE,
-            state: digest::SpongeDirection::Absorbing,
-        },
-        init_block: Vec::new(),
-    }
-}
-
-// NewCShake128 creates a new cSHAKE128 XOF.
-//
-// N is used to define functions based on cSHAKE, it can be empty when plain
-// cSHAKE is desired. S is a customization byte string used for domain
-// separation. When N and S are both empty, this is equivalent to NewShake128.
-pub fn new_cshake128(n: &[u8], s: &[u8]) -> Shake<32> {
-    if n.is_empty() && s.is_empty() {
-        return new_shake128();
-    }
-    new_cshake(n, s, RATE_K256, DSBYTE_CSHAKE)
-}
-
-// NewCShake256 creates a new cSHAKE256 XOF.
-//
-// N is used to define functions based on cSHAKE, it can be empty when plain
-// cSHAKE is desired. S is a customization byte string used for domain
-// separation. When N and S are both empty, this is equivalent to NewShake256.
-pub fn new_cshake256(n: &[u8], s: &[u8]) -> Shake<64> {
-    if n.is_empty() && s.is_empty() {
-        return new_shake256();
-    }
-    new_cshake(n, s, RATE_K512, DSBYTE_CSHAKE)
 }

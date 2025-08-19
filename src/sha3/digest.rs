@@ -17,6 +17,7 @@ pub(super) enum SpongeDirection {
     Squeezing = 1,
 }
 
+/// [Sha3] is a SHA-3 hash implementation.
 #[derive(Debug, Clone)]
 pub struct Sha3<const N: usize> {
     /// main state of the hash
@@ -96,7 +97,7 @@ impl<const N: usize> Sha3<N> {
         Ok(n)
     }
 
-    fn sum_generic(&self) -> Vec<u8> {
+    fn sum_generic(&self) -> [u8; N] {
         if self.state != SpongeDirection::Absorbing {
             panic!("sha3: Sum after Read");
         }
@@ -104,7 +105,7 @@ impl<const N: usize> Sha3<N> {
         // Make a copy of the original hash so that caller can keep writing
         // and summing.
         let mut dup = self.clone();
-        let mut hash = vec![0u8; N];
+        let mut hash = [0u8; N];
         dup.read_generic(&mut hash).unwrap();
 
         hash
@@ -239,7 +240,7 @@ impl<const N: usize> crate::hash::Hash<N> for Sha3<N> {
     /// Sum appends the current hash to b and returns the resulting slice.
     /// It does not change the underlying hash state.
     fn sum(&mut self) -> [u8; N] {
-        self.sum_generic().try_into().unwrap()
+        self.sum_generic()
     }
 }
 

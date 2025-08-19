@@ -1,7 +1,11 @@
 //! Module sha1 implements the SHA-1 hash algorithm as defined in RFC 3174.
 //!
+//! # WARNING
+//!
 //! SHA-1 is cryptographically broken and should not be used for secure
-//! applications.
+//! applications. You should try the [sha256](crate::sha256), [sha512](crate::sha512)
+//! or the [sha3](crate::sha3).
+//!
 mod block;
 
 mod generic;
@@ -28,7 +32,7 @@ const INIT4: u32 = 0xC3D2E1F0;
 const MAGIC: &[u8] = b"sha\x01";
 const MARSHALED_SIZE: usize = MAGIC.len() + 5 * 4 + CHUNK + 8;
 
-// digest represents the partial evaluation of a checksum.
+/// [Sha1] is a SHA-1 hash implementation.
 #[derive(Clone)]
 pub struct Sha1 {
     h: [u32; 5],
@@ -79,7 +83,7 @@ impl Sha1 {
 
         let mut digest = [0u8; Sha1::SIZE];
         {
-            let mut digest = &mut digest as &mut [u8];
+            let mut digest = digest.as_mut_slice();
             digest.put_u32(self.h[0]);
             digest.put_u32(self.h[1]);
             digest.put_u32(self.h[2]);
@@ -271,12 +275,7 @@ impl Marshalable for Sha1 {
     }
 }
 
-pub fn sum(data: &[u8]) -> [u8; Sha1::SIZE] {
-    let mut d = new();
-    d.write_all(data).unwrap();
-    d.check_sum()
-}
-
+/// Create a new [Hash] computing the SHA1 checksum.
 pub fn new() -> Sha1 {
     let mut d = Sha1 {
         h: [0; 5],
@@ -286,4 +285,11 @@ pub fn new() -> Sha1 {
     };
     d.reset();
     d
+}
+
+/// Compute the SHA-384 checksum of the data.
+pub fn sum(data: &[u8]) -> [u8; Sha1::SIZE] {
+    let mut d = new();
+    d.write_all(data).unwrap();
+    d.check_sum()
 }

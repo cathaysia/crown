@@ -16,7 +16,7 @@ fn test_wycheproof_hmac_test() {
 
         Some(match alg {
             "SHA224" => ErasedHash::new(hmac::new(kittycrypto::sha256::new224, key)),
-            "SHA256" => ErasedHash::new(hmac::new(kittycrypto::sha256::new, key)),
+            "SHA256" => ErasedHash::new(hmac::new(kittycrypto::sha256::new256, key)),
             "SHA384" => ErasedHash::new(hmac::new(kittycrypto::sha512::new384, key)),
             "SHA3-224" => ErasedHash::new(hmac::new(kittycrypto::sha3::new224, key)),
             "SHA3-256" => ErasedHash::new(hmac::new(kittycrypto::sha3::new256, key)),

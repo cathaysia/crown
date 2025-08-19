@@ -11,7 +11,7 @@ fn rustcrypto_hmac_interop() {
         let mut buf = vec![0u8; s];
         rand::fill(buf.as_mut_slice());
         let this = {
-            let mut hmac = crate::hmac::new(crate::sha256::new, &buf);
+            let mut hmac = crate::hmac::new(crate::sha256::new256, &buf);
             hmac.write_all(buf.as_slice())
                 .expect("HMAC write should not fail");
             hmac.sum()

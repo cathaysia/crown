@@ -1,5 +1,8 @@
 //! Module sha256 implements the SHA224 and SHA256 hash algorithms as defined
 //! in FIPS 180-4.
+//!
+//! [SHA-256](crate::sha256) and [SHA-512](crate::sha512) belongs to the
+//! [SHA-2](https://en.wikipedia.org/wiki/SHA-2) family of hash functions.
 
 use std::io::Write;
 
@@ -49,7 +52,7 @@ const INIT5_224: u32 = 0x68581511;
 const INIT6_224: u32 = 0x64F98FA7;
 const INIT7_224: u32 = 0xBEFA4FA4;
 
-// Digest is a SHA-224 or SHA-256 hash implementation.
+/// [Sha256] is a SHA-224 or SHA-256 hash implementation.
 #[derive(Clone)]
 pub struct Sha256<const N: usize, const IS_224: bool> {
     h: [u32; 8],
@@ -232,18 +235,21 @@ impl<const N: usize, const IS_224: bool> Hash<N> for Sha256<N, IS_224> {
         // Make a copy of self so that caller can keep writing and summing.
         let mut d0 = self.clone();
         let hash = d0.check_sum();
-        let mut result = vec![];
-        if IS_224 {
-            result.extend_from_slice(&hash[..SIZE224]);
-        } else {
-            result.extend_from_slice(&hash);
-        }
-        result.try_into().unwrap()
+
+        let mut ret = [0u8; N];
+        ret.copy_from_slice(&hash[..N]);
+        ret
     }
 }
 
-// New returns a new Digest computing the SHA-256 hash.
-pub fn new() -> Sha256<32, false> {
+fn block<const N: usize, const IS_224: bool>(d: &mut Sha256<N, IS_224>, p: &[u8]) {
+    generic::block_generic(d, p);
+}
+
+/// Create a new [Hash] computing the SHA-256 checksum.
+///
+/// The Hash also implements [Marshalable] to marshal and unmarshal the internal state of the hash.
+pub fn new256() -> Sha256<32, false> {
     let mut d = Sha256 {
         h: [0; 8],
         x: [0; CHUNK],
@@ -254,7 +260,9 @@ pub fn new() -> Sha256<32, false> {
     d
 }
 
-// New224 returns a new Digest computing the SHA-224 hash.
+/// Create a new [Hash] computing the SHA-224 checksum.
+///
+/// The Hash also implements [Marshalable] to marshal and unmarshal the internal state of the hash.
 pub fn new224() -> Sha256<28, true> {
     let mut d = Sha256 {
         h: [0; 8],
@@ -266,17 +274,15 @@ pub fn new224() -> Sha256<28, true> {
     d
 }
 
-fn block<const N: usize, const IS_224: bool>(d: &mut Sha256<N, IS_224>, p: &[u8]) {
-    generic::block_generic(d, p);
-}
-
+/// Compute the SHA-256 checksum of the input.
 pub fn sum256(data: &[u8]) -> [u8; SIZE] {
-    let mut h = new();
+    let mut h = new256();
     h.write_all(data).unwrap();
 
     h.sum()
 }
 
+/// Compute the SHA-224 checksum of the input.
 pub fn sum224(data: &[u8]) -> [u8; SIZE224] {
     let mut h = new224();
     h.write_all(data).unwrap();

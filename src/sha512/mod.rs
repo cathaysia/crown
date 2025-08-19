@@ -1,5 +1,8 @@
 //! Package sha512 implements the SHA-384, SHA-512, SHA-512/224, and SHA-512/256
 //! hash algorithms as defined in FIPS 180-4.
+//!
+//! [SHA-256](crate::sha256) and [SHA-512](crate::sha512) belongs to the
+//! [SHA-2](https://en.wikipedia.org/wiki/SHA-2) family of hash functions.
 
 use std::io::Write;
 
@@ -72,7 +75,7 @@ const MAGIC_512_256: &[u8] = b"sha\x06";
 const MAGIC_512: &[u8] = b"sha\x07";
 const MARSHALED_SIZE: usize = 4 + 8 * 8 + CHUNK + 8;
 
-/// SHA-384, SHA-512, SHA-512/224, or SHA-512/256 digest implementation
+/// [Sha512] is a SHA-384, SHA-512, SHA-512/224, or SHA-512/256 hash implementation
 #[derive(Clone)]
 pub struct Sha512<const N: usize> {
     h: [u64; 8],

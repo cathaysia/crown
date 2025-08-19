@@ -12,7 +12,7 @@ static SHA256_HKDF: LazyLock<[(fn() -> crate::sha256::Sha256<32, false>, Vec<Vec
     LazyLock::new(|| {
         [
             (
-                sha256::new,
+                sha256::new256,
                 vec![
                     vec![
                         0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
@@ -37,7 +37,7 @@ static SHA256_HKDF: LazyLock<[(fn() -> crate::sha256::Sha256<32, false>, Vec<Vec
                 ],
             ),
             (
-                sha256::new,
+                sha256::new256,
                 vec![
                     vec![
                         0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b,
@@ -83,7 +83,7 @@ static SHA256_HKDF: LazyLock<[(fn() -> crate::sha256::Sha256<32, false>, Vec<Vec
                 ],
             ),
             (
-                sha256::new,
+                sha256::new256,
                 vec![
                     vec![
                         0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
@@ -105,7 +105,7 @@ static SHA256_HKDF: LazyLock<[(fn() -> crate::sha256::Sha256<32, false>, Vec<Vec
                 ],
             ),
             (
-                sha256::new,
+                sha256::new256,
                 vec![
                     vec![
                         0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
