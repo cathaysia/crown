@@ -22,7 +22,7 @@ fn test_wycheproof_hmac_test() {
             "SHA3-256" => ErasedHash::new(hmac::new(kittycrypto::sha3::new256, key)),
             "SHA3-384" => ErasedHash::new(hmac::new(kittycrypto::sha3::new384, key)),
             "SHA3-512" => ErasedHash::new(hmac::new(kittycrypto::sha3::new512, key)),
-            "SHA512" => ErasedHash::new(hmac::new(kittycrypto::sha512::new, key)),
+            "SHA512" => ErasedHash::new(hmac::new(kittycrypto::sha512::new512, key)),
             _ => return None,
         })
     };

@@ -27,7 +27,7 @@ fn test_hkdf() {
                 info,
             )),
             "SHA-512" => Box::new(kittycrypto::hkdf::new(
-                kittycrypto::sha512::new,
+                kittycrypto::sha512::new512,
                 secret,
                 salt,
                 info,

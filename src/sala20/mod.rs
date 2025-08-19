@@ -1,4 +1,4 @@
-//! Module salsa20 implements the Salsa20 stream cipher as specified in https://cr.yp.to/snuffle/spec.pdf.
+//! Module salsa20 implements the Salsa20 stream cipher as specified in <https://cr.yp.to/snuffle/spec.pdf>.
 //!
 //! Salsa20 differs from many other stream ciphers in that it is message orientated
 //! rather than byte orientated. Keystream blocks are not preserved between calls,
@@ -11,7 +11,7 @@
 //! cipher.
 //!
 //! This package also implements XSalsa20: a version of Salsa20 with a 24-byte
-//! nonce as specified in https://cr.yp.to/snuffle/xsalsa-20081128.pdf. Simply
+//! nonce as specified in <https://cr.yp.to/snuffle/xsalsa-20081128.pdf>. Simply
 //! passing a 24-byte slice as the nonce triggers XSalsa20.
 
 mod hsala20;

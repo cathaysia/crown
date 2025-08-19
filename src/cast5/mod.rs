@@ -8,7 +8,7 @@
 //!
 //! Deprecated: any new system should use [AES](crate::aes::Aes) (if necessary in
 //! an AEAD mode like [Aes-Gcm](crate::aes::gcm::GCM)) or
-//! [ChaCha20-Poly1305](crate::chacha20ploy1305::ChaCha20Poly1305).
+//! [ChaCha20-Poly1305](crate::chacha20poly1305::ChaCha20Poly1305).
 
 mod data;
 

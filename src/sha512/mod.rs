@@ -287,62 +287,53 @@ impl<const N: usize> Hash<N> for Sha512<N> {
         // Make a copy so caller can keep writing and summing
         let mut d0 = self.clone();
         let hash = d0.check_sum();
-        let mut result = Vec::with_capacity(N);
-        result.extend_from_slice(&hash[..N]);
-        result.try_into().unwrap()
+
+        let mut ret = [0u8; N];
+        ret.copy_from_slice(&hash[..N]);
+        ret
     }
 }
 
-/// Create a new SHA-512 digest
-pub fn new() -> Sha512<64> {
-    let mut d = Sha512 {
-        h: [0; 8],
-        x: [0; CHUNK],
-        nx: 0,
-        len: 0,
+macro_rules! impl_new_for {
+    ($name:ident, $len:expr, $x:literal) => {
+        paste::paste! {
+            #[doc =
+                "Create a new [Hash] computing the " $x " checksum.\n\n"
+                "The Hash also implements [Marshalable] to marshal and unmarshal the internal state of the hash."
+            ]
+            pub fn $name() -> Sha512<$len> {
+                let mut d = Sha512 {
+                    h: [0; 8],
+                    x: [0; CHUNK],
+                    nx: 0,
+                    len: 0,
+                };
+                d.reset();
+                d
+            }
+        }
     };
-    d.reset();
-    d
 }
 
-/// Create a new SHA-512/224 digest
-pub fn new_512_224() -> Sha512<28> {
-    let mut d = Sha512 {
-        h: [0; 8],
-        x: [0; CHUNK],
-        nx: 0,
-        len: 0,
+impl_new_for!(new512, 64, "SHA-512");
+impl_new_for!(new384, 48, "SHA-384");
+impl_new_for!(new512_224, 28, "SHA-512/224");
+impl_new_for!(new512_256, 32, "SHA-512/256");
+
+macro_rules! impl_sum_for {
+    ($name:ident, $fn:expr, $len:expr, $x:literal) => {
+        paste::paste! {
+            #[doc = "Compute the " $x " checksum of the input."]
+            pub fn $name(input: &[u8]) -> [u8; $len] {
+                let mut d = $fn();
+                d.write_all(input).unwrap();
+                d.sum()
+            }
+        }
     };
-    d.reset();
-    d
 }
 
-/// Create a new SHA-512/256 digest
-pub fn new_512_256() -> Sha512<32> {
-    let mut d = Sha512 {
-        h: [0; 8],
-        x: [0; CHUNK],
-        nx: 0,
-        len: 0,
-    };
-    d.reset();
-    d
-}
-
-/// Create a new SHA-384 digest
-pub fn new384() -> Sha512<48> {
-    let mut d = Sha512 {
-        h: [0; 8],
-        x: [0; CHUNK],
-        nx: 0,
-        len: 0,
-    };
-    d.reset();
-    d
-}
-
-pub fn sum512(input: &[u8]) -> [u8; 64] {
-    let mut d = new();
-    d.write_all(input).unwrap();
-    d.sum()
-}
+impl_sum_for!(sum512, new512, 64, "SHA-512");
+impl_sum_for!(sum384, new384, 48, "SHA-384");
+impl_sum_for!(sum_512_224, new512_224, 28, "SHA-512/224");
+impl_sum_for!(sum_512_256, new512_256, 32, "SHA-512/256");
