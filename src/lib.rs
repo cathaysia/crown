@@ -11,6 +11,7 @@ pub mod hkdf;
 pub mod hmac;
 pub mod md4;
 pub mod md5;
+pub mod pbkdf2;
 pub mod poly1305;
 pub mod rc2;
 pub mod rc4;
