@@ -5,8 +5,8 @@ use std::io::Write;
 use digest::Digest;
 
 use crate::{
-    blake2b::{new512, tests::data::HASHES},
-    hash::{Hash, HashUser},
+    blake2b::{new512, tests::data::HASHES, Blake2bVariable},
+    hash::{Hash, HashUser, HashVariable},
 };
 
 #[test]
@@ -41,6 +41,29 @@ fn rustcrypto_blake2_interop() {
         rand::fill(buf.as_mut_slice());
 
         let this = &crate::blake2b::sum512(&buf);
+        let rustcrypto = {
+            let mut digest = blake2::Blake2b512::new();
+            digest.update(&buf);
+            digest.finalize()
+        };
+        let rustcrypto = rustcrypto.as_slice();
+
+        assert_eq!(hex::encode(this), hex::encode(rustcrypto));
+    }
+}
+
+#[test]
+fn rustcrypto_blake2_variable_interop() {
+    for _ in 0..1000 {
+        let s: usize = rand::random_range(100..1000);
+        let mut buf = vec![0u8; s];
+        rand::fill(buf.as_mut_slice());
+
+        let this = {
+            let mut digest = Blake2bVariable::new(64, None).unwrap();
+            digest.write_all(&buf).unwrap();
+            digest.sum_vec()
+        };
         let rustcrypto = {
             let mut digest = blake2::Blake2b512::new();
             digest.update(&buf);
