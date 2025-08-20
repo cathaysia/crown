@@ -2,7 +2,11 @@ use crate::{hash::HashVariable, utils::copy};
 
 use super::*;
 
-/// Create a [HashVariable] hasher allow generate checksum between [0, 64].
+/// BLAKE2b hash implementation with variable-length output.
+///
+/// This struct provides a BLAKE2b hasher that can generate checksums of
+/// variable length between 1 and 64 bytes. It implements the [HashVariable]
+/// trait and supports keying for MAC (Message Authentication Code) generation.
 pub struct Blake2bVariable {
     h: [u64; 8],
     c: [u64; 2],
@@ -16,6 +20,12 @@ pub struct Blake2bVariable {
 const MAGIC: &[u8] = b"b2b";
 const MARSHALED_SIZE: usize = MAGIC.len() + 8 * 8 + 2 * 8 + 1 + BLOCK_SIZE + 1;
 impl Blake2bVariable {
+    /// Create a [HashVariable] hasher allow generate checksum between [0, 64].
+    ///
+    /// # Arguments
+    ///
+    /// * `hash_size` - The size of the hash output in bytes, must be between 1 and 64 inclusive
+    /// * `key` - Optional key for keyed hashing, if provided must not exceed 64 bytes
     pub fn new(hash_size: usize, key: Option<&[u8]>) -> CryptoResult<Blake2bVariable> {
         let key = key.unwrap_or(&[]);
 
