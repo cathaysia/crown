@@ -1,4 +1,5 @@
 pub mod aes;
+pub mod argon2;
 pub mod bcrypt;
 pub mod blake2b;
 pub mod blowfish;
