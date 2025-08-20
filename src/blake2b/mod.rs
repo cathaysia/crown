@@ -39,7 +39,9 @@ const MAGIC: &[u8] = b"b2b";
 const MARSHALED_SIZE: usize = MAGIC.len() + 8 * 8 + 2 * 8 + 1 + BLOCK_SIZE + 1;
 
 impl<const N: usize> Blake2b<N> {
-    fn new(key: &[u8]) -> CryptoResult<Blake2b<N>> {
+    fn new(key: Option<&[u8]>) -> CryptoResult<Blake2b<N>> {
+        let key = key.unwrap_or(&[]);
+
         if !(1..=SIZE).contains(&N) {
             return Err(CryptoError::InvalidParameter(
                 "invalid hash size".to_string(),
@@ -216,47 +218,6 @@ impl<const N: usize> Hash<N> for Blake2b<N> {
     }
 }
 
-/// Compute the blake2b checksum of the input.
-pub fn sum_var(sum: &mut [u8; SIZE], hash_size: usize, data: &[u8]) {
-    let mut h = IV;
-    h[0] ^= hash_size as u64 | (1 << 16) | (1 << 24);
-    let mut c = [0u64; 2];
-
-    let mut data = data;
-    if data.len() > BLOCK_SIZE {
-        let mut n = data.len() & !(BLOCK_SIZE - 1);
-        if data.len() == n {
-            n -= BLOCK_SIZE;
-        }
-        hash_blocks(&mut h, &mut c, 0, &data[..n]);
-        data = &data[n..];
-    }
-
-    let mut block = [0u8; BLOCK_SIZE];
-    let offset = {
-        let len = data.len().min(BLOCK_SIZE);
-        block[..len].copy_from_slice(&data[..len]);
-        len
-    };
-
-    let remaining = (BLOCK_SIZE - offset) as u64;
-    if c[0] < remaining {
-        c[1] = c[1].wrapping_sub(1);
-    }
-    c[0] = c[0].wrapping_sub(remaining);
-
-    hash_blocks(&mut h, &mut c, 0xFFFFFFFFFFFFFFFF, &block);
-
-    for (i, &v) in h.iter().enumerate().take((hash_size + 7) / 8) {
-        let bytes = v.to_le_bytes();
-        let start = 8 * i;
-        let end = (start + 8).min(sum.len());
-        if start < sum.len() {
-            sum[start..end].copy_from_slice(&bytes[..end - start]);
-        }
-    }
-}
-
 macro_rules! impl_new_for {
     ($name:ident, $len:expr, $x:literal) => {
         paste::paste! {
@@ -264,7 +225,7 @@ macro_rules! impl_new_for {
                 "Create a new [Hash] computing the " $x " checksum.\n\n"
                 "The Hash also implements [Marshalable] to marshal and unmarshal the internal state of the hash."
             ]
-            pub fn $name(key: &[u8]) -> CryptoResult<Blake2b<$len>> {
+            pub fn $name(key: Option<&[u8]>) -> CryptoResult<Blake2b<$len>> {
                 Blake2b::new(key)
             }
         }
@@ -280,12 +241,9 @@ macro_rules! impl_sum_for {
         paste::paste! {
             #[doc = "Compute the " $x " checksum of the input."]
             pub fn $name(data: &[u8]) -> [u8; $len] {
-                let mut sum = [0u8; SIZE];
-                sum_var(&mut sum, SIZE, data);
-
-                let mut x = [0u8; $len];
-                x.copy_from_slice(&sum[..$len]);
-                x
+                let mut digest = Blake2b::<$len>::new(None).unwrap();
+                digest.write_all(&data).unwrap();
+                digest.sum()
             }
         }
     };

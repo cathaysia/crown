@@ -18,7 +18,7 @@ fn test_hashes() {
     });
 
     for (i, expected) in HASHES.iter().enumerate() {
-        let mut h = new512(&key).unwrap();
+        let mut h = new512(Some(&key)).unwrap();
         h.write_all(&input[..i]).unwrap();
         let sum = h.sum();
         assert_eq!(&hex::encode(sum), expected);
