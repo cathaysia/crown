@@ -1,3 +1,7 @@
+[workspace]
+resolver = "2"
+members = ["bin/kt"]
+
 [package]
 name = "kittycrypto"
 version = "0.1.0"
