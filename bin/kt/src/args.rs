@@ -5,6 +5,19 @@ use clap::{Parser, ValueEnum};
 #[derive(Debug, Parser)]
 pub enum Args {
     Hash(ArgsHash),
+    Rand(ArgsRand),
+}
+
+#[derive(Debug, Parser)]
+pub struct ArgsRand {
+    #[clap(long, default_value_t = true)]
+    pub hex: bool,
+    #[clap(long, default_value_t = false)]
+    pub base64: bool,
+    #[clap(long)]
+    pub out: Option<String>,
+    #[clap(default_value_t = 0)]
+    pub num: usize,
 }
 
 #[derive(Debug, Parser)]

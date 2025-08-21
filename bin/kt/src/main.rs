@@ -1,5 +1,7 @@
 mod utils;
 
+use args::ArgsRand;
+use base64::Engine;
 use clap::Parser;
 use kittycrypto::hash::ErasedHash;
 use std::io::Write;
@@ -15,11 +17,10 @@ fn main() -> anyhow::Result<()> {
 
     let prog = std::env::args().next();
     let prog = {
-        prog.map(|prog| {
+        prog.and_then(|prog| {
             let path = std::path::Path::new(&prog);
             path.file_stem().map(|v| v.to_string_lossy().to_string())
         })
-        .flatten()
         .unwrap_or("md5sum".into())
         .to_lowercase()
     };
@@ -42,6 +43,27 @@ fn main() -> anyhow::Result<()> {
                 hasher.write_all(&content).unwrap();
                 let sum = hasher.sum();
                 println!("{}  {}", hex::encode(sum), path);
+            }
+        }
+        args::Args::Rand(ArgsRand {
+            hex,
+            base64,
+            out,
+            num,
+        }) => {
+            let mut buf = vec![0u8; num];
+            rand::fill(buf.as_mut_slice());
+            let buf = if hex {
+                hex::encode(&buf)
+            } else if base64 {
+                base64::prelude::BASE64_STANDARD.encode(&buf)
+            } else {
+                format!("{buf:?}")
+            };
+            if let Some(out) = out {
+                std::fs::write(out, buf).unwrap();
+            } else {
+                println!("{buf}")
             }
         }
     }
