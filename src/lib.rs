@@ -2,6 +2,7 @@ pub mod aes;
 pub mod argon2;
 pub mod bcrypt;
 pub mod blake2b;
+pub mod blake2s;
 pub mod blowfish;
 pub mod cast5;
 pub mod chacha20;

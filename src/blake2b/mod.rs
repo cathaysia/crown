@@ -33,7 +33,7 @@ pub struct Blake2b<const N: usize>(Blake2bVariable);
 
 impl<const N: usize> Blake2b<N> {
     fn new(key: Option<&[u8]>) -> CryptoResult<Blake2b<N>> {
-        Ok(Self(Blake2bVariable::new(N, key)?))
+        Ok(Self(Blake2bVariable::new(key, N)?))
     }
 }
 

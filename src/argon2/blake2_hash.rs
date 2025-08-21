@@ -11,7 +11,7 @@ pub fn blake2b_hash(mut out: &mut [u8], input: &[u8]) -> CryptoResult<()> {
     let hash_len = out_len.min(BLAKE2B_SIZE);
 
     // Create blake2b hasher based on output length
-    let mut hasher = Blake2bVariable::new(hash_len, None)?;
+    let mut hasher = Blake2bVariable::new(None, hash_len)?;
 
     // Write output length as little-endian u32 to buffer
     let mut buffer = [0u8; BLAKE2B_SIZE];
@@ -54,7 +54,7 @@ pub fn blake2b_hash(mut out: &mut [u8], input: &[u8]) -> CryptoResult<()> {
     if out_len % BLAKE2B_SIZE > 0 {
         let r = ((out_len + 31) / 32) - 2; // ⌈τ /32⌉-2
         let final_size = out_len - 32 * r;
-        hasher = Blake2bVariable::new(final_size, None)?;
+        hasher = Blake2bVariable::new(None, final_size)?;
     }
 
     hasher

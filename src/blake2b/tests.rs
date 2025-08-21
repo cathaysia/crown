@@ -60,7 +60,7 @@ fn rustcrypto_blake2_variable_interop() {
         rand::fill(buf.as_mut_slice());
 
         let this = {
-            let mut digest = Blake2bVariable::new(64, None).unwrap();
+            let mut digest = Blake2bVariable::new(None, 64).unwrap();
             digest.write_all(&buf).unwrap();
             digest.sum_vec()
         };

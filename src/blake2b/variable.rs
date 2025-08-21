@@ -26,7 +26,7 @@ impl Blake2bVariable {
     ///
     /// * `hash_size` - The size of the hash output in bytes, must be between 1 and 64 inclusive
     /// * `key` - Optional key for keyed hashing, if provided must not exceed 64 bytes
-    pub fn new(hash_size: usize, key: Option<&[u8]>) -> CryptoResult<Blake2bVariable> {
+    pub fn new(key: Option<&[u8]>, hash_size: usize) -> CryptoResult<Blake2bVariable> {
         let key = key.unwrap_or(&[]);
 
         if !(1..=SIZE).contains(&hash_size) {

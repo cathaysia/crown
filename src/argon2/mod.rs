@@ -204,7 +204,7 @@ fn init_hash(
     let mut tmp = [0u8; 4];
 
     // Create blake2b hasher
-    let mut b2 = crate::blake2b::Blake2bVariable::new(BLAKE2B_SIZE, None)?;
+    let mut b2 = crate::blake2b::Blake2bVariable::new(None, BLAKE2B_SIZE)?;
 
     // Write parameters
     params[0..4].copy_from_slice(&threads.to_le_bytes());
