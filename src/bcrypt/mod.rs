@@ -12,6 +12,7 @@ use crate::{
     blowfish::{expand_key, Blowfish as BlowfishCipher},
     cipher::BlockCipher,
     error::CryptoError,
+    internal::drbg,
     utils::constant_time_eq,
 };
 use std::fmt;
@@ -225,7 +226,7 @@ fn new_from_password(password: &[u8], cost: u32) -> Result<Hashed, BcryptError> 
     p.cost = cost;
 
     let mut unencoded_salt = vec![0u8; MAX_SALT_SIZE];
-    rand::fill(unencoded_salt.as_mut_slice());
+    drbg::read(unencoded_salt.as_mut_slice());
 
     p.salt = base64_encode(&unencoded_salt);
     let hash = bcrypt(password, p.cost, &p.salt)?;

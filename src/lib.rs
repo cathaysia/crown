@@ -32,5 +32,6 @@ pub mod xtea;
 
 pub mod error;
 
-pub mod subtle;
+pub(crate) mod internal;
+pub(crate) mod subtle;
 pub(crate) mod utils;
