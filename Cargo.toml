@@ -7,6 +7,10 @@ name = "kittycrypto"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+cuda = []
+
 [profile.relwithdebinfo]
 inherits = "release"
 debug = true
@@ -49,7 +53,6 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.142"
 typify = "0.4.2"
 blake2 = "0.10.6"
-aes-gcm = "0.10.3"
 anyhow = "1.0.99"
 
 [[bench]]
@@ -110,3 +113,6 @@ harness = false
 [[bench]]
 name = "twofish"
 harness = false
+
+[build-dependencies]
+cc = "1.2.34"

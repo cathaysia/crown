@@ -32,3 +32,11 @@ repos:
         language: system
         types_or: [nix]
         entry: nixfmt
+
+  - repo: local
+    hooks:
+      - id: clang-format
+        name: clang-format
+        language: system
+        types_or: [c, c++, cuda]
+        entry: clang-format -i --style=file

@@ -30,8 +30,11 @@ pub mod tea;
 pub mod twofish;
 pub mod xtea;
 
+#[cfg(feature = "cuda")]
+pub mod cuda;
+
 pub mod error;
 
 pub(crate) mod internal;
-pub(crate) mod subtle;
+pub mod subtle;
 pub(crate) mod utils;
