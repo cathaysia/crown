@@ -7,6 +7,9 @@ mod md5block;
 // mod arch;
 // use arch::*;
 
+#[cfg(feature = "cuda")]
+pub mod md5_cuda;
+
 mod md5_generic;
 use std::io::Write;
 
