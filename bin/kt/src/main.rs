@@ -1,14 +1,14 @@
 mod utils;
 
+use crate::args::ArgsHash;
 use args::ArgsRand;
 use base64::Engine;
 use clap::Parser;
 use kittycrypto::hash::ErasedHash;
+use rayon::prelude::*;
 use std::io::Write;
 use tracing::*;
 use utils::init_logger;
-
-use crate::args::ArgsHash;
 
 mod args;
 
@@ -35,7 +35,35 @@ fn main() -> anyhow::Result<()> {
                 algorithm, files, ..
             } = args_hash;
 
-            for path in files {
+            #[cfg(feature = "cuda")]
+            if matches!(algorithm, args::HashAlgorithm::CudaMd5) {
+                debug!("use cuda");
+                let mut all_data = Vec::new();
+                let mut file_sizes = Vec::new();
+                let mut file_paths = Vec::new();
+
+                for path in &files {
+                    let content = std::fs::read(path).unwrap();
+                    file_sizes.push(content.len() as u32);
+                    all_data.extend_from_slice(&content);
+                    file_paths.push(path.clone());
+                }
+
+                let mut output = vec![0u8; file_paths.len() * 16];
+
+                kittycrypto::md5::md5_cuda::md5_sum_batch_cuda(&all_data, &file_sizes, &mut output)
+                    .unwrap();
+
+                for (i, path) in file_paths.iter().enumerate() {
+                    let hash_start = i * 16;
+                    let hash_end = hash_start + 16;
+                    let hash = &output[hash_start..hash_end];
+                    println!("{}  {}", hex::encode(hash), path);
+                }
+
+                return Ok(());
+            }
+            files.into_par_iter().for_each(|path| {
                 let content = std::fs::read(&path).unwrap();
                 let mut hasher = create_hash_from_str(&algorithm.to_string())
                     .unwrap_or_else(|| panic!("unknown hash algorithm: {algorithm}"));
@@ -43,7 +71,7 @@ fn main() -> anyhow::Result<()> {
                 hasher.write_all(&content).unwrap();
                 let sum = hasher.sum();
                 println!("{}  {}", hex::encode(sum), path);
-            }
+            });
         }
         args::Args::Rand(ArgsRand {
             hex,

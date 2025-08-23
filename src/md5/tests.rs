@@ -2,13 +2,13 @@ use std::cmp::Ordering;
 
 use super::*;
 
-struct Md5Test {
-    out: &'static str,
-    input: &'static str,
-    half_state: &'static [u8],
+pub(crate) struct Md5Test {
+    pub(crate) out: &'static str,
+    pub(crate) input: &'static str,
+    pub(crate) half_state: &'static [u8],
 }
 
-static GOLDEN: &[Md5Test] = &[
+pub(crate)static GOLDEN: &[Md5Test] = &[
         Md5Test {
             out: "d41d8cd98f00b204e9800998ecf8427e",
             input: "",

@@ -68,6 +68,8 @@ pub enum HashAlgorithm {
     Sha3384,
     #[clap(name = "sha3-512")]
     Sha3512,
+    #[cfg(feature = "cuda")]
+    CudaMd5,
 }
 
 impl Display for HashAlgorithm {
@@ -86,6 +88,8 @@ impl Display for HashAlgorithm {
             Self::Sha3256 => "sha3-256",
             Self::Sha3384 => "sha3-384",
             Self::Sha3512 => "sha3-512",
+            #[cfg(feature = "cuda")]
+            Self::CudaMd5 => "cuda-md5",
         };
 
         write!(f, "{}", v)

@@ -86,94 +86,105 @@ __device__ void md5_init(Md5Digest* self) {
 }
 
 // Process a block of data
-__device__ void md5_block_process(Md5Digest* self, const uint8_t* block) {
+__device__ void md5_block_process(Md5Digest* self, const uint8_t* block, uintptr_t block_size) {
     uint32_t a = self->s[0];
     uint32_t b = self->s[1];
     uint32_t c = self->s[2];
     uint32_t d = self->s[3];
 
-    uint32_t x[16];
-    for(int i = 0; i < 16; i++) {
-        x[i] = le_u32(&block[i * 4]);
+    for(uintptr_t i = 0; i + 64 <= block_size; i += 64) {
+        uint32_t x[16];
+        for(int j = 0; j < 16; j++) {
+            x[j] = le_u32(&block[i + j * 4]);
+        }
+
+        uint32_t aa = a;
+        uint32_t bb = b;
+        uint32_t cc = c;
+        uint32_t dd = d;
+
+        // Round 1
+        a = b + rotl((((c ^ d) & b) ^ d) + a + x[0] + 0xd76aa478, 7);
+        d = a + rotl((((b ^ c) & a) ^ c) + d + x[1] + 0xe8c7b756, 12);
+        c = d + rotl((((a ^ b) & d) ^ b) + c + x[2] + 0x242070db, 17);
+        b = c + rotl((((d ^ a) & c) ^ a) + b + x[3] + 0xc1bdceee, 22);
+        a = b + rotl((((c ^ d) & b) ^ d) + a + x[4] + 0xf57c0faf, 7);
+        d = a + rotl((((b ^ c) & a) ^ c) + d + x[5] + 0x4787c62a, 12);
+        c = d + rotl((((a ^ b) & d) ^ b) + c + x[6] + 0xa8304613, 17);
+        b = c + rotl((((d ^ a) & c) ^ a) + b + x[7] + 0xfd469501, 22);
+        a = b + rotl((((c ^ d) & b) ^ d) + a + x[8] + 0x698098d8, 7);
+        d = a + rotl((((b ^ c) & a) ^ c) + d + x[9] + 0x8b44f7af, 12);
+        c = d + rotl((((a ^ b) & d) ^ b) + c + x[10] + 0xffff5bb1, 17);
+        b = c + rotl((((d ^ a) & c) ^ a) + b + x[11] + 0x895cd7be, 22);
+        a = b + rotl((((c ^ d) & b) ^ d) + a + x[12] + 0x6b901122, 7);
+        d = a + rotl((((b ^ c) & a) ^ c) + d + x[13] + 0xfd987193, 12);
+        c = d + rotl((((a ^ b) & d) ^ b) + c + x[14] + 0xa679438e, 17);
+        b = c + rotl((((d ^ a) & c) ^ a) + b + x[15] + 0x49b40821, 22);
+
+        // Round 2
+        a = b + rotl((((b ^ c) & d) ^ c) + a + x[1] + 0xf61e2562, 5);
+        d = a + rotl((((a ^ b) & c) ^ b) + d + x[6] + 0xc040b340, 9);
+        c = d + rotl((((d ^ a) & b) ^ a) + c + x[11] + 0x265e5a51, 14);
+        b = c + rotl((((c ^ d) & a) ^ d) + b + x[0] + 0xe9b6c7aa, 20);
+        a = b + rotl((((b ^ c) & d) ^ c) + a + x[5] + 0xd62f105d, 5);
+        d = a + rotl((((a ^ b) & c) ^ b) + d + x[10] + 0x02441453, 9);
+        c = d + rotl((((d ^ a) & b) ^ a) + c + x[15] + 0xd8a1e681, 14);
+        b = c + rotl((((c ^ d) & a) ^ d) + b + x[4] + 0xe7d3fbc8, 20);
+        a = b + rotl((((b ^ c) & d) ^ c) + a + x[9] + 0x21e1cde6, 5);
+        d = a + rotl((((a ^ b) & c) ^ b) + d + x[14] + 0xc33707d6, 9);
+        c = d + rotl((((d ^ a) & b) ^ a) + c + x[3] + 0xf4d50d87, 14);
+        b = c + rotl((((c ^ d) & a) ^ d) + b + x[8] + 0x455a14ed, 20);
+        a = b + rotl((((b ^ c) & d) ^ c) + a + x[13] + 0xa9e3e905, 5);
+        d = a + rotl((((a ^ b) & c) ^ b) + d + x[2] + 0xfcefa3f8, 9);
+        c = d + rotl((((d ^ a) & b) ^ a) + c + x[7] + 0x676f02d9, 14);
+        b = c + rotl((((c ^ d) & a) ^ d) + b + x[12] + 0x8d2a4c8a, 20);
+
+        // Round 3
+        a = b + rotl((b ^ c ^ d) + a + x[5] + 0xfffa3942, 4);
+        d = a + rotl((a ^ b ^ c) + d + x[8] + 0x8771f681, 11);
+        c = d + rotl((d ^ a ^ b) + c + x[11] + 0x6d9d6122, 16);
+        b = c + rotl((c ^ d ^ a) + b + x[14] + 0xfde5380c, 23);
+        a = b + rotl((b ^ c ^ d) + a + x[1] + 0xa4beea44, 4);
+        d = a + rotl((a ^ b ^ c) + d + x[4] + 0x4bdecfa9, 11);
+        c = d + rotl((d ^ a ^ b) + c + x[7] + 0xf6bb4b60, 16);
+        b = c + rotl((c ^ d ^ a) + b + x[10] + 0xbebfbc70, 23);
+        a = b + rotl((b ^ c ^ d) + a + x[13] + 0x289b7ec6, 4);
+        d = a + rotl((a ^ b ^ c) + d + x[0] + 0xeaa127fa, 11);
+        c = d + rotl((d ^ a ^ b) + c + x[3] + 0xd4ef3085, 16);
+        b = c + rotl((c ^ d ^ a) + b + x[6] + 0x04881d05, 23);
+        a = b + rotl((b ^ c ^ d) + a + x[9] + 0xd9d4d039, 4);
+        d = a + rotl((a ^ b ^ c) + d + x[12] + 0xe6db99e5, 11);
+        c = d + rotl((d ^ a ^ b) + c + x[15] + 0x1fa27cf8, 16);
+        b = c + rotl((c ^ d ^ a) + b + x[2] + 0xc4ac5665, 23);
+
+        // Round 4
+        a = b + rotl((c ^ (b | ~d)) + a + x[0] + 0xf4292244, 6);
+        d = a + rotl((b ^ (a | ~c)) + d + x[7] + 0x432aff97, 10);
+        c = d + rotl((a ^ (d | ~b)) + c + x[14] + 0xab9423a7, 15);
+        b = c + rotl((d ^ (c | ~a)) + b + x[5] + 0xfc93a039, 21);
+        a = b + rotl((c ^ (b | ~d)) + a + x[12] + 0x655b59c3, 6);
+        d = a + rotl((b ^ (a | ~c)) + d + x[3] + 0x8f0ccc92, 10);
+        c = d + rotl((a ^ (d | ~b)) + c + x[10] + 0xffeff47d, 15);
+        b = c + rotl((d ^ (c | ~a)) + b + x[1] + 0x85845dd1, 21);
+        a = b + rotl((c ^ (b | ~d)) + a + x[8] + 0x6fa87e4f, 6);
+        d = a + rotl((b ^ (a | ~c)) + d + x[15] + 0xfe2ce6e0, 10);
+        c = d + rotl((a ^ (d | ~b)) + c + x[6] + 0xa3014314, 15);
+        b = c + rotl((d ^ (c | ~a)) + b + x[13] + 0x4e0811a1, 21);
+        a = b + rotl((c ^ (b | ~d)) + a + x[4] + 0xf7537e82, 6);
+        d = a + rotl((b ^ (a | ~c)) + d + x[11] + 0xbd3af235, 10);
+        c = d + rotl((a ^ (d | ~b)) + c + x[2] + 0x2ad7d2bb, 15);
+        b = c + rotl((d ^ (c | ~a)) + b + x[9] + 0xeb86d391, 21);
+
+        a += aa;
+        b += bb;
+        c += cc;
+        d += dd;
     }
-
-    // Round 1
-    a = b + rotl((((c ^ d) & b) ^ d) + a + x[0] + 0xd76aa478, 7);
-    d = a + rotl((((b ^ c) & a) ^ c) + d + x[1] + 0xe8c7b756, 12);
-    c = d + rotl((((a ^ b) & d) ^ b) + c + x[2] + 0x242070db, 17);
-    b = c + rotl((((d ^ a) & c) ^ a) + b + x[3] + 0xc1bdceee, 22);
-    a = b + rotl((((c ^ d) & b) ^ d) + a + x[4] + 0xf57c0faf, 7);
-    d = a + rotl((((b ^ c) & a) ^ c) + d + x[5] + 0x4787c62a, 12);
-    c = d + rotl((((a ^ b) & d) ^ b) + c + x[6] + 0xa8304613, 17);
-    b = c + rotl((((d ^ a) & c) ^ a) + b + x[7] + 0xfd469501, 22);
-    a = b + rotl((((c ^ d) & b) ^ d) + a + x[8] + 0x698098d8, 7);
-    d = a + rotl((((b ^ c) & a) ^ c) + d + x[9] + 0x8b44f7af, 12);
-    c = d + rotl((((a ^ b) & d) ^ b) + c + x[10] + 0xffff5bb1, 17);
-    b = c + rotl((((d ^ a) & c) ^ a) + b + x[11] + 0x895cd7be, 22);
-    a = b + rotl((((c ^ d) & b) ^ d) + a + x[12] + 0x6b901122, 7);
-    d = a + rotl((((b ^ c) & a) ^ c) + d + x[13] + 0xfd987193, 12);
-    c = d + rotl((((a ^ b) & d) ^ b) + c + x[14] + 0xa679438e, 17);
-    b = c + rotl((((d ^ a) & c) ^ a) + b + x[15] + 0x49b40821, 22);
-
-    // Round 2
-    a = b + rotl((((b ^ c) & d) ^ c) + a + x[1] + 0xf61e2562, 5);
-    d = a + rotl((((a ^ b) & c) ^ b) + d + x[6] + 0xc040b340, 9);
-    c = d + rotl((((d ^ a) & b) ^ a) + c + x[11] + 0x265e5a51, 14);
-    b = c + rotl((((c ^ d) & a) ^ d) + b + x[0] + 0xe9b6c7aa, 20);
-    a = b + rotl((((b ^ c) & d) ^ c) + a + x[5] + 0xd62f105d, 5);
-    d = a + rotl((((a ^ b) & c) ^ b) + d + x[10] + 0x02441453, 9);
-    c = d + rotl((((d ^ a) & b) ^ a) + c + x[15] + 0xd8a1e681, 14);
-    b = c + rotl((((c ^ d) & a) ^ d) + b + x[4] + 0xe7d3fbc8, 20);
-    a = b + rotl((((b ^ c) & d) ^ c) + a + x[9] + 0x21e1cde6, 5);
-    d = a + rotl((((a ^ b) & c) ^ b) + d + x[14] + 0xc33707d6, 9);
-    c = d + rotl((((d ^ a) & b) ^ a) + c + x[3] + 0xf4d50d87, 14);
-    b = c + rotl((((c ^ d) & a) ^ d) + b + x[8] + 0x455a14ed, 20);
-    a = b + rotl((((b ^ c) & d) ^ c) + a + x[13] + 0xa9e3e905, 5);
-    d = a + rotl((((a ^ b) & c) ^ b) + d + x[2] + 0xfcefa3f8, 9);
-    c = d + rotl((((d ^ a) & b) ^ a) + c + x[7] + 0x676f02d9, 14);
-    b = c + rotl((((c ^ d) & a) ^ d) + b + x[12] + 0x8d2a4c8a, 20);
-
-    // Round 3
-    a = b + rotl((b ^ c ^ d) + a + x[5] + 0xfffa3942, 4);
-    d = a + rotl((a ^ b ^ c) + d + x[8] + 0x8771f681, 11);
-    c = d + rotl((d ^ a ^ b) + c + x[11] + 0x6d9d6122, 16);
-    b = c + rotl((c ^ d ^ a) + b + x[14] + 0xfde5380c, 23);
-    a = b + rotl((b ^ c ^ d) + a + x[1] + 0xa4beea44, 4);
-    d = a + rotl((a ^ b ^ c) + d + x[4] + 0x4bdecfa9, 11);
-    c = d + rotl((d ^ a ^ b) + c + x[7] + 0xf6bb4b60, 16);
-    b = c + rotl((c ^ d ^ a) + b + x[10] + 0xbebfbc70, 23);
-    a = b + rotl((b ^ c ^ d) + a + x[13] + 0x289b7ec6, 4);
-    d = a + rotl((a ^ b ^ c) + d + x[0] + 0xeaa127fa, 11);
-    c = d + rotl((d ^ a ^ b) + c + x[3] + 0xd4ef3085, 16);
-    b = c + rotl((c ^ d ^ a) + b + x[6] + 0x04881d05, 23);
-    a = b + rotl((b ^ c ^ d) + a + x[9] + 0xd9d4d039, 4);
-    d = a + rotl((a ^ b ^ c) + d + x[12] + 0xe6db99e5, 11);
-    c = d + rotl((d ^ a ^ b) + c + x[15] + 0x1fa27cf8, 16);
-    b = c + rotl((c ^ d ^ a) + b + x[2] + 0xc4ac5665, 23);
-
-    // Round 4
-    a = b + rotl((c ^ (b | ~d)) + a + x[0] + 0xf4292244, 6);
-    d = a + rotl((b ^ (a | ~c)) + d + x[7] + 0x432aff97, 10);
-    c = d + rotl((a ^ (d | ~b)) + c + x[14] + 0xab9423a7, 15);
-    b = c + rotl((d ^ (c | ~a)) + b + x[5] + 0xfc93a039, 21);
-    a = b + rotl((c ^ (b | ~d)) + a + x[12] + 0x655b59c3, 6);
-    d = a + rotl((b ^ (a | ~c)) + d + x[3] + 0x8f0ccc92, 10);
-    c = d + rotl((a ^ (d | ~b)) + c + x[10] + 0xffeff47d, 15);
-    b = c + rotl((d ^ (c | ~a)) + b + x[1] + 0x85845dd1, 21);
-    a = b + rotl((c ^ (b | ~d)) + a + x[8] + 0x6fa87e4f, 6);
-    d = a + rotl((b ^ (a | ~c)) + d + x[15] + 0xfe2ce6e0, 10);
-    c = d + rotl((a ^ (d | ~b)) + c + x[6] + 0xa3014314, 15);
-    b = c + rotl((d ^ (c | ~a)) + b + x[13] + 0x4e0811a1, 21);
-    a = b + rotl((c ^ (b | ~d)) + a + x[4] + 0xf7537e82, 6);
-    d = a + rotl((b ^ (a | ~c)) + d + x[11] + 0xbd3af235, 10);
-    c = d + rotl((a ^ (d | ~b)) + c + x[2] + 0x2ad7d2bb, 15);
-    b = c + rotl((d ^ (c | ~a)) + b + x[9] + 0xeb86d391, 21);
-
     // Add back to state
-    self->s[0] += a;
-    self->s[1] += b;
-    self->s[2] += c;
-    self->s[3] += d;
+    self->s[0] = a;
+    self->s[1] = b;
+    self->s[2] = c;
+    self->s[3] = d;
 }
 
 #define min(x, y) ((x) > (y) ? (y) : (x))
@@ -189,7 +200,7 @@ __device__ void md5_update(Md5Digest* self, const uint8_t* p, size_t len) {
         self->nx += n;
 
         if(self->nx == MD5_BLOCK_SIZE) {
-            md5_block_process(self, self->x);
+            md5_block_process(self, self->x, 64);
             self->nx = 0;
         }
 
@@ -197,9 +208,9 @@ __device__ void md5_update(Md5Digest* self, const uint8_t* p, size_t len) {
         len -= n;
     }
 
-    if(len > MD5_BLOCK_SIZE) {
-        size_t n = len & !(MD5_BLOCK_SIZE - 1);
-        md5_block_process(self, p);
+    if(len >= MD5_BLOCK_SIZE) {
+        size_t n = len & ~(MD5_BLOCK_SIZE - 1);
+        md5_block_process(self, p, n);
         p = p + n;
         len -= n;
     }

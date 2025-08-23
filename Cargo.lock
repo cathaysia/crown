@@ -686,6 +686,7 @@ dependencies = [
  "hex",
  "kittycrypto",
  "rand",
+ "rayon",
  "tracing",
  "tracing-subscriber",
 ]
