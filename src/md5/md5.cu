@@ -252,7 +252,7 @@ __device__ void md5_final(Md5Digest* self, uint8_t* digest) {
 __global__ void calculate_md5_kernel(
     const uint32_t count,
     const uint32_t* file_sizes,
-    const uint32_t* file_offsets,  // Optional: Pre-calculated offsets for better performance
+    const uint32_t* file_offsets,
     const uint8_t* data,
     uint8_t* output
 ) {
@@ -263,17 +263,7 @@ __global__ void calculate_md5_kernel(
     }
 
     // Calculate offset for this file's data
-    uint64_t offset;
-    if(file_offsets != nullptr) {
-        // Use pre-calculated offset if provided
-        offset = file_offsets[idx];
-    } else {
-        // Calculate offset on the fly
-        offset = 0;
-        for(uint32_t i = 0; i < idx; i++) {
-            offset += file_sizes[i];
-        }
-    }
+    uint64_t offset = file_offsets[idx];
 
     // Initialize MD5 context
     Md5Digest ctx;
@@ -290,70 +280,17 @@ __global__ void calculate_md5_kernel(
 extern "C" cudaError_t md5_sum_batch(
     const uint32_t count,
     const uint32_t* file_sizes,
+    const uint32_t* file_offsets,
     const uint8_t* data,
     uint8_t* output,
     cudaStream_t stream = 0
 ) {
-    cudaError_t err;
-
-    // Calculate grid and block dimensions
-    // Adjust based on GPU capabilities for better performance
     const int threadsPerBlock = 256;
     const int blocksPerGrid = (count + threadsPerBlock - 1) / threadsPerBlock;
 
-    // Optional: Pre-calculate file offsets for better performance
-    uint32_t* d_file_offsets = nullptr;
-    if(count > 1000) {  // Only worth it for large batch sizes
-        // Allocate device memory for offsets
-        err = cudaMalloc(&d_file_offsets, count * sizeof(uint32_t));
-        if(err != cudaSuccess) {
-            return err;
-        }
-
-        // Create host array for offsets
-        uint32_t* h_file_offsets = new uint32_t[count];
-        if(!h_file_offsets) {
-            cudaFree(d_file_offsets);
-            return cudaErrorMemoryAllocation;
-        }
-
-        // Calculate offsets
-        uint64_t offset = 0;
-        for(uint32_t i = 0; i < count; i++) {
-            h_file_offsets[i] = offset;
-            offset += file_sizes[i];
-        }
-
-        // Copy offsets to device
-        err = cudaMemcpy(d_file_offsets, h_file_offsets, count * sizeof(uint32_t), cudaMemcpyHostToDevice);
-        delete[] h_file_offsets;
-
-        if(err != cudaSuccess) {
-            cudaFree(d_file_offsets);
-            return err;
-        }
-    }
-
-    // Launch kernel
     calculate_md5_kernel<<<blocksPerGrid, threadsPerBlock, 0, stream>>>(
-        count, file_sizes, d_file_offsets, data, output
+        count, file_sizes, file_offsets, data, output
     );
 
-    // Free temporary memory
-    if(d_file_offsets) {
-        cudaFree(d_file_offsets);
-    }
-
-    // Check for kernel launch errors
-    err = cudaGetLastError();
-    if(err != cudaSuccess) {
-        return err;
-    }
-
-    // Synchronize if no stream is provided
-    if(stream == 0) {
-        return cudaDeviceSynchronize();
-    }
-
-    return cudaSuccess;
+    return cudaGetLastError();
 }

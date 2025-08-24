@@ -29,6 +29,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     let args = args::Args::parse();
+    trace!(?args);
     match args {
         args::Args::Hash(args_hash) => {
             let ArgsHash {
@@ -37,23 +38,37 @@ fn main() -> anyhow::Result<()> {
 
             #[cfg(feature = "cuda")]
             if matches!(algorithm, args::HashAlgorithm::CudaMd5) {
-                debug!("use cuda");
+                use kittycrypto::cuda::mem::CudaMemory;
+
                 let mut all_data = Vec::new();
                 let mut file_sizes = Vec::new();
+                let mut file_offsets = Vec::new();
                 let mut file_paths = Vec::new();
 
+                let mut offset: u32 = 0;
                 for path in &files {
                     let content = std::fs::read(path).unwrap();
                     file_sizes.push(content.len() as u32);
                     all_data.extend_from_slice(&content);
                     file_paths.push(path.clone());
+                    file_offsets.push(offset);
+                    offset += content.len() as u32;
                 }
 
-                let mut output = vec![0u8; file_paths.len() * 16];
+                let all_data = CudaMemory::from_slice_to_device(&all_data).unwrap();
+                let file_sizes = CudaMemory::from_slice_to_device(&file_sizes).unwrap();
+                let file_offsets = CudaMemory::from_slice_to_device(&file_offsets).unwrap();
+                let mut output = CudaMemory::<u8>::new_pined(16 * file_paths.len()).unwrap();
 
-                kittycrypto::md5::md5_cuda::md5_sum_batch_cuda(&all_data, &file_sizes, &mut output)
-                    .unwrap();
+                kittycrypto::md5::md5_cuda::md5_sum_batch_cuda(
+                    &all_data,
+                    &file_sizes,
+                    &file_offsets,
+                    &mut output,
+                )
+                .unwrap();
 
+                let output = output.to_vec().unwrap();
                 for (i, path) in file_paths.iter().enumerate() {
                     let hash_start = i * 16;
                     let hash_end = hash_start + 16;
