@@ -36,7 +36,7 @@ fn bench_md5(c: &mut Criterion) {
             ),
             |b| {
                 b.iter(|| {
-                    let _ = kittycrypto::md5::sum(black_box(data));
+                    let _ = kittycrypto::md5::sum_md5(black_box(data));
                 })
             },
         );

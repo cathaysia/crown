@@ -76,7 +76,7 @@ fn hex_encode(bytes: &[u8]) -> String {
 fn test_golden() {
     for test in GOLDEN {
         // Test sum function
-        let result = sum(test.input.as_bytes());
+        let result = sum_md5(test.input.as_bytes());
         let s = hex_encode(&result);
         assert_eq!(
             s, test.out,
@@ -87,7 +87,7 @@ fn test_golden() {
         // Test digest with various write patterns
         let mut buf = vec![0u8; test.input.len() + 4];
         for j in 0..7 {
-            let mut c = Md5::new();
+            let mut c = super::new_md5();
 
             match j.cmp(&2) {
                 Ordering::Less => {
@@ -123,24 +123,17 @@ fn test_golden() {
 #[test]
 fn test_golden_marshal() {
     for test in GOLDEN.iter() {
-        let mut h = Md5::new();
-        let mut h2 = Md5::new();
+        let mut h = super::new_md5();
+        let mut h2 = super::new_md5();
 
         let half = test.input.len() / 2;
         h.write_all(&test.input.as_bytes()[..half]).unwrap();
 
         let state = h.marshal_binary().unwrap();
-        let state_append_vec = h.append_binary(vec![0u8; 4]).unwrap();
-        let state_append = &state_append_vec[4..];
 
         assert_eq!(
             state, test.half_state,
             "md5({:?}) state mismatch",
-            test.input
-        );
-        assert_eq!(
-            state_append, test.half_state,
-            "md5({:?}) stateAppend mismatch",
             test.input
         );
 
@@ -175,7 +168,7 @@ fn test_large() {
         while block_size <= N {
             let blocks = N / block_size;
             let b = &block[offset..offset + block_size];
-            let mut c = Md5::new();
+            let mut c = super::new_md5();
 
             for _ in 0..blocks {
                 c.write_all(b).unwrap();
@@ -210,7 +203,7 @@ fn test_extra_large() {
         while block_size <= N {
             let blocks = N / block_size;
             let b = &block[offset..offset + block_size];
-            let mut c = Md5::new();
+            let mut c = super::new_md5();
 
             for _ in 0..blocks {
                 c.write_all(b).unwrap();
@@ -227,21 +220,6 @@ fn test_extra_large() {
             block_size *= 10;
         }
     }
-}
-
-#[test]
-fn test_block_generic() {
-    let mut gen = Md5::new();
-    let mut asm = Md5::new();
-    let buf = vec![0x42u8; Md5::BLOCK_SIZE * 20];
-
-    block_generic(&mut gen, &buf);
-    block(&mut asm, &buf);
-
-    assert_eq!(
-        gen.s, asm.s,
-        "block and block_generic resulted in different states"
-    );
 }
 
 struct UnmarshalTest {
@@ -283,7 +261,7 @@ fn safe_sum(h: &mut Md5) -> Result<[u8; 16], String> {
 // #[ignore] // Skip large hash tests - these require specific state data that may not match our implementation
 fn test_large_hashes() {
     for (i, test) in LARGE_UNMARSHAL_TESTS.iter().enumerate() {
-        let mut h = Md5::new();
+        let mut h = new_md5();
         if let Err(e) = h.unmarshal_binary(&test.state) {
             panic!("test {} could not unmarshal: {:?}", i, e);
         }
@@ -310,7 +288,7 @@ fn rustcrypto_md5_interop() {
         let s: usize = rand::random_range(100..1000);
         let mut buf = vec![0u8; s];
         rand::fill(buf.as_mut_slice());
-        let this = &crate::md5::sum(&buf);
+        let this = &crate::md5::sum_md5(&buf);
         let rustcrypto = &md5::compute(&buf).to_vec();
 
         assert_eq!(this, rustcrypto.as_slice());

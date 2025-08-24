@@ -3,8 +3,6 @@
 use crate::md5::md5block::block_generic;
 use crate::md5::Md5;
 
-pub(super) const HAVE_ASM: bool = false;
-
 pub(super) fn block(d: &mut Md5, p: &[u8]) {
     block_generic(d, p);
 }

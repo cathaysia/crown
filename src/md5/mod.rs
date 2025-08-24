@@ -1,11 +1,16 @@
 //! Module md5 implements the MD5 hash algorithm as defined in RFC 1321.
 //!
-//! MD5 is cryptographically broken and should not be used for secure
-//! applications.
+//! MD5 is a widely-used cryptographic hash algorithm that produces a
+//! 128-bit hash value. It is commonly used for checksums, data
+//! integrity verification, and fingerprinting non-critical data.
+//!
+//! ## NOTE:
+//!
+//! MD5 is cryptographically broken and should **not be used for secure
+//! applications**.
+//!
 
 mod md5block;
-// mod arch;
-// use arch::*;
 
 #[cfg(feature = "cuda")]
 pub mod md5_cuda;
@@ -13,6 +18,7 @@ pub mod md5_cuda;
 mod md5_generic;
 use std::io::Write;
 
+use bytes::{Buf, BufMut};
 use md5_generic::*;
 
 use crate::{
@@ -24,9 +30,6 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
-const MAX_ASM_ITERS: usize = 1024;
-const MAX_ASM_SIZE: usize = Md5::BLOCK_SIZE * MAX_ASM_ITERS;
-
 const INIT0: u32 = 0x67452301;
 const INIT1: u32 = 0xEFCDAB89;
 const INIT2: u32 = 0x98BADCFE;
@@ -35,7 +38,7 @@ const INIT3: u32 = 0x10325476;
 const MAGIC: &[u8] = b"md5\x01";
 const MARSHALED_SIZE: usize = MAGIC.len() + 4 * 4 + Md5::BLOCK_SIZE + 8;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Md5 {
     s: [u32; 4],
     x: [u8; Md5::BLOCK_SIZE],
@@ -43,40 +46,23 @@ pub struct Md5 {
     len: u64,
 }
 
-impl Default for Md5 {
-    fn default() -> Self {
-        Md5::new()
-    }
-}
-
 impl Md5 {
-    pub const SIZE: usize = 16;
-    pub const BLOCK_SIZE: usize = 64;
+    pub(crate) const SIZE: usize = 16;
+    pub(crate) const BLOCK_SIZE: usize = 64;
 
-    pub fn new() -> Self {
-        let mut d = Md5 {
-            s: [0; 4],
-            x: [0; Md5::BLOCK_SIZE],
-            nx: 0,
-            len: 0,
-        };
-        d.reset();
-        d
+    fn append_binary(&self, mut b: &mut [u8]) -> CryptoResult<()> {
+        b.put_slice(MAGIC);
+        b.put_u32(self.s[0]);
+        b.put_u32(self.s[1]);
+        b.put_u32(self.s[2]);
+        b.put_u32(self.s[3]);
+        b.put_slice(&self.x[..self.nx]);
+        b.put_bytes(0, self.x.len() - self.nx);
+        b.put_u64(self.len);
+        Ok(())
     }
 
-    fn append_binary(&self, mut b: Vec<u8>) -> CryptoResult<Vec<u8>> {
-        b.extend_from_slice(MAGIC);
-        be_append_u32(&mut b, self.s[0]);
-        be_append_u32(&mut b, self.s[1]);
-        be_append_u32(&mut b, self.s[2]);
-        be_append_u32(&mut b, self.s[3]);
-        b.extend_from_slice(&self.x[..self.nx]);
-        b.extend_from_slice(&vec![0; self.x.len() - self.nx]);
-        be_append_u64(&mut b, self.len);
-        Ok(b)
-    }
-
-    pub fn check_sum(&mut self) -> [u8; Md5::SIZE] {
+    fn check_sum(&mut self) -> [u8; Md5::SIZE] {
         let mut tmp = [0u8; 1 + 63 + 8];
         tmp[0] = 0x80;
 
@@ -89,10 +75,13 @@ impl Md5 {
         }
 
         let mut digest = [0u8; Md5::SIZE];
-        le_put_u32(&mut digest[0..], self.s[0]);
-        le_put_u32(&mut digest[4..], self.s[1]);
-        le_put_u32(&mut digest[8..], self.s[2]);
-        le_put_u32(&mut digest[12..], self.s[3]);
+        {
+            let mut digest = digest.as_mut_slice();
+            digest.put_u32_le(self.s[0]);
+            digest.put_u32_le(self.s[1]);
+            digest.put_u32_le(self.s[2]);
+            digest.put_u32_le(self.s[3]);
+        }
         digest
     }
 }
@@ -109,11 +98,7 @@ impl Write for Md5 {
             self.nx += n;
             if self.nx == Md5::BLOCK_SIZE {
                 let x_copy = self.x;
-                if HAVE_ASM {
-                    block(self, &x_copy);
-                } else {
-                    block_generic(self, &x_copy);
-                }
+                block(self, &x_copy);
                 self.nx = 0;
             }
             p = &p[n..];
@@ -121,18 +106,7 @@ impl Write for Md5 {
 
         if p.len() >= Md5::BLOCK_SIZE {
             let n = p.len() & !(Md5::BLOCK_SIZE - 1);
-            if HAVE_ASM {
-                let mut remaining = n;
-                let mut offset = 0;
-                while remaining > MAX_ASM_SIZE {
-                    block(self, &p[offset..offset + MAX_ASM_SIZE]);
-                    offset += MAX_ASM_SIZE;
-                    remaining -= MAX_ASM_SIZE;
-                }
-                block(self, &p[offset..offset + remaining]);
-            } else {
-                block_generic(self, &p[..n]);
-            }
+            block(self, &p[..n]);
             p = &p[n..];
         }
 
@@ -151,7 +125,9 @@ impl Write for Md5 {
 
 impl Marshalable for Md5 {
     fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
-        self.append_binary(Vec::with_capacity(MARSHALED_SIZE))
+        let mut ret = vec![0u8; MARSHALED_SIZE];
+        self.append_binary(&mut ret)?;
+        Ok(ret)
     }
 
     fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
@@ -163,26 +139,16 @@ impl Marshalable for Md5 {
         }
 
         let mut b = &b[MAGIC.len()..];
-        let (remaining, s0) = consume_u32(b);
-        b = remaining;
-        let (remaining, s1) = consume_u32(b);
-        b = remaining;
-        let (remaining, s2) = consume_u32(b);
-        b = remaining;
-        let (remaining, s3) = consume_u32(b);
-        b = remaining;
 
-        self.s[0] = s0;
-        self.s[1] = s1;
-        self.s[2] = s2;
-        self.s[3] = s3;
+        self.s[0] = b.get_u32();
+        self.s[1] = b.get_u32();
+        self.s[2] = b.get_u32();
+        self.s[3] = b.get_u32();
 
         let copied = b.len().min(self.x.len());
-        self.x[..copied].copy_from_slice(&b[..copied]);
-        b = &b[copied..];
+        b.copy_to_slice(&mut self.x[..copied]);
 
-        let (_, len) = consume_u64(b);
-        self.len = len;
+        self.len = b.get_u64();
         self.nx = (self.len % Md5::BLOCK_SIZE as u64) as usize;
 
         Ok(())
@@ -211,32 +177,8 @@ impl HashUser for Md5 {
 impl Hash<16> for Md5 {
     fn sum(&mut self) -> [u8; 16] {
         let mut d0 = self.clone();
-        let hash = d0.check_sum();
-        let mut result = Vec::with_capacity(Md5::SIZE);
-        result.extend_from_slice(&hash);
-        result.try_into().unwrap()
+        d0.check_sum()
     }
-}
-
-fn be_append_u32(b: &mut Vec<u8>, v: u32) {
-    b.extend_from_slice(&v.to_be_bytes());
-}
-
-fn be_append_u64(b: &mut Vec<u8>, v: u64) {
-    b.extend_from_slice(&v.to_be_bytes());
-}
-
-fn be_u32(b: &[u8]) -> u32 {
-    u32::from_be_bytes([b[0], b[1], b[2], b[3]])
-}
-
-fn be_u64(b: &[u8]) -> u64 {
-    u64::from_be_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]])
-}
-
-fn le_put_u32(b: &mut [u8], v: u32) {
-    let bytes = v.to_le_bytes();
-    b[0..4].copy_from_slice(&bytes);
 }
 
 fn le_put_u64(b: &mut [u8], v: u64) {
@@ -244,20 +186,23 @@ fn le_put_u64(b: &mut [u8], v: u64) {
     b[0..8].copy_from_slice(&bytes);
 }
 
-fn consume_u32(b: &[u8]) -> (&[u8], u32) {
-    (&b[4..], be_u32(&b[0..4]))
+/// Create a new [Hash] computing the Md5 checksum.
+///
+/// The Hash also implements [Marshalable] to marshal and unmarshal the internal state of the hash.
+pub fn new_md5() -> Md5 {
+    let mut d = Md5 {
+        s: [0; 4],
+        x: [0; Md5::BLOCK_SIZE],
+        nx: 0,
+        len: 0,
+    };
+    d.reset();
+    d
 }
 
-fn consume_u64(b: &[u8]) -> (&[u8], u64) {
-    (&b[8..], be_u64(&b[0..8]))
-}
-
-fn block_generic(d: &mut Md5, p: &[u8]) {
-    md5block::block_generic(d, p);
-}
-
-pub fn sum(data: &[u8]) -> [u8; Md5::SIZE] {
-    let mut d = Md5::new();
+/// Compute the SHA-224 checksum of the input.
+pub fn sum_md5(data: &[u8]) -> [u8; Md5::SIZE] {
+    let mut d = new_md5();
     d.write_all(data).unwrap();
     d.check_sum()
 }

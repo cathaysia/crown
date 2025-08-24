@@ -3,8 +3,14 @@ pub use erased::*;
 
 /// Common interface for all hash algorithms.
 pub trait HashUser {
+    /// Reset resets the Hash to its initial state.
     fn reset(&mut self);
+    /// Size returns the number of bytes Sum will return.
     fn size(&self) -> usize;
+    /// BlockSize returns the hash's underlying block size.
+    /// The Write method must be able to accept any amount
+    /// of data, but it may operate more efficiently if all writes
+    /// are a multiple of the block size.
     fn block_size(&self) -> usize;
 }
 
