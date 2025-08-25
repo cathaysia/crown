@@ -121,7 +121,7 @@ fn main_mock(prog: &str) -> anyhow::Result<()> {
         let content = std::fs::read(&path).unwrap();
         let mut hasher = create_hash_from_str(prog).unwrap_or_else(|| {
             error!("mock as {prog} failed, fallback to md5!");
-            ErasedHash::new(kittycrypto::md5::Md5::default())
+            ErasedHash::new(kittycrypto::md5::new_md5())
         });
 
         hasher.write_all(&content).unwrap();
@@ -133,8 +133,8 @@ fn main_mock(prog: &str) -> anyhow::Result<()> {
 
 pub fn create_hash_from_str(hash: &str) -> Option<ErasedHash> {
     Some(match hash {
-        "md4" | "md4sum" => ErasedHash::new(kittycrypto::md4::Md4::default()),
-        "md5" | "md5sum" => ErasedHash::new(kittycrypto::md5::Md5::default()),
+        "md4" | "md4sum" => ErasedHash::new(kittycrypto::md4::new_md4()),
+        "md5" | "md5sum" => ErasedHash::new(kittycrypto::md5::new_md5()),
         "sha1" => ErasedHash::new(kittycrypto::sha1::new()),
         "sha224" => ErasedHash::new(kittycrypto::sha256::new224()),
         "sha256" => ErasedHash::new(kittycrypto::sha256::new256()),
