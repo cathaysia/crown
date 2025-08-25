@@ -75,7 +75,7 @@ impl Write for Md4 {
                     let ptr = self.x.as_ptr();
                     std::slice::from_raw_parts(ptr, self.x.len())
                 };
-                block::block(self, &src);
+                block::block(self, src);
                 self.nx = 0;
             }
             p = &p[n..];

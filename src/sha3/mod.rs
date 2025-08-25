@@ -159,7 +159,7 @@ macro_rules! impl_shakesum_for {
     ($len:literal) => {
         paste::paste! {
             #[doc="Compute the Shake-" $len " checksum of the input."]
-            pub fn [<sum_shake_ $len>](data: &[u8]) -> [u8; $len / 8*2] {
+            pub fn [<sum_shake $len>](data: &[u8]) -> [u8; $len / 8*2] {
                 let mut h = [<new_ shake $len>]();
                 h.write_all(data).unwrap();
 

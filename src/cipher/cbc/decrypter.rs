@@ -33,18 +33,6 @@ impl CbcDecAble<crate::aes::Aes> for crate::aes::Aes {
 /// CBC decrypter
 pub struct CbcDecrypter<B: BlockCipher>(Cbc<B>);
 
-/// Creates a new generic CBC decrypter (for testing)
-///
-/// # Panics
-///
-/// Panics if the IV length doesn't match the block size
-pub fn new_cbc_generic_decrypter<B: BlockCipher>(b: B, iv: &[u8]) -> CbcDecrypter<B> {
-    if iv.len() != b.block_size() {
-        panic!("cipher.NewCBCDecrypter: IV length must equal block size");
-    }
-    CbcDecrypter(Cbc::new(b, iv))
-}
-
 impl<B: BlockCipher> BlockMode for CbcDecrypter<B> {
     fn block_size(&self) -> usize {
         self.0.block_size

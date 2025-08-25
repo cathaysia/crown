@@ -338,5 +338,5 @@ macro_rules! impl_sum_for {
 
 impl_sum_for!(sum512, new512, 64, "SHA-512");
 impl_sum_for!(sum384, new384, 48, "SHA-384");
-impl_sum_for!(sum_512_224, new512_224, 28, "SHA-512/224");
-impl_sum_for!(sum_512_256, new512_256, 32, "SHA-512/256");
+impl_sum_for!(sum512_224, new512_224, 28, "SHA-512/224");
+impl_sum_for!(sum512_256, new512_256, 32, "SHA-512/256");
