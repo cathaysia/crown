@@ -4,10 +4,11 @@
 //! 128-bit hash value. It is commonly used for checksums, data
 //! integrity verification, and fingerprinting non-critical data.
 //!
-//! ## NOTE:
+//! # WARNING
 //!
 //! MD5 is cryptographically broken and should **not be used for secure
-//! applications**.
+//! applications**. Instead, use a secure hash like SHA-256
+//! (from [sha256](crate::sha256::Sha256))
 //!
 
 mod md5block;
@@ -200,7 +201,7 @@ pub fn new_md5() -> Md5 {
     d
 }
 
-/// Compute the SHA-224 checksum of the input.
+/// Compute the Md5 checksum of the input.
 pub fn sum_md5(data: &[u8]) -> [u8; Md5::SIZE] {
     let mut d = new_md5();
     d.write_all(data).unwrap();

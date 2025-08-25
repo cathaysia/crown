@@ -1,7 +1,9 @@
 //! MD4 block step.
 //! In its own file so that a faster assembly or C version
 //! can be substituted easily.
-use super::Md4;
+use bytes::Buf;
+
+use super::{Md4, CHUNK};
 
 const SHIFT1: [u32; 4] = [3, 7, 11, 19];
 const SHIFT2: [u32; 4] = [3, 5, 9, 13];
@@ -9,8 +11,6 @@ const SHIFT3: [u32; 4] = [3, 9, 11, 15];
 
 const X_INDEX2: [usize; 16] = [0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15];
 const X_INDEX3: [usize; 16] = [0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15];
-
-const CHUNK: usize = 64;
 
 pub fn block(dig: &mut Md4, mut p: &[u8]) -> usize {
     let mut a = dig.s[0];
@@ -25,8 +25,7 @@ pub fn block(dig: &mut Md4, mut p: &[u8]) -> usize {
 
         // convert bytes to 32-bit integers(little-endian)
         (0..16).for_each(|i| {
-            let j = i * 4;
-            x[i] = u32::from_le_bytes([p[j], p[j + 1], p[j + 2], p[j + 3]]);
+            x[i] = p.get_u32_le();
         });
 
         // If this needs to be made faster in the future,
@@ -47,11 +46,7 @@ pub fn block(dig: &mut Md4, mut p: &[u8]) -> usize {
             let f = ((c ^ d) & b) ^ d;
             a = a.wrapping_add(f).wrapping_add(x_val);
             a = a.rotate_left(s);
-            let temp = (d, a, b, c);
-            a = temp.0;
-            b = temp.1;
-            c = temp.2;
-            d = temp.3;
+            (a, b, c, d) = (d, a, b, c);
         }
 
         // Round 2.
@@ -64,11 +59,7 @@ pub fn block(dig: &mut Md4, mut p: &[u8]) -> usize {
                 .wrapping_add(x_val)
                 .wrapping_add(0x5a827999);
             a = a.rotate_left(s);
-            let temp = (d, a, b, c);
-            a = temp.0;
-            b = temp.1;
-            c = temp.2;
-            d = temp.3;
+            (a, b, c, d) = (d, a, b, c);
         }
 
         // Round 3.
@@ -81,11 +72,7 @@ pub fn block(dig: &mut Md4, mut p: &[u8]) -> usize {
                 .wrapping_add(x_val)
                 .wrapping_add(0x6ed9eba1);
             a = a.rotate_left(s);
-            let temp = (d, a, b, c);
-            a = temp.0;
-            b = temp.1;
-            c = temp.2;
-            d = temp.3;
+            (a, b, c, d) = (d, a, b, c);
         }
 
         a = a.wrapping_add(aa);
@@ -93,7 +80,6 @@ pub fn block(dig: &mut Md4, mut p: &[u8]) -> usize {
         c = c.wrapping_add(cc);
         d = d.wrapping_add(dd);
 
-        p = &p[CHUNK..];
         n += CHUNK;
     }
 
