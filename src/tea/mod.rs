@@ -15,7 +15,7 @@
 #[cfg(test)]
 mod tests;
 
-use bytes::BufMut;
+use bytes::{Buf, BufMut};
 
 use crate::cipher::marker::BlockCipherMarker;
 use crate::cipher::BlockCipher;
@@ -38,10 +38,10 @@ impl BlockCipherMarker for Tea {}
 
 impl Tea {
     /// The size of a TEA block, in bytes.
-    pub const BLOCK_SIZE: usize = 8;
+    const BLOCK_SIZE: usize = 8;
 
     /// The size of a TEA key, in bytes.
-    pub const KEY_SIZE: usize = 16;
+    const KEY_SIZE: usize = 16;
 
     /// Creates a new TEA cipher instance with the standard number of rounds.
     /// The key must be exactly 16 bytes long.
@@ -56,17 +56,14 @@ impl Tea {
             return Err(CryptoError::InvalidKeySize(key.len()));
         }
 
-        if rounds & 1 != 0 {
+        if rounds % 2 != 0 {
             return Err(CryptoError::InvalidParameter(
                 "odd number of rounds specified".to_string(),
             ));
         }
 
-        let mut tea_key = [0u8; 16];
-        tea_key.copy_from_slice(key);
-
         Ok(Tea {
-            key: tea_key,
+            key: key.try_into().unwrap(),
             rounds,
         })
     }
@@ -89,13 +86,14 @@ impl BlockCipher for Tea {
             Self::BLOCK_SIZE
         );
 
-        let mut v0 = u32::from_be_bytes([inout[0], inout[1], inout[2], inout[3]]);
-        let mut v1 = u32::from_be_bytes([inout[4], inout[5], inout[6], inout[7]]);
-
-        let k0 = u32::from_be_bytes([self.key[0], self.key[1], self.key[2], self.key[3]]);
-        let k1 = u32::from_be_bytes([self.key[4], self.key[5], self.key[6], self.key[7]]);
-        let k2 = u32::from_be_bytes([self.key[8], self.key[9], self.key[10], self.key[11]]);
-        let k3 = u32::from_be_bytes([self.key[12], self.key[13], self.key[14], self.key[15]]);
+        let (mut v0, mut v1) = {
+            let mut inout = &*inout;
+            (inout.get_u32(), inout.get_u32())
+        };
+        let (k0, k1, k2, k3) = {
+            let mut key = self.key.as_slice();
+            (key.get_u32(), key.get_u32(), key.get_u32(), key.get_u32())
+        };
 
         let mut sum = 0u32;
 
@@ -127,13 +125,14 @@ impl BlockCipher for Tea {
             Self::BLOCK_SIZE
         );
 
-        let mut v0 = u32::from_be_bytes([inout[0], inout[1], inout[2], inout[3]]);
-        let mut v1 = u32::from_be_bytes([inout[4], inout[5], inout[6], inout[7]]);
-
-        let k0 = u32::from_be_bytes([self.key[0], self.key[1], self.key[2], self.key[3]]);
-        let k1 = u32::from_be_bytes([self.key[4], self.key[5], self.key[6], self.key[7]]);
-        let k2 = u32::from_be_bytes([self.key[8], self.key[9], self.key[10], self.key[11]]);
-        let k3 = u32::from_be_bytes([self.key[12], self.key[13], self.key[14], self.key[15]]);
+        let (mut v0, mut v1) = {
+            let mut inout = &*inout;
+            (inout.get_u32(), inout.get_u32())
+        };
+        let (k0, k1, k2, k3) = {
+            let mut key = self.key.as_slice();
+            (key.get_u32(), key.get_u32(), key.get_u32(), key.get_u32())
+        };
 
         let mut sum = DELTA.wrapping_mul(self.rounds as u32 / 2);
 
@@ -151,7 +150,8 @@ impl BlockCipher for Tea {
             sum = sum.wrapping_sub(DELTA);
         }
 
-        inout[0..4].copy_from_slice(&v0.to_be_bytes());
-        inout[4..8].copy_from_slice(&v1.to_be_bytes());
+        let mut inout = inout;
+        inout.put_u32(v0);
+        inout.put_u32(v1);
     }
 }

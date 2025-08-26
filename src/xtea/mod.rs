@@ -23,7 +23,7 @@ use crate::{
     error::{CryptoError, CryptoResult},
 };
 
-// A Cipher is an instance of an XTEA cipher using a particular key.
+/// A Cipher is an instance of an XTEA cipher using a particular key.
 pub struct Xtea {
     // table contains a series of precalculated values that are used each round.
     table: [u32; 64],
@@ -32,71 +32,64 @@ pub struct Xtea {
 impl BlockCipherMarker for Xtea {}
 
 impl Xtea {
-    // The XTEA block size in bytes.
-    pub const BLOCK_SIZE: usize = 8;
+    /// The XTEA block size in bytes.
+    const BLOCK_SIZE: usize = 8;
+    // XTEA is based on 64 rounds.
+    const NUM_ROUNDS: usize = 64;
 
     /// Creates and returns a new Cipher.
     /// The key argument should be the XTEA key.
     /// XTEA only supports 128 bit (16 byte) keys.
     pub fn new(key: &[u8]) -> CryptoResult<Self> {
-        let k = key.len();
-        match k {
-            16 => {
-                let mut c = Xtea { table: [0; 64] };
-                init_cipher(&mut c, key);
-                Ok(c)
-            }
-            _ => Err(CryptoError::InvalidKeySize(k)),
+        if key.len() != 16 {
+            return Err(CryptoError::InvalidKeySize(key.len()));
+        }
+
+        let mut c = Xtea { table: [0; 64] };
+        c.init(key);
+        Ok(c)
+    }
+
+    /// Initializes the cipher context by creating a look up table
+    /// of precalculated values that are based on the key.
+    fn init(&mut self, key: &[u8]) {
+        debug_assert_eq!(key.len(), 16);
+        // Load the key into four u32s
+        let mut k = [0u32; 4];
+        (0..k.len()).for_each(|i| {
+            let j = i << 2; // Multiply by 4
+            k[i] = ((key[j] as u32) << 24)
+                | ((key[j + 1] as u32) << 16)
+                | ((key[j + 2] as u32) << 8)
+                | (key[j + 3] as u32);
+        });
+
+        // Precalculate the table
+        const DELTA: u32 = 0x9E3779B9;
+        let mut sum = 0u32;
+
+        // Two rounds of XTEA applied per loop
+        let mut i = 0;
+        while i < Self::NUM_ROUNDS {
+            self.table[i] = sum.wrapping_add(k[(sum & 3) as usize]);
+            i += 1;
+            sum = sum.wrapping_add(DELTA);
+            self.table[i] = sum.wrapping_add(k[((sum >> 11) & 3) as usize]);
+            i += 1;
         }
     }
 }
 
 impl BlockCipher for Xtea {
-    /// Returns the XTEA block size, 8 bytes.
-    /// It is necessary to satisfy the Block interface in the
-    /// package "crypto/cipher".
     fn block_size(&self) -> usize {
         Xtea::BLOCK_SIZE
     }
 
-    /// Encrypts the 8 byte buffer src using the key and stores the result in dst.
-    /// Note that for amounts of data larger than a block,
-    /// it is not safe to just call encrypt on successive blocks;
-    /// instead, use an encryption mode like CBC.
     fn encrypt(&self, inout: &mut [u8]) {
         block::encrypt_block(self, inout);
     }
 
-    /// Decrypts the 8 byte buffer src using the key and stores the result in dst.
     fn decrypt(&self, inout: &mut [u8]) {
         block::decrypt_block(self, inout);
-    }
-}
-
-/// Initializes the cipher context by creating a look up table
-/// of precalculated values that are based on the key.
-fn init_cipher(c: &mut Xtea, key: &[u8]) {
-    // Load the key into four u32s
-    let mut k = [0u32; 4];
-    (0..k.len()).for_each(|i| {
-        let j = i << 2; // Multiply by 4
-        k[i] = ((key[j] as u32) << 24)
-            | ((key[j + 1] as u32) << 16)
-            | ((key[j + 2] as u32) << 8)
-            | (key[j + 3] as u32);
-    });
-
-    // Precalculate the table
-    const DELTA: u32 = 0x9E3779B9;
-    let mut sum = 0u32;
-
-    // Two rounds of XTEA applied per loop
-    let mut i = 0;
-    while i < block::NUM_ROUNDS {
-        c.table[i] = sum.wrapping_add(k[(sum & 3) as usize]);
-        i += 1;
-        sum = sum.wrapping_add(DELTA);
-        c.table[i] = sum.wrapping_add(k[((sum >> 11) & 3) as usize]);
-        i += 1;
     }
 }

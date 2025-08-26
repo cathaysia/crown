@@ -1,21 +1,24 @@
 //! Module twofish implements Bruce Schneier's Twofish encryption algorithm.
 //!
 //! # WARNING
+//!
 //! Deprecated: Twofish is a legacy cipher and should not be used for new
 //! applications. Also, this package does not and will not provide an optimized
 //! implementation. Instead, use AES (from crypto/aes, if necessary in an AEAD
 //! mode like crypto/cipher.NewGCM) or XChaCha20-Poly1305 (from
 //! golang.org/x/crypto/chacha20poly1305).
-
-// Twofish is defined in <https://www.schneier.com/paper-twofish-paper.pdf> [TWOFISH]
-
-// This code is a port of the LibTom C implementation.
-// See <http://libtom.org/?page=features&newsitems=5&whatfile=crypt>.
-// LibTomCrypt is free for all purposes under the public domain.
-// It was heavily inspired by the go blowfish package.
+//!
+//! Twofish is defined in <https://www.schneier.com/paper-twofish-paper.pdf> [TWOFISH]
+//!
+//! This code is a port of the LibTom C implementation.
+//! See <http://libtom.org/?page=features&newsitems=5&whatfile=crypt>.
+//! LibTomCrypt is free for all purposes under the public domain.
+//! It was heavily inspired by the go blowfish package.
 
 #[cfg(test)]
 mod tests;
+
+use bytes::{Buf, BufMut};
 
 use crate::{
     cipher::{marker::BlockCipherMarker, BlockCipher},
@@ -27,7 +30,7 @@ const RS_POLYNOMIAL: u32 = 0x14d; // x^8 + x^6 + x^3 + x^2 + 1, see [TWOFISH] 4.
 
 // A Cipher is an instance of Twofish encryption using a particular key.
 pub struct Twofish {
-    s: [[u32; 256]; 4],
+    sbox: [[u32; 256]; 4],
     k: [u32; 40],
 }
 
@@ -35,18 +38,16 @@ impl BlockCipherMarker for Twofish {}
 
 impl Twofish {
     /// BlockSize is the constant block size of Twofish.
-    pub const BLOCK_SIZE: usize = 16;
+    const BLOCK_SIZE: usize = 16;
     /// NewCipher creates and returns a Cipher.
     /// The key argument should be the Twofish key, 16, 24 or 32 bytes.
     pub fn new(key: &[u8]) -> CryptoResult<Twofish> {
-        let keylen = key.len();
-
-        if keylen != 16 && keylen != 24 && keylen != 32 {
-            return Err(CryptoError::InvalidKeySize(keylen));
+        if ![16, 24, 32].contains(&key.len()) {
+            return Err(CryptoError::InvalidKeySize(key.len()));
         }
 
         // k is the number of 64 bit words in key
-        let k = keylen / 8;
+        let k = key.len() / 8;
 
         // Create the S[..] words
         let mut s = [0u8; 4 * 4];
@@ -61,7 +62,7 @@ impl Twofish {
 
         // Calculate subkeys
         let mut c = Twofish {
-            s: [[0; 256]; 4],
+            sbox: [[0; 256]; 4],
             k: [0; 40],
         };
 
@@ -90,19 +91,19 @@ impl Twofish {
         match k {
             2 => {
                 for i in 0..256 {
-                    c.s[0][i] = mds_column_mult(
+                    c.sbox[0][i] = mds_column_mult(
                         SBOX[1][(SBOX[0][(SBOX[0][i] ^ s[0]) as usize] ^ s[4]) as usize],
                         0,
                     );
-                    c.s[1][i] = mds_column_mult(
+                    c.sbox[1][i] = mds_column_mult(
                         SBOX[0][(SBOX[0][(SBOX[1][i] ^ s[1]) as usize] ^ s[5]) as usize],
                         1,
                     );
-                    c.s[2][i] = mds_column_mult(
+                    c.sbox[2][i] = mds_column_mult(
                         SBOX[1][(SBOX[1][(SBOX[0][i] ^ s[2]) as usize] ^ s[6]) as usize],
                         2,
                     );
-                    c.s[3][i] = mds_column_mult(
+                    c.sbox[3][i] = mds_column_mult(
                         SBOX[0][(SBOX[1][(SBOX[1][i] ^ s[3]) as usize] ^ s[7]) as usize],
                         3,
                     );
@@ -110,22 +111,22 @@ impl Twofish {
             }
             3 => {
                 for i in 0..256 {
-                    c.s[0][i] = mds_column_mult(
+                    c.sbox[0][i] = mds_column_mult(
                         SBOX[1][(SBOX[0][(SBOX[0][(SBOX[1][i] ^ s[0]) as usize] ^ s[4]) as usize]
                             ^ s[8]) as usize],
                         0,
                     );
-                    c.s[1][i] = mds_column_mult(
+                    c.sbox[1][i] = mds_column_mult(
                         SBOX[0][(SBOX[0][(SBOX[1][(SBOX[1][i] ^ s[1]) as usize] ^ s[5]) as usize]
                             ^ s[9]) as usize],
                         1,
                     );
-                    c.s[2][i] = mds_column_mult(
+                    c.sbox[2][i] = mds_column_mult(
                         SBOX[1][(SBOX[1][(SBOX[0][(SBOX[0][i] ^ s[2]) as usize] ^ s[6]) as usize]
                             ^ s[10]) as usize],
                         2,
                     );
-                    c.s[3][i] = mds_column_mult(
+                    c.sbox[3][i] = mds_column_mult(
                         SBOX[0][(SBOX[1][(SBOX[1][(SBOX[0][i] ^ s[3]) as usize] ^ s[7]) as usize]
                             ^ s[11]) as usize],
                         3,
@@ -134,28 +135,28 @@ impl Twofish {
             }
             _ => {
                 for i in 0..256 {
-                    c.s[0][i] = mds_column_mult(
+                    c.sbox[0][i] = mds_column_mult(
                         SBOX[1][(SBOX[0][(SBOX[0]
                             [(SBOX[1][(SBOX[1][i] ^ s[0]) as usize] ^ s[4]) as usize]
                             ^ s[8]) as usize]
                             ^ s[12]) as usize],
                         0,
                     );
-                    c.s[1][i] = mds_column_mult(
+                    c.sbox[1][i] = mds_column_mult(
                         SBOX[0][(SBOX[0][(SBOX[1]
                             [(SBOX[1][(SBOX[0][i] ^ s[1]) as usize] ^ s[5]) as usize]
                             ^ s[9]) as usize]
                             ^ s[13]) as usize],
                         1,
                     );
-                    c.s[2][i] = mds_column_mult(
+                    c.sbox[2][i] = mds_column_mult(
                         SBOX[1][(SBOX[1][(SBOX[0]
                             [(SBOX[0][(SBOX[0][i] ^ s[2]) as usize] ^ s[6]) as usize]
                             ^ s[10]) as usize]
                             ^ s[14]) as usize],
                         2,
                     );
-                    c.s[3][i] = mds_column_mult(
+                    c.sbox[3][i] = mds_column_mult(
                         SBOX[0][(SBOX[1][(SBOX[1]
                             [(SBOX[0][(SBOX[1][i] ^ s[3]) as usize] ^ s[7]) as usize]
                             ^ s[11]) as usize]
@@ -181,16 +182,20 @@ impl BlockCipher for Twofish {
     // it is not safe to just call Encrypt on successive blocks;
     // instead, use an encryption mode like CBC (see crypto/cipher/cbc.go).
     fn encrypt(&self, inout: &mut [u8]) {
-        let s1 = &self.s[0];
-        let s2 = &self.s[1];
-        let s3 = &self.s[2];
-        let s4 = &self.s[3];
+        let s1 = &self.sbox[0];
+        let s2 = &self.sbox[1];
+        let s3 = &self.sbox[2];
+        let s4 = &self.sbox[3];
 
-        // Load input
-        let mut ia = load32l(&inout[0..4]);
-        let mut ib = load32l(&inout[4..8]);
-        let mut ic = load32l(&inout[8..12]);
-        let mut id = load32l(&inout[12..16]);
+        let (mut ia, mut ib, mut ic, mut id) = {
+            let mut inout = &*inout;
+            (
+                inout.get_u32_le(),
+                inout.get_u32_le(),
+                inout.get_u32_le(),
+                inout.get_u32_le(),
+            )
+        };
 
         // Pre-whitening
         ia ^= self.k[0];
@@ -231,24 +236,29 @@ impl BlockCipher for Twofish {
         let tc = ia ^ self.k[6];
         let td = ib ^ self.k[7];
 
-        store32l(&mut inout[0..4], ta);
-        store32l(&mut inout[4..8], tb);
-        store32l(&mut inout[8..12], tc);
-        store32l(&mut inout[12..16], td);
+        let mut inout = inout;
+        inout.put_u32_le(ta);
+        inout.put_u32_le(tb);
+        inout.put_u32_le(tc);
+        inout.put_u32_le(td);
     }
 
     // Decrypt decrypts a 16-byte block from src to dst, which may overlap.
     fn decrypt(&self, inout: &mut [u8]) {
-        let s1 = &self.s[0];
-        let s2 = &self.s[1];
-        let s3 = &self.s[2];
-        let s4 = &self.s[3];
+        let s1 = &self.sbox[0];
+        let s2 = &self.sbox[1];
+        let s3 = &self.sbox[2];
+        let s4 = &self.sbox[3];
 
-        // Load input
-        let ta = load32l(&inout[0..4]);
-        let tb = load32l(&inout[4..8]);
-        let tc = load32l(&inout[8..12]);
-        let td = load32l(&inout[12..16]);
+        let (ta, tb, tc, td) = {
+            let mut inout = &*inout;
+            (
+                inout.get_u32_le(),
+                inout.get_u32_le(),
+                inout.get_u32_le(),
+                inout.get_u32_le(),
+            )
+        };
 
         // Undo undo final swap
         let mut ia = tc ^ self.k[6];
@@ -289,27 +299,12 @@ impl BlockCipher for Twofish {
         ic ^= self.k[2];
         id ^= self.k[3];
 
-        store32l(&mut inout[0..4], ia);
-        store32l(&mut inout[4..8], ib);
-        store32l(&mut inout[8..12], ic);
-        store32l(&mut inout[12..16], id);
+        let mut inout = inout;
+        inout.put_u32_le(ia);
+        inout.put_u32_le(ib);
+        inout.put_u32_le(ic);
+        inout.put_u32_le(id);
     }
-}
-
-// store32l stores src in dst in little-endian form.
-fn store32l(dst: &mut [u8], src: u32) {
-    dst[0] = src as u8;
-    dst[1] = (src >> 8) as u8;
-    dst[2] = (src >> 16) as u8;
-    dst[3] = (src >> 24) as u8;
-}
-
-// load32l reads a little-endian uint32 from src.
-fn load32l(src: &[u8]) -> u32 {
-    u32::from(src[0])
-        | (u32::from(src[1]) << 8)
-        | (u32::from(src[2]) << 16)
-        | (u32::from(src[3]) << 24)
 }
 
 // The RS matrix. See [TWOFISH] 4.3
@@ -407,9 +402,9 @@ fn gf_mult_accurate(mut a: u8, b: u8, p: u32) -> u8 {
 
 // mdsColumnMult calculates y{col} where [y0 y1 y2 y3] = MDS · [x0]
 fn mds_column_mult(input: u8, col: usize) -> u32 {
-    let mul01 = u32::from(input);
-    let mul5b = u32::from(gf_mult_accurate(input, 0x5B, MDS_POLYNOMIAL));
-    let mulef = u32::from(gf_mult_accurate(input, 0xEF, MDS_POLYNOMIAL));
+    let mul01 = input as u32;
+    let mul5b = gf_mult_accurate(input, 0x5B, MDS_POLYNOMIAL) as u32;
+    let mulef = gf_mult_accurate(input, 0xEF, MDS_POLYNOMIAL) as u32;
 
     match col {
         0 => mul01 | (mul5b << 8) | (mulef << 16) | (mulef << 24),

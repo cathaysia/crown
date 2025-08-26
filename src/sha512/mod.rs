@@ -6,6 +6,8 @@
 
 use std::io::Write;
 
+use bytes::BufMut;
+
 use crate::{
     error::{CryptoError, CryptoResult},
     hash::{Hash, HashUser},
@@ -85,33 +87,33 @@ pub struct Sha512<const N: usize> {
 }
 
 impl<const N: usize> Sha512<N> {
-    pub const SIZE_512: usize = 64;
-    pub const SIZE_224: usize = 28;
-    pub const SIZE_256: usize = 32;
-    pub const SIZE_384: usize = 48;
-    pub const BLOCK_SIZE: usize = 128;
+    const SIZE_512: usize = 64;
+    const SIZE_224: usize = 28;
+    const SIZE_256: usize = 32;
+    const SIZE_384: usize = 48;
+    const BLOCK_SIZE: usize = 128;
 
     /// Append the digest state to the provided buffer
     fn append_binary(&self, b: &mut Vec<u8>) {
         match N {
-            Self::SIZE_384 => b.extend_from_slice(MAGIC_384),
-            Self::SIZE_224 => b.extend_from_slice(MAGIC_512_224),
-            Self::SIZE_256 => b.extend_from_slice(MAGIC_512_256),
-            Self::SIZE_512 => b.extend_from_slice(MAGIC_512),
+            Self::SIZE_384 => b.put_slice(MAGIC_384),
+            Self::SIZE_224 => b.put_slice(MAGIC_512_224),
+            Self::SIZE_256 => b.put_slice(MAGIC_512_256),
+            Self::SIZE_512 => b.put_slice(MAGIC_512),
             _ => panic!("unknown size"),
         }
 
         // Append hash state (big-endian)
         for &h in &self.h {
-            b.extend_from_slice(&h.to_be_bytes());
+            b.put_u64(h);
         }
 
         // Append buffer
-        b.extend_from_slice(&self.x[..self.nx]);
-        b.extend_from_slice(&vec![0u8; CHUNK - self.nx]);
+        b.put_slice(&self.x[..self.nx]);
+        b.put_bytes(0, CHUNK - self.nx);
 
         // Append length
-        b.extend_from_slice(&self.len.to_be_bytes());
+        b.put_u64(self.len);
     }
 
     fn check_sum(&mut self) -> [u8; 64] {

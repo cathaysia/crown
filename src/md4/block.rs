@@ -13,10 +13,7 @@ const X_INDEX2: [usize; 16] = [0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11,
 const X_INDEX3: [usize; 16] = [0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15];
 
 pub fn block(dig: &mut Md4, mut p: &[u8]) -> usize {
-    let mut a = dig.s[0];
-    let mut b = dig.s[1];
-    let mut c = dig.s[2];
-    let mut d = dig.s[3];
+    let [mut a, mut b, mut c, mut d] = dig.s;
     let mut n = 0;
     let mut x = [0u32; 16];
 
@@ -41,10 +38,9 @@ pub fn block(dig: &mut Md4, mut p: &[u8]) -> usize {
 
         // Round 1.
         for i in 0..16 {
-            let x_val = x[i];
             let s = SHIFT1[i % 4];
             let f = ((c ^ d) & b) ^ d;
-            a = a.wrapping_add(f).wrapping_add(x_val);
+            a = a.wrapping_add(f).wrapping_add(x[i]);
             a = a.rotate_left(s);
             (a, b, c, d) = (d, a, b, c);
         }
