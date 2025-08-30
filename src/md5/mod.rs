@@ -14,7 +14,7 @@
 mod md5block;
 
 #[cfg(feature = "cuda")]
-pub mod md5_cuda;
+pub mod cuda;
 
 mod md5_generic;
 use std::io::Write;

@@ -69,7 +69,20 @@ pub enum HashAlgorithm {
     #[clap(name = "sha3-512")]
     Sha3512,
     #[cfg(feature = "cuda")]
-    CudaMd5,
+    Md5Cuda,
+    #[cfg(feature = "cuda")]
+    Sha256Cuda,
+}
+
+impl HashAlgorithm {
+    #[cfg(feature = "cuda")]
+    pub fn is_cuda(&self) -> bool {
+        match self {
+            #[cfg(feature = "cuda")]
+            Self::Md5Cuda | Self::Sha256Cuda => true,
+            _ => false,
+        }
+    }
 }
 
 impl Display for HashAlgorithm {
@@ -89,7 +102,9 @@ impl Display for HashAlgorithm {
             Self::Sha3384 => "sha3-384",
             Self::Sha3512 => "sha3-512",
             #[cfg(feature = "cuda")]
-            Self::CudaMd5 => "cuda-md5",
+            Self::Md5Cuda => "md5-cuda",
+            #[cfg(feature = "cuda")]
+            Self::Sha256Cuda => "sha256-cuda",
         };
 
         write!(f, "{}", v)

@@ -18,6 +18,8 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
+#[cfg(feature = "cuda")]
+pub mod cuda;
 mod generic;
 
 // The size of a SHA-256 checksum in bytes.

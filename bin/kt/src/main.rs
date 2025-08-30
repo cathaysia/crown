@@ -37,7 +37,8 @@ fn main() -> anyhow::Result<()> {
             } = args_hash;
 
             #[cfg(feature = "cuda")]
-            if matches!(algorithm, args::HashAlgorithm::CudaMd5) {
+            if algorithm.is_cuda() {
+                use crate::args::HashAlgorithm;
                 use kittycrypto::cuda::mem::CudaMemory;
 
                 let mut all_data = Vec::new();
@@ -58,20 +59,40 @@ fn main() -> anyhow::Result<()> {
                 let all_data = CudaMemory::from_slice_to_device(&all_data).unwrap();
                 let file_sizes = CudaMemory::from_slice_to_device(&file_sizes).unwrap();
                 let file_offsets = CudaMemory::from_slice_to_device(&file_offsets).unwrap();
-                let mut output = CudaMemory::<u8>::new_pined(16 * file_paths.len()).unwrap();
+                let output_size = match algorithm {
+                    HashAlgorithm::Md5Cuda => 16,
+                    HashAlgorithm::Sha256Cuda => 32,
+                    _ => unreachable!(),
+                };
+                let mut output =
+                    CudaMemory::<u8>::new_pined(output_size * file_paths.len()).unwrap();
 
-                kittycrypto::md5::md5_cuda::md5_sum_batch_cuda(
-                    &all_data,
-                    &file_sizes,
-                    &file_offsets,
-                    &mut output,
-                )
-                .unwrap();
+                match algorithm {
+                    HashAlgorithm::Md5Cuda => {
+                        kittycrypto::md5::cuda::md5_sum_batch_cuda(
+                            &all_data,
+                            &file_sizes,
+                            &file_offsets,
+                            &mut output,
+                        )
+                        .unwrap();
+                    }
+                    HashAlgorithm::Sha256Cuda => {
+                        kittycrypto::sha256::cuda::sha256_sum_batch_cuda(
+                            &all_data,
+                            &file_sizes,
+                            &file_offsets,
+                            &mut output,
+                        )
+                        .unwrap();
+                    }
+                    _ => unreachable!(),
+                }
 
                 let output = output.to_vec().unwrap();
                 for (i, path) in file_paths.iter().enumerate() {
-                    let hash_start = i * 16;
-                    let hash_end = hash_start + 16;
+                    let hash_start = i * output_size;
+                    let hash_end = hash_start + output_size;
                     let hash = &output[hash_start..hash_end];
                     println!("{}  {}", hex::encode(hash), path);
                 }

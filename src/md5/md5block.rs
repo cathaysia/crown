@@ -150,7 +150,7 @@ pub fn block_generic(dig: &mut Md5, mut blocks: &[u8]) {
 
         // Round 1
         for i in 0..4 {
-            md5_round1!(a, b, c, d, x, i * 4 + 0);
+            md5_round1!(a, b, c, d, x, i * 4);
             md5_round1!(d, a, b, c, x, i * 4 + 1);
             md5_round1!(c, d, a, b, x, i * 4 + 2);
             md5_round1!(b, c, d, a, x, i * 4 + 3);
@@ -158,7 +158,7 @@ pub fn block_generic(dig: &mut Md5, mut blocks: &[u8]) {
 
         // Round 2
         for i in 0..4 {
-            md5_round2!(a, b, c, d, x, i * 4 + 0);
+            md5_round2!(a, b, c, d, x, i * 4);
             md5_round2!(d, a, b, c, x, i * 4 + 1);
             md5_round2!(c, d, a, b, x, i * 4 + 2);
             md5_round2!(b, c, d, a, x, i * 4 + 3);
@@ -166,7 +166,7 @@ pub fn block_generic(dig: &mut Md5, mut blocks: &[u8]) {
 
         // Round 3
         for i in 0..4 {
-            md5_round3!(a, b, c, d, x, i * 4 + 0);
+            md5_round3!(a, b, c, d, x, i * 4);
             md5_round3!(d, a, b, c, x, i * 4 + 1);
             md5_round3!(c, d, a, b, x, i * 4 + 2);
             md5_round3!(b, c, d, a, x, i * 4 + 3);
@@ -174,7 +174,7 @@ pub fn block_generic(dig: &mut Md5, mut blocks: &[u8]) {
 
         // Round 4
         for i in 0..4 {
-            md5_round4!(a, b, c, d, x, i * 4 + 0);
+            md5_round4!(a, b, c, d, x, i * 4);
             md5_round4!(d, a, b, c, x, i * 4 + 1);
             md5_round4!(c, d, a, b, x, i * 4 + 2);
             md5_round4!(b, c, d, a, x, i * 4 + 3);

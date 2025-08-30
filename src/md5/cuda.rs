@@ -67,14 +67,14 @@ mod test {
             md5_sum_batch_cuda(&data, &file_sizes, &file_offsets, &mut md5).unwrap();
             md5.to_vec().unwrap()
         };
-        let md5_soft = super::super::sum(data);
+        let md5_soft = crate::md5::sum_md5(data);
         assert_eq!(&md5, &md5_soft);
 
         for _ in 0..1000 {
             let len: usize = rand::random_range(0..4096);
             let mut data = vec![0u8; len];
             rand::fill(data.as_mut_slice());
-            let sum_soft = super::super::sum(&data);
+            let sum_soft = crate::md5::sum_md5(&data);
 
             let sum_cuda = {
                 let data = CudaMemory::from_slice_to_device(&data).unwrap();
