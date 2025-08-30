@@ -6,7 +6,7 @@ use base64::Engine;
 use clap::Parser;
 use kittycrypto::hash::ErasedHash;
 use rayon::prelude::*;
-use std::io::Write;
+use std::{collections::BTreeMap, io::Write};
 use tracing::*;
 use utils::init_logger;
 
@@ -99,15 +99,8 @@ fn main() -> anyhow::Result<()> {
 
                 return Ok(());
             }
-            files.into_par_iter().for_each(|path| {
-                let content = std::fs::read(&path).unwrap();
-                let mut hasher = create_hash_from_str(&algorithm.to_string())
-                    .unwrap_or_else(|| panic!("unknown hash algorithm: {algorithm}"));
 
-                hasher.write_all(&content).unwrap();
-                let sum = hasher.sum();
-                println!("{}  {}", hex::encode(sum), path);
-            });
+            calc_and_output_hash(&algorithm.to_string(), files);
         }
         args::Args::Rand(ArgsRand {
             hex,
@@ -138,17 +131,8 @@ fn main() -> anyhow::Result<()> {
 fn main_mock(prog: &str) -> anyhow::Result<()> {
     debug!("mock as {prog}");
     let arg = args::Md5::parse();
-    for path in arg.files {
-        let content = std::fs::read(&path).unwrap();
-        let mut hasher = create_hash_from_str(prog).unwrap_or_else(|| {
-            error!("mock as {prog} failed, fallback to md5!");
-            ErasedHash::new(kittycrypto::md5::new_md5())
-        });
+    calc_and_output_hash(prog, arg.files);
 
-        hasher.write_all(&content).unwrap();
-        let sum = hasher.sum();
-        println!("{}  {}", hex::encode(sum), path);
-    }
     Ok(())
 }
 
@@ -169,4 +153,42 @@ pub fn create_hash_from_str(hash: &str) -> Option<ErasedHash> {
         "sha3-512" => ErasedHash::new(kittycrypto::sha3::new512()),
         _ => return None,
     })
+}
+
+fn calc_and_output_hash(algorithm: &str, files: Vec<String>) {
+    rayon::scope(|s| {
+        let (tx, rx) = std::sync::mpsc::channel();
+        s.spawn(move |_| {
+            files
+                .into_iter()
+                .enumerate()
+                .par_bridge()
+                .for_each(|(i, path)| {
+                    let content = std::fs::read(&path).unwrap();
+                    let mut hasher = create_hash_from_str(algorithm)
+                        .unwrap_or_else(|| panic!("unknown hash algorithm: {algorithm}"));
+
+                    hasher.write_all(&content).unwrap();
+                    let sum = hasher.sum();
+                    tx.send((i, path, hex::encode(sum))).unwrap();
+                });
+        });
+
+        let mut buffer = BTreeMap::new();
+        let mut expected = 0;
+        while let Ok((i, path, hex)) = rx.recv() {
+            buffer.insert(i, (path, hex));
+            if i <= expected {
+                expected += 1;
+                for (_, (path, hex)) in buffer.range(0..expected) {
+                    println!("{hex} {path}");
+                }
+                buffer = buffer.split_off(&expected);
+                continue;
+            }
+        }
+        for (_, (path, hex)) in buffer.iter() {
+            println!("{hex} {path}");
+        }
+    });
 }
