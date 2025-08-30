@@ -10,7 +10,7 @@ pub enum Args {
 
 #[derive(Debug, Parser)]
 pub struct ArgsRand {
-    #[clap(long, default_value_t = true)]
+    #[clap(long, default_value_t = false)]
     pub hex: bool,
     #[clap(long, default_value_t = false)]
     pub base64: bool,

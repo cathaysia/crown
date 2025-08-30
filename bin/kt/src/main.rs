@@ -54,18 +54,26 @@ fn main() -> anyhow::Result<()> {
         }) => {
             let mut buf = vec![0u8; num];
             rand::fill(buf.as_mut_slice());
-            let buf = if hex {
-                hex::encode(&buf)
-            } else if base64 {
-                base64::prelude::BASE64_STANDARD.encode(&buf)
+            let mut out: Box<dyn Write> = if let Some(out) = out {
+                Box::new(
+                    std::fs::OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .truncate(true)
+                        .open(out)
+                        .unwrap(),
+                )
             } else {
-                format!("{buf:?}")
+                Box::new(std::io::stdout())
             };
-            if let Some(out) = out {
-                std::fs::write(out, buf).unwrap();
+
+            if hex {
+                write!(out, "{}", hex::encode(&buf)).unwrap();
+            } else if base64 {
+                write!(out, "{}", base64::prelude::BASE64_STANDARD.encode(&buf)).unwrap();
             } else {
-                println!("{buf}")
-            }
+                out.write_all(&buf).unwrap();
+            };
         }
     }
 
