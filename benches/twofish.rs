@@ -5,7 +5,7 @@ use rc4::KeyInit;
 use std::hint::black_box;
 
 fn bench_twofish(c: &mut Criterion) {
-    const BLOCK_SIZE: usize = kittycrypto::twofish::Twofish::BLOCK_SIZE;
+    const BLOCK_SIZE: usize = 16;
     let mut key = [0u8; 32];
     rand::fill(&mut key);
     let key = key;
