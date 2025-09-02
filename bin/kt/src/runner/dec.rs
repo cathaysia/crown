@@ -1,4 +1,7 @@
-use kittycrypto::cipher::erased::ErasedAead;
+use kittycrypto::{
+    aes::Aes,
+    cipher::{erased::ErasedAead, gcm::GcmAble},
+};
 
 use crate::args::{ArgsDec, EncAlgorithm};
 
@@ -26,6 +29,7 @@ pub fn run_dec(args: ArgsDec) -> anyhow::Result<()> {
         EncAlgorithm::XChacha20Poly1305 => Some(ErasedAead::new(
             kittycrypto::chacha20poly1305::XChaCha20Poly1305::new(&key)?,
         )),
+        EncAlgorithm::AesGcm => Some(ErasedAead::new(Aes::new(&key)?.to_gcm()?)),
     };
     if let Some(cipher) = decrypt {
         match tagin {

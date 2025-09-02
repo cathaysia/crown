@@ -76,6 +76,8 @@ pub enum EncAlgorithm {
     Chacha20Poly1305,
     #[clap(name = "xchacha20-poly1305")]
     XChacha20Poly1305,
+    /// Aes128Gcm | Aes192Gcm | Aes256Gcm
+    AesGcm,
 }
 
 #[derive(Debug, Parser)]
