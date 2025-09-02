@@ -78,6 +78,12 @@ pub enum EncAlgorithm {
     XChacha20Poly1305,
     /// Aes128Gcm | Aes192Gcm | Aes256Gcm
     AesGcm,
+    // Stream ciphers
+    Rc4,
+    Rc6Ctr,
+    Salsa20,
+    Chacha20,
+    AesCtr,
 }
 
 #[derive(Debug, Parser)]

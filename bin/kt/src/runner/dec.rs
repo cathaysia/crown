@@ -1,6 +1,12 @@
 use kittycrypto::{
     aes::Aes,
-    cipher::{erased::ErasedAead, gcm::GcmAble},
+    chacha20::Chacha20,
+    cipher::{
+        erased::{ErasedAead, ErasedStreamCipher},
+        gcm::GcmAble,
+    },
+    rc4::Rc4,
+    sala20::Sala20,
 };
 
 use crate::args::{ArgsDec, EncAlgorithm};
@@ -30,7 +36,9 @@ pub fn run_dec(args: ArgsDec) -> anyhow::Result<()> {
             kittycrypto::chacha20poly1305::XChaCha20Poly1305::new(&key)?,
         )),
         EncAlgorithm::AesGcm => Some(ErasedAead::new(Aes::new(&key)?.to_gcm()?)),
+        _ => None,
     };
+
     if let Some(cipher) = decrypt {
         match tagin {
             Some(tagfile) => {
@@ -41,8 +49,23 @@ pub fn run_dec(args: ArgsDec) -> anyhow::Result<()> {
                 cipher.open_in_place(&mut infile, &iv, &aad)?;
             }
         }
-        std::fs::write(out_file, infile)?;
+        std::fs::write(&out_file, &infile)?;
     }
 
+    let stream_cipher = match algorithm {
+        EncAlgorithm::Rc4 => Some(ErasedStreamCipher::new(Rc4::new(&key)?)),
+        // EncAlgorithm::Rc6Ctr => Some(ErasedStreamCipher::new(Rc6::new(&key, 20).to_ctr(&iv)?)),
+        EncAlgorithm::Salsa20 => Some(ErasedStreamCipher::new(Sala20::new(&key, &iv)?)),
+        EncAlgorithm::Chacha20 => Some(ErasedStreamCipher::new(
+            Chacha20::new_unauthenticated_cipher(&key, &iv)?,
+        )),
+        // EncAlgorithm::AesCtr => Some(ErasedStreamCipher::new(Aes::new(&key)?.to_ctr(&iv)?)),
+        _ => None,
+    };
+
+    if let Some(mut cipher) = stream_cipher {
+        cipher.xor_key_stream(&mut infile)?;
+        std::fs::write(out_file, infile)?;
+    }
     Ok(())
 }
