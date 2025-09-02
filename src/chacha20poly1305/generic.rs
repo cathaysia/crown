@@ -32,9 +32,6 @@ impl ChaCha20Poly1305 {
         nonce: &[u8],
         additional_data: &[u8],
     ) -> CryptoResult<[u8; 16]> {
-        let mut ttag = [0u8; 16];
-        let (ciphertext, tag) = (inout, &mut ttag);
-
         // Generate poly1305 key using ChaCha20
         let mut poly_key = [0u8; 32];
         let mut cipher = ChaCha20::new_unauthenticated_cipher(&self.key, nonce)?;
@@ -42,20 +39,19 @@ impl ChaCha20Poly1305 {
 
         // Set counter to 1, skipping first 32 bytes
         cipher.set_counter(1);
-        cipher.xor_key_stream(ciphertext)?;
+        cipher.xor_key_stream(inout)?;
 
         // Authenticate with Poly1305
         let mut poly = Poly1305::new(&poly_key);
         Self::write_with_padding(&mut poly, additional_data);
-        Self::write_with_padding(&mut poly, ciphertext);
+        Self::write_with_padding(&mut poly, inout);
         Self::write_uint64(&mut poly, additional_data.len());
-        Self::write_uint64(&mut poly, ciphertext.len());
+        Self::write_uint64(&mut poly, inout.len());
 
-        let mut computed_tag = unsafe { std::mem::zeroed() };
-        poly.sum(&mut computed_tag);
-        tag[..POLY1305_TAG_SIZE].copy_from_slice(&computed_tag);
+        let mut tag: [u8; 16] = unsafe { core::mem::zeroed() };
+        poly.sum(&mut tag);
 
-        Ok(ttag)
+        Ok(tag)
     }
 
     pub(crate) fn open_generic(
@@ -69,8 +65,6 @@ impl ChaCha20Poly1305 {
             return Err(CryptoError::InvalidTagSize(tag.len()));
         }
 
-        let (ciphertext, tag) = (inout, tag);
-
         // Generate poly1305 key using ChaCha20
         let mut poly_key = [0u8; 32];
         let mut cipher = ChaCha20::new_unauthenticated_cipher(&self.key, nonce)?;
@@ -82,18 +76,17 @@ impl ChaCha20Poly1305 {
         // Verify authentication tag
         let mut poly = Poly1305::new(&poly_key);
         Self::write_with_padding(&mut poly, additional_data);
-        Self::write_with_padding(&mut poly, ciphertext);
+        Self::write_with_padding(&mut poly, inout);
         Self::write_uint64(&mut poly, additional_data.len());
-        Self::write_uint64(&mut poly, ciphertext.len());
+        Self::write_uint64(&mut poly, inout.len());
 
-        let mut computed_tag = unsafe { std::mem::zeroed() };
+        let mut computed_tag: [u8; 16] = unsafe { std::mem::zeroed() };
         poly.sum(&mut computed_tag);
         if !constant_time_eq(&computed_tag, tag) {
             return Err(CryptoError::AuthenticationFailed);
         }
 
-        // Decrypt
-        cipher.xor_key_stream(ciphertext)?;
+        cipher.xor_key_stream(inout)?;
 
         Ok(())
     }
