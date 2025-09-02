@@ -6,6 +6,8 @@ use clap::{Parser, ValueEnum};
 pub enum Args {
     Hash(ArgsHash),
     Rand(ArgsRand),
+    Enc(ArgsEnc),
+    Dec(ArgsDec),
 }
 
 #[derive(Debug, Parser)]
@@ -32,6 +34,46 @@ pub struct ArgsHash {
     pub check: bool,
     #[clap(required = true)]
     pub files: Vec<String>,
+}
+
+#[derive(Debug, Parser)]
+pub struct ArgsEnc {
+    pub algorithm: EncAlgorithm,
+    #[clap(long)]
+    pub key: String,
+    #[clap(long)]
+    pub iv: String,
+    #[clap(long = "aad")]
+    pub aad_file: Option<String>,
+    #[clap(long = "in")]
+    pub in_file: String,
+    #[clap(long = "out")]
+    pub out_file: String,
+    #[clap(long)]
+    pub tagout: Option<String>,
+}
+
+#[derive(Debug, Parser)]
+pub struct ArgsDec {
+    pub algorithm: EncAlgorithm,
+    #[clap(long)]
+    pub key: String,
+    #[clap(long)]
+    pub iv: String,
+    #[clap(long = "aad")]
+    pub aad_file: Option<String>,
+    #[clap(long = "in")]
+    pub in_file: String,
+    #[clap(long = "out")]
+    pub out_file: String,
+    #[clap(long)]
+    pub tagin: Option<String>,
+}
+
+#[derive(Debug, Clone, ValueEnum)]
+#[clap(rename_all = "kebab-case")]
+pub enum EncAlgorithm {
+    Chacha20Poly1305,
 }
 
 #[derive(Debug, Parser)]

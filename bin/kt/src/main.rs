@@ -2,6 +2,8 @@
 mod cuda;
 mod utils;
 
+mod runner;
+
 use crate::args::ArgsHash;
 use args::ArgsRand;
 use base64::Engine;
@@ -75,6 +77,8 @@ fn main() -> anyhow::Result<()> {
                 out.write_all(&buf).unwrap();
             };
         }
+        args::Args::Enc(args) => runner::run_enc(args)?,
+        args::Args::Dec(args) => runner::run_dec(args)?,
     }
 
     Ok(())
