@@ -74,6 +74,8 @@ pub struct ArgsDec {
 #[clap(rename_all = "kebab-case")]
 pub enum EncAlgorithm {
     Chacha20Poly1305,
+    #[clap(name = "xchacha20-poly1305")]
+    XChacha20Poly1305,
 }
 
 #[derive(Debug, Parser)]
