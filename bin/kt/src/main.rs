@@ -120,6 +120,22 @@ pub fn create_hash_from_str(hash: &str, use_hmac: bool, key: Option<&[u8]>) -> O
             "sha3-256" => ErasedHash::new(kittycrypto::sha3::new256()),
             "sha3-384" => ErasedHash::new(kittycrypto::sha3::new384()),
             "sha3-512" => ErasedHash::new(kittycrypto::sha3::new512()),
+            "blake2b-256" => {
+                ErasedHash::new(kittycrypto::blake2b::new256(None).expect("create blake2b failed"))
+            }
+            "blake2b-384" => {
+                ErasedHash::new(kittycrypto::blake2b::new384(None).expect("create blake2b failed"))
+            }
+            "blake2b-512" => {
+                ErasedHash::new(kittycrypto::blake2b::new512(None).expect("create blake2b failed"))
+            }
+            "blake2s-128" => {
+                ErasedHash::new(kittycrypto::blake2s::new128(None).expect("create blake2s failed"))
+            }
+            "blake2s-256" => {
+                ErasedHash::new(kittycrypto::blake2s::new256(None).expect("create blake2s failed"))
+            }
+            "blake2s" => ErasedHash::new(kittycrypto::sha3::new512()),
             _ => return None,
         })
     } else {
@@ -138,6 +154,21 @@ pub fn create_hash_from_str(hash: &str, use_hmac: bool, key: Option<&[u8]>) -> O
             "sha3-256" => ErasedHash::new(HMAC::new(kittycrypto::sha3::new256, key)),
             "sha3-384" => ErasedHash::new(HMAC::new(kittycrypto::sha3::new384, key)),
             "sha3-512" => ErasedHash::new(HMAC::new(kittycrypto::sha3::new512, key)),
+            "blake2b-256" => ErasedHash::new(
+                kittycrypto::blake2b::new256(Some(key)).expect("create blake2b failed"),
+            ),
+            "blake2b-384" => ErasedHash::new(
+                kittycrypto::blake2b::new384(Some(key)).expect("create blake2b failed"),
+            ),
+            "blake2b-512" => ErasedHash::new(
+                kittycrypto::blake2b::new512(Some(key)).expect("create blake2b failed"),
+            ),
+            "blake2s-128" => ErasedHash::new(
+                kittycrypto::blake2s::new128(Some(key)).expect("create blake2s failed"),
+            ),
+            "blake2s-256" => ErasedHash::new(
+                kittycrypto::blake2s::new256(Some(key)).expect("create blake2s failed"),
+            ),
             _ => return None,
         })
     }

@@ -149,6 +149,11 @@ pub enum HashAlgorithm {
     Sha3384,
     #[clap(name = "sha3-512")]
     Sha3512,
+    Blake2b256,
+    Blake2b384,
+    Blake2b512,
+    Blake2s128,
+    Blake2s256,
     #[cfg(feature = "cuda")]
     Md5Cuda,
     #[cfg(feature = "cuda")]
@@ -182,6 +187,11 @@ impl Display for HashAlgorithm {
             Self::Sha3256 => "sha3-256",
             Self::Sha3384 => "sha3-384",
             Self::Sha3512 => "sha3-512",
+            Self::Blake2b256 => "blake2b-256",
+            Self::Blake2b384 => "blake2b-384",
+            Self::Blake2b512 => "blake2b-512",
+            Self::Blake2s128 => "blake2s128",
+            Self::Blake2s256 => "blake2s256",
             #[cfg(feature = "cuda")]
             Self::Md5Cuda => "md5-cuda",
             #[cfg(feature = "cuda")]
