@@ -711,7 +711,6 @@ dependencies = [
  "hex",
  "kittycrypto",
  "paste",
- "rand",
  "rayon",
  "tracing",
  "tracing-subscriber",
