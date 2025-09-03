@@ -8,7 +8,7 @@ use crate::args::ArgsHash;
 use args::ArgsRand;
 use base64::Engine;
 use clap::Parser;
-use kittycrypto::hash::ErasedHash;
+use kittycrypto::{hash::ErasedHash, hmac::HMAC};
 use rayon::prelude::*;
 use std::{collections::BTreeMap, io::Write};
 use tracing::*;
@@ -37,7 +37,11 @@ fn main() -> anyhow::Result<()> {
     match args {
         args::Args::Hash(args_hash) => {
             let ArgsHash {
-                algorithm, files, ..
+                algorithm,
+                files,
+                hmac,
+                key,
+                ..
             } = args_hash;
 
             #[cfg(feature = "cuda")]
@@ -45,8 +49,16 @@ fn main() -> anyhow::Result<()> {
                 cuda::calc_and_output_hash(algorithm, files);
                 return Ok(());
             }
+            let key = if hmac {
+                key.map(|v| hex::decode(&v).unwrap())
+            } else {
+                None
+            };
+            if hmac && key.is_none() {
+                panic!("use HMAC but not provided a key.")
+            }
 
-            calc_and_output_hash(&algorithm.to_string(), files);
+            calc_and_output_hash(&algorithm.to_string(), files, hmac, key.as_deref());
         }
         args::Args::Rand(ArgsRand {
             hex,
@@ -87,31 +99,51 @@ fn main() -> anyhow::Result<()> {
 fn main_mock(prog: &str) -> anyhow::Result<()> {
     debug!("mock as {prog}");
     let arg = args::Md5::parse();
-    calc_and_output_hash(prog, arg.files);
+    calc_and_output_hash(prog, arg.files, false, None);
 
     Ok(())
 }
 
-pub fn create_hash_from_str(hash: &str) -> Option<ErasedHash> {
-    Some(match hash {
-        "md4" | "md4sum" => ErasedHash::new(kittycrypto::md4::new_md4()),
-        "md5" | "md5sum" => ErasedHash::new(kittycrypto::md5::new_md5()),
-        "sha1" => ErasedHash::new(kittycrypto::sha1::new()),
-        "sha224" => ErasedHash::new(kittycrypto::sha256::new224()),
-        "sha256" => ErasedHash::new(kittycrypto::sha256::new256()),
-        "sha384" => ErasedHash::new(kittycrypto::sha512::new384()),
-        "sha512" => ErasedHash::new(kittycrypto::sha512::new512()),
-        "sha512-224" => ErasedHash::new(kittycrypto::sha512::new512_224()),
-        "sha512-256" => ErasedHash::new(kittycrypto::sha512::new512_256()),
-        "sha3-224" => ErasedHash::new(kittycrypto::sha3::new224()),
-        "sha3-256" => ErasedHash::new(kittycrypto::sha3::new256()),
-        "sha3-384" => ErasedHash::new(kittycrypto::sha3::new384()),
-        "sha3-512" => ErasedHash::new(kittycrypto::sha3::new512()),
-        _ => return None,
-    })
+pub fn create_hash_from_str(hash: &str, use_hmac: bool, key: Option<&[u8]>) -> Option<ErasedHash> {
+    if !use_hmac {
+        Some(match hash {
+            "md4" | "md4sum" => ErasedHash::new(kittycrypto::md4::new_md4()),
+            "md5" | "md5sum" => ErasedHash::new(kittycrypto::md5::new_md5()),
+            "sha1" => ErasedHash::new(kittycrypto::sha1::new()),
+            "sha224" => ErasedHash::new(kittycrypto::sha256::new224()),
+            "sha256" => ErasedHash::new(kittycrypto::sha256::new256()),
+            "sha384" => ErasedHash::new(kittycrypto::sha512::new384()),
+            "sha512" => ErasedHash::new(kittycrypto::sha512::new512()),
+            "sha512-224" => ErasedHash::new(kittycrypto::sha512::new512_224()),
+            "sha512-256" => ErasedHash::new(kittycrypto::sha512::new512_256()),
+            "sha3-224" => ErasedHash::new(kittycrypto::sha3::new224()),
+            "sha3-256" => ErasedHash::new(kittycrypto::sha3::new256()),
+            "sha3-384" => ErasedHash::new(kittycrypto::sha3::new384()),
+            "sha3-512" => ErasedHash::new(kittycrypto::sha3::new512()),
+            _ => return None,
+        })
+    } else {
+        let key = key.expect("use HMAC but not provided a key.");
+        Some(match hash {
+            "md4" | "md4sum" => ErasedHash::new(HMAC::new(kittycrypto::md4::new_md4, key)),
+            "md5" | "md5sum" => ErasedHash::new(HMAC::new(kittycrypto::md5::new_md5, key)),
+            "sha1" => ErasedHash::new(HMAC::new(kittycrypto::sha1::new, key)),
+            "sha224" => ErasedHash::new(HMAC::new(kittycrypto::sha256::new224, key)),
+            "sha256" => ErasedHash::new(HMAC::new(kittycrypto::sha256::new256, key)),
+            "sha384" => ErasedHash::new(HMAC::new(kittycrypto::sha512::new384, key)),
+            "sha512" => ErasedHash::new(HMAC::new(kittycrypto::sha512::new512, key)),
+            "sha512-224" => ErasedHash::new(HMAC::new(kittycrypto::sha512::new512_224, key)),
+            "sha512-256" => ErasedHash::new(HMAC::new(kittycrypto::sha512::new512_256, key)),
+            "sha3-224" => ErasedHash::new(HMAC::new(kittycrypto::sha3::new224, key)),
+            "sha3-256" => ErasedHash::new(HMAC::new(kittycrypto::sha3::new256, key)),
+            "sha3-384" => ErasedHash::new(HMAC::new(kittycrypto::sha3::new384, key)),
+            "sha3-512" => ErasedHash::new(HMAC::new(kittycrypto::sha3::new512, key)),
+            _ => return None,
+        })
+    }
 }
 
-fn calc_and_output_hash(algorithm: &str, files: Vec<String>) {
+fn calc_and_output_hash(algorithm: &str, files: Vec<String>, use_hmac: bool, key: Option<&[u8]>) {
     rayon::scope(|s| {
         let (tx, rx) = std::sync::mpsc::channel();
         s.spawn(move |_| {
@@ -121,7 +153,7 @@ fn calc_and_output_hash(algorithm: &str, files: Vec<String>) {
                 .par_bridge()
                 .for_each(|(i, path)| {
                     let content = std::fs::read(&path).unwrap();
-                    let mut hasher = create_hash_from_str(algorithm)
+                    let mut hasher = create_hash_from_str(algorithm, use_hmac, key)
                         .unwrap_or_else(|| panic!("unknown hash algorithm: {algorithm}"));
 
                     hasher.write_all(&content).unwrap();

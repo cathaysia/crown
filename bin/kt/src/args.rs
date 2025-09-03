@@ -34,6 +34,11 @@ pub struct ArgsHash {
     pub check: bool,
     #[clap(required = true)]
     pub files: Vec<String>,
+    #[clap(long, default_value_t = false)]
+    pub hmac: bool,
+    /// used for HMAC
+    #[clap(long, default_value = None)]
+    pub key: Option<String>,
 }
 
 #[derive(Debug, Parser)]
