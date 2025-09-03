@@ -34,6 +34,7 @@ fn main() -> anyhow::Result<()> {
         args::Args::Rand(args_rand) => runner::rand::run_hash(args_rand)?,
         args::Args::Enc(args) => runner::run_enc(args)?,
         args::Args::Dec(args) => runner::run_dec(args)?,
+        args::Args::Kdf(args) => runner::run_kdf(args)?,
     }
 
     Ok(())
