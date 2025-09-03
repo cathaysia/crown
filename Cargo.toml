@@ -9,7 +9,7 @@ edition = "2021"
 
 [features]
 default = []
-cuda = []
+cuda = ["dep:cc"]
 
 [profile.relwithdebinfo]
 inherits = "release"
@@ -24,6 +24,9 @@ paste = "1.0.15"
 base64 = "0.22.1"
 libc = "0.2.175"
 nix = "0.30.1"
+
+[build-dependencies]
+cc = { version = "1.2.34", optional = true }
 
 [dev-dependencies]
 rand = "0.9.2"
@@ -114,6 +117,3 @@ harness = false
 [[bench]]
 name = "twofish"
 harness = false
-
-[build-dependencies]
-cc = "1.2.34"
