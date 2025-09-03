@@ -10,7 +10,10 @@ use std::convert::TryInto;
 
 use bytes::BufMut;
 
-use crate::cipher::{marker::BlockCipherMarker, BlockCipher};
+use crate::{
+    cipher::{marker::BlockCipherMarker, BlockCipher},
+    error::CryptoResult,
+};
 
 const BLOCK_SIZE: usize = 8;
 
@@ -40,7 +43,7 @@ pub struct Rc2 {
 impl BlockCipherMarker for Rc2 {}
 
 impl Rc2 {
-    pub fn new(key: &[u8], t1: usize) -> Result<Self, &'static str> {
+    pub fn new(key: &[u8], t1: usize) -> CryptoResult<Self> {
         Ok(Self {
             k: expand_key(key, t1),
         })

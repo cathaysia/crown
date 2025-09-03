@@ -3,7 +3,10 @@
 mod tests;
 
 mod imp;
-use crate::cipher::{marker::BlockCipherMarker, BlockCipher};
+use crate::{
+    cipher::{marker::BlockCipherMarker, BlockCipher},
+    error::CryptoResult,
+};
 use imp::*;
 
 use std::mem::MaybeUninit;
@@ -15,15 +18,14 @@ pub struct Rc6 {
 impl BlockCipherMarker for Rc6 {}
 
 impl Rc6 {
-    pub fn new(key: &[u8], num_rounds: usize) -> Self {
+    pub fn new(key: &[u8], num_rounds: usize) -> CryptoResult<Self> {
         unsafe {
             let skey = MaybeUninit::<Rc6Key>::uninit();
             let mut skey = skey.assume_init();
 
-            let err = rc6_setup(key, key.len(), num_rounds, &mut skey);
-            assert!(err.is_ok());
+            rc6_setup(key, key.len(), num_rounds, &mut skey)?;
 
-            Self { skey }
+            Ok(Self { skey })
         }
     }
 }

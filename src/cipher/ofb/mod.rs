@@ -12,7 +12,7 @@ mod tests;
 const STREAM_BUFFER_SIZE: usize = 512;
 
 pub trait OfbAble {
-    fn to_ofb(self, iv: &[u8]) -> CryptoResult<impl StreamCipher>;
+    fn to_ofb(self, iv: &[u8]) -> CryptoResult<impl StreamCipher + 'static>;
 }
 
 pub trait OfbAbleMarker {}
@@ -22,7 +22,7 @@ impl<T> OfbAble for T
 where
     T: BlockCipher + OfbAbleMarker + 'static,
 {
-    fn to_ofb(self, iv: &[u8]) -> CryptoResult<impl StreamCipher> {
+    fn to_ofb(self, iv: &[u8]) -> CryptoResult<impl StreamCipher + 'static> {
         let block_size = self.block_size();
         if iv.len() != block_size {
             return Err(CryptoError::InvalidIvSize(iv.len()));

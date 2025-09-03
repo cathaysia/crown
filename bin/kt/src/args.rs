@@ -51,6 +51,8 @@ pub struct ArgsEnc {
     pub out_file: String,
     #[clap(long)]
     pub tagout: Option<String>,
+    #[clap(long, default_value_t = 20)]
+    pub rounds: usize,
 }
 
 #[derive(Debug, Parser)]
@@ -68,23 +70,45 @@ pub struct ArgsDec {
     pub out_file: String,
     #[clap(long)]
     pub tagin: Option<String>,
+    #[clap(long, default_value_t = 20)]
+    pub rounds: usize,
 }
 
-#[derive(Debug, Clone, ValueEnum)]
-#[clap(rename_all = "kebab-case")]
-pub enum EncAlgorithm {
-    Chacha20Poly1305,
-    #[clap(name = "xchacha20-poly1305")]
-    XChacha20Poly1305,
-    /// Aes128Gcm | Aes192Gcm | Aes256Gcm
-    AesGcm,
-    // Stream ciphers
-    Rc4,
-    Rc6Ctr,
-    Salsa20,
-    Chacha20,
-    AesCtr,
+macro_rules! enc_algorithm {
+    ($($block: ident,)*) => {
+        paste::paste! {
+            #[derive(Debug, Clone, ValueEnum)]
+            #[clap(rename_all = "kebab-case")]
+            pub enum EncAlgorithm {
+                /// Chacha20Poly1305 AEAD mode.
+                Chacha20Poly1305,
+                /// XChacha20Poly1305 AEAD mode.
+                #[clap(name = "xchacha20-poly1305")]
+                XChacha20Poly1305,
+                /// AesGcm AEAD Mode. Aes128Gcm | Aes192Gcm | Aes256Gcm
+                AesGcm,
+                /// Chacha20 stream cipher.
+                Chacha20,
+                /// Rc4 stream cipher.
+                Rc4,
+                /// Sala20 stream cipher.
+                Salsa20,
+                // block mode(to StreamCipher)
+                $(
+                    #[doc=$block " in Ctr mode"]
+                    [<$block Ctr>],
+                    #[doc=$block " in Cfb mode"]
+                    [<$block Cfb>],
+                    #[doc=$block " in Ofb mode"]
+                    [<$block Ofb>],
+                )*
+            }
+
+        }
+    };
 }
+
+enc_algorithm!(Aes, Blowfish, Cast5, Des, TripleDes, Rc2, Rc5, Rc6, Tea, Twofish, Xtea,);
 
 #[derive(Debug, Parser)]
 pub struct Md5 {

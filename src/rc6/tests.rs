@@ -49,7 +49,7 @@ fn test_rc6_encrypt_decrypt() {
     ];
 
     for (key, pt, ct) in testcase {
-        let k = Rc6::new(key, 0);
+        let k = Rc6::new(key, 0).unwrap();
         let mut ciphertext = pt.to_vec();
         k.encrypt(&mut ciphertext);
         assert_eq!(ciphertext, ct);

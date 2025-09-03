@@ -710,6 +710,7 @@ dependencies = [
  "clap",
  "hex",
  "kittycrypto",
+ "paste",
  "rand",
  "rayon",
  "tracing",

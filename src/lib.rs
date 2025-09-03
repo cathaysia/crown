@@ -10,6 +10,7 @@
 //! - [tea](crate::tea::Tea)
 //! - [twofish](crate::twofish::Twofish)
 //! - [xtea](crate::xtea::Xtea)
+//! - [rc6](crate::rc6::Rc6)
 //!
 //! ## [BlockMode](crate::cipher::BlockMode)
 //!
@@ -26,7 +27,6 @@
 //! ### [StreamCipher](crate::cipher::StreamCipher)
 //!
 //! - [rc4](crate::rc4::Rc4)
-//! - [rc6](crate::rc6::Rc6)
 //! - [sala20](crate::sala20::Sala20)
 //!
 //! ### [Hash](crate::hash::Hash)

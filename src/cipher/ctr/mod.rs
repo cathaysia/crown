@@ -13,14 +13,14 @@ use crate::subtle::xor::xor_bytes;
 const STREAM_BUFFER_SIZE: usize = 512;
 
 pub trait CtrAble {
-    fn to_ctr(self, iv: &[u8]) -> CryptoResult<impl StreamCipher>;
+    fn to_ctr(self, iv: &[u8]) -> CryptoResult<impl StreamCipher + 'static>;
 }
 
 pub trait CtrAbleMarker {}
 impl<T: BlockCipherMarker> CtrAbleMarker for T {}
 
 impl CtrAble for aes::Aes {
-    fn to_ctr(self, iv: &[u8]) -> CryptoResult<impl StreamCipher> {
+    fn to_ctr(self, iv: &[u8]) -> CryptoResult<impl StreamCipher + 'static> {
         Ok(AesCtrWrapper {
             c: aes::ctr::CTR::new(self, iv)?,
         })
@@ -31,7 +31,7 @@ impl<T> CtrAble for T
 where
     T: BlockCipher + CtrAbleMarker + 'static,
 {
-    fn to_ctr(self, iv: &[u8]) -> CryptoResult<impl StreamCipher> {
+    fn to_ctr(self, iv: &[u8]) -> CryptoResult<impl StreamCipher + 'static> {
         if iv.len() != self.block_size() {
             return Err(CryptoError::InvalidIvSize(iv.len()));
         }

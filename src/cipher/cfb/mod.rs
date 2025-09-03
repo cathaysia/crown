@@ -23,10 +23,10 @@ pub struct Cfb<B: BlockCipher> {
 /// Trait for block ciphers that can be used with CFB mode
 pub trait CfbAble {
     /// Create a new CFB encryptor with the given IV
-    fn to_cfb_encrypter(self, iv: &[u8]) -> CryptoResult<impl StreamCipher>;
+    fn to_cfb_encrypter(self, iv: &[u8]) -> CryptoResult<impl StreamCipher + 'static>;
 
     /// Create a new CFB decrypter with the given IV
-    fn to_cfb_decrypter(self, iv: &[u8]) -> CryptoResult<impl StreamCipher>;
+    fn to_cfb_decrypter(self, iv: &[u8]) -> CryptoResult<impl StreamCipher + 'static>;
 }
 
 /// Marker trait for types that can be used with CFB
@@ -37,11 +37,11 @@ impl<T> CfbAble for T
 where
     T: BlockCipher + CfbAbleMarker + 'static,
 {
-    fn to_cfb_encrypter(self, iv: &[u8]) -> CryptoResult<impl StreamCipher> {
+    fn to_cfb_encrypter(self, iv: &[u8]) -> CryptoResult<impl StreamCipher + 'static> {
         new_cfb(self, iv, false)
     }
 
-    fn to_cfb_decrypter(self, iv: &[u8]) -> CryptoResult<impl StreamCipher> {
+    fn to_cfb_decrypter(self, iv: &[u8]) -> CryptoResult<impl StreamCipher + 'static> {
         new_cfb(self, iv, true)
     }
 }
