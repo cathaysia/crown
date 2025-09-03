@@ -1,5 +1,8 @@
 use crate::args::ArgsHash;
-use kittycrypto::{hash::ErasedHash, hmac::HMAC};
+use kittycrypto::{
+    hash::{ErasedHash, HashVariable},
+    hmac::HMAC,
+};
 use rayon::prelude::*;
 use std::{collections::BTreeMap, io::Write};
 
@@ -9,6 +12,7 @@ pub fn run_hash(args_hash: ArgsHash) -> anyhow::Result<()> {
         files,
         hmac,
         key,
+        length,
         ..
     } = args_hash;
 
@@ -26,7 +30,21 @@ pub fn run_hash(args_hash: ArgsHash) -> anyhow::Result<()> {
         panic!("use HMAC but not provided a key.")
     }
 
-    calc_and_output_hash(&algorithm.to_string(), files, hmac, key.as_deref());
+    match algorithm {
+        crate::args::HashAlgorithm::Blake2bVariable
+        | crate::args::HashAlgorithm::Blake2sVariable => {
+            calc_and_output_hash_variable(
+                &algorithm.to_string(),
+                files,
+                hmac,
+                key.as_deref(),
+                length,
+            );
+        }
+        _ => {
+            calc_and_output_hash(&algorithm.to_string(), files, hmac, key.as_deref());
+        }
+    }
 
     Ok(())
 }
@@ -121,6 +139,62 @@ pub(crate) fn calc_and_output_hash(
 
                     hasher.write_all(&content).unwrap();
                     let sum = hasher.sum();
+                    tx.send((i, path, hex::encode(sum))).unwrap();
+                });
+        });
+
+        let mut buffer = BTreeMap::new();
+        let mut expected = 0;
+        while let Ok((i, path, hex)) = rx.recv() {
+            buffer.insert(i, (path, hex));
+            if i <= expected {
+                expected += 1;
+                for (_, (path, hex)) in buffer.range(0..expected) {
+                    println!("{hex} {path}");
+                }
+                buffer = buffer.split_off(&expected);
+                continue;
+            }
+        }
+        for (_, (path, hex)) in buffer.iter() {
+            println!("{hex} {path}");
+        }
+    });
+}
+
+pub(crate) fn calc_and_output_hash_variable(
+    algorithm: &str,
+    files: Vec<String>,
+    use_hmac: bool,
+    key: Option<&[u8]>,
+    length: usize,
+) {
+    rayon::scope(|s| {
+        let (tx, rx) = std::sync::mpsc::channel();
+        s.spawn(move |_| {
+            files
+                .into_iter()
+                .enumerate()
+                .par_bridge()
+                .for_each(|(i, path)| {
+                    let content = std::fs::read(&path).unwrap();
+
+                    let sum = match algorithm {
+                        "blake2b-variable" => {
+                            let mut hasher = if use_hmac {
+                                let key = key.expect("use HMAC but not provided a key.");
+                                kittycrypto::blake2b::Blake2bVariable::new(Some(key), length)
+                                    .expect("create blake2b variable failed")
+                            } else {
+                                kittycrypto::blake2b::Blake2bVariable::new(None, length)
+                                    .expect("create blake2b variable failed")
+                            };
+                            hasher.write_all(&content).unwrap();
+                            hasher.sum_vec()
+                        }
+                        _ => panic!("unknown hash algorithm: {algorithm}"),
+                    };
+
                     tx.send((i, path, hex::encode(sum))).unwrap();
                 });
         });

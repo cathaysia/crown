@@ -37,9 +37,10 @@ pub struct ArgsHash {
     pub files: Vec<String>,
     #[clap(long, default_value_t = false)]
     pub hmac: bool,
-    /// used for HMAC
     #[clap(long, default_value = None)]
     pub key: Option<String>,
+    #[clap(long, default_value_t = 32)]
+    pub length: usize,
 }
 
 #[derive(Debug, Parser)]
@@ -184,6 +185,8 @@ pub enum HashAlgorithm {
     Blake2b512,
     Blake2s128,
     Blake2s256,
+    Blake2bVariable,
+    Blake2sVariable,
     #[cfg(feature = "cuda")]
     Md5Cuda,
     #[cfg(feature = "cuda")]
@@ -222,6 +225,8 @@ impl Display for HashAlgorithm {
             Self::Blake2b512 => "blake2b-512",
             Self::Blake2s128 => "blake2s128",
             Self::Blake2s256 => "blake2s256",
+            Self::Blake2bVariable => "blake2b-variable",
+            Self::Blake2sVariable => "blake2s-variable",
             #[cfg(feature = "cuda")]
             Self::Md5Cuda => "md5-cuda",
             #[cfg(feature = "cuda")]
