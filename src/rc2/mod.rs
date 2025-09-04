@@ -6,8 +6,6 @@
 #[cfg(test)]
 mod tests;
 
-use std::convert::TryInto;
-
 use bytes::BufMut;
 
 use crate::{

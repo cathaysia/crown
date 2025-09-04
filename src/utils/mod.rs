@@ -1,9 +1,14 @@
+#[cfg(feature = "std")]
 pub mod rand;
 pub mod subtle;
 
+#[cfg(feature = "std")]
 pub(crate) mod drbg;
+#[cfg(feature = "std")]
 pub(crate) mod entropy;
+#[cfg(feature = "std")]
 pub(crate) mod randutil;
+#[cfg(feature = "std")]
 pub(crate) mod sysrand;
 
 pub(crate) fn inexact_overlap(dst: &[u8], src: &[u8]) -> bool {

@@ -1,7 +1,7 @@
+use crate::aes::gcm::GCM;
 use crate::aes::Aes;
 use crate::cipher::Aead;
 use crate::error::CryptoResult;
-use crate::{aes::gcm::GCM, utils};
 
 // Constants
 const GCM_BLOCK_SIZE: usize = 16;
@@ -16,6 +16,7 @@ const GCM_TAG_SIZE: usize = 16;
 // This complies with FIPS 140-3 IG C.H Scenario 2.
 //
 // Note that this is NOT a [cipher.AEAD].Seal method.
+#[cfg(feature = "std")]
 pub fn seal_with_random_nonce(
     g: &GCM,
     nonce: &mut [u8],
@@ -29,10 +30,10 @@ pub fn seal_with_random_nonce(
         panic!("crypto/cipher: incorrect nonce length given to GCMWithRandomNonce");
     }
 
-    if utils::inexact_overlap(inout, inout) {
+    if crate::utils::inexact_overlap(inout, inout) {
         panic!("crypto/cipher: invalid buffer overlap of output and input");
     }
-    if utils::inexact_overlap(inout, additional_data) {
+    if crate::utils::inexact_overlap(inout, additional_data) {
         panic!("crypto/cipher: invalid buffer overlap of output and additional data");
     }
 

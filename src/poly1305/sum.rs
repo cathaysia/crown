@@ -25,7 +25,7 @@ mod generic;
 use generic::*;
 
 use core::convert::TryInto;
-use std::ops::Add;
+use core::ops::Add;
 
 use bytes::Buf;
 
@@ -76,7 +76,7 @@ pub(crate) struct MacGeneric {
 
 impl MacGeneric {
     pub fn new(key: &[u8; 32]) -> Self {
-        let mut m: MacGeneric = unsafe { std::mem::zeroed() };
+        let mut m: MacGeneric = unsafe { core::mem::zeroed() };
         initialize(key, &mut m.mac_state);
 
         m

@@ -57,9 +57,7 @@ impl Tea {
         }
 
         if rounds % 2 != 0 {
-            return Err(CryptoError::InvalidParameter(
-                "odd number of rounds specified".to_string(),
-            ));
+            return Err(CryptoError::InvalidRound(rounds));
         }
 
         Ok(Tea {

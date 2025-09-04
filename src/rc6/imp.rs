@@ -36,7 +36,7 @@ pub fn rc6_setup(
     skey: &mut Rc6Key,
 ) -> CryptoResult<()> {
     if num_rounds != 0 && num_rounds != 20 {
-        return Err(CryptoError::InvalidRound);
+        return Err(CryptoError::InvalidRound(num_rounds));
     }
     if !(..=128).contains(&keylen) {
         return Err(CryptoError::InvalidKeySize(keylen));

@@ -2,6 +2,7 @@ mod consts;
 use consts::*;
 
 pub mod cbc;
+#[cfg(feature = "alloc")]
 pub mod ctr;
 mod generic;
 
@@ -13,8 +14,11 @@ pub mod gcm;
 #[cfg(test)]
 mod tests;
 
+#[cfg(feature = "alloc")]
+use crate::cipher::{cfb::CfbAbleMarker, ofb::OfbAbleMarker};
+
 use crate::{
-    cipher::{cfb::CfbAbleMarker, ofb::OfbAbleMarker, BlockCipher},
+    cipher::BlockCipher,
     error::{CryptoError, CryptoResult},
 };
 
@@ -32,8 +36,10 @@ const AES256_ROUNDS: usize = 14;
 pub struct Aes {
     block: BlockExpanded,
 }
-
+#[cfg(feature = "alloc")]
 impl OfbAbleMarker for Aes {}
+
+#[cfg(feature = "alloc")]
 impl CfbAbleMarker for Aes {}
 
 impl Aes {

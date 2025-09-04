@@ -681,6 +681,7 @@ dependencies = [
  "digest",
  "hex",
  "hmac",
+ "kittycrypto",
  "libc",
  "md4",
  "md5",

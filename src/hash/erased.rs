@@ -1,7 +1,8 @@
-use super::*;
-use std::io::Write;
+use crate::error::CryptoResult;
 
-trait ErasedHashInner: Write + HashUser {
+use super::*;
+
+trait ErasedHashInner: CoreWrite + HashUser {
     fn sum(&mut self) -> Vec<u8>;
 }
 
@@ -14,15 +15,15 @@ impl ErasedHash {
     {
         struct Wrapper<T, const N: usize>(T);
 
-        impl<T, const N: usize> Write for Wrapper<T, N>
+        impl<T, const N: usize> CoreWrite for Wrapper<T, N>
         where
             T: Hash<N>,
         {
-            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            fn write(&mut self, buf: &[u8]) -> CryptoResult<usize> {
                 self.0.write(buf)
             }
 
-            fn flush(&mut self) -> std::io::Result<()> {
+            fn flush(&mut self) -> CryptoResult<()> {
                 self.0.flush()
             }
         }
@@ -61,12 +62,12 @@ impl ErasedHash {
     }
 }
 
-impl Write for ErasedHash {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+impl CoreWrite for ErasedHash {
+    fn write(&mut self, buf: &[u8]) -> CryptoResult<usize> {
         self.0.write(buf)
     }
 
-    fn flush(&mut self) -> std::io::Result<()> {
+    fn flush(&mut self) -> CryptoResult<()> {
         self.0.flush()
     }
 }

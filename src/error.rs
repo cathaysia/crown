@@ -6,16 +6,20 @@ pub enum CryptoError {
     UnsupportedBlockSize(usize),
     #[error("invalid cipher")]
     MessageTooLarge,
+    #[cfg(feature = "alloc")]
     #[error("unsupported operation: {0}")]
     UnsupportedOperation(String),
+    #[error("invalid round: {0}")]
+    InvalidRound(usize),
     #[error("invalid nonce length: {0}")]
     InvalidNonceSize(usize),
     #[error("invalid tag size: {0}")]
     InvalidTagSize(usize),
+    #[error("invalid block size: {0}")]
+    InvalidBlockSize(usize),
+    #[cfg(feature = "alloc")]
     #[error("invalid parameter: {0}")]
     InvalidParameter(String),
-    #[error("invalid round")]
-    InvalidRound,
     #[error("invalid key size: {0}")]
     InvalidKeySize(usize),
     #[error("invalid iv size: {0}")]
@@ -26,6 +30,7 @@ pub enum CryptoError {
     InvalidLength,
     #[error("invalid buffer overlap")]
     InvalidBufferOverlap,
+    #[cfg(feature = "alloc")]
     #[error("io error: {0}")]
     IoError(#[from] std::io::Error),
     #[error("invalid tag")]
@@ -34,12 +39,16 @@ pub enum CryptoError {
     InvalidHashState,
     #[error("invalid hash identifier")]
     InvalidHashIdentifier,
+    #[cfg(feature = "alloc")]
     #[error("invalid hash size")]
     StringError(String),
     #[error("invalid UTF-8 sequence")]
-    Utf8Error(#[from] std::str::Utf8Error),
+    Utf8Error(#[from] core::str::Utf8Error),
+    #[error("io eof")]
+    IoEof,
 }
 
+#[cfg(feature = "alloc")]
 impl From<String> for CryptoError {
     fn from(err: String) -> Self {
         CryptoError::StringError(err)

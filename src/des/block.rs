@@ -150,15 +150,15 @@ pub(crate) fn permute_final_block(mut block: u64) -> u64 {
     block
 }
 
-pub fn ks_rotate(input: u32, rotations: &[u8]) -> Vec<u32> {
-    let mut out = Vec::with_capacity(16);
+pub fn ks_rotate(input: u32, rotations: &[u8]) -> [u32; 16] {
+    let mut out = [0u32; 16];
     let mut last = input;
 
-    for &rotation in rotations {
+    for (idx, rotation) in rotations.iter().enumerate() {
         let left = (last << (4 + rotation)) >> 4;
         let right = (last << 4) >> (32 - rotation);
         let result = left | right;
-        out.push(result);
+        out[idx] = result;
         last = result;
     }
 

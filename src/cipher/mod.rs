@@ -1,13 +1,19 @@
+#[cfg(feature = "std")]
 pub mod cbc;
+#[cfg(feature = "alloc")]
 pub mod cfb;
-pub mod ctr;
-pub mod erased;
-pub mod gcm;
-pub mod marker;
-pub mod ofb;
-
+#[cfg(feature = "std")]
 #[cfg(test)]
 pub mod common_test;
+#[cfg(feature = "std")]
+pub mod ctr;
+#[cfg(feature = "std")]
+pub mod erased;
+#[cfg(feature = "std")]
+pub mod gcm;
+pub mod marker;
+#[cfg(feature = "alloc")]
+pub mod ofb;
 
 use crate::error::CryptoResult;
 
@@ -92,6 +98,7 @@ pub trait Aead<const N: usize>: AeadUser {
         additional_data: &[u8],
     ) -> CryptoResult<[u8; N]>;
 
+    #[cfg(feature = "alloc")]
     fn seal_in_place_append_tag(
         &self,
         inout: &mut Vec<u8>,
@@ -122,6 +129,7 @@ pub trait Aead<const N: usize>: AeadUser {
         additional_data: &[u8],
     ) -> CryptoResult<()>;
 
+    #[cfg(feature = "alloc")]
     fn open_in_place(
         &self,
         inout: &mut Vec<u8>,

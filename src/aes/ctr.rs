@@ -48,7 +48,7 @@ impl CTR {
         if block_offset != 0 {
             let mut output = [0u8; BLOCK_SIZE];
 
-            let copy_len = std::cmp::min(inout.len(), BLOCK_SIZE - block_offset);
+            let copy_len = core::cmp::min(inout.len(), BLOCK_SIZE - block_offset);
             output[block_offset..block_offset + copy_len].copy_from_slice(&inout[..copy_len]);
 
             ctr_blocks_1(&self.b, &mut output, ivlo, ivhi);

@@ -9,7 +9,7 @@ use crate::{
 };
 use imp::*;
 
-use std::mem::MaybeUninit;
+use core::mem::MaybeUninit;
 
 pub struct Rc6 {
     skey: Rc6Key,

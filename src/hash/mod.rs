@@ -1,5 +1,9 @@
+#[cfg(feature = "alloc")]
 mod erased;
+#[cfg(feature = "alloc")]
 pub use erased::*;
+
+use crate::core::CoreWrite;
 
 /// Common interface for all hash algorithms.
 pub trait HashUser {
@@ -15,7 +19,7 @@ pub trait HashUser {
 }
 
 /// A trait for hash algorithms with fixed-length output.
-pub trait Hash<const N: usize>: std::io::Write + HashUser {
+pub trait Hash<const N: usize>: CoreWrite + HashUser {
     /// Computes the hash value and returns it as a fixed-size array.
     ///
     /// # Returns
@@ -24,7 +28,7 @@ pub trait Hash<const N: usize>: std::io::Write + HashUser {
 }
 
 /// A trait for hash algorithms with variable-length output.
-pub trait HashVariable: std::io::Write + HashUser {
+pub trait HashVariable: CoreWrite + HashUser {
     /// Computes the hash value and stores it in the provided buffer.
     ///
     /// # Parameters
@@ -41,6 +45,7 @@ pub trait HashVariable: std::io::Write + HashUser {
     ///
     /// # Returns
     /// A vector containing the computed hash value.
+    #[cfg(feature = "alloc")]
     fn sum_vec(&mut self) -> Vec<u8> {
         let mut ret = vec![0u8; self.size()];
         let len = self.sum(&mut ret);

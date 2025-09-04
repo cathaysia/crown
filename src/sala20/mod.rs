@@ -33,7 +33,8 @@ use noasm::xor_key_stream;
 
 pub struct Sala20 {
     key: [u8; 32],
-    nonce: Vec<u8>,
+    nonce: [u8; 24],
+    nonce_len: usize,
 }
 
 impl Sala20 {
@@ -44,21 +45,29 @@ impl Sala20 {
         if key.len() != 32 {
             return Err(CryptoError::InvalidKeySize(key.len()));
         }
+        let mut nonce2 = [0u8; 24];
+        nonce2[..nonce.len()].copy_from_slice(nonce);
+
         Ok(Self {
             key: key.try_into().unwrap(),
-            nonce: nonce.into(),
+            nonce: nonce2,
+            nonce_len: nonce.len(),
         })
     }
 }
 
 impl StreamCipher for Sala20 {
     fn xor_key_stream(&mut self, inout: &mut [u8]) -> CryptoResult<()> {
-        let Self { key, nonce } = &*self;
+        let Self {
+            key,
+            nonce,
+            nonce_len,
+        } = &*self;
 
         let mut sub_nonce = [0u8; 16];
         let mut actual_key: [u8; 32] = [0u8; 32];
 
-        match nonce.len() {
+        match nonce_len {
             24 => {
                 // XSalsa20 mode
                 let mut sub_key = [0u8; 32];
@@ -70,7 +79,7 @@ impl StreamCipher for Sala20 {
             }
             8 => {
                 // Salsa20 mode
-                sub_nonce[..8].copy_from_slice(nonce);
+                sub_nonce[..8].copy_from_slice(&nonce[..8]);
                 actual_key.copy_from_slice(key);
             }
             _ => {

@@ -108,7 +108,7 @@ impl StreamCipher for Chacha20 {
             buf[..dst.len()].copy_from_slice(dst);
             let buf = unsafe {
                 let ptr = buf.as_mut_ptr();
-                std::slice::from_raw_parts_mut(ptr, buf_len)
+                core::slice::from_raw_parts_mut(ptr, buf_len)
             };
 
             self.xor_key_stream_blocks_generic(buf);
@@ -123,7 +123,7 @@ impl StreamCipher for Chacha20 {
             self.buf[..dst.len()].copy_from_slice(dst);
             let buf = unsafe {
                 let ptr = self.buf.as_mut_ptr();
-                std::slice::from_raw_parts_mut(ptr, self.buf.len())
+                core::slice::from_raw_parts_mut(ptr, self.buf.len())
             };
 
             self.xor_key_stream_blocks(&mut buf[..BUF_SIZE]);
@@ -182,11 +182,11 @@ impl Chacha20 {
             // derived key, allowing it to operate on a nonce of 24 bytes. See
             // draft-irtf-cfrg-xchacha-01, Section 2.3.
             let derived_key = h_chacha20(key, &nonce[0..16])?;
-            let mut c_nonce = vec![0; Self::nonce_size()];
+            let mut c_nonce = [0; Self::nonce_size()];
             c_nonce[4..12].copy_from_slice(&nonce[16..24]);
             (derived_key, c_nonce)
         } else if nonce.len() == Self::nonce_size() {
-            (key.to_vec(), nonce.to_vec())
+            (key.try_into().unwrap(), nonce.try_into().unwrap())
         } else {
             return Err(CryptoError::InvalidIvSize(nonce.len()));
         };
@@ -234,6 +234,7 @@ impl Chacha20 {
     ///
     /// Note that the execution time of xor_key_stream is not independent of the
     /// counter value.
+    #[allow(dead_code)]
     pub(crate) fn set_counter(&mut self, counter: u32) {
         // Internally, self may buffer multiple blocks, which complicates this
         // implementation slightly. When checking whether the counter has rolled
@@ -387,7 +388,7 @@ fn add_xor(inout: &mut [u8], a: u32, b: u32) {
 /// h_chacha20 uses the ChaCha20 core to generate a derived key from a 32 bytes
 /// key and a 16 bytes nonce. It returns an error if key or nonce have any other
 /// length. It is used as part of the XChaCha20 construction.
-pub(crate) fn h_chacha20(mut key: &[u8], mut nonce: &[u8]) -> CryptoResult<Vec<u8>> {
+pub(crate) fn h_chacha20(mut key: &[u8], mut nonce: &[u8]) -> CryptoResult<[u8; 32]> {
     if key.len() != Chacha20::key_size() {
         return Err(CryptoError::InvalidKeySize(key.len()));
     }
@@ -425,7 +426,7 @@ pub(crate) fn h_chacha20(mut key: &[u8], mut nonce: &[u8]) -> CryptoResult<Vec<u
         (x3, x4, x9, x14) = quarter_round(x3, x4, x9, x14);
     }
 
-    let mut out = vec![0; 32];
+    let mut out = [0; 32];
     {
         let mut outx = out.as_mut_slice();
         outx.put_u32_le(x0);

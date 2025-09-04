@@ -37,7 +37,7 @@ impl Rc5 {
             num_rounds = DEFAULT_ROUNDS;
         }
         if !(12..=24).contains(&num_rounds) {
-            return Err(CryptoError::InvalidRound);
+            return Err(CryptoError::InvalidRound(num_rounds));
         }
         if !(8..=128).contains(&key.len()) {
             return Err(CryptoError::InvalidKeySize(key.len()));
@@ -98,7 +98,7 @@ impl Rc5 {
     }
     pub(crate) fn encrypt_generic(&self, mut inout: &mut [u8]) -> CryptoResult<()> {
         if self.rounds < 12 || self.rounds > 24 {
-            return Err(CryptoError::InvalidRound);
+            return Err(CryptoError::InvalidRound(self.rounds));
         }
         let (mut a, mut b) = {
             let mut inout = &*inout;
@@ -131,7 +131,7 @@ impl Rc5 {
 
     pub(crate) fn decrypt_generic(&self, mut inout: &mut [u8]) -> CryptoResult<()> {
         if self.rounds < 12 || self.rounds > 24 {
-            return Err(CryptoError::InvalidRound);
+            return Err(CryptoError::InvalidRound(self.rounds));
         }
         let (mut a, mut b) = {
             let mut inout = &*inout;
