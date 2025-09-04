@@ -1,6 +1,6 @@
 use crate::{
     cipher::{marker::BlockCipherMarker, BlockCipher, BlockMode},
-    subtle::xor::{xor_bytes, xor_bytes_self},
+    utils::subtle::xor::{xor_bytes, xor_bytes_self},
 };
 
 use super::Cbc;

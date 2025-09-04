@@ -1,7 +1,6 @@
 use crate::aes::Aes;
 use crate::cipher::Aead;
 use crate::error::CryptoResult;
-use crate::internal::drbg;
 use crate::{aes::gcm::GCM, utils};
 
 // Constants
@@ -37,7 +36,7 @@ pub fn seal_with_random_nonce(
         panic!("crypto/cipher: invalid buffer overlap of output and additional data");
     }
 
-    drbg::read(nonce);
+    crate::utils::rand::fill(nonce);
     super::seal(inout, g, nonce, additional_data)
 }
 

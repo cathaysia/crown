@@ -20,7 +20,7 @@ pub use sum::*;
 mod no_asm;
 use no_asm::*;
 
-use crate::utils::constant_time_eq;
+use crate::utils::subtle::constant_time_eq;
 
 /// TagSize is the size, in bytes, of a poly1305 authenticator.
 pub const TAG_SIZE: usize = 16;

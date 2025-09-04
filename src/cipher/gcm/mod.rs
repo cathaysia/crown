@@ -6,8 +6,8 @@ use crate::aes;
 use crate::aes::gcm as aes_gcm;
 use crate::cipher::marker::BlockCipherMarker;
 use crate::error::{CryptoError, CryptoResult};
-use crate::subtle::xor::xor_bytes;
-use crate::utils::{constant_time_eq, copy};
+use crate::utils::subtle::xor::xor_bytes;
+use crate::utils::{copy, subtle::constant_time_eq};
 use std::convert::TryInto;
 
 // Constants

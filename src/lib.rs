@@ -90,6 +90,4 @@ pub mod cuda;
 
 pub mod error;
 
-pub(crate) mod internal;
-pub mod subtle;
 pub mod utils;

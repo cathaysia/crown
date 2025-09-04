@@ -1,7 +1,7 @@
 mod noasm;
 pub use noasm::*;
 
-use crate::{cipher::StreamCipher, subtle::xor::xor_bytes};
+use crate::{cipher::StreamCipher, utils::subtle::xor::xor_bytes};
 
 pub struct CTR {
     b: Aes,

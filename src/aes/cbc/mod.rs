@@ -1,7 +1,7 @@
 use crate::{
     aes::{Aes, BLOCK_SIZE},
     cipher::{BlockCipher, BlockMode},
-    subtle::xor::xor_bytes,
+    utils::subtle::xor::xor_bytes,
 };
 
 /// CBC encryptor structure

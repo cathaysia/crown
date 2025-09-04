@@ -8,7 +8,7 @@ mod tests;
 use crate::{
     error::CryptoResult,
     hash::{Hash, HashUser},
-    utils::constant_time_eq,
+    utils::subtle::constant_time_eq,
 };
 use std::io::{self, Write};
 

@@ -2,8 +2,8 @@ use super::ghash::ghash;
 use super::*;
 use crate::aes::Aes;
 use crate::error::{CryptoError, CryptoResult};
-use crate::subtle::xor::xor_bytes;
-use crate::utils::{constant_time_eq, copy};
+use crate::utils::subtle::xor::xor_bytes;
+use crate::utils::{copy, subtle::constant_time_eq};
 
 const GCM_BLOCK_SIZE: usize = 16;
 const GCM_TAG_SIZE: usize = 16;

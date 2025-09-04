@@ -6,8 +6,8 @@
 //! as a stand-alone MAC.
 
 use crate::aes::{Aes, BLOCK_SIZE};
-use crate::subtle::xor::xor_bytes;
 use crate::utils::copy;
+use crate::utils::subtle::xor::xor_bytes;
 
 /// CMAC implements the CMAC mode from NIST SP 800-38B.
 pub struct Cmac {

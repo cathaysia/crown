@@ -8,7 +8,7 @@
 //! mode like crypto/cipher.NewGCM) or XChaCha20-Poly1305 (from
 //! golang.org/x/crypto/chacha20poly1305).
 //!
-//! Twofish is defined in <https://www.schneier.com/paper-twofish-paper.pdf> [TWOFISH]
+//! Twofish is defined in <https://www.schneier.com/paper-twofish-paper.pdf> \[TWOFISH]
 //!
 //! This code is a port of the LibTom C implementation.
 //! See <http://libtom.org/?page=features&newsitems=5&whatfile=crypt>.

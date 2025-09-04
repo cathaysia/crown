@@ -2,7 +2,7 @@ use crate::{
     chacha20poly1305::ChaCha20Poly1305,
     cipher::StreamCipher,
     error::{CryptoError, CryptoResult},
-    utils::constant_time_eq,
+    utils::subtle::constant_time_eq,
 };
 
 type ChaCha20 = crate::chacha20::Chacha20;

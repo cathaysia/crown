@@ -5,8 +5,8 @@ use super::*;
 use crate::cipher::marker::BlockCipherMarker;
 use crate::cipher::StreamCipher;
 use crate::error::{CryptoError, CryptoResult};
-use crate::subtle::xor::xor_bytes;
 use crate::utils::copy;
+use crate::utils::subtle::xor::xor_bytes;
 
 #[cfg(test)]
 mod tests;
