@@ -1,3 +1,5 @@
+//! ## Feature flags
+#![doc = document_features::document_features!()]
 //! ## [BlockCipher](crate::cipher::BlockCipher)
 //!
 //! - [aes](crate::aes::Aes)
