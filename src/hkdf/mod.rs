@@ -9,11 +9,12 @@
 mod tests;
 
 use crate::{
+    core::CoreWrite,
     hash::{Hash, HashUser},
     hmac::{self, Marshalable},
     utils::copy,
 };
-use std::io::{Read, Write};
+use std::io::Read;
 
 /// Extract a pseudorandom key from input keying material.
 ///

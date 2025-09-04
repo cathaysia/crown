@@ -16,8 +16,8 @@ impl ChaCha20Poly1305 {
         let rem = data.len() % 16;
         if rem != 0 {
             let pad_len = 16 - rem;
-            let padding = vec![0u8; pad_len];
-            poly.write(&padding);
+            let padding = [0u8; 16];
+            poly.write(&padding[..pad_len]);
         }
     }
 
@@ -80,7 +80,7 @@ impl ChaCha20Poly1305 {
         Self::write_uint64(&mut poly, additional_data.len());
         Self::write_uint64(&mut poly, inout.len());
 
-        let mut computed_tag: [u8; 16] = unsafe { std::mem::zeroed() };
+        let mut computed_tag: [u8; 16] = unsafe { core::mem::zeroed() };
         poly.sum(&mut computed_tag);
         if !constant_time_eq(&computed_tag, tag) {
             return Err(CryptoError::AuthenticationFailed);

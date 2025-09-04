@@ -1,10 +1,11 @@
 use super::*;
 use crate::{
+    core::CoreWrite,
     error::{CryptoError, CryptoResult},
     hash::{Hash, HashUser},
     hmac::Marshalable,
 };
-use std::io::{self, Read, Write};
+use std::io::{self, Read};
 
 #[derive(Clone)]
 pub struct Shake<const N: usize> {
@@ -99,12 +100,12 @@ impl<const N: usize> Marshalable for Shake<N> {
     }
 }
 
-impl<const N: usize> Write for Shake<N> {
-    fn write(&mut self, p: &[u8]) -> io::Result<usize> {
+impl<const N: usize> CoreWrite for Shake<N> {
+    fn write(&mut self, p: &[u8]) -> CryptoResult<usize> {
         self.d.write(p)
     }
 
-    fn flush(&mut self) -> io::Result<()> {
+    fn flush(&mut self) -> CryptoResult<()> {
         self.d.flush()
     }
 }

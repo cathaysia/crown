@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use kittycrypto::subtle::xor::xor_bytes;
+use kittycrypto::utils::subtle::xor::xor_bytes;
 use std::hint::black_box;
 
 fn bench_xor(c: &mut Criterion) {

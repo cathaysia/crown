@@ -1,4 +1,4 @@
-use std::num::Wrapping;
+use core::num::Wrapping;
 
 use bytes::Buf;
 

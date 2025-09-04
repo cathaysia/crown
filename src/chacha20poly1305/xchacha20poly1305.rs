@@ -70,7 +70,7 @@ impl Aead<16> for XChaCha20Poly1305 {
         let c = ChaCha20Poly1305::new(&h_key)?;
 
         // The first 4 bytes of the final nonce are unused counter space.
-        let mut c_nonce = vec![0u8; ChaCha20Poly1305::NONCE_SIZE];
+        let mut c_nonce = [0u8; ChaCha20Poly1305::NONCE_SIZE];
         c_nonce[4..12].copy_from_slice(&nonce[16..24]);
 
         c.seal_in_place_separate_tag(inout, &c_nonce, additional_data)
@@ -98,7 +98,7 @@ impl Aead<16> for XChaCha20Poly1305 {
         let c = ChaCha20Poly1305::new(&h_key)?;
 
         // The first 4 bytes of the final nonce are unused counter space.
-        let mut c_nonce = vec![0u8; ChaCha20Poly1305::NONCE_SIZE];
+        let mut c_nonce = [0u8; ChaCha20Poly1305::NONCE_SIZE];
         c_nonce[4..12].copy_from_slice(&nonce[16..24]);
 
         c.open_in_place_separate_tag(inout, tag, &c_nonce, additional_data)

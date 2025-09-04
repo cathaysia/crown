@@ -15,14 +15,13 @@ mod block;
 #[cfg(test)]
 mod tests;
 
-use bytes::{Buf, BufMut};
+use bytes::BufMut;
 
 use crate::{
-    error::{CryptoError, CryptoResult},
+    core::CoreWrite,
+    error::CryptoResult,
     hash::{Hash, HashUser},
-    hmac::Marshalable,
 };
-use std::io::{self, Write};
 
 const CHUNK: usize = 64;
 const INIT0: u32 = 0x67452301;
@@ -31,6 +30,8 @@ const INIT2: u32 = 0x98BADCFE;
 const INIT3: u32 = 0x10325476;
 
 const MAGIC: &[u8] = b"md4\x01";
+
+#[cfg(feature = "alloc")]
 const MARSHALED_SIZE: usize = MAGIC.len() + 4 * 4 + Md4::BLOCK_SIZE + 8;
 
 #[derive(Clone)]
@@ -47,6 +48,7 @@ impl Md4 {
     /// The size of an MD4 checksum in bytes.
     const SIZE: usize = 16;
 
+    #[allow(dead_code)]
     fn append_binary(&self, mut b: &mut [u8]) -> CryptoResult<()> {
         b.put_slice(MAGIC);
         b.put_u32(self.s[0]);
@@ -60,20 +62,20 @@ impl Md4 {
     }
 }
 
-impl Write for Md4 {
-    fn write(&mut self, p: &[u8]) -> io::Result<usize> {
+impl CoreWrite for Md4 {
+    fn write(&mut self, p: &[u8]) -> CryptoResult<usize> {
         let nn = p.len();
         self.len += nn as u64;
         let mut p = p;
 
         if self.nx > 0 {
-            let n = std::cmp::min(p.len(), CHUNK - self.nx);
+            let n = core::cmp::min(p.len(), CHUNK - self.nx);
             self.x[self.nx..self.nx + n].copy_from_slice(&p[..n]);
             self.nx += n;
             if self.nx == CHUNK {
                 let src = unsafe {
                     let ptr = self.x.as_ptr();
-                    std::slice::from_raw_parts(ptr, self.x.len())
+                    core::slice::from_raw_parts(ptr, self.x.len())
                 };
                 block::block(self, src);
                 self.nx = 0;
@@ -92,7 +94,7 @@ impl Write for Md4 {
         Ok(nn)
     }
 
-    fn flush(&mut self) -> io::Result<()> {
+    fn flush(&mut self) -> CryptoResult<()> {
         Ok(())
     }
 }
@@ -155,7 +157,8 @@ impl Hash<16> for Md4 {
     }
 }
 
-impl Marshalable for Md4 {
+#[cfg(feature = "alloc")]
+impl crate::hmac::Marshalable for Md4 {
     fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
         let mut ret = vec![0u8; MARSHALED_SIZE];
         self.append_binary(&mut ret)?;
@@ -163,6 +166,9 @@ impl Marshalable for Md4 {
     }
 
     fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
+        use crate::error::CryptoError;
+        use bytes::Buf;
+
         if b.len() < MAGIC.len() || &b[..MAGIC.len()] != MAGIC {
             return Err(CryptoError::InvalidHashIdentifier);
         }

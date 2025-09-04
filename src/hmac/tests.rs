@@ -1,8 +1,6 @@
-use std::io::Write;
-
 use hmac::Mac;
 
-use crate::hash::Hash;
+use crate::{core::CoreWrite, hash::Hash};
 
 #[test]
 fn rustcrypto_hmac_interop() {

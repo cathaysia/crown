@@ -7,11 +7,10 @@ pub use variable::*;
 #[cfg(test)]
 mod tests;
 
+use crate::core::CoreWrite;
 use crate::error::{CryptoError, CryptoResult};
 use crate::hash::{Hash, HashUser, HashVariable};
-use crate::hmac::Marshalable;
 use noasm::hash_blocks;
-use std::io::Write;
 
 const IV: [u64; 8] = [
     0x6a09e667f3bcc908,
@@ -37,7 +36,8 @@ impl<const N: usize> Blake2b<N> {
     }
 }
 
-impl<const N: usize> Marshalable for Blake2b<N> {
+#[cfg(feature = "alloc")]
+impl<const N: usize> crate::hmac::Marshalable for Blake2b<N> {
     fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
         self.0.marshal_binary()
     }
@@ -61,12 +61,12 @@ impl<const N: usize> HashUser for Blake2b<N> {
     }
 }
 
-impl<const N: usize> Write for Blake2b<N> {
-    fn write(&mut self, p: &[u8]) -> std::io::Result<usize> {
+impl<const N: usize> CoreWrite for Blake2b<N> {
+    fn write(&mut self, p: &[u8]) -> CryptoResult<usize> {
         self.0.write(p)
     }
 
-    fn flush(&mut self) -> std::io::Result<()> {
+    fn flush(&mut self) -> CryptoResult<()> {
         self.0.flush()
     }
 }

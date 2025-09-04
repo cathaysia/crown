@@ -12,11 +12,13 @@
 mod digest;
 mod keccakf;
 
+#[cfg(feature = "alloc")]
 mod shake;
+#[cfg(feature = "alloc")]
 pub use shake::*;
 
 mod noasm;
-use std::io::Write;
+use crate::core::CoreWrite;
 
 use noasm::*;
 
@@ -102,6 +104,7 @@ pub fn new_legacy_keccak512() -> Sha3<64> {
 /// Create a new [Hash] computing the SHAKE128 XOF checksum.
 ///
 /// The Hash also implements Marshalableto marshal and unmarshal the internal state of the hash.
+#[cfg(feature = "alloc")]
 pub fn new_shake128() -> Shake<32> {
     Shake {
         d: Sha3 {
@@ -118,6 +121,7 @@ pub fn new_shake128() -> Shake<32> {
 /// Create a new [Hash] computing the SHAKE256 XOF checksum.
 ///
 /// The Hash also implements Marshalableto marshal and unmarshal the internal state of the hash.
+#[cfg(feature = "alloc")]
 pub fn new_shake256() -> Shake<64> {
     Shake {
         d: Sha3 {
@@ -136,6 +140,7 @@ pub fn new_shake256() -> Shake<64> {
 /// N is used to define functions based on cSHAKE, it can be empty when plain
 /// cSHAKE is desired. S is a customization byte string used for domain
 /// separation. When N and S are both empty, this is equivalent to NewShake128.
+#[cfg(feature = "alloc")]
 pub fn new_cshake128(n: &[u8], s: &[u8]) -> Shake<32> {
     if n.is_empty() && s.is_empty() {
         return new_shake128();
@@ -148,6 +153,7 @@ pub fn new_cshake128(n: &[u8], s: &[u8]) -> Shake<32> {
 /// N is used to define functions based on cSHAKE, it can be empty when plain
 /// cSHAKE is desired. S is a customization byte string used for domain
 /// separation. When N and S are both empty, this is equivalent to NewShake256.
+#[cfg(feature = "alloc")]
 pub fn new_cshake256(n: &[u8], s: &[u8]) -> Shake<64> {
     if n.is_empty() && s.is_empty() {
         return new_shake256();
@@ -159,6 +165,7 @@ macro_rules! impl_shakesum_for {
     ($len:literal) => {
         paste::paste! {
             #[doc="Compute the Shake-" $len " checksum of the input."]
+            #[cfg(feature = "alloc")]
             pub fn [<sum_shake $len>](data: &[u8]) -> [u8; $len / 8*2] {
                 let mut h = [<new_ shake $len>]();
                 h.write_all(data).unwrap();

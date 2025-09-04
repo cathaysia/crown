@@ -4,14 +4,10 @@
 //! [SHA-256](crate::sha256) and [SHA-512](crate::sha512) belongs to the
 //! [SHA-2](https://en.wikipedia.org/wiki/SHA-2) family of hash functions.
 
-use std::io::Write;
-
-use bytes::BufMut;
-
 use crate::{
-    error::{CryptoError, CryptoResult},
+    core::CoreWrite,
+    error::CryptoResult,
     hash::{Hash, HashUser},
-    hmac::Marshalable,
 };
 
 pub(crate) mod block;
@@ -93,8 +89,11 @@ impl<const N: usize> Sha512<N> {
     const SIZE_384: usize = 48;
     const BLOCK_SIZE: usize = 128;
 
+    #[cfg(feature = "alloc")]
     /// Append the digest state to the provided buffer
     fn append_binary(&self, b: &mut Vec<u8>) {
+        use bytes::BufMut;
+
         match N {
             Self::SIZE_384 => b.put_slice(MAGIC_384),
             Self::SIZE_224 => b.put_slice(MAGIC_512_224),
@@ -152,7 +151,8 @@ impl<const N: usize> Sha512<N> {
     }
 }
 
-impl<const N: usize> Marshalable for Sha512<N> {
+#[cfg(feature = "alloc")]
+impl<const N: usize> crate::hmac::Marshalable for Sha512<N> {
     /// Marshal the digest state to binary format
     fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
         let mut result = Vec::with_capacity(MARSHALED_SIZE);
@@ -161,6 +161,8 @@ impl<const N: usize> Marshalable for Sha512<N> {
     }
     /// Unmarshal digest state from binary format
     fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
+        use crate::error::CryptoError;
+
         if b.len() < 4 {
             return Err(CryptoError::InvalidHashIdentifier);
         }
@@ -219,21 +221,21 @@ impl<const N: usize> Marshalable for Sha512<N> {
     }
 }
 
-impl<const N: usize> Write for Sha512<N> {
+impl<const N: usize> CoreWrite for Sha512<N> {
     /// Write data to the digest
-    fn write(&mut self, p: &[u8]) -> std::io::Result<usize> {
+    fn write(&mut self, p: &[u8]) -> CryptoResult<usize> {
         let nn = p.len();
         self.len += nn as u64;
         let mut p = p;
 
         if self.nx > 0 {
-            let n = std::cmp::min(CHUNK - self.nx, p.len());
+            let n = core::cmp::min(CHUNK - self.nx, p.len());
             self.x[self.nx..self.nx + n].copy_from_slice(&p[..n]);
             self.nx += n;
             if self.nx == CHUNK {
                 let x = unsafe {
                     let ptr = self.x.as_ptr();
-                    std::slice::from_raw_parts(ptr, self.x.len())
+                    core::slice::from_raw_parts(ptr, self.x.len())
                 };
                 self.block(x).unwrap();
                 self.nx = 0;
@@ -256,7 +258,7 @@ impl<const N: usize> Write for Sha512<N> {
         Ok(nn)
     }
 
-    fn flush(&mut self) -> std::io::Result<()> {
+    fn flush(&mut self) -> CryptoResult<()> {
         Ok(())
     }
 }

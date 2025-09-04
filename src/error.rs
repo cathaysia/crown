@@ -6,6 +6,8 @@ pub enum CryptoError {
     UnsupportedBlockSize(usize),
     #[error("invalid cipher")]
     MessageTooLarge,
+    #[error("invalid hash size: {0}")]
+    InvalidHashSize(usize),
     #[cfg(feature = "alloc")]
     #[error("unsupported operation: {0}")]
     UnsupportedOperation(String),
@@ -20,6 +22,8 @@ pub enum CryptoError {
     #[cfg(feature = "alloc")]
     #[error("invalid parameter: {0}")]
     InvalidParameter(String),
+    #[error("invalid parameter: {0}")]
+    InvalidParameterStr(&'static str),
     #[error("invalid key size: {0}")]
     InvalidKeySize(usize),
     #[error("invalid iv size: {0}")]

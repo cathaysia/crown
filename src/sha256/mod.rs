@@ -4,15 +4,12 @@
 //! [SHA-256](crate::sha256) and [SHA-512](crate::sha512) belongs to the
 //! [SHA-2](https://en.wikipedia.org/wiki/SHA-2) family of hash functions.
 
-use std::io::Write;
-
-use bytes::Buf;
 use bytes::BufMut;
 
+use crate::core::CoreWrite;
 use crate::{
-    error::{CryptoError, CryptoResult},
+    error::CryptoResult,
     hash::{Hash, HashUser},
-    hmac::Marshalable,
 };
 
 #[cfg(test)]
@@ -68,6 +65,7 @@ const MAGIC256: &[u8] = b"sha\x03";
 const MARSHALED_SIZE: usize = 4 + 8 * 4 + CHUNK + 8;
 
 impl<const N: usize, const IS_224: bool> Sha256<N, IS_224> {
+    #[cfg(feature = "alloc")]
     fn append_binary(&self, b: &mut Vec<u8>) {
         if IS_224 {
             b.put_slice(MAGIC224);
@@ -127,7 +125,8 @@ impl<const N: usize, const IS_224: bool> Sha256<N, IS_224> {
     }
 }
 
-impl<const N: usize, const IS_224: bool> Marshalable for Sha256<N, IS_224> {
+#[cfg(feature = "alloc")]
+impl<const N: usize, const IS_224: bool> crate::hmac::Marshalable for Sha256<N, IS_224> {
     fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
         let mut b = Vec::with_capacity(MARSHALED_SIZE);
         self.append_binary(&mut b);
@@ -135,6 +134,9 @@ impl<const N: usize, const IS_224: bool> Marshalable for Sha256<N, IS_224> {
     }
 
     fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
+        use crate::error::CryptoError;
+        use bytes::Buf;
+
         if b.len() < MAGIC224.len()
             || (IS_224 && &b[..MAGIC224.len()] != MAGIC224)
             || (!IS_224 && &b[..MAGIC256.len()] != MAGIC256)
@@ -164,13 +166,13 @@ impl<const N: usize, const IS_224: bool> Marshalable for Sha256<N, IS_224> {
     }
 }
 
-impl<const N: usize, const IS_224: bool> Write for Sha256<N, IS_224> {
-    fn write(&mut self, mut p: &[u8]) -> std::io::Result<usize> {
+impl<const N: usize, const IS_224: bool> CoreWrite for Sha256<N, IS_224> {
+    fn write(&mut self, mut p: &[u8]) -> CryptoResult<usize> {
         let nn = p.len();
         self.len += nn as u64;
 
         if self.nx > 0 {
-            let n = std::cmp::min(CHUNK - self.nx, p.len());
+            let n = core::cmp::min(CHUNK - self.nx, p.len());
             self.x[self.nx..self.nx + n].copy_from_slice(&p[..n]);
             self.nx += n;
             if self.nx == CHUNK {
@@ -200,7 +202,7 @@ impl<const N: usize, const IS_224: bool> Write for Sha256<N, IS_224> {
         Ok(nn)
     }
 
-    fn flush(&mut self) -> std::io::Result<()> {
+    fn flush(&mut self) -> CryptoResult<()> {
         Ok(())
     }
 }

@@ -30,9 +30,7 @@ impl Blake2bVariable {
         let key = key.unwrap_or(&[]);
 
         if !(1..=SIZE).contains(&hash_size) {
-            return Err(CryptoError::InvalidParameter(
-                "invalid hash size".to_string(),
-            ));
+            return Err(CryptoError::InvalidHashSize(hash_size));
         }
         if key.len() > SIZE {
             return Err(CryptoError::InvalidKeySize(key.len()));
@@ -87,7 +85,8 @@ impl HashVariable for Blake2bVariable {
     }
 }
 
-impl Marshalable for Blake2bVariable {
+#[cfg(feature = "alloc")]
+impl crate::hmac::Marshalable for Blake2bVariable {
     fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
         if self.key_len != 0 {
             return Err(CryptoError::InvalidParameter(
@@ -164,8 +163,8 @@ impl HashUser for Blake2bVariable {
     }
 }
 
-impl Write for Blake2bVariable {
-    fn write(&mut self, p: &[u8]) -> std::io::Result<usize> {
+impl CoreWrite for Blake2bVariable {
+    fn write(&mut self, p: &[u8]) -> CryptoResult<usize> {
         let n = p.len();
         let mut p = p;
 
@@ -201,7 +200,7 @@ impl Write for Blake2bVariable {
         Ok(n)
     }
 
-    fn flush(&mut self) -> std::io::Result<()> {
+    fn flush(&mut self) -> CryptoResult<()> {
         Ok(())
     }
 }

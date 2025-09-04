@@ -81,10 +81,10 @@ impl Blake2sVariable {
         n
     }
 
-    fn sum_impl(&self, sum: &mut Vec<u8>) {
+    fn sum_impl(&self) -> [u8; SIZE] {
         let mut hash = [0u8; SIZE];
         self.finalize(&mut hash);
-        sum.extend_from_slice(&hash[..self.size]);
+        hash
     }
 
     fn finalize(&self, hash: &mut [u8; SIZE]) {
@@ -109,7 +109,8 @@ impl Blake2sVariable {
     }
 }
 
-impl Marshalable for Blake2sVariable {
+#[cfg(feature = "alloc")]
+impl crate::hmac::Marshalable for Blake2sVariable {
     fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
         if self.key_len != 0 {
             return Err(CryptoError::StringError(
@@ -163,12 +164,12 @@ impl Marshalable for Blake2sVariable {
     }
 }
 
-impl Write for Blake2sVariable {
-    fn write(&mut self, data: &[u8]) -> Result<usize, std::io::Error> {
+impl CoreWrite for Blake2sVariable {
+    fn write(&mut self, data: &[u8]) -> CryptoResult<usize> {
         Ok(self.write_impl(data))
     }
 
-    fn flush(&mut self) -> std::io::Result<()> {
+    fn flush(&mut self) -> CryptoResult<()> {
         Ok(())
     }
 }
@@ -189,8 +190,7 @@ impl HashUser for Blake2sVariable {
 
 impl HashVariable for Blake2sVariable {
     fn sum(&mut self, sum: &mut [u8]) -> usize {
-        let mut result = Vec::new();
-        self.sum_impl(&mut result);
-        copy(sum, &result)
+        let v = self.sum_impl();
+        copy(sum, &v)
     }
 }

@@ -6,11 +6,10 @@ mod variable;
 mod tests;
 
 use crate::blake2s::variable::Blake2sVariable;
+use crate::core::CoreWrite;
 use crate::error::{CryptoError, CryptoResult};
 use crate::hash::{Hash, HashUser, HashVariable};
-use crate::hmac::Marshalable;
 use crate::utils::copy;
-use std::io::Write;
 
 pub use noasm::hash_blocks;
 
@@ -40,12 +39,12 @@ impl<const N: usize> HashUser for Blake2s<N> {
     }
 }
 
-impl<const N: usize> Write for Blake2s<N> {
-    fn write(&mut self, p: &[u8]) -> std::io::Result<usize> {
+impl<const N: usize> CoreWrite for Blake2s<N> {
+    fn write(&mut self, p: &[u8]) -> CryptoResult<usize> {
         self.0.write(p)
     }
 
-    fn flush(&mut self) -> std::io::Result<()> {
+    fn flush(&mut self) -> CryptoResult<()> {
         self.0.flush()
     }
 }

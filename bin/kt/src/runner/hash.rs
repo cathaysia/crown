@@ -1,10 +1,11 @@
 use crate::args::ArgsHash;
 use kittycrypto::{
+    core::CoreWrite,
     hash::{ErasedHash, HashVariable},
     hmac::HMAC,
 };
 use rayon::prelude::*;
-use std::{collections::BTreeMap, io::Write};
+use std::collections::BTreeMap;
 
 pub fn run_hash(args_hash: ArgsHash) -> anyhow::Result<()> {
     let ArgsHash {

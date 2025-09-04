@@ -17,15 +17,14 @@ mod md5block;
 pub mod cuda;
 
 mod md5_generic;
-use std::io::Write;
 
-use bytes::{Buf, BufMut};
+use bytes::BufMut;
 use md5_generic::*;
 
 use crate::{
-    error::{CryptoError, CryptoResult},
+    core::CoreWrite,
+    error::CryptoResult,
     hash::{Hash, HashUser},
-    hmac::Marshalable,
 };
 
 #[cfg(test)]
@@ -36,7 +35,10 @@ const INIT1: u32 = 0xEFCDAB89;
 const INIT2: u32 = 0x98BADCFE;
 const INIT3: u32 = 0x10325476;
 
+#[cfg(feature = "alloc")]
 const MAGIC: &[u8] = b"md5\x01";
+
+#[cfg(feature = "alloc")]
 const MARSHALED_SIZE: usize = MAGIC.len() + 4 * 4 + Md5::BLOCK_SIZE + 8;
 
 #[derive(Clone)]
@@ -51,6 +53,7 @@ impl Md5 {
     pub(crate) const SIZE: usize = 16;
     pub(crate) const BLOCK_SIZE: usize = 64;
 
+    #[cfg(feature = "alloc")]
     fn append_binary(&self, mut b: &mut [u8]) -> CryptoResult<()> {
         b.put_slice(MAGIC);
         b.put_u32(self.s[0]);
@@ -87,8 +90,8 @@ impl Md5 {
     }
 }
 
-impl Write for Md5 {
-    fn write(&mut self, p: &[u8]) -> std::io::Result<usize> {
+impl CoreWrite for Md5 {
+    fn write(&mut self, p: &[u8]) -> CryptoResult<usize> {
         let nn = p.len();
         self.len += nn as u64;
         let mut p = p;
@@ -119,12 +122,13 @@ impl Write for Md5 {
         Ok(nn)
     }
 
-    fn flush(&mut self) -> std::io::Result<()> {
+    fn flush(&mut self) -> CryptoResult<()> {
         Ok(())
     }
 }
 
-impl Marshalable for Md5 {
+#[cfg(feature = "alloc")]
+impl crate::hmac::Marshalable for Md5 {
     fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
         let mut ret = vec![0u8; MARSHALED_SIZE];
         self.append_binary(&mut ret)?;
@@ -132,6 +136,9 @@ impl Marshalable for Md5 {
     }
 
     fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
+        use crate::error::CryptoError;
+        use bytes::Buf;
+
         if b.len() < MAGIC.len() || &b[..MAGIC.len()] != MAGIC {
             return Err(CryptoError::InvalidHashIdentifier);
         }

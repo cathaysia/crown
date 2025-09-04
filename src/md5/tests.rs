@@ -1,5 +1,7 @@
 use std::cmp::Ordering;
 
+use crate::hmac::Marshalable;
+
 use super::*;
 
 pub(crate) struct Md5Test {

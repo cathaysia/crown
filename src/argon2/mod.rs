@@ -39,6 +39,7 @@ mod noasm;
 use noasm::*;
 
 use crate::blake2b::SIZE as BLAKE2B_SIZE;
+use crate::core::CoreWrite;
 use crate::error::{CryptoError, CryptoResult};
 use crate::hash::HashVariable;
 use blake2_hash::blake2b_hash;
@@ -153,9 +154,7 @@ fn derive_key(
     key_len: u32,
 ) -> CryptoResult<Vec<u8>> {
     if time < 1 {
-        return Err(CryptoError::InvalidParameter(
-            "argon2: number of rounds too small".to_string(),
-        ));
+        return Err(CryptoError::InvalidRound(time as usize));
     }
     if threads < 1 {
         return Err(CryptoError::InvalidParameter(
@@ -214,7 +213,6 @@ fn init_hash(
     params[16..20].copy_from_slice(&VERSION.to_le_bytes());
     params[20..24].copy_from_slice(&(mode as u32).to_le_bytes());
 
-    use std::io::Write;
     b2.write_all(&params)?;
 
     tmp.copy_from_slice(&(password.len() as u32).to_le_bytes());

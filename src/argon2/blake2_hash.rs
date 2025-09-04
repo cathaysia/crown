@@ -1,8 +1,8 @@
 use crate::blake2b::{Blake2bVariable, SIZE as BLAKE2B_SIZE};
+use crate::core::CoreWrite;
 use crate::error::CryptoResult;
 use crate::hash::{HashUser, HashVariable};
 use crate::utils::copy;
-use std::io::Write;
 
 /// blake2b_hash computes an arbitrary long hash value of input
 /// and writes the hash to output.
@@ -21,10 +21,10 @@ pub fn blake2b_hash(mut out: &mut [u8], input: &[u8]) -> CryptoResult<()> {
     // Hash the length prefix and input
     hasher
         .write_all(&buffer[..4])
-        .map_err(|_| crate::error::CryptoError::InvalidParameter("write failed".to_string()))?;
+        .map_err(|_| crate::error::CryptoError::InvalidParameterStr("write failed"))?;
     hasher
         .write_all(input)
-        .map_err(|_| crate::error::CryptoError::InvalidParameter("write failed".to_string()))?;
+        .map_err(|_| crate::error::CryptoError::InvalidParameterStr("write failed"))?;
 
     // If output fits in one blake2b hash, we're done
     if out_len <= BLAKE2B_SIZE {
@@ -43,7 +43,7 @@ pub fn blake2b_hash(mut out: &mut [u8], input: &[u8]) -> CryptoResult<()> {
     while out.len() > BLAKE2B_SIZE {
         hasher
             .write_all(&buffer)
-            .map_err(|_| crate::error::CryptoError::InvalidParameter("write failed".to_string()))?;
+            .map_err(|_| crate::error::CryptoError::InvalidParameterStr("write failed"))?;
         hasher.sum(&mut buffer);
         copy(out, &buffer[..32]);
         out = &mut out[32..];
@@ -59,7 +59,7 @@ pub fn blake2b_hash(mut out: &mut [u8], input: &[u8]) -> CryptoResult<()> {
 
     hasher
         .write_all(&buffer)
-        .map_err(|_| crate::error::CryptoError::InvalidParameter("write failed".to_string()))?;
+        .map_err(|_| crate::error::CryptoError::InvalidParameterStr("write failed"))?;
     hasher.sum(out);
 
     Ok(())

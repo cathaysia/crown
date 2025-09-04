@@ -6,11 +6,11 @@
 mod tests;
 
 use crate::{
+    core::CoreWrite,
     error::CryptoResult,
     hash::{Hash, HashUser},
     utils::subtle::constant_time_eq,
 };
-use std::io::{self, Write};
 
 /// Trait for types that can be marshaled and unmarshaled to/from binary format.
 pub trait Marshalable {
@@ -95,12 +95,12 @@ impl<const N: usize, H: Hash<N> + Marshalable> HMAC<N, H> {
     }
 }
 
-impl<const N: usize, H: Hash<N> + Marshalable> Write for HMAC<N, H> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+impl<const N: usize, H: Hash<N> + Marshalable> CoreWrite for HMAC<N, H> {
+    fn write(&mut self, buf: &[u8]) -> CryptoResult<usize> {
         self.inner.write(buf)
     }
 
-    fn flush(&mut self) -> io::Result<()> {
+    fn flush(&mut self) -> CryptoResult<()> {
         self.inner.flush()
     }
 }

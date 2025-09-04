@@ -1,6 +1,5 @@
-use std::io::Write;
-
 use kittycrypto::{
+    core::CoreWrite,
     hash::{ErasedHash, HashUser},
     hmac,
 };

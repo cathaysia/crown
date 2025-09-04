@@ -16,11 +16,10 @@ use generic::*;
 mod tests;
 
 use crate::{
-    error::{CryptoError, CryptoResult},
+    core::CoreWrite,
+    error::CryptoResult,
     hash::{Hash, HashUser},
-    hmac::Marshalable,
 };
-use std::io::{self, Write};
 
 const CHUNK: usize = 64;
 const INIT0: u32 = 0x67452301;
@@ -29,7 +28,9 @@ const INIT2: u32 = 0x98BADCFE;
 const INIT3: u32 = 0x10325476;
 const INIT4: u32 = 0xC3D2E1F0;
 
+#[cfg(feature = "alloc")]
 const MAGIC: &[u8] = b"sha\x01";
+#[cfg(feature = "alloc")]
 const MARSHALED_SIZE: usize = MAGIC.len() + 5 * 4 + CHUNK + 8;
 
 /// [Sha1] is a SHA-1 hash implementation.
@@ -45,6 +46,7 @@ impl Sha1 {
     pub const SIZE: usize = 20;
     pub const BLOCK_SIZE: usize = 64;
 
+    #[cfg(feature = "alloc")]
     fn append_binary(&self, b: &mut Vec<u8>) {
         b.put_slice(MAGIC);
         b.put_u32(self.h[0]);
@@ -95,6 +97,7 @@ impl Sha1 {
     }
 
     /// computes the same result of [Self::sum] but in constant time.
+    #[cfg(feature = "alloc")]
     pub fn constant_time_sum(&self, input: &[u8]) -> Vec<u8> {
         let mut d0 = self.clone();
         let hash = d0.const_sum();
@@ -163,14 +166,14 @@ impl Sha1 {
     }
 }
 
-impl Write for Sha1 {
-    fn write(&mut self, p: &[u8]) -> io::Result<usize> {
+impl CoreWrite for Sha1 {
+    fn write(&mut self, p: &[u8]) -> CryptoResult<usize> {
         let nn = p.len();
         self.len += nn as u64;
         let mut p = p;
 
         if self.nx > 0 {
-            let n = std::cmp::min(CHUNK - self.nx, p.len());
+            let n = core::cmp::min(CHUNK - self.nx, p.len());
             self.x[self.nx..self.nx + n].copy_from_slice(&p[..n]);
             self.nx += n;
             if self.nx == CHUNK {
@@ -197,7 +200,7 @@ impl Write for Sha1 {
         Ok(nn)
     }
 
-    fn flush(&mut self) -> io::Result<()> {
+    fn flush(&mut self) -> CryptoResult<()> {
         Ok(())
     }
 }
@@ -229,13 +232,16 @@ impl Hash<20> for Sha1 {
     }
 }
 
-impl Marshalable for Sha1 {
+#[cfg(feature = "alloc")]
+impl crate::hmac::Marshalable for Sha1 {
     fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
         let mut b = Vec::with_capacity(MARSHALED_SIZE);
         self.append_binary(&mut b);
         Ok(b)
     }
     fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
+        use crate::error::CryptoError;
+
         if b.len() < MAGIC.len() || &b[..MAGIC.len()] != MAGIC {
             return Err(CryptoError::InvalidHashIdentifier);
         }

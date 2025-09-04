@@ -1,11 +1,10 @@
 mod data;
 
-use std::io::Write;
-
 use digest::Digest;
 
 use crate::{
     blake2b::{new512, tests::data::HASHES, Blake2bVariable},
+    core::CoreWrite,
     hash::{Hash, HashUser, HashVariable},
 };
 

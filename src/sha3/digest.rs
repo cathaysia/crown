@@ -1,11 +1,6 @@
-use crate::{
-    error::{CryptoError, CryptoResult},
-    hash::HashUser,
-    hmac::Marshalable,
-};
+use crate::{core::CoreWrite, error::CryptoResult, hash::HashUser};
 
 use super::*;
-use std::io::{self, Write};
 
 /// spongeDirection indicates the direction bytes are flowing through the sponge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,7 +67,7 @@ impl<const N: usize> Sha3<N> {
     }
 
     /// read squeezes an arbitrary number of bytes from the sponge.
-    pub(crate) fn read_generic(&mut self, out: &mut [u8]) -> io::Result<usize> {
+    pub(crate) fn read_generic(&mut self, out: &mut [u8]) -> CryptoResult<usize> {
         // If we're still absorbing, pad and apply the permutation.
         if self.state == SpongeDirection::Absorbing {
             self.pad_and_permute();
@@ -88,7 +83,7 @@ impl<const N: usize> Sha3<N> {
                 self.permute();
             }
 
-            let x = std::cmp::min(out.len(), self.rate - self.n);
+            let x = core::cmp::min(out.len(), self.rate - self.n);
             out[..x].copy_from_slice(&self.a[self.n..self.n + x]);
             self.n += x;
             out = &mut out[x..];
@@ -111,6 +106,7 @@ impl<const N: usize> Sha3<N> {
         hash
     }
 
+    #[cfg(feature = "alloc")]
     pub(crate) fn append_binary(&self, b: &mut Vec<u8>) -> CryptoResult<Vec<u8>> {
         match self.dsbyte {
             DSBYTE_SHA3 => b.extend_from_slice(MAGIC_SHA3.as_bytes()),
@@ -128,12 +124,15 @@ impl<const N: usize> Sha3<N> {
     }
 }
 
-impl<const N: usize> Marshalable for Sha3<N> {
+#[cfg(feature = "alloc")]
+impl<const N: usize> crate::hmac::Marshalable for Sha3<N> {
     fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
         let mut b = Vec::with_capacity(MARSHALED_SIZE);
         self.append_binary(&mut b)
     }
     fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
+        use crate::error::CryptoError;
+
         if b.len() != MARSHALED_SIZE {
             return Err(CryptoError::InvalidHashState);
         }
@@ -182,8 +181,8 @@ impl<const N: usize> Marshalable for Sha3<N> {
     }
 }
 
-impl<const N: usize> Write for Sha3<N> {
-    fn write(&mut self, p: &[u8]) -> io::Result<usize> {
+impl<const N: usize> CoreWrite for Sha3<N> {
+    fn write(&mut self, p: &[u8]) -> CryptoResult<usize> {
         if self.state != SpongeDirection::Absorbing {
             panic!("sha3: Write after Read");
         }
@@ -194,7 +193,7 @@ impl<const N: usize> Write for Sha3<N> {
         while !p.is_empty() {
             let src = {
                 let ptr = self.a.as_ptr();
-                unsafe { std::slice::from_raw_parts(ptr, self.a.len()) }
+                unsafe { core::slice::from_raw_parts(ptr, self.a.len()) }
             };
             let x = xor_bytes(&mut self.a[self.n..self.rate], &src[self.n..self.rate], p);
             self.n += x;
@@ -209,7 +208,7 @@ impl<const N: usize> Write for Sha3<N> {
         Ok(n)
     }
 
-    fn flush(&mut self) -> io::Result<()> {
+    fn flush(&mut self) -> CryptoResult<()> {
         Ok(())
     }
 }
@@ -254,7 +253,7 @@ pub(crate) const MARSHALED_SIZE: usize = 4 + 1 + 200 + 1 + 1;
 
 /// XOR bytes from src into dst, returning the number of bytes processed
 fn xor_bytes(dst: &mut [u8], _src1: &[u8], src2: &[u8]) -> usize {
-    let n = std::cmp::min(dst.len(), src2.len());
+    let n = core::cmp::min(dst.len(), src2.len());
     for i in 0..n {
         dst[i] ^= src2[i];
     }
