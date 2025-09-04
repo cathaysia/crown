@@ -1,3 +1,5 @@
+pub mod rand;
+
 pub(crate) fn inexact_overlap(dst: &[u8], src: &[u8]) -> bool {
     let dst_ptr = dst.as_ptr() as usize;
     let src_ptr = src.as_ptr() as usize;
