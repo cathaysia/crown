@@ -7,9 +7,7 @@ mod tests;
 
 use crate::error::CryptoResult;
 
-#[cfg(feature = "alloc")]
 mod imp;
-#[cfg(feature = "alloc")]
 pub use imp::*;
 
 /// Trait for types that can be marshaled and unmarshaled to/from binary format.

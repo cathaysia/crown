@@ -1,3 +1,5 @@
+use tinyvec::ArrayVec;
+
 use crate::{
     core::CoreWrite,
     error::CryptoResult,
@@ -7,6 +9,10 @@ use crate::{
 
 use super::Marshalable;
 
+/// TODO:
+/// - add SmallVec with push and etc.
+///   alloc memory when feature = "alloc", panic else.
+const MAX_MARSHAL_SIZE: usize = 1024;
 /// HMAC structure implementing HMAC according to FIPS 198-1.
 ///
 /// The HMAC algorithm works as follows:
@@ -16,9 +22,9 @@ use super::Marshalable;
 /// - hmac = H([key ^ opad] H([key ^ ipad] text))
 pub struct HMAC<const N: usize, H: Hash<N> + Marshalable> {
     /// Outer padding (key XOR 0x5c)
-    opad: Vec<u8>,
+    opad: ArrayVec<[u8; MAX_MARSHAL_SIZE]>,
     /// Inner padding (key XOR 0x36)
-    ipad: Vec<u8>,
+    ipad: ArrayVec<[u8; MAX_MARSHAL_SIZE]>,
     /// Outer hash instance
     outer: H,
     /// Inner hash instance
@@ -44,8 +50,10 @@ impl<const N: usize, H: Hash<N> + Marshalable> HMAC<N, H> {
         // This is a safety check to prevent issues with shared state
 
         let block_size = inner.block_size();
-        let mut ipad = vec![0u8; block_size];
-        let mut opad = vec![0u8; block_size];
+        let mut ipad: ArrayVec<[u8; MAX_MARSHAL_SIZE]> = ArrayVec::new();
+        ipad.resize(block_size, 0);
+        let mut opad: ArrayVec<[u8; MAX_MARSHAL_SIZE]> = ArrayVec::new();
+        opad.resize(block_size, 0);
 
         let mut processed_key = key.to_vec();
 
@@ -105,16 +113,22 @@ impl<const N: usize, H: Hash<N> + Marshalable> HashUser for HMAC<N, H> {
             .write_all(&self.ipad)
             .expect("Hash write should not fail");
 
-        let Ok(imarshal) = self.inner.marshal_binary() else {
+        let mut imarshal: ArrayVec<[u8; MAX_MARSHAL_SIZE]> = ArrayVec::new();
+        imarshal.resize(self.inner.marshal_size(), 0);
+        let Ok(_) = self.inner.marshal_into(&mut imarshal) else {
             return;
         };
+
         self.outer.reset();
         self.outer
             .write_all(&self.opad)
             .expect("Hash write should not fail");
-        let Ok(omarshal) = self.outer.marshal_binary() else {
+        let mut omarshal: ArrayVec<[u8; MAX_MARSHAL_SIZE]> = ArrayVec::new();
+        omarshal.resize(self.inner.marshal_size(), 0);
+        let Ok(_) = self.outer.marshal_into(&mut omarshal) else {
             return;
         };
+
         self.ipad = imarshal;
         self.opad = omarshal;
         self.marshaled = true;
@@ -139,7 +153,7 @@ impl<const N: usize, H: Hash<N> + Marshalable> Hash<N> for HMAC<N, H> {
             // If we have marshaled state, restore it
             let opad = unsafe {
                 let ptr = self.opad.as_ptr();
-                std::slice::from_raw_parts(ptr, self.opad.len())
+                core::slice::from_raw_parts(ptr, self.opad.len())
             };
             self.outer.unmarshal_binary(opad).unwrap();
         } else {

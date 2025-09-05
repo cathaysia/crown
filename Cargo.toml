@@ -33,6 +33,7 @@ document-features = "0.2.11"
 once_cell = { version = "1.21.3", default-features = false, features = [
   "critical-section",
 ] }
+tinyvec = "1.10.0"
 
 [build-dependencies]
 cc = { version = "1.2.34", optional = true }
