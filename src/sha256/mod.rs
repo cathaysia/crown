@@ -7,6 +7,7 @@
 use bytes::BufMut;
 
 use crate::core::CoreWrite;
+use crate::error::CryptoError;
 use crate::{
     error::CryptoResult,
     hash::{Hash, HashUser},
@@ -65,26 +66,6 @@ const MAGIC256: &[u8] = b"sha\x03";
 const MARSHALED_SIZE: usize = 4 + 8 * 4 + CHUNK + 8;
 
 impl<const N: usize, const IS_224: bool> Sha256<N, IS_224> {
-    #[cfg(feature = "alloc")]
-    fn append_binary(&self, b: &mut Vec<u8>) {
-        if IS_224 {
-            b.put_slice(MAGIC224);
-        } else {
-            b.put_slice(MAGIC256);
-        }
-        b.put_u32(self.h[0]);
-        b.put_u32(self.h[1]);
-        b.put_u32(self.h[2]);
-        b.put_u32(self.h[3]);
-        b.put_u32(self.h[4]);
-        b.put_u32(self.h[5]);
-        b.put_u32(self.h[6]);
-        b.put_u32(self.h[7]);
-        b.put_slice(&self.x[..self.nx]);
-        b.put_bytes(0, CHUNK - self.nx);
-        b.put_slice(&self.len.to_be_bytes());
-    }
-
     fn check_sum(&mut self) -> [u8; SIZE] {
         let len = self.len;
         // Padding. Add a 1 bit and 0 bits until 56 bytes mod 64.
@@ -125,12 +106,34 @@ impl<const N: usize, const IS_224: bool> Sha256<N, IS_224> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl<const N: usize, const IS_224: bool> crate::hmac::Marshalable for Sha256<N, IS_224> {
-    fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
-        let mut b = Vec::with_capacity(MARSHALED_SIZE);
-        self.append_binary(&mut b);
-        Ok(b)
+    fn marshal_size(&self) -> usize {
+        MARSHALED_SIZE
+    }
+
+    fn marshal_into(&self, mut out: &mut [u8]) -> CryptoResult<usize> {
+        let len = out.len();
+        if len < MARSHALED_SIZE {
+            return Err(CryptoError::BufferTooSmall);
+        }
+
+        if IS_224 {
+            out.put_slice(MAGIC224);
+        } else {
+            out.put_slice(MAGIC256);
+        }
+        out.put_u32(self.h[0]);
+        out.put_u32(self.h[1]);
+        out.put_u32(self.h[2]);
+        out.put_u32(self.h[3]);
+        out.put_u32(self.h[4]);
+        out.put_u32(self.h[5]);
+        out.put_u32(self.h[6]);
+        out.put_u32(self.h[7]);
+        out.put_slice(&self.x[..self.nx]);
+        out.put_bytes(0, CHUNK - self.nx);
+        out.put_slice(&self.len.to_be_bytes());
+        Ok(len - out.len())
     }
 
     fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {

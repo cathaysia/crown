@@ -38,8 +38,12 @@ impl<const N: usize> Blake2b<N> {
 
 #[cfg(feature = "alloc")]
 impl<const N: usize> crate::hmac::Marshalable for Blake2b<N> {
-    fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
-        self.0.marshal_binary()
+    fn marshal_size(&self) -> usize {
+        self.0.marshal_size()
+    }
+
+    fn marshal_into(&self, out: &mut [u8]) -> CryptoResult<usize> {
+        self.0.marshal_into(out)
     }
 
     fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {

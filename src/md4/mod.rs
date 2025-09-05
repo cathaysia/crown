@@ -19,7 +19,7 @@ use bytes::BufMut;
 
 use crate::{
     core::CoreWrite,
-    error::CryptoResult,
+    error::{CryptoError, CryptoResult},
     hash::{Hash, HashUser},
 };
 
@@ -31,7 +31,6 @@ const INIT3: u32 = 0x10325476;
 
 const MAGIC: &[u8] = b"md4\x01";
 
-#[cfg(feature = "alloc")]
 const MARSHALED_SIZE: usize = MAGIC.len() + 4 * 4 + Md4::BLOCK_SIZE + 8;
 
 #[derive(Clone)]
@@ -47,19 +46,6 @@ impl Md4 {
     const BLOCK_SIZE: usize = 64;
     /// The size of an MD4 checksum in bytes.
     const SIZE: usize = 16;
-
-    #[allow(dead_code)]
-    fn append_binary(&self, mut b: &mut [u8]) -> CryptoResult<()> {
-        b.put_slice(MAGIC);
-        b.put_u32(self.s[0]);
-        b.put_u32(self.s[1]);
-        b.put_u32(self.s[2]);
-        b.put_u32(self.s[3]);
-        b.put_slice(&self.x[..self.nx]);
-        b.put_bytes(0, self.x.len() - self.nx);
-        b.put_u64(self.len);
-        Ok(())
-    }
 }
 
 impl CoreWrite for Md4 {
@@ -157,12 +143,25 @@ impl Hash<16> for Md4 {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl crate::hmac::Marshalable for Md4 {
-    fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
-        let mut ret = vec![0u8; MARSHALED_SIZE];
-        self.append_binary(&mut ret)?;
-        Ok(ret)
+    fn marshal_size(&self) -> usize {
+        MARSHALED_SIZE
+    }
+
+    fn marshal_into(&self, mut out: &mut [u8]) -> CryptoResult<usize> {
+        let len = out.len();
+        if len < self.marshal_size() {
+            return Err(CryptoError::BufferTooSmall);
+        }
+        out.put_slice(MAGIC);
+        out.put_u32(self.s[0]);
+        out.put_u32(self.s[1]);
+        out.put_u32(self.s[2]);
+        out.put_u32(self.s[3]);
+        out.put_slice(&self.x[..self.nx]);
+        out.put_bytes(0, self.x.len() - self.nx);
+        out.put_u64(self.len);
+        Ok(len - out.len())
     }
 
     fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {

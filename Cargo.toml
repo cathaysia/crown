@@ -10,7 +10,7 @@ edition = "2021"
 [features]
 default = ["std"]
 ## Enable std
-std = ["alloc"]
+std = ["alloc", "once_cell/std"]
 ## Enable alloc
 alloc = []
 ## Enable Cuda
@@ -30,6 +30,9 @@ base64 = "0.22.1"
 libc = "0.2.175"
 nix = "0.30.1"
 document-features = "0.2.11"
+once_cell = { version = "1.21.3", default-features = false, features = [
+  "critical-section",
+] }
 
 [build-dependencies]
 cc = { version = "1.2.34", optional = true }

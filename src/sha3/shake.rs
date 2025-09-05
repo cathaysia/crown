@@ -1,3 +1,5 @@
+use bytes::BufMut;
+
 use super::*;
 use crate::{
     core::CoreWrite,
@@ -73,18 +75,20 @@ pub(crate) fn new_cshake<const N: usize>(n: &[u8], s: &[u8], rate: usize, dsbyte
     c
 }
 
-impl<const N: usize> Shake<N> {
-    fn append_binary(&self, b: &mut Vec<u8>) -> CryptoResult<Vec<u8>> {
-        self.d.append_binary(b)?;
-        b.extend_from_slice(&self.init_block);
-        Ok(b.clone())
-    }
-}
-
 impl<const N: usize> Marshalable for Shake<N> {
-    fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
-        let mut b = Vec::with_capacity(207 + self.init_block.len()); // magic(4) + rate(1) + state(200) + n(1) + direction(1)
-        self.append_binary(&mut b)
+    fn marshal_size(&self) -> usize {
+        207 + self.init_block.len()
+    }
+
+    fn marshal_into(&self, mut b: &mut [u8]) -> CryptoResult<usize> {
+        let len = b.len();
+        if len < self.marshal_size() {
+            return Err(CryptoError::BufferTooSmall);
+        }
+        let consume = self.d.marshal_into(b)?;
+        b = &mut b[..consume];
+        b.put_slice(&self.init_block);
+        Ok(len - b.len())
     }
 
     fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {

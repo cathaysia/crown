@@ -1,7 +1,6 @@
 use super::block::*;
 use crate::{
     cipher::{marker::BlockCipherMarker, BlockCipher},
-    des::block::{init_feistel_box, FEISTEL_BOX_INIT},
     error::{CryptoError, CryptoResult},
 };
 
@@ -50,9 +49,7 @@ impl Des {
     fn generate_subkeys(&mut self, key_bytes: &[u8]) {
         use super::consts::{KS_ROTATIONS, PERMUTED_CHOICE1, PERMUTED_CHOICE2};
 
-        FEISTEL_BOX_INIT.call_once(|| {
-            init_feistel_box();
-        });
+        get_feistel_box();
 
         let key = u64::from_be_bytes(key_bytes[..8].try_into().unwrap());
         let permuted_key = permute_block(key, &PERMUTED_CHOICE1);

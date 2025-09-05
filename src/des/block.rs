@@ -1,7 +1,10 @@
-use std::sync::Once;
+use once_cell::sync::OnceCell;
 
-pub static FEISTEL_BOX_INIT: Once = Once::new();
-static mut FEISTEL_BOX: [[u32; 64]; 8] = [[0; 64]; 8];
+static FEISTEL_BOX: OnceCell<[[u32; 64]; 8]> = OnceCell::new();
+
+pub fn get_feistel_box() -> &'static [[u32; 64]; 8] {
+    FEISTEL_BOX.get_or_init(init_feistel_box)
+}
 
 pub fn crypt_block(subkeys: &[u64], inout: &mut [u8], decrypt: bool) {
     let b = u64::from_be_bytes(inout[..8].try_into().unwrap());
@@ -36,11 +39,7 @@ pub fn crypt_block(subkeys: &[u64], inout: &mut [u8], decrypt: bool) {
 }
 
 pub(crate) fn feistel(l: u32, r: u32, k0: u64, k1: u64) -> (u32, u32) {
-    FEISTEL_BOX_INIT.call_once(|| {
-        init_feistel_box();
-    });
-
-    let feistel_box = unsafe { FEISTEL_BOX };
+    let feistel_box = get_feistel_box();
 
     let mut l = l;
     let mut r = r;
@@ -81,27 +80,28 @@ pub fn permute_block(src: u64, permutation: &[u8]) -> u64 {
     block
 }
 
-pub fn init_feistel_box() {
+pub fn init_feistel_box() -> [[u32; 64]; 8] {
     use super::consts::{PERMUTATION_FUNCTION, S_BOXES};
+    let mut feistel_box: [[u32; 64]; 8] = [[0; 64]; 8];
 
-    unsafe {
-        for s in 0..8 {
-            for i in 0..4 {
-                for j in 0..16 {
-                    let mut f = (S_BOXES[s][i][j] as u64) << (4 * (7 - s));
-                    f = permute_block(f, &PERMUTATION_FUNCTION);
+    for s in 0..8 {
+        for i in 0..4 {
+            for j in 0..16 {
+                let mut f = (S_BOXES[s][i][j] as u64) << (4 * (7 - s));
+                f = permute_block(f, &PERMUTATION_FUNCTION);
 
-                    let row = ((i & 2) << 4) | (i & 1);
-                    let col = j << 1;
-                    let t = row | col;
+                let row = ((i & 2) << 4) | (i & 1);
+                let col = j << 1;
+                let t = row | col;
 
-                    f = (f << 1) | (f >> 31);
+                f = (f << 1) | (f >> 31);
 
-                    FEISTEL_BOX[s][t] = f as u32;
-                }
+                feistel_box[s][t] = f as u32;
             }
         }
     }
+
+    feistel_box
 }
 
 pub(crate) fn permute_initial_block(mut block: u64) -> u64 {

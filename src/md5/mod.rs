@@ -23,7 +23,7 @@ use md5_generic::*;
 
 use crate::{
     core::CoreWrite,
-    error::CryptoResult,
+    error::{CryptoError, CryptoResult},
     hash::{Hash, HashUser},
 };
 
@@ -35,10 +35,7 @@ const INIT1: u32 = 0xEFCDAB89;
 const INIT2: u32 = 0x98BADCFE;
 const INIT3: u32 = 0x10325476;
 
-#[cfg(feature = "alloc")]
 const MAGIC: &[u8] = b"md5\x01";
-
-#[cfg(feature = "alloc")]
 const MARSHALED_SIZE: usize = MAGIC.len() + 4 * 4 + Md5::BLOCK_SIZE + 8;
 
 #[derive(Clone)]
@@ -52,19 +49,6 @@ pub struct Md5 {
 impl Md5 {
     pub(crate) const SIZE: usize = 16;
     pub(crate) const BLOCK_SIZE: usize = 64;
-
-    #[cfg(feature = "alloc")]
-    fn append_binary(&self, mut b: &mut [u8]) -> CryptoResult<()> {
-        b.put_slice(MAGIC);
-        b.put_u32(self.s[0]);
-        b.put_u32(self.s[1]);
-        b.put_u32(self.s[2]);
-        b.put_u32(self.s[3]);
-        b.put_slice(&self.x[..self.nx]);
-        b.put_bytes(0, self.x.len() - self.nx);
-        b.put_u64(self.len);
-        Ok(())
-    }
 
     fn check_sum(&mut self) -> [u8; Md5::SIZE] {
         let mut tmp = [0u8; 1 + 63 + 8];
@@ -127,12 +111,25 @@ impl CoreWrite for Md5 {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl crate::hmac::Marshalable for Md5 {
-    fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
-        let mut ret = vec![0u8; MARSHALED_SIZE];
-        self.append_binary(&mut ret)?;
-        Ok(ret)
+    fn marshal_size(&self) -> usize {
+        MARSHALED_SIZE
+    }
+
+    fn marshal_into(&self, mut out: &mut [u8]) -> CryptoResult<usize> {
+        let len = out.len();
+        if out.len() < MARSHALED_SIZE {
+            return Err(CryptoError::BufferTooSmall);
+        }
+        out.put_slice(MAGIC);
+        out.put_u32(self.s[0]);
+        out.put_u32(self.s[1]);
+        out.put_u32(self.s[2]);
+        out.put_u32(self.s[3]);
+        out.put_slice(&self.x[..self.nx]);
+        out.put_bytes(0, self.x.len() - self.nx);
+        out.put_u64(self.len);
+        Ok(len - out.len())
     }
 
     fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {

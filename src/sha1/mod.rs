@@ -28,9 +28,7 @@ const INIT2: u32 = 0x98BADCFE;
 const INIT3: u32 = 0x10325476;
 const INIT4: u32 = 0xC3D2E1F0;
 
-#[cfg(feature = "alloc")]
 const MAGIC: &[u8] = b"sha\x01";
-#[cfg(feature = "alloc")]
 const MARSHALED_SIZE: usize = MAGIC.len() + 5 * 4 + CHUNK + 8;
 
 /// [Sha1] is a SHA-1 hash implementation.
@@ -45,19 +43,6 @@ pub struct Sha1 {
 impl Sha1 {
     pub const SIZE: usize = 20;
     pub const BLOCK_SIZE: usize = 64;
-
-    #[cfg(feature = "alloc")]
-    fn append_binary(&self, b: &mut Vec<u8>) {
-        b.put_slice(MAGIC);
-        b.put_u32(self.h[0]);
-        b.put_u32(self.h[1]);
-        b.put_u32(self.h[2]);
-        b.put_u32(self.h[3]);
-        b.put_u32(self.h[4]);
-        b.put_slice(&self.x[..self.nx]);
-        b.put_bytes(0, CHUNK - self.nx);
-        b.put_u64(self.len);
-    }
 
     fn check_sum(&mut self) -> [u8; Sha1::SIZE] {
         let len = self.len;
@@ -106,6 +91,7 @@ impl Sha1 {
         result
     }
 
+    #[cfg(feature = "alloc")]
     fn const_sum(&mut self) -> [u8; Sha1::SIZE] {
         let mut length = [0u8; 8];
         let l = self.len << 3;
@@ -232,12 +218,23 @@ impl Hash<20> for Sha1 {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl crate::hmac::Marshalable for Sha1 {
-    fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
-        let mut b = Vec::with_capacity(MARSHALED_SIZE);
-        self.append_binary(&mut b);
-        Ok(b)
+    fn marshal_size(&self) -> usize {
+        MARSHALED_SIZE
+    }
+
+    fn marshal_into(&self, mut b: &mut [u8]) -> CryptoResult<usize> {
+        let len = b.len();
+        b.put_slice(MAGIC);
+        b.put_u32(self.h[0]);
+        b.put_u32(self.h[1]);
+        b.put_u32(self.h[2]);
+        b.put_u32(self.h[3]);
+        b.put_u32(self.h[4]);
+        b.put_slice(&self.x[..self.nx]);
+        b.put_bytes(0, CHUNK - self.nx);
+        b.put_u64(self.len);
+        Ok(len - b.len())
     }
     fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
         use crate::error::CryptoError;

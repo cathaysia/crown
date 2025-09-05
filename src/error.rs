@@ -2,6 +2,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum CryptoError {
+    #[error("buffer too small")]
+    BufferTooSmall,
     #[error("unsupported block size: {0}")]
     UnsupportedBlockSize(usize),
     #[error("invalid cipher")]

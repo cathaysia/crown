@@ -1,4 +1,10 @@
-use crate::{core::CoreWrite, error::CryptoResult, hash::HashUser};
+use bytes::BufMut;
+
+use crate::{
+    core::CoreWrite,
+    error::{CryptoError, CryptoResult},
+    hash::HashUser,
+};
 
 use super::*;
 
@@ -105,31 +111,33 @@ impl<const N: usize> Sha3<N> {
 
         hash
     }
+}
 
-    #[cfg(feature = "alloc")]
-    pub(crate) fn append_binary(&self, b: &mut Vec<u8>) -> CryptoResult<Vec<u8>> {
+impl<const N: usize> crate::hmac::Marshalable for Sha3<N> {
+    fn marshal_size(&self) -> usize {
+        MARSHALED_SIZE
+    }
+
+    fn marshal_into(&self, mut b: &mut [u8]) -> CryptoResult<usize> {
+        let len = b.len();
+        if len < MARSHALED_SIZE {
+            return Err(CryptoError::BufferTooSmall);
+        }
         match self.dsbyte {
-            DSBYTE_SHA3 => b.extend_from_slice(MAGIC_SHA3.as_bytes()),
-            DSBYTE_SHAKE => b.extend_from_slice(MAGIC_SHAKE.as_bytes()),
-            DSBYTE_CSHAKE => b.extend_from_slice(MAGIC_CSHAKE.as_bytes()),
-            DSBYTE_KECCAK => b.extend_from_slice(MAGIC_KECCAK.as_bytes()),
+            DSBYTE_SHA3 => b.put_slice(MAGIC_SHA3.as_bytes()),
+            DSBYTE_SHAKE => b.put_slice(MAGIC_SHAKE.as_bytes()),
+            DSBYTE_CSHAKE => b.put_slice(MAGIC_CSHAKE.as_bytes()),
+            DSBYTE_KECCAK => b.put_slice(MAGIC_KECCAK.as_bytes()),
             _ => panic!("unknown dsbyte"),
         }
         // rate is at most 168, and n is at most rate.
-        b.push(self.rate as u8);
-        b.extend_from_slice(&self.a);
-        b.push(self.n as u8);
-        b.push(self.state as u8);
-        Ok(b.clone())
+        b.put_u8(self.rate as u8);
+        b.put_slice(&self.a);
+        b.put_u8(self.n as u8);
+        b.put_u8(self.state as u8);
+        Ok(len - b.len())
     }
-}
 
-#[cfg(feature = "alloc")]
-impl<const N: usize> crate::hmac::Marshalable for Sha3<N> {
-    fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
-        let mut b = Vec::with_capacity(MARSHALED_SIZE);
-        self.append_binary(&mut b)
-    }
     fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
         use crate::error::CryptoError;
 
@@ -137,7 +145,7 @@ impl<const N: usize> crate::hmac::Marshalable for Sha3<N> {
             return Err(CryptoError::InvalidHashState);
         }
 
-        let magic = std::str::from_utf8(&b[..MAGIC_SHA3.len()])?;
+        let magic = core::str::from_utf8(&b[..MAGIC_SHA3.len()])?;
         let b = &b[MAGIC_SHA3.len()..];
 
         let valid = match magic {
@@ -155,7 +163,7 @@ impl<const N: usize> crate::hmac::Marshalable for Sha3<N> {
         let rate = b[0] as usize;
         let b = &b[1..];
         if rate != self.rate {
-            Err("sha3: invalid hash state function".to_string())?;
+            return Err(CryptoError::InvalidHashState);
         }
 
         {
@@ -168,11 +176,11 @@ impl<const N: usize> crate::hmac::Marshalable for Sha3<N> {
         let state = match b[1] {
             0 => SpongeDirection::Absorbing,
             1 => SpongeDirection::Squeezing,
-            _ => Err("sha3: invalid hash state".to_string())?,
+            _ => Err(CryptoError::InvalidHashState)?,
         };
 
         if n > self.rate {
-            Err("sha3: invalid hash state".to_string())?;
+            return Err(CryptoError::InvalidHashState);
         }
         self.n = n;
         self.state = state;

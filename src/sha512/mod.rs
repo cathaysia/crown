@@ -89,32 +89,6 @@ impl<const N: usize> Sha512<N> {
     const SIZE_384: usize = 48;
     const BLOCK_SIZE: usize = 128;
 
-    #[cfg(feature = "alloc")]
-    /// Append the digest state to the provided buffer
-    fn append_binary(&self, b: &mut Vec<u8>) {
-        use bytes::BufMut;
-
-        match N {
-            Self::SIZE_384 => b.put_slice(MAGIC_384),
-            Self::SIZE_224 => b.put_slice(MAGIC_512_224),
-            Self::SIZE_256 => b.put_slice(MAGIC_512_256),
-            Self::SIZE_512 => b.put_slice(MAGIC_512),
-            _ => panic!("unknown size"),
-        }
-
-        // Append hash state (big-endian)
-        for &h in &self.h {
-            b.put_u64(h);
-        }
-
-        // Append buffer
-        b.put_slice(&self.x[..self.nx]);
-        b.put_bytes(0, CHUNK - self.nx);
-
-        // Append length
-        b.put_u64(self.len);
-    }
-
     fn check_sum(&mut self) -> [u8; 64] {
         // Padding. Add a 1 bit and 0 bits until 112 bytes mod 128.
         let len = self.len;
@@ -151,13 +125,37 @@ impl<const N: usize> Sha512<N> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl<const N: usize> crate::hmac::Marshalable for Sha512<N> {
+    fn marshal_size(&self) -> usize {
+        MARSHALED_SIZE
+    }
+
     /// Marshal the digest state to binary format
-    fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
-        let mut result = Vec::with_capacity(MARSHALED_SIZE);
-        self.append_binary(&mut result);
-        Ok(result)
+    fn marshal_into(&self, mut out: &mut [u8]) -> CryptoResult<usize> {
+        use bytes::BufMut;
+        let len = out.len();
+
+        match N {
+            Self::SIZE_384 => out.put_slice(MAGIC_384),
+            Self::SIZE_224 => out.put_slice(MAGIC_512_224),
+            Self::SIZE_256 => out.put_slice(MAGIC_512_256),
+            Self::SIZE_512 => out.put_slice(MAGIC_512),
+            _ => panic!("unknown size"),
+        }
+
+        // Append hash state (big-endian)
+        for &h in &self.h {
+            out.put_u64(h);
+        }
+
+        // Append buffer
+        out.put_slice(&self.x[..self.nx]);
+        out.put_bytes(0, CHUNK - self.nx);
+
+        // Append length
+        out.put_u64(self.len);
+
+        Ok(len - out.len())
     }
     /// Unmarshal digest state from binary format
     fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {

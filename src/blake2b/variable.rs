@@ -1,3 +1,5 @@
+use bytes::BufMut;
+
 use crate::{hash::HashVariable, utils::copy};
 
 use super::*;
@@ -19,6 +21,7 @@ pub struct Blake2bVariable {
 
 const MAGIC: &[u8] = b"b2b";
 const MARSHALED_SIZE: usize = MAGIC.len() + 8 * 8 + 2 * 8 + 1 + BLOCK_SIZE + 1;
+
 impl Blake2bVariable {
     /// Create a [HashVariable] hasher allow generate checksum between [0, 64].
     ///
@@ -85,28 +88,30 @@ impl HashVariable for Blake2bVariable {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl crate::hmac::Marshalable for Blake2bVariable {
-    fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
+    fn marshal_size(&self) -> usize {
+        MARSHALED_SIZE
+    }
+
+    fn marshal_into(&self, mut out: &mut [u8]) -> CryptoResult<usize> {
+        let len = out.len();
         if self.key_len != 0 {
-            return Err(CryptoError::InvalidParameter(
-                "cannot marshal MACs".to_string(),
-            ));
+            return Err(CryptoError::InvalidParameterStr("cannot marshal MACs"));
         }
 
-        let mut b = Vec::with_capacity(MARSHALED_SIZE);
-        b.extend_from_slice(MAGIC);
+        out.put_slice(MAGIC);
 
         for &h in &self.h {
-            b.extend_from_slice(&h.to_be_bytes());
+            out.put_u64(h);
         }
-        b.extend_from_slice(&self.c[0].to_be_bytes());
-        b.extend_from_slice(&self.c[1].to_be_bytes());
-        b.push(self.hash_size as u8);
-        b.extend_from_slice(&self.block);
-        b.push(self.offset as u8);
 
-        Ok(b)
+        out.put_u64(self.c[0]);
+        out.put_u64(self.c[1]);
+        out.put_u8(self.hash_size as u8);
+        out.put_slice(&self.block);
+        out.put_u8(self.offset as u8);
+
+        Ok(len - out.len())
     }
 
     fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
