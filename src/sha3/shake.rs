@@ -2,12 +2,13 @@ use bytes::BufMut;
 
 use super::*;
 use crate::{
-    core::CoreWrite,
+    core::{CoreRead, CoreWrite},
     error::{CryptoError, CryptoResult},
     hash::{Hash, HashUser},
     hmac::Marshalable,
 };
-use std::io::{self, Read};
+use alloc::vec;
+use alloc::vec::Vec;
 
 #[derive(Clone)]
 pub struct Shake<const N: usize> {
@@ -114,8 +115,8 @@ impl<const N: usize> CoreWrite for Shake<N> {
     }
 }
 
-impl<const N: usize> Read for Shake<N> {
-    fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
+impl<const N: usize> CoreRead for Shake<N> {
+    fn read(&mut self, out: &mut [u8]) -> CryptoResult<usize> {
         // Note that read is not exposed on Digest since SHA-3 does not offer
         // variable output length. It is only used internally by Sum.
 
@@ -147,7 +148,7 @@ impl<const N: usize> Read for Shake<N> {
                 self.d.n = 0;
             }
 
-            let x = std::cmp::min(remaining.len(), self.d.rate - self.d.n);
+            let x = core::cmp::min(remaining.len(), self.d.rate - self.d.n);
             remaining[..x].copy_from_slice(&self.d.a[self.d.n..self.d.n + x]);
             self.d.n += x;
             remaining = &mut remaining[x..];

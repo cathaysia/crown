@@ -1,6 +1,6 @@
 use crate::args::ArgsHash;
 use kittycrypto::{
-    core::CoreWrite,
+    core::{CoreRead, CoreWrite},
     hash::{ErasedHash, HashVariable},
     hmac::HMAC,
 };
@@ -238,14 +238,19 @@ pub(crate) fn calc_and_output_hash_shake(algorithm: &str, files: Vec<String>, le
                             let mut shake = kittycrypto::sha3::new_shake128();
                             shake.write_all(&content).unwrap();
                             let mut result = vec![0u8; length];
-                            std::io::Read::read_exact(&mut shake, &mut result).unwrap();
+                            std::io::Read::read_exact(
+                                &mut shake as &mut dyn CoreRead as _,
+                                &mut result,
+                            )
+                            .unwrap();
                             result
                         }
                         "shake256" => {
                             let mut shake = kittycrypto::sha3::new_shake256();
                             shake.write_all(&content).unwrap();
                             let mut result = vec![0u8; length];
-                            std::io::Read::read_exact(&mut shake, &mut result).unwrap();
+                            std::io::Read::read_exact(&mut shake as &mut dyn CoreRead, &mut result)
+                                .unwrap();
                             result
                         }
                         _ => panic!("unknown shake algorithm: {algorithm}"),

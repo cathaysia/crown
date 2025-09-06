@@ -1,5 +1,7 @@
-use crate::bcrypt::BcryptError;
 use base64::{alphabet::Alphabet, engine::general_purpose::GeneralPurpose, Engine};
+
+use crate::error::CryptoError;
+use alloc::vec::Vec;
 
 const BCRYPT_ALPHABET: &str = "./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -14,11 +16,11 @@ pub(super) fn base64_encode(src: &[u8]) -> Vec<u8> {
     encoded.into_bytes()
 }
 
-pub(super) fn base64_decode(src: &[u8]) -> Result<Vec<u8>, BcryptError> {
+pub(super) fn base64_decode(src: &[u8]) -> Result<Vec<u8>, CryptoError> {
     let engine = get_bcrypt_engine();
-    let src_str = std::str::from_utf8(src).map_err(|_| BcryptError::InvalidHashPrefix(0))?;
+    let src_str = core::str::from_utf8(src).map_err(|_| CryptoError::InvalidHashPrefix(0))?;
 
     engine
         .decode(src_str)
-        .map_err(|_| BcryptError::InvalidHashPrefix(0))
+        .map_err(|_| CryptoError::InvalidHashPrefix(0))
 }

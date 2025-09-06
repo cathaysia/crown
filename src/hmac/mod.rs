@@ -21,7 +21,8 @@ pub trait Marshalable {
     fn unmarshal_binary(&mut self, data: &[u8]) -> CryptoResult<()>;
 
     #[cfg(feature = "alloc")]
-    fn marshal_binary(&self) -> CryptoResult<Vec<u8>> {
+    fn marshal_binary(&self) -> CryptoResult<alloc::vec::Vec<u8>> {
+        use alloc::vec;
         let mut out = vec![0u8; self.marshal_size()];
         self.marshal_into(&mut out)?;
         Ok(out)

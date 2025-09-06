@@ -5,6 +5,8 @@ use crate::error::CryptoError;
 use crate::error::CryptoResult;
 use crate::pbkdf2;
 use crate::sha256;
+use alloc::vec;
+use alloc::vec::Vec;
 
 const MAX_INT: i32 = i32::MAX;
 
@@ -205,8 +207,8 @@ pub fn key(
     key_len: usize,
 ) -> CryptoResult<Vec<u8>> {
     if n <= 1 || (n & (n - 1)) != 0 {
-        return Err(CryptoError::StringError({
-            "scrypt: N must be > 1 and a power of 2".to_string()
+        return Err(CryptoError::StrError({
+            "scrypt: N must be > 1 and a power of 2"
         }));
     }
     if (r as u64) * (p as u64) >= 1 << 30
@@ -214,8 +216,8 @@ pub fn key(
         || r > (MAX_INT as usize) / 256
         || n > (MAX_INT as usize) / 128 / r
     {
-        return Err(CryptoError::StringError({
-            "scrypt: parameters are too large".to_string()
+        return Err(CryptoError::StrError({
+            "scrypt: parameters are too large"
         }));
     }
 

@@ -14,9 +14,8 @@ fn test_bcrypting_is_easy() {
 
     let not_pass = b"notthepass";
     let err = compare_hash_and_password(&hp, not_pass);
-    assert_eq!(
-        err,
-        Err(BcryptError::MismatchedHashAndPassword),
+    assert!(
+        matches!(err, Err(CryptoError::MismatchedHashAndPassword),),
         "{:?} and {:?} should be mismatched",
         hp,
         not_pass
@@ -78,36 +77,36 @@ fn test_too_long_passwords_work() {
 }
 
 struct InvalidHashTest {
-    err: BcryptError,
+    err: CryptoError,
     hash: &'static [u8],
 }
 
 const INVALID_TESTS: &[InvalidHashTest] = &[
     InvalidHashTest {
-        err: BcryptError::HashTooShort,
+        err: CryptoError::HashTooShort,
         hash: b"$2a$10$fooo",
     },
     InvalidHashTest {
-        err: BcryptError::HashTooShort,
+        err: CryptoError::HashTooShort,
         hash: b"$2a",
     },
     InvalidHashTest {
-        err: BcryptError::HashVersionTooNew(b'3'),
+        err: CryptoError::HashVersionTooNew(b'3'),
         hash: b"$3a$10$sssssssssssssssssssssshhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
     },
     InvalidHashTest {
-        err: BcryptError::InvalidHashPrefix(b'%'),
+        err: CryptoError::InvalidHashPrefix(b'%'),
         hash: b"%2a$10$sssssssssssssssssssssshhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
     },
     InvalidHashTest {
-        err: BcryptError::InvalidCost(32),
+        err: CryptoError::InvalidCost(32),
         hash: b"$2a$32$sssssssssssssssssssssshhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
     },
 ];
 
 #[test]
 fn test_invalid_hash_errors() {
-    fn check(name: &str, expected: &BcryptError, err: Result<Hashed, BcryptError>) {
+    fn check(name: &str, expected: &CryptoError, err: Result<Hashed, CryptoError>) {
         match err {
             Ok(_) => panic!("{}: Should have returned an error", name),
             Err(actual_err) => {
@@ -211,9 +210,8 @@ fn test_cost_validation_in_hash() {
         err.is_err(),
         "new_from_password: should return a cost error"
     );
-    assert_eq!(
-        err.unwrap_err(),
-        BcryptError::InvalidCost(32),
+    assert!(
+        matches!(err.unwrap_err(), CryptoError::InvalidCost(32),),
         "new_from_password: should return cost error"
     );
 }

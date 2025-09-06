@@ -19,7 +19,8 @@ use crate::{
     hash::{Hash, HashUser},
     hmac::{Marshalable, HMAC},
 };
-
+use alloc::vec;
+use alloc::vec::Vec;
 /// Key derives a key from the password, salt and iteration count, returning a
 /// []byte of length keylen that can be used as cryptographic key. The key is
 /// derived based on the method described as PBKDF2 with the HMAC variant using

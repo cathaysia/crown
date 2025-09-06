@@ -31,3 +31,15 @@ impl std::io::Write for dyn CoreWrite {
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))
     }
 }
+
+pub trait CoreRead {
+    fn read(&mut self, buf: &mut [u8]) -> CryptoResult<usize>;
+}
+
+#[cfg(feature = "std")]
+impl std::io::Read for dyn CoreRead {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.read(buf)
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))
+    }
+}

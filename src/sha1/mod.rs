@@ -83,10 +83,10 @@ impl Sha1 {
 
     /// computes the same result of [Self::sum] but in constant time.
     #[cfg(feature = "alloc")]
-    pub fn constant_time_sum(&self, input: &[u8]) -> Vec<u8> {
+    pub fn constant_time_sum(&self, input: &[u8]) -> alloc::vec::Vec<u8> {
         let mut d0 = self.clone();
         let hash = d0.const_sum();
-        let mut result = Vec::from(input);
+        let mut result = alloc::vec::Vec::from(input);
         result.extend_from_slice(&hash);
         result
     }

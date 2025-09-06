@@ -11,10 +11,10 @@ mod tests;
 use crate::{
     blowfish::{expand_key, Blowfish as BlowfishCipher},
     cipher::BlockCipher,
-    error::CryptoError,
+    error::{CryptoError, CryptoResult},
     utils::subtle::constant_time_eq,
 };
-use std::fmt;
+use alloc::vec::Vec;
 
 // Constants
 pub const MIN_COST: u32 = 4;
@@ -34,62 +34,6 @@ const MAGIC_CIPHER_DATA: [u8; 24] = [
     0x4f, 0x72, 0x70, 0x68, 0x65, 0x61, 0x6e, 0x42, 0x65, 0x68, 0x6f, 0x6c, 0x64, 0x65, 0x72, 0x53,
     0x63, 0x72, 0x79, 0x44, 0x6f, 0x75, 0x62, 0x74,
 ];
-
-// Error types
-#[derive(Debug, Clone, PartialEq)]
-pub enum BcryptError {
-    MismatchedHashAndPassword,
-    HashTooShort,
-    HashVersionTooNew(u8),
-    InvalidHashPrefix(u8),
-    InvalidCost(u32),
-    PasswordTooLong,
-}
-
-impl fmt::Display for BcryptError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            BcryptError::MismatchedHashAndPassword => {
-                write!(
-                    f,
-                    "crypto/bcrypt: hashedPassword is not the hash of the given password"
-                )
-            }
-            BcryptError::HashTooShort => {
-                write!(
-                    f,
-                    "crypto/bcrypt: hashedSecret too short to be a bcrypted password"
-                )
-            }
-            BcryptError::HashVersionTooNew(version) => {
-                write!(f, "crypto/bcrypt: bcrypt algorithm version '{}' requested is newer than current version '{}'",
-                       *version as char, MAJOR_VERSION as char)
-            }
-            BcryptError::InvalidHashPrefix(prefix) => {
-                write!(f, "crypto/bcrypt: bcrypt hashes must start with '$', but hashedSecret started with '{}'",
-                       *prefix as char)
-            }
-            BcryptError::InvalidCost(cost) => {
-                write!(
-                    f,
-                    "crypto/bcrypt: cost {} is outside allowed inclusive range {}..{}",
-                    cost, MIN_COST, MAX_COST
-                )
-            }
-            BcryptError::PasswordTooLong => {
-                write!(f, "bcrypt: password length exceeds 72 bytes")
-            }
-        }
-    }
-}
-
-impl std::error::Error for BcryptError {}
-
-impl From<BcryptError> for CryptoError {
-    fn from(err: BcryptError) -> Self {
-        CryptoError::StringError(err.to_string())
-    }
-}
 
 // Hashed password structure
 #[derive(Debug, Clone)]
@@ -143,12 +87,12 @@ impl Hashed {
         arr
     }
 
-    fn decode_version(&mut self, sbytes: &[u8]) -> Result<usize, BcryptError> {
+    fn decode_version(&mut self, sbytes: &[u8]) -> CryptoResult<usize> {
         if sbytes[0] != b'$' {
-            return Err(BcryptError::InvalidHashPrefix(sbytes[0]));
+            return Err(CryptoError::InvalidHashPrefix(sbytes[0]));
         }
         if sbytes[1] > MAJOR_VERSION {
-            return Err(BcryptError::HashVersionTooNew(sbytes[1]));
+            return Err(CryptoError::HashVersionTooNew(sbytes[1]));
         }
         self.major = sbytes[1];
         let mut n = 3;
@@ -159,12 +103,12 @@ impl Hashed {
         Ok(n)
     }
 
-    fn decode_cost(&mut self, sbytes: &[u8]) -> Result<usize, BcryptError> {
+    fn decode_cost(&mut self, sbytes: &[u8]) -> CryptoResult<usize> {
         let cost_str =
-            std::str::from_utf8(&sbytes[0..2]).map_err(|_| BcryptError::InvalidCost(0))?;
+            core::str::from_utf8(&sbytes[0..2]).map_err(|_| CryptoError::InvalidCost(0))?;
         let cost = cost_str
             .parse::<u32>()
-            .map_err(|_| BcryptError::InvalidCost(0))?;
+            .map_err(|_| CryptoError::InvalidCost(0))?;
         check_cost(cost)?;
         self.cost = cost;
         Ok(3)
@@ -174,19 +118,16 @@ impl Hashed {
 // Public API functions
 
 /// Generate a bcrypt hash from a password with the given cost
-pub fn generate_from_password(password: &[u8], cost: u32) -> Result<Vec<u8>, BcryptError> {
+pub fn generate_from_password(password: &[u8], cost: u32) -> Result<Vec<u8>, CryptoError> {
     if password.len() > 72 {
-        return Err(BcryptError::PasswordTooLong);
+        return Err(CryptoError::PasswordTooLong);
     }
     let p = new_from_password(password, cost)?;
     Ok(p.to_hash())
 }
 
 /// Compare a bcrypt hashed password with its possible plaintext equivalent
-pub fn compare_hash_and_password(
-    hashed_password: &[u8],
-    password: &[u8],
-) -> Result<(), BcryptError> {
+pub fn compare_hash_and_password(hashed_password: &[u8], password: &[u8]) -> CryptoResult<()> {
     let p = new_from_hash(hashed_password)?;
 
     let other_hash = bcrypt(password, p.cost, &p.salt)?;
@@ -202,19 +143,19 @@ pub fn compare_hash_and_password(
     if constant_time_eq(&p.to_hash(), &other_p.to_hash()) {
         Ok(())
     } else {
-        Err(BcryptError::MismatchedHashAndPassword)
+        Err(CryptoError::MismatchedHashAndPassword)
     }
 }
 
 /// Return the hashing cost used to create the given hashed password
-pub fn cost(hashed_password: &[u8]) -> Result<u32, BcryptError> {
+pub fn cost(hashed_password: &[u8]) -> Result<u32, CryptoError> {
     let p = new_from_hash(hashed_password)?;
     Ok(p.cost)
 }
 
 // Internal helper functions
 
-fn new_from_password(password: &[u8], cost: u32) -> Result<Hashed, BcryptError> {
+fn new_from_password(password: &[u8], cost: u32) -> Result<Hashed, CryptoError> {
     let cost = if cost < MIN_COST { DEFAULT_COST } else { cost };
 
     let mut p = Hashed::new();
@@ -234,9 +175,9 @@ fn new_from_password(password: &[u8], cost: u32) -> Result<Hashed, BcryptError> 
     Ok(p)
 }
 
-fn new_from_hash(hashed_secret: &[u8]) -> Result<Hashed, BcryptError> {
+fn new_from_hash(hashed_secret: &[u8]) -> Result<Hashed, CryptoError> {
     if hashed_secret.len() < MIN_HASH_SIZE {
-        return Err(BcryptError::HashTooShort);
+        return Err(CryptoError::HashTooShort);
     }
 
     let mut p = Hashed::new();
@@ -256,7 +197,7 @@ fn new_from_hash(hashed_secret: &[u8]) -> Result<Hashed, BcryptError> {
     Ok(p)
 }
 
-fn bcrypt(password: &[u8], cost: u32, salt: &[u8]) -> Result<Vec<u8>, BcryptError> {
+fn bcrypt(password: &[u8], cost: u32, salt: &[u8]) -> Result<Vec<u8>, CryptoError> {
     let mut cipher_data = MAGIC_CIPHER_DATA.to_vec();
 
     let c = expensive_blowfish_setup(password, cost, salt)?;
@@ -275,14 +216,14 @@ fn expensive_blowfish_setup(
     key: &[u8],
     cost: u32,
     salt: &[u8],
-) -> Result<BlowfishCipher, BcryptError> {
+) -> Result<BlowfishCipher, CryptoError> {
     let csalt = base64_decode(salt)?;
 
     let mut ckey = key.to_vec();
     ckey.push(0);
 
     let mut c =
-        BlowfishCipher::new_salted(&ckey, &csalt).map_err(|_| BcryptError::InvalidCost(cost))?;
+        BlowfishCipher::new_salted(&ckey, &csalt).map_err(|_| CryptoError::InvalidCost(cost))?;
 
     let rounds = 1u64 << cost;
     for _ in 0..rounds {
@@ -293,9 +234,9 @@ fn expensive_blowfish_setup(
     Ok(c)
 }
 
-fn check_cost(cost: u32) -> Result<(), BcryptError> {
+fn check_cost(cost: u32) -> CryptoResult<()> {
     if !(MIN_COST..=MAX_COST).contains(&cost) {
-        Err(BcryptError::InvalidCost(cost))
+        Err(CryptoError::InvalidCost(cost))
     } else {
         Ok(())
     }

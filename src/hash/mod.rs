@@ -46,7 +46,8 @@ pub trait HashVariable: CoreWrite + HashUser {
     /// # Returns
     /// A vector containing the computed hash value.
     #[cfg(feature = "alloc")]
-    fn sum_vec(&mut self) -> Vec<u8> {
+    fn sum_vec(&mut self) -> alloc::vec::Vec<u8> {
+        use alloc::vec;
         let mut ret = vec![0u8; self.size()];
         let len = self.sum(&mut ret);
         ret.reserve(len);

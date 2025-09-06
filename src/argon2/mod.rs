@@ -42,6 +42,9 @@ use crate::blake2b::SIZE as BLAKE2B_SIZE;
 use crate::core::CoreWrite;
 use crate::error::{CryptoError, CryptoResult};
 use crate::hash::HashVariable;
+use alloc::vec;
+use alloc::vec::Vec;
+
 use blake2_hash::blake2b_hash;
 
 // The Argon2 version implemented by this package.
@@ -157,8 +160,8 @@ fn derive_key(
         return Err(CryptoError::InvalidRound(time as usize));
     }
     if threads < 1 {
-        return Err(CryptoError::InvalidParameter(
-            "argon2: parallelism degree too low".to_string(),
+        return Err(CryptoError::InvalidParameterStr(
+            "argon2: parallelism degree too low",
         ));
     }
 
@@ -376,7 +379,7 @@ fn process_segment(
             index_alpha(random, lanes, segments, threads, n, slice, lane, index) as usize;
         let src = unsafe {
             let ptr = blocks.as_ptr();
-            std::slice::from_raw_parts(ptr, blocks.len())
+            core::slice::from_raw_parts(ptr, blocks.len())
         };
         process_block_xor(&mut blocks[offset], &src[prev], &src[new_offset]);
 

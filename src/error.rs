@@ -1,6 +1,9 @@
+#[cfg(feature = "alloc")]
+use alloc::string::String;
+
 use thiserror::Error;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq, Clone)]
 pub enum CryptoError {
     #[error("buffer too small")]
     BufferTooSmall,
@@ -36,15 +39,14 @@ pub enum CryptoError {
     InvalidLength,
     #[error("invalid buffer overlap")]
     InvalidBufferOverlap,
-    #[cfg(feature = "alloc")]
-    #[error("io error: {0}")]
-    IoError(#[from] std::io::Error),
     #[error("invalid tag")]
     AuthenticationFailed,
     #[error("invalid hash state")]
     InvalidHashState,
     #[error("invalid hash identifier")]
     InvalidHashIdentifier,
+    #[error("invalid hash size")]
+    StrError(&'static str),
     #[cfg(feature = "alloc")]
     #[error("invalid hash size")]
     StringError(String),
@@ -52,6 +54,19 @@ pub enum CryptoError {
     Utf8Error(#[from] core::str::Utf8Error),
     #[error("io eof")]
     IoEof,
+
+    #[error("mismatched hash and password")]
+    MismatchedHashAndPassword,
+    #[error("hash too short")]
+    HashTooShort,
+    #[error("hash version too new: {0}")]
+    HashVersionTooNew(u8),
+    #[error("invalid hash prefix: {0}")]
+    InvalidHashPrefix(u8),
+    #[error("invalid cost: {0}")]
+    InvalidCost(u32),
+    #[error("password too long")]
+    PasswordTooLong,
 }
 
 #[cfg(feature = "alloc")]

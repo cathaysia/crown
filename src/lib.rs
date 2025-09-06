@@ -59,7 +59,7 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-#[cfg(feature = "std")]
+#[cfg(feature = "alloc")]
 pub mod argon2;
 #[cfg(feature = "std")]
 pub mod bcrypt;
@@ -68,7 +68,7 @@ pub mod blake2s;
 pub mod chacha20poly1305;
 pub mod des;
 pub mod hash;
-#[cfg(feature = "alloc")]
+#[cfg(feature = "std")]
 pub mod hkdf;
 pub mod hmac;
 pub mod md4;

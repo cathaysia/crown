@@ -6,6 +6,8 @@ use crate::cipher::StreamCipher;
 use crate::error::{CryptoError, CryptoResult};
 use crate::utils::subtle::xor::xor_bytes;
 
+use alloc::vec::Vec;
+
 #[cfg(test)]
 mod tests;
 

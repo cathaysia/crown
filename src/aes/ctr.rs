@@ -2,7 +2,7 @@ mod noasm;
 pub use noasm::*;
 
 use crate::{cipher::StreamCipher, utils::subtle::xor::xor_bytes};
-
+use alloc::vec;
 pub struct CTR {
     b: Aes,
     ivlo: u64,

@@ -1,6 +1,8 @@
 use crate::error::CryptoResult;
 
 use super::*;
+use alloc::boxed::Box;
+use alloc::vec::Vec;
 
 trait ErasedHashInner: CoreWrite + HashUser {
     fn sum(&mut self) -> Vec<u8>;

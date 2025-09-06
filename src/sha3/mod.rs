@@ -114,7 +114,7 @@ pub fn new_shake128() -> Shake<32> {
             dsbyte: DSBYTE_SHAKE,
             state: digest::SpongeDirection::Absorbing,
         },
-        init_block: Vec::new(),
+        init_block: alloc::vec::Vec::new(),
     }
 }
 
@@ -131,7 +131,7 @@ pub fn new_shake256() -> Shake<64> {
             dsbyte: DSBYTE_SHAKE,
             state: digest::SpongeDirection::Absorbing,
         },
-        init_block: Vec::new(),
+        init_block: alloc::vec::Vec::new(),
     }
 }
 

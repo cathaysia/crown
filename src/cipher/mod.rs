@@ -101,7 +101,7 @@ pub trait Aead<const N: usize>: AeadUser {
     #[cfg(feature = "alloc")]
     fn seal_in_place_append_tag(
         &self,
-        inout: &mut Vec<u8>,
+        inout: &mut alloc::vec::Vec<u8>,
         nonce: &[u8],
         additional_data: &[u8],
     ) -> CryptoResult<()> {
@@ -132,7 +132,7 @@ pub trait Aead<const N: usize>: AeadUser {
     #[cfg(feature = "alloc")]
     fn open_in_place(
         &self,
-        inout: &mut Vec<u8>,
+        inout: &mut alloc::vec::Vec<u8>,
         nonce: &[u8],
         additional_data: &[u8],
     ) -> CryptoResult<()> {
