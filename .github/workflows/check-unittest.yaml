@@ -1,0 +1,37 @@
+name: check-unittest
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+  pull_request:
+jobs:
+  unittest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: Jimver/cuda-toolkit@v0.2.27
+      - name: setup env
+        run: |
+          sudo apt update -y
+          sudo apt upgrade -y
+          sudo apt install build-essential gcc cpp libclang-dev openssl libssl-dev -y
+      - name: install Rust 1.85.0
+        uses: dtolnay/rust-toolchain@1.85.0
+      - name: run unit tests
+        run: |
+          cargo test --all
+          # github runner has no NVIDIA GPU.
+          # cargo test -F cuda -F bindgen --all
+      - name: check cargo.lock changes
+        run: |
+          if git diff --exit-code Cargo.lock; then
+            echo "✅ Cargo.lock has no changed"
+          else
+            echo "❌ Cargo.lock changed"
+            echo "diff:"
+            git diff Cargo.lock
+            exit 1
+          fi

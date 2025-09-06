@@ -27,14 +27,6 @@ repos:
 
   - repo: local
     hooks:
-      - id: nixfmt
-        name: nixfmt
-        language: system
-        types_or: [nix]
-        entry: nixfmt
-
-  - repo: local
-    hooks:
       - id: clang-format
         name: clang-format
         language: system
