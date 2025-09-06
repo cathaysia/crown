@@ -1,4 +1,4 @@
-use std::{ffi::c_void, ptr::null_mut};
+use core::{ffi::c_void, ptr::null_mut};
 
 use crate::cuda::{
     error::{CudaError, CudaResult},

@@ -30,7 +30,7 @@ mod test {
         rand::fill(&mut y);
 
         let mut xcpu = x;
-        crate::subtle::xor::xor_bytes(&mut xcpu, &y);
+        crate::utils::subtle::xor::xor_bytes(&mut xcpu, &y);
 
         let mut xc = CudaMemory::from_slice_to_device(&x).unwrap();
         let yc = CudaMemory::from_slice_to_device(&y).unwrap();

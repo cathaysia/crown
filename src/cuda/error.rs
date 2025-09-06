@@ -947,7 +947,7 @@ impl CudaError {
 }
 impl From<super::sys::cudaError> for CudaError {
     fn from(value: super::sys::cudaError) -> Self {
-        unsafe { std::mem::transmute(value) }
+        unsafe { core::mem::transmute(value) }
     }
 }
 

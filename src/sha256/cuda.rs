@@ -1,6 +1,6 @@
 //! CUDA implementation of SHA256 hash algorithm
 
-use std::ptr::null_mut;
+use core::ptr::null_mut;
 
 use crate::cuda::{
     self,

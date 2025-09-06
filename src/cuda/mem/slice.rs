@@ -128,8 +128,9 @@ impl<T: Copy> CudaMemory<T> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T: Default + Copy> CudaMemory<T> {
-    pub fn to_vec(&self) -> CudaResult<Vec<T>> {
+    pub fn to_vec(&self) -> CudaResult<alloc::vec::Vec<T>> {
         let mut vec = vec![T::default(); self.len()];
         self.copy_to_slice(&mut vec)?;
         Ok(vec)

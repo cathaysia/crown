@@ -19,7 +19,7 @@ pub fn run_hash(args_hash: ArgsHash) -> anyhow::Result<()> {
 
     #[cfg(feature = "cuda")]
     if algorithm.is_cuda() {
-        cuda::calc_and_output_hash(algorithm, files);
+        crate::cuda::calc_and_output_hash(algorithm, files);
         return Ok(());
     }
     let key = if hmac {

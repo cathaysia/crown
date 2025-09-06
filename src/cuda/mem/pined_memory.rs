@@ -1,4 +1,4 @@
-use std::ptr::null_mut;
+use core::ptr::null_mut;
 
 use crate::cuda::{
     error::{CudaError, CudaResult},
@@ -21,7 +21,7 @@ impl<T> Drop for PinedMemory<T> {
 
 impl<T> PinedMemory<T> {
     pub fn new(len: usize) -> CudaResult<Self> {
-        let mut ptr = std::ptr::null_mut();
+        let mut ptr = core::ptr::null_mut();
         let err = unsafe { sys::cudaMallocHost(&mut ptr, len * size_of::<T>()) };
         CudaError::from(err).into_error(Self {
             ptr: ptr.cast(),
@@ -46,11 +46,11 @@ impl<T> PinedMemory<T> {
     }
 
     pub fn as_slice(&self) -> &[T] {
-        unsafe { std::slice::from_raw_parts(self.ptr.cast(), self.len) }
+        unsafe { core::slice::from_raw_parts(self.ptr.cast(), self.len) }
     }
 
     pub fn as_mut_slice(&mut self) -> &mut [T] {
-        unsafe { std::slice::from_raw_parts_mut(self.ptr.cast(), self.len) }
+        unsafe { core::slice::from_raw_parts_mut(self.ptr.cast(), self.len) }
     }
 }
 
