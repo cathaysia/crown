@@ -17,7 +17,7 @@ impl BlockCipherMarker for Rc6 {}
 
 impl Rc6 {
     pub fn new(key: &[u8], num_rounds: usize) -> CryptoResult<Self> {
-        let mut skey: Rc6Key = unsafe { core::mem::zeroed() };
+        let mut skey: Rc6Key = Rc6Key { key: [0; 44] };
 
         rc6_setup(key, key.len(), num_rounds, &mut skey)?;
 

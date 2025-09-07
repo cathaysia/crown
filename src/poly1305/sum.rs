@@ -56,7 +56,7 @@ pub fn sum_generic(out: &mut [u8; TAG_SIZE], msg: &[u8], key: &[u8; 32]) {
 
 /// MacState holds numbers in saturated 64-bit little-endian limbs. That is,
 /// the value of [x0, x1, x2] is x[0] + x[1] * 2⁶⁴ + x[2] * 2¹²⁸.
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 struct MacState {
     // h is the main accumulator. It is to be interpreted modulo 2¹³⁰ - 5, but
     // can grow larger during and after rounds. It must, however, remain below
@@ -67,7 +67,6 @@ struct MacState {
     s: [u64; 2],
 }
 
-#[derive(Default)]
 pub(crate) struct MacGeneric {
     mac_state: MacState,
     buffer: [u8; TAG_SIZE],
@@ -76,7 +75,15 @@ pub(crate) struct MacGeneric {
 
 impl MacGeneric {
     pub fn new(key: &[u8; 32]) -> Self {
-        let mut m: MacGeneric = unsafe { core::mem::zeroed() };
+        let mut m: MacGeneric = MacGeneric {
+            mac_state: MacState {
+                h: [0; 3],
+                r: [0; 2],
+                s: [0; 2],
+            },
+            buffer: [0u8; TAG_SIZE],
+            offset: 0,
+        };
         initialize(key, &mut m.mac_state);
 
         m

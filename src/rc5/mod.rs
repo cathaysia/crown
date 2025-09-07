@@ -21,7 +21,10 @@ impl BlockCipherMarker for Rc5 {}
 impl Rc5 {
     pub const BLOCK_SIZE: usize = 8;
     pub fn new(key: &[u8], rounds: usize) -> CryptoResult<Self> {
-        let mut sk: Self = unsafe { core::mem::zeroed() };
+        let mut sk: Self = Self {
+            key: [0; 50],
+            rounds: 0,
+        };
         sk.setup(key, rounds)?;
 
         Ok(sk)
