@@ -8,6 +8,7 @@ mod generic;
 
 use crate::cipher::StreamCipher;
 use crate::error::{CryptoError, CryptoResult};
+use crate::utils::erase_ownership_mut;
 use bytes::{Buf, BufMut};
 
 const BUF_SIZE: usize = 64;
@@ -106,10 +107,7 @@ impl StreamCipher for Chacha20 {
             let buf_len = num_blocks * Self::block_size();
             let buf = &mut self.buf[BUF_SIZE - buf_len..];
             buf[..dst.len()].copy_from_slice(dst);
-            let buf = unsafe {
-                let ptr = buf.as_mut_ptr();
-                core::slice::from_raw_parts_mut(ptr, buf_len)
-            };
+            let buf = unsafe { erase_ownership_mut(buf) };
 
             self.xor_key_stream_blocks_generic(buf);
             self.len = buf_len - dst.len();
@@ -121,11 +119,8 @@ impl StreamCipher for Chacha20 {
         if !dst.is_empty() {
             self.buf = [0; BUF_SIZE];
             self.buf[..dst.len()].copy_from_slice(dst);
-            let buf = unsafe {
-                let ptr = self.buf.as_mut_ptr();
-                core::slice::from_raw_parts_mut(ptr, self.buf.len())
-            };
 
+            let buf = unsafe { erase_ownership_mut(&mut self.buf) };
             self.xor_key_stream_blocks(&mut buf[..BUF_SIZE]);
             let len = dst.len().min(self.buf.len());
             dst[..len].copy_from_slice(&self.buf[..len]);

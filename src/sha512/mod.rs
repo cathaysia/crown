@@ -8,6 +8,7 @@ use crate::{
     core::CoreWrite,
     error::CryptoResult,
     hash::{Hash, HashUser},
+    utils::erase_ownership,
 };
 
 pub(crate) mod block;
@@ -231,11 +232,9 @@ impl<const N: usize> CoreWrite for Sha512<N> {
             self.x[self.nx..self.nx + n].copy_from_slice(&p[..n]);
             self.nx += n;
             if self.nx == CHUNK {
-                let x = unsafe {
-                    let ptr = self.x.as_ptr();
-                    core::slice::from_raw_parts(ptr, self.x.len())
-                };
-                self.block(x).unwrap();
+                let src = unsafe { erase_ownership(&self.x) };
+
+                self.block(src).unwrap();
                 self.nx = 0;
             }
             p = &p[n..];
@@ -304,7 +303,8 @@ macro_rules! impl_new_for {
         paste::paste! {
             #[doc =
                 "Create a new [Hash] computing the " $x " checksum.\n\n"
-                "The Hash also implements [Marshalable] to marshal and unmarshal the internal state of the hash."
+                "The Hash also implements [Marshalable](crate::hmac::Marshalable)"
+                "to marshal and unmarshal the internal state of the hash."
             ]
             pub fn $name() -> Sha512<$len> {
                 let mut d = Sha512 {

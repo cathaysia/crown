@@ -48,7 +48,7 @@ impl ChaCha20Poly1305 {
         Self::write_uint64(&mut poly, additional_data.len());
         Self::write_uint64(&mut poly, inout.len());
 
-        let mut tag: [u8; 16] = unsafe { core::mem::zeroed() };
+        let mut tag: [u8; 16] = [0u8; 16];
         poly.sum(&mut tag);
 
         Ok(tag)
@@ -80,7 +80,7 @@ impl ChaCha20Poly1305 {
         Self::write_uint64(&mut poly, additional_data.len());
         Self::write_uint64(&mut poly, inout.len());
 
-        let mut computed_tag: [u8; 16] = unsafe { core::mem::zeroed() };
+        let mut computed_tag: [u8; 16] = [0u8; 16];
         poly.sum(&mut computed_tag);
         if !constant_time_eq(&computed_tag, tag) {
             return Err(CryptoError::AuthenticationFailed);

@@ -13,7 +13,7 @@ pub fn run_hash(args_hash: ArgsRand) -> anyhow::Result<()> {
     } = args_hash;
 
     let mut buf = vec![0u8; num];
-    kittycrypto::utils::rand::fill(buf.as_mut_slice());
+    kittycrypto::rand::fill(buf.as_mut_slice());
     let mut out: Box<dyn Write> = if let Some(out) = out {
         Box::new(
             std::fs::OpenOptions::new()

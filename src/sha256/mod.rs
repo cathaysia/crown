@@ -255,7 +255,8 @@ fn block<const N: usize, const IS_224: bool>(d: &mut Sha256<N, IS_224>, p: &[u8]
 
 /// Create a new [Hash] computing the SHA-256 checksum.
 ///
-/// The Hash also implements [Marshalable] to marshal and unmarshal the internal state of the hash.
+/// The Hash also implements [Marshalable](crate::hmac::Marshalable)
+/// to marshal and unmarshal the internal state of the hash.
 pub fn new256() -> Sha256<32, false> {
     let mut d = Sha256 {
         h: [0; 8],
@@ -269,7 +270,8 @@ pub fn new256() -> Sha256<32, false> {
 
 /// Create a new [Hash] computing the SHA-224 checksum.
 ///
-/// The Hash also implements [Marshalable] to marshal and unmarshal the internal state of the hash.
+/// The Hash also implements [Marshalable](crate::hmac::Marshalable)
+/// to marshal and unmarshal the internal state of the hash.
 pub fn new224() -> Sha256<28, true> {
     let mut d = Sha256 {
         h: [0; 8],

@@ -21,6 +21,7 @@ use crate::{
     core::CoreWrite,
     error::{CryptoError, CryptoResult},
     hash::{Hash, HashUser},
+    utils::erase_ownership,
 };
 
 const CHUNK: usize = 64;
@@ -59,10 +60,7 @@ impl CoreWrite for Md4 {
             self.x[self.nx..self.nx + n].copy_from_slice(&p[..n]);
             self.nx += n;
             if self.nx == CHUNK {
-                let src = unsafe {
-                    let ptr = self.x.as_ptr();
-                    core::slice::from_raw_parts(ptr, self.x.len())
-                };
+                let src = unsafe { erase_ownership(&self.x) };
                 block::block(self, src);
                 self.nx = 0;
             }
@@ -194,7 +192,8 @@ impl crate::hmac::Marshalable for Md4 {
 
 /// Create a new [Hash] computing the Md4 checksum.
 ///
-/// The Hash also implements [Marshalable] to marshal and unmarshal the internal state of the hash.
+/// The Hash also implements [Marshalable](crate::hmac::Marshalable)
+///  to marshal and unmarshal the internal state of the hash.
 pub fn new_md4() -> Md4 {
     let mut d = Md4 {
         s: [0; 4],

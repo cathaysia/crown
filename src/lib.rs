@@ -103,4 +103,7 @@ pub mod cuda;
 
 pub mod error;
 
-pub mod utils;
+mod utils;
+
+#[cfg(feature = "std")]
+pub use utils::rand;

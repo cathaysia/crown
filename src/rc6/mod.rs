@@ -9,8 +9,6 @@ use crate::{
 };
 use imp::*;
 
-use core::mem::MaybeUninit;
-
 pub struct Rc6 {
     skey: Rc6Key,
 }
@@ -19,14 +17,11 @@ impl BlockCipherMarker for Rc6 {}
 
 impl Rc6 {
     pub fn new(key: &[u8], num_rounds: usize) -> CryptoResult<Self> {
-        unsafe {
-            let skey = MaybeUninit::<Rc6Key>::uninit();
-            let mut skey = skey.assume_init();
+        let mut skey: Rc6Key = unsafe { core::mem::zeroed() };
 
-            rc6_setup(key, key.len(), num_rounds, &mut skey)?;
+        rc6_setup(key, key.len(), num_rounds, &mut skey)?;
 
-            Ok(Self { skey })
-        }
+        Ok(Self { skey })
     }
 }
 

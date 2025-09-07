@@ -4,6 +4,7 @@ use crate::{
     core::CoreWrite,
     error::{CryptoError, CryptoResult},
     hash::HashUser,
+    utils::subtle::xor::xor_bytes,
 };
 
 use super::*;
@@ -199,11 +200,7 @@ impl<const N: usize> CoreWrite for Sha3<N> {
         let mut p = p;
 
         while !p.is_empty() {
-            let src = {
-                let ptr = self.a.as_ptr();
-                unsafe { core::slice::from_raw_parts(ptr, self.a.len()) }
-            };
-            let x = xor_bytes(&mut self.a[self.n..self.rate], &src[self.n..self.rate], p);
+            let x = xor_bytes(&mut self.a[self.n..self.rate], p);
             self.n += x;
             p = &p[x..];
 
@@ -258,12 +255,3 @@ const MAGIC_CSHAKE: &str = "sha\x0a";
 const MAGIC_KECCAK: &str = "sha\x0b";
 // magic || rate || main state || n || sponge direction
 pub(crate) const MARSHALED_SIZE: usize = 4 + 1 + 200 + 1 + 1;
-
-/// XOR bytes from src into dst, returning the number of bytes processed
-fn xor_bytes(dst: &mut [u8], _src1: &[u8], src2: &[u8]) -> usize {
-    let n = core::cmp::min(dst.len(), src2.len());
-    for i in 0..n {
-        dst[i] ^= src2[i];
-    }
-    n
-}

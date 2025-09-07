@@ -1,5 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn, non_snake_case)]
-
 use bytes::{Buf, BufMut};
 
 use crate::error::{CryptoError, CryptoResult};
@@ -44,47 +42,47 @@ pub fn rc6_setup(
 
     let mut j = 0;
     let mut i = j;
-    let mut A = i;
-    let mut L = [0u32; 64];
+    let mut a = i;
+    let mut larr = [0u32; 64];
     // copy the key into the L array
     while i < keylen as u32 {
-        A = (A << 8) | (key[i as usize] as i32 & 255) as u32;
+        a = (a << 8) | (key[i as usize] as i32 & 255) as u32;
         i = i.wrapping_add(1);
         if i & 3 == 0 {
-            L[j as usize] = A.swap_bytes();
+            larr[j as usize] = a.swap_bytes();
             j = j.wrapping_add(1);
-            A = 0;
+            a = 0;
         }
     }
 
     // handle odd sized keys
     if keylen as i32 & 3 != 0 {
-        A <<= 8_i32 * (4 - (keylen as i32 & 3));
+        a <<= 8_i32 * (4 - (keylen as i32 & 3));
         let fresh8 = j;
         j = j.wrapping_add(1);
-        L[fresh8 as usize] = A.swap_bytes();
+        larr[fresh8 as usize] = a.swap_bytes();
     }
     // setup the S array
-    let mut S = [0u32; 50];
-    S[..44].copy_from_slice(&RC6_STAB);
+    let mut sarr = [0u32; 50];
+    sarr[..44].copy_from_slice(&RC6_STAB);
 
     let s = 3_u32.wrapping_mul(if 44 > j { 44 } else { j });
     let l = j;
     let mut v = 0u32;
     j = v;
     i = j;
-    let mut B = i;
-    A = B;
+    let mut b = i;
+    a = b;
     while v < s {
-        S[i as usize] = ROL!((S[i as usize]).wrapping_add(A).wrapping_add(B), 3);
-        A = S[i as usize];
-        L[j as usize] = {
+        sarr[i as usize] = ROL!((sarr[i as usize]).wrapping_add(a).wrapping_add(b), 3);
+        a = sarr[i as usize];
+        larr[j as usize] = {
             ROL!(
-                (L[j as usize]).wrapping_add(A).wrapping_add(B),
-                A.wrapping_add(B)
+                (larr[j as usize]).wrapping_add(a).wrapping_add(b),
+                a.wrapping_add(b)
             )
         };
-        B = L[j as usize];
+        b = larr[j as usize];
         i = i.wrapping_add(1);
         if i == 44 {
             i = 0;
@@ -97,7 +95,7 @@ pub fn rc6_setup(
     }
     i = 0;
     while i < 44 {
-        skey.key[i as usize] = S[i as usize];
+        skey.key[i as usize] = sarr[i as usize];
         i = i.wrapping_add(1);
     }
     Ok(())
@@ -116,7 +114,7 @@ pub fn rc6_ecb_encrypt(mut inout: &mut [u8], skey: &Rc6Key) -> CryptoResult<()> 
 
     b = b.wrapping_add(skey.key[0]);
     d = d.wrapping_add(skey.key[1]);
-    let mut K = &skey.key[2..];
+    let mut key = &skey.key[2..];
 
     let mut t: u32;
     let mut u: u32;
@@ -127,9 +125,9 @@ pub fn rc6_ecb_encrypt(mut inout: &mut [u8], skey: &Rc6Key) -> CryptoResult<()> 
             t = ROL!(t, 5);
             u = $d.wrapping_mul($d.wrapping_add($d).wrapping_add(1));
             u = ROL!(u, 5);
-            $a = (ROL!($a ^ t, u)).wrapping_add(K[0]);
-            $c = (ROL!($c ^ u, t)).wrapping_add(K[1]);
-            K = &K[2..];
+            $a = (ROL!($a ^ t, u)).wrapping_add(key[0]);
+            $c = (ROL!($c ^ u, t)).wrapping_add(key[1]);
+            key = &key[2..];
         };
     }
 
@@ -179,12 +177,12 @@ pub fn rc6_ecb_decrypt(mut inout: &mut [u8], skey: &Rc6Key) -> Result<(), Crypto
         };
     }
     let mut idx = 40;
-    let K = &skey.key;
+    let key = &skey.key;
     for _ in 0..5 {
-        RND!(idx, K, d, a, b, c);
-        RND!(idx, K, c, d, a, b);
-        RND!(idx, K, b, c, d, a);
-        RND!(idx, K, a, b, c, d);
+        RND!(idx, key, d, a, b, c);
+        RND!(idx, key, c, d, a, b);
+        RND!(idx, key, b, c, d, a);
+        RND!(idx, key, a, b, c, d);
     }
     b = b.wrapping_sub(skey.key[0]);
     d = d.wrapping_sub(skey.key[1]);

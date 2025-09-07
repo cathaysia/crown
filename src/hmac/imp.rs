@@ -151,11 +151,7 @@ impl<const N: usize, H: Hash<N> + Marshalable> Hash<N> for HMAC<N, H> {
         // Prepare outer hash
         if self.marshaled {
             // If we have marshaled state, restore it
-            let opad = unsafe {
-                let ptr = self.opad.as_ptr();
-                core::slice::from_raw_parts(ptr, self.opad.len())
-            };
-            self.outer.unmarshal_binary(opad).unwrap();
+            self.outer.unmarshal_binary(&self.opad).unwrap();
         } else {
             // Reset outer hash and write opad
             self.outer.reset();

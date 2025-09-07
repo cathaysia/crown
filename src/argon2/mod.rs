@@ -42,6 +42,7 @@ use crate::blake2b::SIZE as BLAKE2B_SIZE;
 use crate::core::CoreWrite;
 use crate::error::{CryptoError, CryptoResult};
 use crate::hash::HashVariable;
+use crate::utils::erase_ownership;
 use alloc::vec;
 use alloc::vec::Vec;
 
@@ -377,10 +378,7 @@ fn process_segment(
 
         let new_offset =
             index_alpha(random, lanes, segments, threads, n, slice, lane, index) as usize;
-        let src = unsafe {
-            let ptr = blocks.as_ptr();
-            core::slice::from_raw_parts(ptr, blocks.len())
-        };
+        let src = unsafe { erase_ownership(blocks) };
         process_block_xor(&mut blocks[offset], &src[prev], &src[new_offset]);
 
         index += 1;
