@@ -53,7 +53,10 @@ impl Tea {
     /// The number of rounds must be even and the key must be exactly 16 bytes long.
     pub fn new_with_rounds(key: &[u8], rounds: usize) -> Result<Self, CryptoError> {
         if key.len() != Self::KEY_SIZE {
-            return Err(CryptoError::InvalidKeySize(key.len()));
+            return Err(CryptoError::InvalidKeySize {
+                expected: "16",
+                actual: key.len(),
+            });
         }
 
         if rounds % 2 != 0 {

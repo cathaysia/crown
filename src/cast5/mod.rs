@@ -37,7 +37,10 @@ impl Cast5 {
     /// **key**: The key size should be 16 bytes.
     pub fn new(key: &[u8]) -> CryptoResult<Self> {
         if key.len() != Self::KEY_SIZE {
-            return Err(CryptoError::InvalidKeySize(key.len()));
+            return Err(CryptoError::InvalidKeySize {
+                expected: "16",
+                actual: key.len(),
+            });
         }
 
         let mut cipher = Cast5 {

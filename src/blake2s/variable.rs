@@ -19,7 +19,10 @@ impl Blake2sVariable {
     pub fn new(key: Option<&[u8]>, hash_size: usize) -> CryptoResult<Self> {
         let key_slice = key.unwrap_or(&[]);
         if key_slice.len() > SIZE {
-            return Err(CryptoError::InvalidKeySize(key_slice.len()));
+            return Err(CryptoError::InvalidKeySize {
+                expected: "< 32",
+                actual: key_slice.len(),
+            });
         }
         let mut d = Self {
             h: [0; 8],

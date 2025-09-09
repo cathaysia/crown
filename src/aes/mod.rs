@@ -58,7 +58,10 @@ impl Aes {
                 block.expand(key);
                 Ok(Aes { block })
             }
-            len => Err(CryptoError::InvalidKeySize(len)),
+            len => Err(CryptoError::InvalidKeySize {
+                expected: "16 | 24 | 32",
+                actual: len,
+            }),
         }
     }
 

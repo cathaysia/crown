@@ -40,7 +40,10 @@ impl Rc5 {
             return Err(CryptoError::InvalidRound(num_rounds));
         }
         if !(8..=128).contains(&key.len()) {
-            return Err(CryptoError::InvalidKeySize(key.len()));
+            return Err(CryptoError::InvalidKeySize {
+                expected: "8..=128",
+                actual: key.len(),
+            });
         }
         self.rounds = num_rounds;
         let skey = &mut self.key;

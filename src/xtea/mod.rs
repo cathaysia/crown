@@ -42,7 +42,10 @@ impl Xtea {
     /// XTEA only supports 128 bit (16 byte) keys.
     pub fn new(key: &[u8]) -> CryptoResult<Self> {
         if key.len() != 16 {
-            return Err(CryptoError::InvalidKeySize(key.len()));
+            return Err(CryptoError::InvalidKeySize {
+                expected: "16",
+                actual: key.len(),
+            });
         }
 
         let mut c = Xtea { table: [0; 64] };

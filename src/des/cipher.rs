@@ -37,7 +37,10 @@ impl Des {
     pub const BLOCK_SIZE: usize = 8;
     pub fn new(key: &[u8]) -> CryptoResult<Self> {
         if key.len() != 8 {
-            return Err(CryptoError::InvalidKeySize(key.len()));
+            return Err(CryptoError::InvalidKeySize {
+                expected: "8",
+                actual: key.len(),
+            });
         }
 
         let mut cipher = Self { subkeys: [0; 16] };
@@ -74,7 +77,10 @@ impl BlockCipherMarker for TripleDes {}
 impl TripleDes {
     pub fn new(key: &[u8]) -> CryptoResult<Self> {
         if key.len() != 24 {
-            return Err(CryptoError::InvalidKeySize(key.len()));
+            return Err(CryptoError::InvalidKeySize {
+                expected: "24",
+                actual: key.len(),
+            });
         }
 
         let mut cipher1 = Des { subkeys: [0; 16] };

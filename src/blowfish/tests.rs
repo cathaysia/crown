@@ -228,7 +228,10 @@ fn test_cipher_decrypt() {
 fn test_salted_cipher_key_length() {
     assert!(matches!(
         Blowfish::new_salted(&[], b"a"),
-        Err(CryptoError::InvalidKeySize(0))
+        Err(CryptoError::InvalidKeySize {
+            expected: _,
+            actual: 0
+        })
     ));
 
     // A 57-byte key. One over the typical blowfish restriction.

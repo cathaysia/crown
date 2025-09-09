@@ -26,7 +26,10 @@ impl ChaCha20Poly1305 {
     // New returns a ChaCha20-Poly1305 AEAD that uses the given 256-bit key
     pub fn new(key: &[u8]) -> CryptoResult<Self> {
         if key.len() != Self::KEY_SIZE {
-            return Err(CryptoError::InvalidKeySize(key.len()));
+            return Err(CryptoError::InvalidKeySize {
+                expected: "32",
+                actual: key.len(),
+            });
         }
 
         let mut cipher_key = [0u8; Self::KEY_SIZE];

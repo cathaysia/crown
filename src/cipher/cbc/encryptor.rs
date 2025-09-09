@@ -39,7 +39,10 @@ impl CbcEncAble<crate::aes::Aes> for crate::aes::Aes {
 impl<B: BlockCipher + CbcEncAbleMarker + 'static> CbcEncAble<B> for B {
     fn to_cbc_enc(self, iv: &[u8]) -> impl BlockMode + 'static {
         if iv.len() != self.block_size() {
-            panic!("cipher.NewCBCEncrypter: IV length must equal block size");
+            panic!(
+                "cipher.NewCBCEncrypter: IV length must equal block size: {}",
+                self.block_size()
+            );
         }
 
         CbcEncrypter(Cbc::new(self, iv))

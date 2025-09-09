@@ -26,7 +26,10 @@ impl XChaCha20Poly1305 {
     /// nonces are randomly generated.
     pub fn new(key: &[u8]) -> CryptoResult<Self> {
         if key.len() != Self::KEY_SIZE {
-            return Err(CryptoError::InvalidKeySize(key.len()));
+            return Err(CryptoError::InvalidKeySize {
+                expected: "32",
+                actual: key.len(),
+            });
         }
 
         Ok(Self {

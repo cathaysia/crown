@@ -37,7 +37,10 @@ pub fn rc6_setup(
         return Err(CryptoError::InvalidRound(num_rounds));
     }
     if !(..=128).contains(&keylen) {
-        return Err(CryptoError::InvalidKeySize(keylen));
+        return Err(CryptoError::InvalidKeySize {
+            expected: "<= 128",
+            actual: keylen,
+        });
     }
 
     let mut j = 0;

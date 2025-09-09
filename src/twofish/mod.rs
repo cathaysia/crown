@@ -43,7 +43,10 @@ impl Twofish {
     /// The key argument should be the Twofish key, 16, 24 or 32 bytes.
     pub fn new(key: &[u8]) -> CryptoResult<Twofish> {
         if ![16, 24, 32].contains(&key.len()) {
-            return Err(CryptoError::InvalidKeySize(key.len()));
+            return Err(CryptoError::InvalidKeySize {
+                expected: "16 | 24 | 32",
+                actual: key.len(),
+            });
         }
 
         // k is the number of 64 bit words in key

@@ -24,7 +24,10 @@ impl Rc4 {
     pub fn new(key: &[u8]) -> CryptoResult<Self> {
         let k = key.len();
         if !(1..=256).contains(&k) {
-            return Err(CryptoError::InvalidKeySize(k));
+            return Err(CryptoError::InvalidKeySize {
+                expected: "1..=256",
+                actual: k,
+            });
         }
 
         let mut c = Rc4 {

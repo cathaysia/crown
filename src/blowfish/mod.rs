@@ -39,7 +39,10 @@ impl Blowfish {
     /// **key**: The key argument should be the Blowfish key, from 1 to 56 bytes.
     pub fn new(key: &[u8]) -> CryptoResult<Self> {
         if !(1..=56).contains(&key.len()) {
-            return Err(CryptoError::InvalidKeySize(key.len()));
+            return Err(CryptoError::InvalidKeySize {
+                expected: "1..=56",
+                actual: key.len(),
+            });
         }
         let mut result = Self::init();
         expand_key(key, &mut result);
@@ -59,7 +62,10 @@ impl Blowfish {
         }
         let k = key.len();
         if k < 1 {
-            return Err(CryptoError::InvalidKeySize(k));
+            return Err(CryptoError::InvalidKeySize {
+                expected: "> 1",
+                actual: k,
+            });
         }
         let mut result = Self::init();
         expand_key_with_salt(key, salt, &mut result);

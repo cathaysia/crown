@@ -43,7 +43,10 @@ impl Sala20 {
             return Err(CryptoError::InvalidNonceSize(nonce.len()));
         }
         if key.len() != 32 {
-            return Err(CryptoError::InvalidKeySize(key.len()));
+            return Err(CryptoError::InvalidKeySize {
+                expected: "32",
+                actual: key.len(),
+            });
         }
         let mut nonce2 = [0u8; 24];
         nonce2[..nonce.len()].copy_from_slice(nonce);

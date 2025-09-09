@@ -36,7 +36,10 @@ impl Blake2bVariable {
             return Err(CryptoError::InvalidHashSize(hash_size));
         }
         if key.len() > SIZE {
-            return Err(CryptoError::InvalidKeySize(key.len()));
+            return Err(CryptoError::InvalidKeySize {
+                expected: "< 64",
+                actual: key.len(),
+            });
         }
 
         let mut d = Blake2bVariable {

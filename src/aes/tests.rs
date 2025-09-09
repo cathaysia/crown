@@ -165,7 +165,10 @@ fn test_invalid_key_sizes() {
         let key = vec![0u8; invalid_size];
         match Aes::new(&key) {
             Ok(_) => panic!("Expected error for key size {}", invalid_size),
-            Err(CryptoError::InvalidKeySize(size)) => assert_eq!(size, invalid_size),
+            Err(CryptoError::InvalidKeySize {
+                expected: _,
+                actual: size,
+            }) => assert_eq!(size, invalid_size),
             _ => unreachable!(),
         }
     }

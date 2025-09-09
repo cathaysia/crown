@@ -169,7 +169,10 @@ impl Chacha20 {
         };
 
         if key.len() != Self::key_size() {
-            return Err(CryptoError::InvalidKeySize(key.len()));
+            return Err(CryptoError::InvalidKeySize {
+                expected: "32",
+                actual: key.len(),
+            });
         }
 
         let (key, nonce) = if nonce.len() == Self::nonce_size_x() {
@@ -385,7 +388,10 @@ fn add_xor(inout: &mut [u8], a: u32, b: u32) {
 /// length. It is used as part of the XChaCha20 construction.
 pub(crate) fn h_chacha20(mut key: &[u8], mut nonce: &[u8]) -> CryptoResult<[u8; 32]> {
     if key.len() != Chacha20::key_size() {
-        return Err(CryptoError::InvalidKeySize(key.len()));
+        return Err(CryptoError::InvalidKeySize {
+            expected: "32",
+            actual: key.len(),
+        });
     }
     if nonce.len() != 16 {
         return Err(CryptoError::InvalidIvSize(nonce.len()));

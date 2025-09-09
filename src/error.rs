@@ -29,8 +29,11 @@ pub enum CryptoError {
     InvalidParameter(String),
     #[error("invalid parameter: {0}")]
     InvalidParameterStr(&'static str),
-    #[error("invalid key size: {0}")]
-    InvalidKeySize(usize),
+    #[error("invalid key size, expected: {expected}, actual: {actual}")]
+    InvalidKeySize {
+        expected: &'static str,
+        actual: usize,
+    },
     #[error("invalid iv size: {0}")]
     InvalidIvSize(usize),
     #[error("counter overflow")]
