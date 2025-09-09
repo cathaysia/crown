@@ -12,7 +12,7 @@ pub trait CbcEncAble<B> {
     /// # Panics
     ///
     /// Panics if the IV length doesn't match the block size
-    fn to_cbc_enc(self, iv: &[u8]) -> impl BlockMode;
+    fn to_cbc_enc(self, iv: &[u8]) -> impl BlockMode + 'static;
 }
 
 pub trait CbcEncAbleMarker {}
@@ -31,13 +31,13 @@ impl<B: BlockCipher> CbcEncrypter<B> {
 }
 
 impl CbcEncAble<crate::aes::Aes> for crate::aes::Aes {
-    fn to_cbc_enc(self, iv: &[u8]) -> impl BlockMode {
+    fn to_cbc_enc(self, iv: &[u8]) -> impl BlockMode + 'static {
         crate::aes::cbc::CBCEncryptor::new(self, iv.try_into().unwrap())
     }
 }
 
 impl<B: BlockCipher + CbcEncAbleMarker + 'static> CbcEncAble<B> for B {
-    fn to_cbc_enc(self, iv: &[u8]) -> impl BlockMode {
+    fn to_cbc_enc(self, iv: &[u8]) -> impl BlockMode + 'static {
         if iv.len() != self.block_size() {
             panic!("cipher.NewCBCEncrypter: IV length must equal block size");
         }

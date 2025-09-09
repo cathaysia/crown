@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use clap::{Parser, ValueEnum};
+use strum_macros::EnumString;
 
 #[derive(Debug, Parser)]
 pub enum Args {
@@ -60,6 +61,8 @@ pub struct ArgsEnc {
     pub tagout: Option<String>,
     #[clap(long, default_value_t = 20)]
     pub rounds: usize,
+    #[clap(long, default_value = "pkcs7")]
+    pub padding_mode: PaddingMode,
 }
 
 #[derive(Debug, Parser)]
@@ -79,6 +82,20 @@ pub struct ArgsDec {
     pub tagin: Option<String>,
     #[clap(long, default_value_t = 20)]
     pub rounds: usize,
+    #[clap(long, default_value = "pkcs7")]
+    pub padding_mode: PaddingMode,
+}
+#[derive(Default, Debug, Clone, ValueEnum, EnumString)]
+#[clap(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
+pub enum PaddingMode {
+    #[default]
+    Pkcs7,
+    AnsiX923,
+    Iso10126,
+    Iso7816,
+    NoPadding,
+    ZeroPadding,
 }
 
 #[derive(Debug, Parser)]
@@ -131,6 +148,8 @@ macro_rules! enc_algorithm {
                 Salsa20,
                 // block mode(to StreamCipher)
                 $(
+                    #[doc=$block " in Cbc mode"]
+                    [<$block Cbc>],
                     #[doc=$block " in Ctr mode"]
                     [<$block Ctr>],
                     #[doc=$block " in Cfb mode"]

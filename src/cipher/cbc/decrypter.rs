@@ -12,20 +12,20 @@ pub trait CbcDecAble<B: BlockCipher> {
     /// # Panics
     ///
     /// Panics if the IV length doesn't match the block size
-    fn to_cbc_dec(self, iv: &[u8]) -> impl BlockMode;
+    fn to_cbc_dec(self, iv: &[u8]) -> impl BlockMode + 'static;
 }
 
 pub trait CbcDecAbleMarker {}
 impl<T: BlockCipherMarker> CbcDecAbleMarker for T {}
 
 impl<B: BlockCipher + CbcDecAbleMarker + 'static> CbcDecAble<B> for B {
-    fn to_cbc_dec(self, iv: &[u8]) -> impl BlockMode {
+    fn to_cbc_dec(self, iv: &[u8]) -> impl BlockMode + 'static {
         CbcDecrypter(Cbc::new(self, iv))
     }
 }
 
 impl CbcDecAble<crate::aes::Aes> for crate::aes::Aes {
-    fn to_cbc_dec(self, iv: &[u8]) -> impl BlockMode {
+    fn to_cbc_dec(self, iv: &[u8]) -> impl BlockMode + 'static {
         crate::aes::cbc::CBCDecrypter::new(self, iv.try_into().unwrap())
     }
 }

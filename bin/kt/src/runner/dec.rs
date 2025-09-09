@@ -4,11 +4,13 @@ use kittycrypto::{
     cast5::Cast5,
     chacha20::Chacha20,
     cipher::{
+        cbc::CbcDecAble,
         cfb::CfbAble,
         ctr::CtrAble,
         erased::{ErasedAead, ErasedStreamCipher},
         gcm::GcmAble,
         ofb::OfbAble,
+        padding::*,
     },
     des::{Des, TripleDes},
     rc2::Rc2,
@@ -21,7 +23,7 @@ use kittycrypto::{
     xtea::Xtea,
 };
 
-use crate::args::{ArgsDec, EncAlgorithm};
+use crate::args::{ArgsDec, EncAlgorithm, PaddingMode};
 
 pub fn run_dec(args: ArgsDec) -> anyhow::Result<()> {
     let ArgsDec {
@@ -33,6 +35,7 @@ pub fn run_dec(args: ArgsDec) -> anyhow::Result<()> {
         out_file,
         tagin,
         rounds,
+        padding_mode,
     } = args;
     let mut infile = std::fs::read(in_file)?;
     let key = hex::decode(key)?;
@@ -100,6 +103,52 @@ pub fn run_dec(args: ArgsDec) -> anyhow::Result<()> {
     if let Some(mut cipher) = stream_cipher {
         cipher.xor_key_stream(&mut infile)?;
         std::fs::write(out_file, infile)?;
+        return Ok(());
     }
+
+    macro_rules! impl_padding_mode {
+        ($b:expr) => {
+            match padding_mode {
+                PaddingMode::Pkcs7 => impl_padding_mode!($b, Pkcs7),
+                PaddingMode::AnsiX923 => impl_padding_mode!($b, AnsiX923),
+                PaddingMode::Iso10126 => impl_padding_mode!($b, Iso10126),
+                PaddingMode::Iso7816 => impl_padding_mode!($b, Iso7816),
+                PaddingMode::NoPadding => impl_padding_mode!($b, NoPadding),
+                PaddingMode::ZeroPadding => impl_padding_mode!($b, ZeroPadding),
+            }
+        };
+        ($b:expr, $p:ident) => {
+            ErasedBlockPadding::new($b.to_padding_crypt::<$p>())
+        };
+    }
+
+    macro_rules! padding_cipher {
+        ($($name:ident,)*) => {
+            paste::paste! {
+                match algorithm {
+                    $(
+                        EncAlgorithm::[<$name Cbc>] => {
+                            Some(impl_padding_mode!($name::new(&key)?.to_cbc_dec(&iv)))
+                        },
+                    )*
+                    EncAlgorithm::Rc2Cbc => Some(impl_padding_mode!(Rc2::new(&key, rounds)?.to_cbc_dec(&iv))),
+                    EncAlgorithm::Rc5Cbc => Some(impl_padding_mode!(Rc5::new(&key, rounds)?.to_cbc_dec(&iv))),
+                    EncAlgorithm::Rc6Cbc => Some(impl_padding_mode!(Rc6::new(&key, rounds)?.to_cbc_dec(&iv))),
+                    _=> None
+                }
+
+            }
+        };
+
+    }
+
+    if let Some(mut padding_cipher) =
+        padding_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea,)
+    {
+        padding_cipher.encrypt_alloc(&mut infile).unwrap();
+        std::fs::write(out_file, infile)?;
+        return Ok(());
+    }
+
     Ok(())
 }

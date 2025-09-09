@@ -4,6 +4,11 @@ pub use pkcs7::Pkcs7;
 mod block_padding;
 pub use block_padding::*;
 
+#[cfg(feature = "alloc")]
+mod erased;
+#[cfg(feature = "alloc")]
+pub use erased::ErasedBlockPadding;
+
 use core::marker::PhantomData;
 
 use crate::{
