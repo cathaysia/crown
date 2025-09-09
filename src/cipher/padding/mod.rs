@@ -1,6 +1,9 @@
 mod pkcs7;
 pub use pkcs7::Pkcs7;
 
+mod block_padding;
+pub use block_padding::*;
+
 use core::marker::PhantomData;
 
 use crate::{

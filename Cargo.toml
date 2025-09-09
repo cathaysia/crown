@@ -36,6 +36,7 @@ once_cell = { version = "1.21.3", default-features = false, features = [
   "critical-section",
 ] }
 tinyvec = "1.10.0"
+block-padding = "0.3.3"
 
 [build-dependencies]
 cc = { version = "1.2.34", optional = true }

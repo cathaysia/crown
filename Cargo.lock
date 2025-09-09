@@ -802,6 +802,7 @@ dependencies = [
  "base64",
  "bindgen",
  "blake2",
+ "block-padding",
  "boring",
  "bytes",
  "cast5",
