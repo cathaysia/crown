@@ -1,5 +1,5 @@
+use boring::hash::MessageDigest;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use openssl::hash::MessageDigest;
 use std::hint::black_box;
 
 fn bench_md5(c: &mut Criterion) {
@@ -56,12 +56,12 @@ fn bench_md5(c: &mut Criterion) {
 
         group.bench_function(
             format!(
-                "openssl_md5_{size}_{}",
+                "boring_md5_{size}_{}",
                 if unaligned { "unaligned" } else { "aligned" }
             ),
             |b| {
                 b.iter(|| {
-                    let hash = openssl::hash::hash(MessageDigest::md5(), black_box(data)).unwrap();
+                    let hash = boring::hash::hash(MessageDigest::md5(), black_box(data)).unwrap();
                     let _ = hash.to_vec();
                 })
             },

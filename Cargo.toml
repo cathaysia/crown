@@ -46,7 +46,6 @@ toml = { version = "0.9.5", optional = true }
 rand = "0.9.2"
 criterion = { version = "0.7", features = ["html_reports"] }
 md5 = "0.8.0"
-openssl = "0.10.73"
 rc4 = "0.1.0"
 cipher = "0.4.4"
 sha2 = "0.10.9"
@@ -72,6 +71,7 @@ typify = "0.4.2"
 blake2 = "0.10.6"
 anyhow = "1.0.99"
 aes-gcm = "0.10.3"
+boring = "4.19.0"
 
 [[bench]]
 name = "md5"

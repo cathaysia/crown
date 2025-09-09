@@ -1,5 +1,5 @@
+use boring::hash::MessageDigest;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use openssl::hash::MessageDigest;
 use sha3::Digest;
 use std::hint::black_box;
 
@@ -57,13 +57,13 @@ fn bench_sha3(c: &mut Criterion) {
 
         group.bench_function(
             format!(
-                "openssl_sha3_{size}_{}",
+                "boring_sha3_{size}_{}",
                 if unaligned { "unaligned" } else { "aligned" }
             ),
             |b| {
                 b.iter(|| {
                     let hash =
-                        openssl::hash::hash(MessageDigest::sha3_256(), black_box(data)).unwrap();
+                        boring::hash::hash(MessageDigest::sha3_256(), black_box(data)).unwrap();
                     let _ = hash.to_vec();
                 })
             },
