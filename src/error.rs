@@ -18,18 +18,21 @@ pub enum CryptoError {
     UnsupportedOperation(String),
     #[error("invalid round: {0}")]
     InvalidRound(usize),
-    #[error("invalid nonce length: {0}")]
-    InvalidNonceSize(usize),
-    #[error("invalid tag size: {0}")]
-    InvalidTagSize(usize),
+    #[error("invalid nonce length, expected {expected}, got {actual}")]
+    InvalidNonceSize {
+        expected: &'static str,
+        actual: usize,
+    },
+    #[error("invalid tag size, expected {expected}, got {actual}")]
+    InvalidTagSize {
+        expected: &'static str,
+        actual: usize,
+    },
     #[error("invalid block size: {0}")]
     InvalidBlockSize(usize),
-    #[cfg(feature = "alloc")]
-    #[error("invalid parameter: {0}")]
-    InvalidParameter(String),
     #[error("invalid parameter: {0}")]
     InvalidParameterStr(&'static str),
-    #[error("invalid key size, expected: {expected}, actual: {actual}")]
+    #[error("invalid key size, expected: {expected}, got: {actual}")]
     InvalidKeySize {
         expected: &'static str,
         actual: usize,
@@ -50,9 +53,7 @@ pub enum CryptoError {
     InvalidHashIdentifier,
     #[error("invalid hash size")]
     StrError(&'static str),
-    #[cfg(feature = "alloc")]
-    #[error("invalid hash size")]
-    StringError(String),
+
     #[error("invalid UTF-8 sequence")]
     Utf8Error(#[from] core::str::Utf8Error),
     #[error("io eof")]
@@ -75,13 +76,6 @@ pub enum CryptoError {
     UnpadError,
     #[error("pad error")]
     PadError,
-}
-
-#[cfg(feature = "alloc")]
-impl From<String> for CryptoError {
-    fn from(err: String) -> Self {
-        CryptoError::StringError(err)
-    }
 }
 
 pub type CryptoResult<T> = Result<T, CryptoError>;

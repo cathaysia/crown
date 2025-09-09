@@ -40,7 +40,10 @@ pub struct Sala20 {
 impl Sala20 {
     pub fn new(key: &[u8], nonce: &[u8]) -> CryptoResult<Sala20> {
         if nonce.len() != 8 && nonce.len() != 24 {
-            return Err(CryptoError::InvalidNonceSize(nonce.len()));
+            return Err(CryptoError::InvalidNonceSize {
+                expected: "8 | 24",
+                actual: nonce.len(),
+            });
         }
         if key.len() != 32 {
             return Err(CryptoError::InvalidKeySize {

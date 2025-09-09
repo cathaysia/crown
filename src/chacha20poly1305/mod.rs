@@ -77,7 +77,10 @@ impl Aead<16> for ChaCha20Poly1305 {
         additional_data: &[u8],
     ) -> CryptoResult<[u8; 16]> {
         if nonce.len() != Self::NONCE_SIZE {
-            return Err(CryptoError::InvalidNonceSize(nonce.len()));
+            return Err(CryptoError::InvalidNonceSize {
+                expected: "12",
+                actual: nonce.len(),
+            });
         }
 
         if inout.len() as u64 > (1u64 << 38) - 64 {

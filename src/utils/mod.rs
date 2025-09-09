@@ -87,3 +87,15 @@ pub unsafe fn erase_ownership_mut<'a, T>(slice: &mut [T]) -> &'a mut [T] {
     let ptr = slice.as_mut_ptr();
     unsafe { core::slice::from_raw_parts_mut(ptr, slice.len()) }
 }
+
+#[allow(unused_macros)]
+macro_rules! const_assert {
+    ($cond:expr) => {
+        const _: () = assert!($cond);
+    };
+    ($cond:expr, $msg:literal) => {
+        const _: () = assert!($cond, $msg);
+    };
+}
+#[allow(unused_imports)]
+pub(crate) use const_assert;

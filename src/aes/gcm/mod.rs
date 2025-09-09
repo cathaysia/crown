@@ -24,12 +24,15 @@ pub const GCM_MINIMUM_TAG_SIZE: usize = 12; // NIST SP 800-38D recommends tags w
 pub const GCM_STANDARD_NONCE_SIZE: usize = 12;
 
 impl<const N: usize, const T: usize> GCM<N, T> {
+    const _NONCE_ASSERT: () = assert!(N != 0);
+    const _TAG_ASSERT: () = assert!(T >= GCM_MINIMUM_TAG_SIZE);
+
     pub fn new(cipher: Aes) -> CryptoResult<Self> {
         if !(GCM_MINIMUM_TAG_SIZE..=GCM_BLOCK_SIZE).contains(&T) {
-            return Err(CryptoError::InvalidTagSize(T));
-        }
-        if N == 0 {
-            return Err(CryptoError::InvalidNonceSize(N));
+            return Err(CryptoError::InvalidTagSize {
+                expected: "12..=16",
+                actual: T,
+            });
         }
         if cipher.block_size() != GCM_BLOCK_SIZE {
             return Err(CryptoError::InvalidBlockSize(cipher.block_size()));
@@ -45,11 +48,12 @@ impl<const N: usize, const T: usize> GCM<N, T> {
         aad: &[u8],
     ) -> CryptoResult<[u8; GCM_TAG_SIZE]> {
         if nonce.len() != N {
-            return Err(CryptoError::InvalidNonceSize(nonce.len()));
+            return Err(CryptoError::InvalidNonceSize {
+                expected: stringify!(N),
+                actual: nonce.len(),
+            });
         }
-        if N == 0 {
-            return Err(CryptoError::InvalidNonceSize(N));
-        }
+
         if inout.len() as u64 > (1u64 << 32) - 2 * GCM_BLOCK_SIZE as u64 {
             return Err(CryptoError::MessageTooLarge);
         }
@@ -94,12 +98,10 @@ impl<const N: usize, const T: usize> Aead<T> for GCM<N, T> {
         aad: &[u8],
     ) -> CryptoResult<()> {
         if nonce.len() != N {
-            return Err(CryptoError::InvalidNonceSize(nonce.len()));
-        }
-        // Sanity check to prevent the authentication from always succeeding if an
-        // implementation leaves tag_size uninitialized, for example.
-        if T < GCM_MINIMUM_TAG_SIZE {
-            return Err(CryptoError::InvalidTagSize(T));
+            return Err(CryptoError::InvalidNonceSize {
+                expected: stringify!(N),
+                actual: nonce.len(),
+            });
         }
 
         if inout.len() as u64 > (1u64 << 32) - 2 * GCM_BLOCK_SIZE as u64 + T as u64 {

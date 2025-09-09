@@ -62,7 +62,10 @@ impl ChaCha20Poly1305 {
         additional_data: &[u8],
     ) -> CryptoResult<()> {
         if tag.len() != POLY1305_TAG_SIZE {
-            return Err(CryptoError::InvalidTagSize(tag.len()));
+            return Err(CryptoError::InvalidTagSize {
+                expected: "16",
+                actual: tag.len(),
+            });
         }
 
         // Generate poly1305 key using ChaCha20

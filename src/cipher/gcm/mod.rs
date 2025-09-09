@@ -38,8 +38,11 @@ impl GcmAble for aes::Aes {
     }
 
     fn to_gcm_with_tag_size<const N: usize>(self) -> CryptoResult<impl Aead<N>> {
-        if N < GCM_MINIMUM_TAG_SIZE || N > GCM_BLOCK_SIZE {
-            return Err(CryptoError::InvalidTagSize(N));
+        if !(GCM_MINIMUM_TAG_SIZE..=GCM_BLOCK_SIZE).contains(&N) {
+            return Err(CryptoError::InvalidTagSize {
+                expected: "12..=16",
+                actual: N,
+            });
         }
 
         aes_gcm::GCM::<GCM_MINIMUM_TAG_SIZE, N>::new(self)
@@ -56,31 +59,36 @@ where
     }
 
     fn to_gcm_with_nonce_size<const N: usize>(self) -> CryptoResult<impl Aead<GCM_TAG_SIZE>> {
-        new_gcm_fallback(self, N, GCM_TAG_SIZE)
+        new_gcm_fallback::<Self, N, GCM_TAG_SIZE>(self)
     }
 
     fn to_gcm_with_tag_size<const N: usize>(self) -> CryptoResult<impl Aead<N>> {
-        new_gcm_fallback(self, GCM_STANDARD_NONCE_SIZE, N)
+        new_gcm_fallback::<Self, GCM_STANDARD_NONCE_SIZE, N>(self)
     }
 }
 
 // Generic GCM implementation for non-AES ciphers
-struct GcmFallback<B: BlockCipher, const N: usize> {
+struct GcmFallback<B: BlockCipher, const T: usize, const N: usize> {
     cipher: B,
-    nonce_size: usize,
 }
 
-impl<B: BlockCipher, const N: usize> AeadUser for GcmFallback<B, N> {
+impl<B: BlockCipher, const T: usize, const N: usize> GcmFallback<B, T, N> {
+    const _NONCE_ASSERT: () = assert!(N != 0);
+    const _TAG_ASSERT_LOW: () = assert!(T > GCM_MINIMUM_TAG_SIZE);
+    const _TAG_ASSERT_HIGH: () = assert!(T <= GCM_BLOCK_SIZE);
+}
+
+impl<B: BlockCipher, const T: usize, const N: usize> AeadUser for GcmFallback<B, T, N> {
     fn nonce_size(&self) -> usize {
         N
     }
 
     fn overhead(&self) -> usize {
-        N
+        T
     }
 }
 
-impl<B: BlockCipher, const N: usize> Aead<N> for GcmFallback<B, N> {
+impl<B: BlockCipher, const T: usize, const N: usize> Aead<N> for GcmFallback<B, T, N> {
     fn seal_in_place_separate_tag(
         &self,
         inout: &mut [u8],
@@ -88,11 +96,10 @@ impl<B: BlockCipher, const N: usize> Aead<N> for GcmFallback<B, N> {
         additional_data: &[u8],
     ) -> CryptoResult<[u8; N]> {
         if nonce.len() != self.nonce_size() {
-            return Err(CryptoError::InvalidNonceSize(nonce.len()));
-        }
-
-        if self.nonce_size == 0 {
-            return Err(CryptoError::InvalidNonceSize(0));
+            return Err(CryptoError::InvalidNonceSize {
+                expected: stringify!(N),
+                actual: nonce.len(),
+            });
         }
 
         if u64::try_from(inout.len()).unwrap()
@@ -138,15 +145,17 @@ impl<B: BlockCipher, const N: usize> Aead<N> for GcmFallback<B, N> {
         additional_data: &[u8],
     ) -> CryptoResult<()> {
         if nonce.len() != self.nonce_size() {
-            return Err(CryptoError::InvalidNonceSize(nonce.len()));
+            return Err(CryptoError::InvalidNonceSize {
+                expected: stringify!(N),
+                actual: nonce.len(),
+            });
         }
 
-        if N < GCM_MINIMUM_TAG_SIZE {
-            return Err(CryptoError::InvalidTagSize(N));
-        }
-
-        if tag.len() < N {
-            return Err(CryptoError::InvalidTagSize(tag.len()));
+        if tag.len() < T {
+            return Err(CryptoError::InvalidTagSize {
+                expected: stringify!(T),
+                actual: tag.len(),
+            });
         }
 
         if u64::try_from(inout.len()).unwrap()
@@ -192,20 +201,14 @@ impl<B: BlockCipher, const N: usize> Aead<N> for GcmFallback<B, N> {
 }
 
 // Helper function to create a new GCM instance for non-AES ciphers
-fn new_gcm_fallback<B: BlockCipher, const N: usize>(
+fn new_gcm_fallback<B: BlockCipher, const T: usize, const N: usize>(
     cipher: B,
-    nonce_size: usize,
-    tag_size: usize,
 ) -> CryptoResult<impl Aead<N>> {
-    if !(GCM_MINIMUM_TAG_SIZE..=GCM_BLOCK_SIZE).contains(&tag_size) {
-        return Err(CryptoError::InvalidTagSize(tag_size));
-    }
-
     if cipher.block_size() != GCM_BLOCK_SIZE {
         return Err(CryptoError::UnsupportedBlockSize(cipher.block_size()));
     }
 
-    Ok(GcmFallback { cipher, nonce_size })
+    Ok(GcmFallback::<B, T, N> { cipher })
 }
 
 // Helper functions for GCM operations
