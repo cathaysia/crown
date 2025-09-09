@@ -51,7 +51,7 @@ impl<B: BlockCipher> BlockMode for CbcEncrypter<B> {
         self.0.block_size
     }
 
-    fn crypt_blocks(mut self, inout: &mut [u8]) {
+    fn crypt_blocks(&mut self, inout: &mut [u8]) {
         if inout.len() % self.0.block_size != 0 {
             panic!("crypto/cipher: input not full blocks");
         }

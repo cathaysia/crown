@@ -20,6 +20,7 @@ pub fn xor_bytes(x: &mut [u8], y: &[u8]) -> usize {
     n
 }
 
+#[allow(dead_code)]
 pub fn xor_bytes_self(x: &mut [u8]) -> usize {
     (0..x.len()).for_each(|i| {
         x[i] ^= x[i];

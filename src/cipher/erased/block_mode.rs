@@ -2,7 +2,7 @@ use crate::cipher::BlockMode;
 
 trait ErasedBlockModeInner {
     fn block_size(&self) -> usize;
-    fn crypt_blocks(self: Box<Self>, inout: &mut [u8]);
+    fn crypt_blocks(&mut self, inout: &mut [u8]);
 }
 
 pub struct ErasedBlockMode(Box<dyn ErasedBlockModeInner>);
@@ -19,7 +19,7 @@ impl ErasedBlockMode {
                 self.0.block_size()
             }
 
-            fn crypt_blocks(self: Box<Self>, inout: &mut [u8]) {
+            fn crypt_blocks(&mut self, inout: &mut [u8]) {
                 self.0.crypt_blocks(inout)
             }
         }
@@ -30,7 +30,7 @@ impl ErasedBlockMode {
         self.0.block_size()
     }
 
-    pub fn crypt_blocks(self, inout: &mut [u8]) {
+    pub fn crypt_blocks(&mut self, inout: &mut [u8]) {
         self.0.crypt_blocks(inout)
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
     cipher::{marker::BlockCipherMarker, BlockCipher, BlockMode},
-    utils::subtle::xor::{xor_bytes, xor_bytes_self},
+    utils::{copy, erase_ownership, subtle::xor::xor_bytes},
 };
 
 use super::Cbc;
@@ -38,7 +38,7 @@ impl<B: BlockCipher> BlockMode for CbcDecrypter<B> {
         self.0.block_size
     }
 
-    fn crypt_blocks(mut self, inout: &mut [u8]) {
+    fn crypt_blocks(&mut self, inout: &mut [u8]) {
         if inout.len() % self.0.block_size != 0 {
             panic!("crypto/cipher: input not full blocks");
         }
@@ -55,14 +55,15 @@ impl<B: BlockCipher> BlockMode for CbcDecrypter<B> {
         let mut start = end - block_size;
 
         // Copy the last block of ciphertext in preparation as the new iv
-        self.0.tmp[..block_size].copy_from_slice(&inout[start..end]);
+        copy(&mut self.0.tmp, &inout[start..end]);
 
         // Loop over all but the first block
         while start > 0 {
             let prev = start - block_size;
 
             self.0.b.decrypt(&mut inout[start..end]);
-            xor_bytes_self(&mut inout[start..end]);
+            let src = unsafe { erase_ownership(&*inout) };
+            xor_bytes(&mut inout[start..end], &src[prev..start]);
 
             end = start;
             start = prev;

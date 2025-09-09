@@ -15,6 +15,8 @@ pub mod marker;
 #[cfg(feature = "alloc")]
 pub mod ofb;
 
+pub mod padding;
+
 use crate::error::CryptoResult;
 
 /// A Block represents an implementation of block cipher
@@ -66,7 +68,7 @@ pub trait BlockMode {
     /// Multiple calls to CryptBlocks behave as if the concatenation of
     /// the src buffers was passed in a single run. That is, BlockMode
     /// maintains state and does not reset at each CryptBlocks call.
-    fn crypt_blocks(self, inout: &mut [u8]);
+    fn crypt_blocks(&mut self, inout: &mut [u8]);
 }
 
 pub trait AeadUser {

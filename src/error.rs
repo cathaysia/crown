@@ -67,6 +67,11 @@ pub enum CryptoError {
     InvalidCost(u32),
     #[error("password too long")]
     PasswordTooLong,
+
+    #[error("unpad error")]
+    UnpadError,
+    #[error("pad error")]
+    PadError,
 }
 
 #[cfg(feature = "alloc")]
