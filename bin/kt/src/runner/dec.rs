@@ -44,18 +44,32 @@ pub fn run_dec(args: ArgsDec) -> anyhow::Result<()> {
         Some(aad_file) => std::fs::read(aad_file)?,
         None => vec![],
     };
-    let decrypt = match algorithm {
-        EncAlgorithm::Chacha20Poly1305 => Some(ErasedAead::new(
-            kittycrypto::chacha20poly1305::ChaCha20Poly1305::new(&key)?,
-        )),
-        EncAlgorithm::XChacha20Poly1305 => Some(ErasedAead::new(
-            kittycrypto::chacha20poly1305::XChaCha20Poly1305::new(&key)?,
-        )),
-        EncAlgorithm::AesGcm => Some(ErasedAead::new(Aes::new(&key)?.to_gcm()?)),
-        _ => None,
-    };
+    macro_rules! aead_cipher {
+        ($($name:ident,)*) => {
+            paste::paste! {
+                match algorithm {
+                    EncAlgorithm::Chacha20Poly1305 => Some(ErasedAead::new(
+                        kittycrypto::chacha20poly1305::ChaCha20Poly1305::new(&key)?,
+                    )),
+                    EncAlgorithm::XChacha20Poly1305 => Some(ErasedAead::new(
+                        kittycrypto::chacha20poly1305::XChaCha20Poly1305::new(&key)?,
+                    )),
+                    $(
+                        EncAlgorithm::[<$name Gcm>] => Some(ErasedAead::new($name::new(&key)?.to_gcm()?)),
+                    )*
+                    EncAlgorithm::Rc2Gcm => Some(ErasedAead::new(Rc2::new(&key, rounds)?.to_gcm()?)),
+                    EncAlgorithm::Rc5Gcm => Some(ErasedAead::new(Rc5::new(&key, rounds)?.to_gcm()?)),
+                    EncAlgorithm::Rc6Gcm => Some(ErasedAead::new(Rc6::new(&key, rounds)?.to_gcm()?)),                 _ => None,
+                }
 
-    if let Some(cipher) = decrypt {
+            }
+        };
+
+    }
+
+    let aead_cipher = aead_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea,);
+
+    if let Some(cipher) = aead_cipher {
         match tagin {
             Some(tagfile) => {
                 let tag = std::fs::read(tagfile)?;
@@ -66,6 +80,7 @@ pub fn run_dec(args: ArgsDec) -> anyhow::Result<()> {
             }
         }
         std::fs::write(&out_file, &infile)?;
+        return Ok(());
     }
 
     macro_rules! stream_cipher {

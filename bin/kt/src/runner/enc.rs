@@ -45,16 +45,30 @@ pub fn run_enc(args: ArgsEnc) -> anyhow::Result<()> {
         None => vec![],
     };
 
-    let aead_cipher = match algorithm {
-        EncAlgorithm::Chacha20Poly1305 => Some(ErasedAead::new(
-            kittycrypto::chacha20poly1305::ChaCha20Poly1305::new(&key)?,
-        )),
-        EncAlgorithm::XChacha20Poly1305 => Some(ErasedAead::new(
-            kittycrypto::chacha20poly1305::XChaCha20Poly1305::new(&key)?,
-        )),
-        EncAlgorithm::AesGcm => Some(ErasedAead::new(Aes::new(&key)?.to_gcm()?)),
-        _ => None,
-    };
+    macro_rules! aead_cipher {
+        ($($name:ident,)*) => {
+            paste::paste! {
+                match algorithm {
+                    EncAlgorithm::Chacha20Poly1305 => Some(ErasedAead::new(
+                        kittycrypto::chacha20poly1305::ChaCha20Poly1305::new(&key)?,
+                    )),
+                    EncAlgorithm::XChacha20Poly1305 => Some(ErasedAead::new(
+                        kittycrypto::chacha20poly1305::XChaCha20Poly1305::new(&key)?,
+                    )),
+                    $(
+                        EncAlgorithm::[<$name Gcm>] => Some(ErasedAead::new($name::new(&key)?.to_gcm()?)),
+                    )*
+                    EncAlgorithm::Rc2Gcm => Some(ErasedAead::new(Rc2::new(&key, rounds)?.to_gcm()?)),
+                    EncAlgorithm::Rc5Gcm => Some(ErasedAead::new(Rc5::new(&key, rounds)?.to_gcm()?)),
+                    EncAlgorithm::Rc6Gcm => Some(ErasedAead::new(Rc6::new(&key, rounds)?.to_gcm()?)),                 _ => None,
+                }
+
+            }
+        };
+
+    }
+
+    let aead_cipher = aead_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea,);
     if let Some(cipher) = aead_cipher {
         match tagout {
             Some(tagout) => {

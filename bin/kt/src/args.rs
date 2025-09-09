@@ -138,8 +138,6 @@ macro_rules! enc_algorithm {
                 /// XChacha20Poly1305 AEAD mode.
                 #[clap(name = "xchacha20-poly1305")]
                 XChacha20Poly1305,
-                /// AesGcm AEAD Mode. Aes128Gcm | Aes192Gcm | Aes256Gcm
-                AesGcm,
                 /// Chacha20 stream cipher.
                 Chacha20,
                 /// Rc4 stream cipher.
@@ -148,6 +146,8 @@ macro_rules! enc_algorithm {
                 Salsa20,
                 // block mode(to StreamCipher)
                 $(
+                    #[doc=$block " in Gcm mode"]
+                    [<$block Gcm>],
                     #[doc=$block " in Cbc mode"]
                     [<$block Cbc>],
                     #[doc=$block " in Ctr mode"]
