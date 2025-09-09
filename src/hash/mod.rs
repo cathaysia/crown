@@ -1,7 +1,7 @@
 #[cfg(feature = "alloc")]
-mod erased;
+mod message_digest;
 #[cfg(feature = "alloc")]
-pub use erased::*;
+pub use message_digest::*;
 
 use crate::core::CoreWrite;
 

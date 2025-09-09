@@ -5,6 +5,9 @@ use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq, Clone)]
 pub enum CryptoError {
+    #[error("invalid hasher")]
+    InvalidHasher,
+
     #[error("buffer too small")]
     BufferTooSmall,
     #[error("unsupported block size: {0}")]

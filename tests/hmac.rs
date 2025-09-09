@@ -1,6 +1,6 @@
 use kittycrypto::{
     core::CoreWrite,
-    hash::{ErasedHash, HashUser},
+    hash::{HashAlgorithm, HashUser, MessageDigest},
     hmac,
 };
 
@@ -10,20 +10,20 @@ mod wycheproof;
 
 #[test]
 fn test_wycheproof_hmac_test() {
-    let builder = |alg: &str, key: &[u8]| -> Option<ErasedHash> {
-        use kittycrypto::hmac;
-
-        Some(match alg {
-            "SHA224" => ErasedHash::new(hmac::new(kittycrypto::sha256::new224, key)),
-            "SHA256" => ErasedHash::new(hmac::new(kittycrypto::sha256::new256, key)),
-            "SHA384" => ErasedHash::new(hmac::new(kittycrypto::sha512::new384, key)),
-            "SHA3-224" => ErasedHash::new(hmac::new(kittycrypto::sha3::new224, key)),
-            "SHA3-256" => ErasedHash::new(hmac::new(kittycrypto::sha3::new256, key)),
-            "SHA3-384" => ErasedHash::new(hmac::new(kittycrypto::sha3::new384, key)),
-            "SHA3-512" => ErasedHash::new(hmac::new(kittycrypto::sha3::new512, key)),
-            "SHA512" => ErasedHash::new(hmac::new(kittycrypto::sha512::new512, key)),
+    let builder = |alg: &str, key: &[u8]| -> Option<MessageDigest> {
+        let alg = match alg {
+            "SHA224" => HashAlgorithm::Sha224,
+            "SHA256" => HashAlgorithm::Sha256,
+            "SHA384" => HashAlgorithm::Sha384,
+            "SHA3-224" => HashAlgorithm::Sha3_224,
+            "SHA3-256" => HashAlgorithm::Sha3_256,
+            "SHA3-384" => HashAlgorithm::Sha3_384,
+            "SHA3-512" => HashAlgorithm::Sha3_512,
+            "SHA512" => HashAlgorithm::Sha512,
             _ => return None,
-        })
+        };
+
+        MessageDigest::new(alg, Some(key)).ok()
     };
 
     for file in wycheproof::mac::HMAC_TESTS {
