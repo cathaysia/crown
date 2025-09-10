@@ -1,21 +1,21 @@
 mod wycheproof;
 
-use kittycrypto::cipher::erased::ErasedAead;
+use kittycrypto::envelope::{AeadAlgorithm, AeadCipher};
 use wycheproof::aead::*;
 
 #[test]
 fn test_aead() {
-    let builder = |alg: &str, key: &[u8]| -> Option<ErasedAead> {
-        Some(match alg {
-            "CHACHA20-POLY1305" => {
-                ErasedAead::new(kittycrypto::chacha20poly1305::ChaCha20Poly1305::new(key).unwrap())
+    let builder = |alg: &str, key: &[u8]| -> Option<AeadCipher> {
+        Some(
+            match alg {
+                "CHACHA20-POLY1305" => AeadCipher::new(AeadAlgorithm::Chacha20Poly1305, key, None),
+                "XCHACHA20-POLY1305" => {
+                    AeadCipher::new(AeadAlgorithm::XChacha20Poly1305, key, None)
+                }
+                _ => return None,
             }
-            "XCHACHA20-POLY1305" => {
-                ErasedAead::new(kittycrypto::chacha20poly1305::XChaCha20Poly1305::new(key).unwrap())
-            }
-
-            _ => return None,
-        })
+            .unwrap(),
+        )
     };
 
     for file in AEAD_TESTS {

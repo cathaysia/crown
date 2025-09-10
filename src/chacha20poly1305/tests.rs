@@ -2,10 +2,7 @@ mod data;
 use chacha20poly1305::aead::AeadMutInPlace;
 use rc4::KeyInit;
 
-use crate::{
-    chacha20poly1305::{ChaCha20Poly1305, XChaCha20Poly1305},
-    cipher::{erased::ErasedAead, Aead},
-};
+use crate::{chacha20poly1305::XChaCha20Poly1305, cipher::Aead, envelope::AeadCipher};
 
 #[test]
 fn test_vector() {
@@ -16,10 +13,15 @@ fn test_vector() {
         let aad = hex::decode(aad).unwrap();
         let plaintext = hex::decode(plaintext).unwrap();
         let cipher = match nonce.len() {
-            12 => ErasedAead::new(ChaCha20Poly1305::new(&key).unwrap()),
-            24 => ErasedAead::new(XChaCha20Poly1305::new(&key).unwrap()),
+            12 => AeadCipher::new(crate::envelope::AeadAlgorithm::Chacha20Poly1305, &key, None),
+            24 => AeadCipher::new(
+                crate::envelope::AeadAlgorithm::XChacha20Poly1305,
+                &key,
+                None,
+            ),
             _ => unreachable!(),
-        };
+        }
+        .unwrap();
 
         let mut plaintext2 = plaintext.clone();
         cipher

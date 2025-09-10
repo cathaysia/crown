@@ -3,16 +3,11 @@ use kittycrypto::{
     blowfish::Blowfish,
     cast5::Cast5,
     chacha20::Chacha20,
-    cipher::{
-        cbc::CbcEncAble,
-        cfb::CfbAble,
-        ctr::CtrAble,
-        erased::{ErasedAead, ErasedStreamCipher},
-        gcm::GcmAble,
-        ofb::OfbAble,
-        padding::*,
-    },
+    cipher::{cbc::CbcEncAble, cfb::CfbAble, ctr::CtrAble, ofb::OfbAble, padding::*},
     des::{Des, TripleDes},
+    envelope::AeadAlgorithm,
+    envelope::AeadCipher,
+    envelope::ErasedStreamCipher,
     rc2::Rc2,
     rc4::Rc4,
     rc5::Rc5,
@@ -49,18 +44,15 @@ pub fn run_enc(args: ArgsEnc) -> anyhow::Result<()> {
         ($($name:ident,)*) => {
             paste::paste! {
                 match algorithm {
-                    EncAlgorithm::Chacha20Poly1305 => Some(ErasedAead::new(
-                        kittycrypto::chacha20poly1305::ChaCha20Poly1305::new(&key)?,
-                    )),
-                    EncAlgorithm::XChacha20Poly1305 => Some(ErasedAead::new(
-                        kittycrypto::chacha20poly1305::XChaCha20Poly1305::new(&key)?,
-                    )),
+                    EncAlgorithm::Chacha20Poly1305 => Some(AeadAlgorithm::Chacha20Poly1305),
+                    EncAlgorithm::XChacha20Poly1305 => Some(AeadAlgorithm::XChacha20Poly1305),
                     $(
-                        EncAlgorithm::[<$name Gcm>] => Some(ErasedAead::new($name::new(&key)?.to_gcm()?)),
+                        EncAlgorithm::[<$name Gcm>] => Some(AeadAlgorithm::[<$name Gcm>]),
                     )*
-                    EncAlgorithm::Rc2Gcm => Some(ErasedAead::new(Rc2::new(&key, rounds)?.to_gcm()?)),
-                    EncAlgorithm::Rc5Gcm => Some(ErasedAead::new(Rc5::new(&key, rounds)?.to_gcm()?)),
-                    EncAlgorithm::Rc6Gcm => Some(ErasedAead::new(Rc6::new(&key, rounds)?.to_gcm()?)),                 _ => None,
+                    EncAlgorithm::Rc2Gcm => Some(AeadAlgorithm::Rc2Gcm),
+                    EncAlgorithm::Rc5Gcm => Some(AeadAlgorithm::Rc5Gcm),
+                    EncAlgorithm::Rc6Gcm => Some(AeadAlgorithm::Rc6Gcm),
+                    _ => None,
                 }
 
             }
@@ -68,7 +60,8 @@ pub fn run_enc(args: ArgsEnc) -> anyhow::Result<()> {
 
     }
 
-    let aead_cipher = aead_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea,);
+    let aead_cipher = aead_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea,)
+        .map(|v| AeadCipher::new(v, &key, Some(rounds)).unwrap());
     if let Some(cipher) = aead_cipher {
         match tagout {
             Some(tagout) => {

@@ -1,3 +1,12 @@
+use crate::aes::Aes;
+use crate::blowfish::Blowfish;
+use crate::cast5::Cast5;
+use crate::cipher::gcm::GcmAble;
+use crate::des::Des;
+use crate::des::TripleDes;
+use crate::tea::Tea;
+use crate::twofish::Twofish;
+use crate::xtea::Xtea;
 use crate::{cipher::Aead, error::CryptoResult};
 
 trait ErasedAeadInner {
@@ -20,10 +29,58 @@ trait ErasedAeadInner {
     ) -> CryptoResult<Vec<u8>>;
 }
 
-pub struct ErasedAead(Box<dyn ErasedAeadInner>);
+macro_rules! aead_cipher {
+        ($($name:ident,)*) => {
+            paste::paste! {
+                pub enum AeadAlgorithm {
+                    Chacha20Poly1305,
+                    XChacha20Poly1305,
+                    $(
+                        [<$name Gcm>],
+                    )*
+                    Rc2Gcm,
+                    Rc5Gcm,
+                    Rc6Gcm,
+                }
 
-impl ErasedAead {
-    pub fn new<const N: usize>(aead: impl Aead<N> + 'static) -> Self {
+            }
+        };
+
+    }
+
+aead_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea,);
+
+pub struct AeadCipher(Box<dyn ErasedAeadInner>);
+
+impl AeadCipher {
+    pub fn new(algorithm: AeadAlgorithm, key: &[u8], rounds: Option<usize>) -> CryptoResult<Self> {
+        macro_rules! aead_cipher {
+        ($($name:ident,)*) => {
+            paste::paste! {
+                Ok(match algorithm {
+                    AeadAlgorithm::Chacha20Poly1305 =>Self::new_impl(
+                        crate::chacha20poly1305::ChaCha20Poly1305::new(&key)?,
+                    ),
+                    AeadAlgorithm::XChacha20Poly1305 =>Self::new_impl(
+                        crate::chacha20poly1305::XChaCha20Poly1305::new(&key)?,
+                    ),
+                    $(
+                        AeadAlgorithm::[<$name Gcm>] =>Self::new_impl($name::new(&key)?.to_gcm()?),
+                    )*
+                    AeadAlgorithm::Rc2Gcm =>Self::new_impl(crate::rc2::Rc2::new(&key, rounds.unwrap_or(20))?.to_gcm()?),
+                    AeadAlgorithm::Rc5Gcm =>Self::new_impl(crate::rc5::Rc5::new(&key, rounds.unwrap_or(20))?.to_gcm()?),
+                    AeadAlgorithm::Rc6Gcm =>Self::new_impl(crate::rc6::Rc6::new(&key, rounds.unwrap_or(20))?.to_gcm()?),
+                })
+
+            }
+        };
+
+    }
+
+        aead_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea,)
+    }
+
+    fn new_impl<const N: usize>(aead: impl Aead<N> + 'static) -> Self {
         struct Wrapper<T, const N: usize>(T);
 
         impl<const N: usize, T> ErasedAeadInner for Wrapper<T, N>

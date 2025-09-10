@@ -1,6 +1,7 @@
 use kittycrypto::{
     core::CoreWrite,
-    hash::{HashAlgorithm, HashUser, MessageDigest},
+    envelope::{HashAlgorithm, MessageDigest},
+    hash::HashUser,
     hmac,
 };
 
@@ -23,7 +24,7 @@ fn test_wycheproof_hmac_test() {
             _ => return None,
         };
 
-        MessageDigest::new(alg, Some(key)).ok()
+        MessageDigest::new(alg, Some(key), None).ok()
     };
 
     for file in wycheproof::mac::HMAC_TESTS {

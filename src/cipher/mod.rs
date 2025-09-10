@@ -7,8 +7,7 @@ pub mod cfb;
 pub mod common_test;
 #[cfg(feature = "std")]
 pub mod ctr;
-#[cfg(feature = "std")]
-pub mod erased;
+
 #[cfg(feature = "std")]
 pub mod gcm;
 pub mod marker;
