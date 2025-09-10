@@ -28,6 +28,7 @@ pub enum HashAlgorithm {
     Blake2s128,
     Blake2s256,
     Blake2s,
+    Blake2b,
     Shake128,
     Shake256,
 }
@@ -50,12 +51,13 @@ impl core::str::FromStr for HashAlgorithm {
             "sha3-256" => Ok(Self::Sha3_256),
             "sha3-384" => Ok(Self::Sha3_384),
             "sha3-512" => Ok(Self::Sha3_512),
-            "blake2b-256" => Ok(Self::Blake2b256),
-            "blake2b-384" => Ok(Self::Blake2b384),
-            "blake2b-512" => Ok(Self::Blake2b512),
-            "blake2s-128" => Ok(Self::Blake2s128),
-            "blake2s-256" => Ok(Self::Blake2s256),
+            "blake2b256" => Ok(Self::Blake2b256),
+            "blake2b384" => Ok(Self::Blake2b384),
+            "blake2b512" => Ok(Self::Blake2b512),
+            "blake2s128" => Ok(Self::Blake2s128),
+            "blake2s256" => Ok(Self::Blake2s256),
             "blake2s" => Ok(Self::Blake2s),
+            "blake2b" => Ok(Self::Blake2b),
             "shake128" => Ok(Self::Shake128),
             "shake256" => Ok(Self::Shake256),
             _ => Err(CryptoError::InvalidHasher),
@@ -189,7 +191,7 @@ impl MessageDigest {
             }
 
             fn size(&self) -> usize {
-                0
+                self.0.size()
             }
 
             fn block_size(&self) -> usize {
@@ -202,14 +204,21 @@ impl MessageDigest {
             T: CoreWrite + CoreRead + HashUser,
         {
             fn sum(&mut self) -> Vec<u8> {
-                vec![]
+                let len = self.size();
+                let mut buf = vec![0; len];
+                self.0.read(&mut buf).unwrap();
+                buf
             }
         }
 
         Self(Box::new(VariantWrapper(h)))
     }
 
-    pub fn new(algorithm: HashAlgorithm, key: Option<&[u8]>) -> CryptoResult<Self> {
+    pub fn new(
+        algorithm: HashAlgorithm,
+        key: Option<&[u8]>,
+        key_len: Option<usize>,
+    ) -> CryptoResult<Self> {
         macro_rules! hash_match {
             (
                 $(($variant:ident, $hash_fn:expr, $type:ident)),* $(,)?
@@ -232,8 +241,8 @@ impl MessageDigest {
             (@create $hash_fn:expr, blake, $key:expr) => {
                 Self::new_impl($hash_fn($key)?)
             };
-            (@create $hash_fn:expr, shake, $key:expr) => {
-                Self::new_impl_variant($hash_fn())
+            (@create $hash_fn:expr, variant, $key:expr) => {
+                Self::new_impl_variant($hash_fn(key, key_len.expect("XOF hash algorithm needs key_len"))?)
             };
         }
 
@@ -256,9 +265,10 @@ impl MessageDigest {
             (Blake2b512, crate::blake2b::new512, blake),
             (Blake2s128, crate::blake2s::new128, blake),
             (Blake2s256, crate::blake2s::new256, blake),
-            (Blake2s, crate::sha3::new512, normal),
-            (Shake128, crate::sha3::new_shake128, shake),
-            (Shake256, crate::sha3::new_shake256, shake),
+            (Blake2s, crate::blake2s::Blake2sVariable::new, variant),
+            (Blake2b, crate::blake2b::Blake2bVariable::new, variant),
+            (Shake128, crate::sha3::new_shake128, normal),
+            (Shake256, crate::sha3::new_shake256, normal),
         ))
     }
 

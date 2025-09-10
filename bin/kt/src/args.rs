@@ -40,6 +40,7 @@ pub struct ArgsHash {
     pub hmac: bool,
     #[clap(long, default_value = None)]
     pub key: Option<String>,
+    /// output hash size(in bytes) for XOF.
     #[clap(long, default_value_t = 32)]
     pub length: usize,
 }
@@ -204,8 +205,8 @@ pub enum HashAlgorithm {
     Blake2b512,
     Blake2s128,
     Blake2s256,
-    Blake2bVariable,
-    Blake2sVariable,
+    Blake2b,
+    Blake2s,
     Shake128,
     Shake256,
     #[cfg(feature = "cuda")]
@@ -246,8 +247,8 @@ impl Display for HashAlgorithm {
             Self::Blake2b512 => "blake2b-512",
             Self::Blake2s128 => "blake2s128",
             Self::Blake2s256 => "blake2s256",
-            Self::Blake2bVariable => "blake2b-variable",
-            Self::Blake2sVariable => "blake2s-variable",
+            Self::Blake2b => "blake2b",
+            Self::Blake2s => "blake2s",
             Self::Shake128 => "shake128",
             Self::Shake256 => "shake256",
             #[cfg(feature = "cuda")]

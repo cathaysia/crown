@@ -1,6 +1,6 @@
 use bytes::BufMut;
 
-use crate::{hash::HashVariable, utils::copy};
+use crate::{core::CoreRead, hash::HashVariable, utils::copy};
 
 use super::*;
 
@@ -210,5 +210,11 @@ impl CoreWrite for Blake2bVariable {
 
     fn flush(&mut self) -> CryptoResult<()> {
         Ok(())
+    }
+}
+
+impl CoreRead for Blake2bVariable {
+    fn read(&mut self, p: &mut [u8]) -> CryptoResult<usize> {
+        Ok(self.sum(p))
     }
 }

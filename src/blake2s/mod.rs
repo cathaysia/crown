@@ -1,11 +1,12 @@
 mod generic;
 mod noasm;
+
 mod variable;
+pub use variable::Blake2sVariable;
 
 #[cfg(test)]
 mod tests;
 
-use crate::blake2s::variable::Blake2sVariable;
 use crate::core::CoreWrite;
 use crate::error::{CryptoError, CryptoResult};
 use crate::hash::{Hash, HashUser, HashVariable};

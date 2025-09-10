@@ -1,5 +1,7 @@
 use bytes::BufMut;
 
+use crate::core::CoreRead;
+
 use super::*;
 
 pub struct Blake2sVariable {
@@ -200,5 +202,11 @@ impl HashVariable for Blake2sVariable {
     fn sum(&mut self, sum: &mut [u8]) -> usize {
         let v = self.sum_impl();
         copy(sum, &v)
+    }
+}
+
+impl CoreRead for Blake2sVariable {
+    fn read(&mut self, p: &mut [u8]) -> CryptoResult<usize> {
+        Ok(self.sum(p))
     }
 }
