@@ -98,6 +98,9 @@ pub mod tea;
 pub mod twofish;
 pub mod xtea;
 
+#[cfg(feature = "alloc")]
+pub mod envelope;
+
 #[cfg(feature = "cuda")]
 pub mod cuda;
 

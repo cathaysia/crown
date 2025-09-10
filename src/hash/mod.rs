@@ -1,8 +1,3 @@
-#[cfg(feature = "alloc")]
-mod message_digest;
-#[cfg(feature = "alloc")]
-pub use message_digest::*;
-
 use crate::core::CoreWrite;
 
 /// Common interface for all hash algorithms.

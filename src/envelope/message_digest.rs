@@ -1,8 +1,9 @@
-use crate::core::CoreRead;
+use crate::core::{CoreRead, CoreWrite};
 use crate::error::{CryptoError, CryptoResult};
+use crate::hash::Hash;
+use crate::hash::HashUser;
 use crate::hmac::HMAC;
 
-use super::*;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 

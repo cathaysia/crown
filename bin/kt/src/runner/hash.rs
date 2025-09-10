@@ -1,7 +1,8 @@
 use crate::args::ArgsHash;
 use kittycrypto::{
     core::{CoreRead, CoreWrite},
-    hash::{HashAlgorithm, HashVariable, MessageDigest},
+    envelope::{HashAlgorithm, MessageDigest},
+    hash::HashVariable,
 };
 use rayon::prelude::*;
 use std::{collections::BTreeMap, str::FromStr};
