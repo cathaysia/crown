@@ -2,17 +2,15 @@ use kittycrypto::{
     aes::Aes,
     blowfish::Blowfish,
     cast5::Cast5,
-    chacha20::Chacha20,
-    cipher::{cbc::CbcEncAble, cfb::CfbAble, ctr::CtrAble, ofb::OfbAble, padding::*},
+    cipher::{cbc::CbcEncAble, padding::*},
     des::{Des, TripleDes},
     envelope::AeadAlgorithm,
     envelope::AeadCipher,
-    envelope::ErasedStreamCipher,
+    envelope::EvpStreamCipher,
+    envelope::StreamCipherAlgorithm,
     rc2::Rc2,
-    rc4::Rc4,
     rc5::Rc5,
     rc6::Rc6,
-    sala20::Sala20,
     tea::Tea,
     twofish::Twofish,
     xtea::Xtea,
@@ -80,25 +78,15 @@ pub fn run_enc(args: ArgsEnc) -> anyhow::Result<()> {
         ($($name:ident,)*) => {
             paste::paste! {
                 match algorithm {
-                    EncAlgorithm::Rc4 => Some(ErasedStreamCipher::new(Rc4::new(&key)?)),
-                    EncAlgorithm::Salsa20 => Some(ErasedStreamCipher::new(Sala20::new(&key, &iv)?)),
-                    EncAlgorithm::Chacha20 => Some(ErasedStreamCipher::new(
-                        Chacha20::new_unauthenticated_cipher(&key, &iv)?,
-                    )),
+                    EncAlgorithm::Rc4 => Some(StreamCipherAlgorithm::Rc4),
+                    EncAlgorithm::Salsa20 => Some(StreamCipherAlgorithm::Salsa20),
+                    EncAlgorithm::Chacha20 => Some(StreamCipherAlgorithm::Chacha20),
                     $(
-                        EncAlgorithm::[<$name Cfb>] => Some(ErasedStreamCipher::new($name::new(&key)?.to_cfb_encrypter(&iv)?)),
-                        EncAlgorithm::[<$name Ctr>] => Some(ErasedStreamCipher::new($name::new(&key)?.to_ctr(&iv)?)),
-                        EncAlgorithm::[<$name Ofb>] => Some(ErasedStreamCipher::new($name::new(&key)?.to_ofb(&iv)?)),
+                        EncAlgorithm::[<$name Cfb>] => Some(StreamCipherAlgorithm::[<$name Cfb>]),
+                        EncAlgorithm::[<$name Ctr>] => Some(StreamCipherAlgorithm::[<$name Ctr>]),
+                        EncAlgorithm::[<$name Ofb>] => Some(StreamCipherAlgorithm::[<$name Ofb>]),
                     )*
-                    EncAlgorithm::Rc2Cfb => Some(ErasedStreamCipher::new(Rc2::new(&key, rounds)?.to_cfb_encrypter(&iv)?)),
-                    EncAlgorithm::Rc2Ctr => Some(ErasedStreamCipher::new(Rc2::new(&key, rounds)?.to_ctr(&iv)?)),
-                    EncAlgorithm::Rc2Ofb => Some(ErasedStreamCipher::new(Rc2::new(&key, rounds)?.to_ofb(&iv)?)),
-                    EncAlgorithm::Rc5Cfb => Some(ErasedStreamCipher::new(Rc5::new(&key, rounds)?.to_cfb_encrypter(&iv)?)),
-                    EncAlgorithm::Rc5Ctr => Some(ErasedStreamCipher::new(Rc5::new(&key, rounds)?.to_ctr(&iv)?)),
-                    EncAlgorithm::Rc5Ofb => Some(ErasedStreamCipher::new(Rc5::new(&key, rounds)?.to_ofb(&iv)?)),
-                    EncAlgorithm::Rc6Cfb => Some(ErasedStreamCipher::new(Rc6::new(&key, rounds)?.to_cfb_encrypter(&iv)?)),
-                    EncAlgorithm::Rc6Ctr => Some(ErasedStreamCipher::new(Rc6::new(&key, rounds)?.to_ctr(&iv)?)),
-                    EncAlgorithm::Rc6Ofb => Some(ErasedStreamCipher::new(Rc6::new(&key, rounds)?.to_ofb(&iv)?)),                 _ => None,
+                    _ => None
                 }
 
             }
@@ -106,10 +94,12 @@ pub fn run_enc(args: ArgsEnc) -> anyhow::Result<()> {
 
     }
 
-    let stream_cipher = stream_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea,);
+    let stream_cipher =
+        stream_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Rc2, Rc5, Rc6,)
+            .map(|v| EvpStreamCipher::new(v, &key, &iv, Some(rounds)).unwrap());
 
     if let Some(mut cipher) = stream_cipher {
-        cipher.xor_key_stream(&mut infile)?;
+        cipher.encrypt(&mut infile)?;
         std::fs::write(out_file, infile)?;
         return Ok(());
     }

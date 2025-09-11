@@ -11,4 +11,4 @@ mod block_mode;
 pub use block_mode::ErasedBlockMode;
 
 mod stream_cipher;
-pub use stream_cipher::ErasedStreamCipher;
+pub use stream_cipher::*;
