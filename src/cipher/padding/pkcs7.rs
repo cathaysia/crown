@@ -23,7 +23,7 @@ impl Pkcs7 {
 }
 
 impl Padding for Pkcs7 {
-    fn pad(block: &mut [u8], pos: usize) {
+    fn pad(&self, block: &mut [u8], pos: usize) {
         if block.len() > 255 {
             panic!("block size is too big for PKCS#7");
         }
@@ -36,7 +36,7 @@ impl Padding for Pkcs7 {
         }
     }
 
-    fn unpad(block: &[u8]) -> CryptoResult<&[u8]> {
+    fn unpad<'a>(&self, block: &'a [u8]) -> CryptoResult<&'a [u8]> {
         Pkcs7::unpad(block, true)
     }
 }
@@ -49,7 +49,7 @@ mod tests {
     fn test_pkcs7() {
         // https://node-security.com/posts/cryptography-pkcs-7-padding
         let mut block = [0x58, 0xb3, 0xa9, 0x0, 0x0, 0x0, 0x0, 0x0];
-        Pkcs7::pad(&mut block, 3);
+        Pkcs7.pad(&mut block, 3);
         assert_eq!(&block, &[0x58, 0xb3, 0xa9, 0x05, 0x05, 0x05, 0x05, 0x05]);
         let unpad = Pkcs7::unpad(&block, true).unwrap();
         assert_eq!(unpad, &[0x58, 0xb3, 0xa9]);

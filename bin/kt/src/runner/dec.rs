@@ -116,7 +116,7 @@ pub fn run_dec(args: ArgsDec) -> anyhow::Result<()> {
             }
         };
         ($b:expr, $p:ident) => {
-            ErasedBlockPadding::new($b.to_padding_crypt::<$p>())
+            ErasedBlockPadding::new($b.to_padding_crypt($p))
         };
     }
 

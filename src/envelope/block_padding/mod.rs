@@ -1,60 +1,29 @@
-mod pkcs7;
-pub use pkcs7::Pkcs7;
-
-mod block_padding;
-pub use block_padding::*;
-
-#[cfg(feature = "alloc")]
-mod erased;
-#[cfg(feature = "alloc")]
-pub use erased::ErasedBlockPadding;
+mod block_mode;
+use block_mode::ErasedBlockMode;
 
 use crate::{
-    cipher::BlockMode,
+    cipher::{padding::Padding, BlockMode},
     error::{CryptoError, CryptoResult},
 };
 
-pub trait Padding {
-    /// pad a block
-    fn pad(&self, block: &mut [u8], pos: usize);
-    /// unpad a block
-    fn unpad<'a>(&self, block: &'a [u8]) -> CryptoResult<&'a [u8]>;
+pub struct BlockPadding {
+    cipher: ErasedBlockMode,
+    padding: Box<dyn Padding>,
 }
 
-pub trait ToPaddingCrypt<C> {
-    fn to_padding_crypt<P: Padding>(self, padding: P) -> BlockPadding<C, P>;
-}
-
-impl<C> ToPaddingCrypt<C> for C
-where
-    C: BlockMode,
-{
-    fn to_padding_crypt<P>(self, padding: P) -> BlockPadding<C, P>
-    where
-        P: Padding,
-    {
+impl BlockPadding {
+    pub fn new(cipher: impl BlockMode + 'static, padding: Box<dyn Padding>) -> Self {
         BlockPadding {
-            cipher: self,
+            cipher: ErasedBlockMode::new(cipher),
             padding,
         }
     }
-}
 
-pub struct BlockPadding<C, P> {
-    cipher: C,
-    padding: P,
-}
-
-impl<C, P> BlockPadding<C, P>
-where
-    C: BlockMode,
-    P: Padding,
-{
-    pub fn new(cipher: C, padding: P) -> Self {
-        BlockPadding { cipher, padding }
+    pub fn set_padding(&mut self, padding: Box<dyn Padding>) {
+        self.padding = padding;
     }
 
-    pub fn block_size(&self) -> usize {
+    fn block_size(&self) -> usize {
         self.cipher.block_size()
     }
 

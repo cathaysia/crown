@@ -116,7 +116,7 @@ pub fn run_enc(args: ArgsEnc) -> anyhow::Result<()> {
             }
         };
         ($b:expr, $p:ident) => {
-            ErasedBlockPadding::new($b.to_padding_crypt::<$p>())
+            ErasedBlockPadding::new($b.to_padding_crypt($p))
         };
     }
 

@@ -107,7 +107,7 @@ fn boring_des_cbc_interop() {
             let mut kt_enc = crate::des::Des::new(&key)
                 .unwrap()
                 .to_cbc_enc(&iv)
-                .to_padding_crypt::<Pkcs7>();
+                .to_padding_crypt(Pkcs7);
 
             let mut dst = block.clone();
 
@@ -130,7 +130,7 @@ fn boring_des_cbc_interop() {
             let mut kt_dec = crate::des::Des::new(&key)
                 .unwrap()
                 .to_cbc_dec(&[0u8; Des::BLOCK_SIZE])
-                .to_padding_crypt::<Pkcs7>();
+                .to_padding_crypt(Pkcs7);
 
             let mut dst = encrypted.clone();
             kt_dec.decrypt_alloc(&mut dst).unwrap();
