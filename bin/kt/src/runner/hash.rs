@@ -1,4 +1,5 @@
 use crate::args::ArgsHash;
+use crate::utils::read_file;
 use kittycrypto::{
     core::CoreWrite,
     envelope::{HashAlgorithm, MessageDigest},
@@ -71,7 +72,8 @@ pub(crate) fn calc_and_output_hash(
                 .enumerate()
                 .par_bridge()
                 .for_each(|(i, path)| {
-                    let content = std::fs::read(&path).unwrap();
+                    let c = read_file(&path).unwrap();
+                    let content = c.as_ref();
                     let mut hasher = create_hash_from_str(algorithm, use_hmac, key, length)
                         .unwrap_or_else(|| panic!("unknown hash algorithm: {algorithm}"));
 

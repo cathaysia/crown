@@ -850,6 +850,7 @@ dependencies = [
  "clap",
  "hex",
  "kittycrypto",
+ "libc",
  "paste",
  "rayon",
  "strum",

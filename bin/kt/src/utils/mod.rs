@@ -1,3 +1,7 @@
+mod read_file;
+
+pub use read_file::read_file;
+
 pub fn init_logger() {
     use tracing_subscriber::{fmt, prelude::*, util::SubscriberInitExt, EnvFilter};
 
