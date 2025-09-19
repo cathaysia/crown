@@ -65,13 +65,13 @@ impl core::str::FromStr for HashAlgorithm {
     }
 }
 
-trait ErasedHashInner: CoreWrite + CoreRead + HashUser {
+trait EvpHashInner: CoreWrite + CoreRead + HashUser {
     fn sum(&mut self) -> Vec<u8>;
 }
 
-pub struct EvpMd(Box<dyn ErasedHashInner>);
+pub struct EvpHash(Box<dyn EvpHashInner>);
 
-impl EvpMd {
+impl EvpHash {
     fn new_impl<T, const N: usize>(h: T) -> Self
     where
         T: Hash<N> + 'static,
@@ -138,7 +138,7 @@ impl EvpMd {
             }
         }
 
-        impl<T, const N: usize> ErasedHashInner for Wrapper<T, N>
+        impl<T, const N: usize> EvpHashInner for Wrapper<T, N>
         where
             T: Hash<N>,
         {
@@ -199,7 +199,7 @@ impl EvpMd {
             }
         }
 
-        impl<T> ErasedHashInner for VariantWrapper<T>
+        impl<T> EvpHashInner for VariantWrapper<T>
         where
             T: CoreWrite + CoreRead + HashUser,
         {
@@ -277,13 +277,13 @@ impl EvpMd {
     }
 }
 
-impl CoreRead for EvpMd {
+impl CoreRead for EvpHash {
     fn read(&mut self, buf: &mut [u8]) -> CryptoResult<usize> {
         self.0.read(buf)
     }
 }
 
-impl CoreWrite for EvpMd {
+impl CoreWrite for EvpHash {
     fn write(&mut self, buf: &[u8]) -> CryptoResult<usize> {
         self.0.write(buf)
     }
@@ -293,7 +293,7 @@ impl CoreWrite for EvpMd {
     }
 }
 
-impl HashUser for EvpMd {
+impl HashUser for EvpHash {
     fn reset(&mut self) {
         self.0.reset()
     }

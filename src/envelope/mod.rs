@@ -1,5 +1,5 @@
-mod message_digest;
-pub use message_digest::*;
+mod hash;
+pub use hash::*;
 
 mod aead;
 pub use aead::*;
