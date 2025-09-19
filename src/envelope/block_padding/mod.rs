@@ -57,7 +57,7 @@ macro_rules! impl_newer {
 impl EvpBlockCipher {
     impl_newer!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea,);
 
-    pub(crate) fn new_impl<D: BlockCipher>(
+    fn new_impl<D: BlockCipher>(
         enc: impl CbcEncAble<D> + 'static,
         dec: impl CbcDecAble<D> + 'static,
         iv: &[u8],
