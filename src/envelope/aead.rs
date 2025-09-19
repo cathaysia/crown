@@ -4,6 +4,9 @@ use crate::cast5::Cast5;
 use crate::cipher::gcm::GcmAble;
 use crate::des::Des;
 use crate::des::TripleDes;
+use crate::rc2::Rc2;
+use crate::rc5::Rc5;
+use crate::rc6::Rc6;
 use crate::tea::Tea;
 use crate::twofish::Twofish;
 use crate::xtea::Xtea;
@@ -29,55 +32,54 @@ trait ErasedAeadInner {
     ) -> CryptoResult<Vec<u8>>;
 }
 
-macro_rules! aead_cipher {
-        ($($name:ident,)*) => {
-            paste::paste! {
-                pub enum AeadAlgorithm {
-                    Chacha20Poly1305,
-                    XChacha20Poly1305,
-                    $(
-                        [<$name Gcm>],
-                    )*
-                    Rc2Gcm,
-                    Rc5Gcm,
-                    Rc6Gcm,
-                }
-
-            }
-        };
-
-    }
-
-aead_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea,);
-
 pub struct EvpAeadCipher(Box<dyn ErasedAeadInner>);
 
-impl EvpAeadCipher {
-    pub fn new(algorithm: AeadAlgorithm, key: &[u8], rounds: Option<usize>) -> CryptoResult<Self> {
-        macro_rules! aead_cipher {
-        ($($name:ident,)*) => {
-            paste::paste! {
-                Ok(match algorithm {
-                    AeadAlgorithm::Chacha20Poly1305 =>Self::new_impl(
-                        crate::chacha20poly1305::ChaCha20Poly1305::new(&key)?,
-                    ),
-                    AeadAlgorithm::XChacha20Poly1305 =>Self::new_impl(
-                        crate::chacha20poly1305::XChaCha20Poly1305::new(&key)?,
-                    ),
-                    $(
-                        AeadAlgorithm::[<$name Gcm>] =>Self::new_impl($name::new(&key)?.to_gcm()?),
-                    )*
-                    AeadAlgorithm::Rc2Gcm =>Self::new_impl(crate::rc2::Rc2::new(&key, rounds.unwrap_or(20))?.to_gcm()?),
-                    AeadAlgorithm::Rc5Gcm =>Self::new_impl(crate::rc5::Rc5::new(&key, rounds.unwrap_or(20))?.to_gcm()?),
-                    AeadAlgorithm::Rc6Gcm =>Self::new_impl(crate::rc6::Rc6::new(&key, rounds.unwrap_or(20))?.to_gcm()?),
-                })
-
+macro_rules! impl_new_gcm {
+    ($($name:ident $(($default_rounds:expr))?),* $(,)?) => {
+        $(
+            impl_new_gcm!(@single $name $(($default_rounds))?);
+        )*
+    };
+    (@single $name:ident) => {
+        paste::paste! {
+            pub fn [<new_ $name:lower _gcm>](key: &[u8]) -> CryptoResult<Self> {
+                Ok(Self::new_impl($name::new(key)?.to_gcm()?))
             }
-        };
+        }
+    };
+    (@single $name:ident ($default_rounds:expr)) => {
+        paste::paste! {
+            pub fn [<new_ $name:lower _gcm>](key: &[u8], rounds: Option<usize>) -> CryptoResult<Self> {
+                Ok(Self::new_impl($name::new(key, rounds.unwrap_or($default_rounds))?.to_gcm()?))
+            }
+        }
+    };
+}
+impl EvpAeadCipher {
+    impl_new_gcm!(
+        Aes,
+        Blowfish,
+        Cast5,
+        Des,
+        TripleDes,
+        Tea,
+        Twofish,
+        Xtea,
+        Rc2(20),
+        Rc5(20),
+        Rc6(20),
+    );
 
+    pub fn new_chacha20_poly1305(key: &[u8]) -> CryptoResult<Self> {
+        Ok(Self::new_impl(
+            crate::chacha20poly1305::ChaCha20Poly1305::new(key)?,
+        ))
     }
 
-        aead_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea,)
+    pub fn new_xchacha20_poly1305(key: &[u8]) -> CryptoResult<Self> {
+        Ok(Self::new_impl(
+            crate::chacha20poly1305::XChaCha20Poly1305::new(key)?,
+        ))
     }
 
     fn new_impl<const N: usize>(aead: impl Aead<N> + 'static) -> Self {

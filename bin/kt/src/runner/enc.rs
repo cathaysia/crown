@@ -4,7 +4,6 @@ use kittycrypto::{
     cast5::Cast5,
     cipher::{cbc::CbcEncAble, padding::*},
     des::{Des, TripleDes},
-    envelope::AeadAlgorithm,
     envelope::EvpAeadCipher,
     envelope::EvpStreamCipher,
     rc2::Rc2,
@@ -37,28 +36,37 @@ pub fn run_enc(args: ArgsEnc) -> anyhow::Result<()> {
         None => vec![],
     };
 
-    macro_rules! aead_cipher {
+    macro_rules! aead_cipher_create {
         ($($name:ident,)*) => {
             paste::paste! {
                 match algorithm {
-                    EncAlgorithm::Chacha20Poly1305 => Some(AeadAlgorithm::Chacha20Poly1305),
-                    EncAlgorithm::XChacha20Poly1305 => Some(AeadAlgorithm::XChacha20Poly1305),
+                    EncAlgorithm::Chacha20Poly1305 => EvpAeadCipher::new_chacha20_poly1305(&key).ok(),
+                    EncAlgorithm::XChacha20Poly1305 => EvpAeadCipher::new_xchacha20_poly1305(&key).ok(),
                     $(
-                        EncAlgorithm::[<$name Gcm>] => Some(AeadAlgorithm::[<$name Gcm>]),
+                        EncAlgorithm::[<$name Gcm>] => EvpAeadCipher::[<new_ $name:lower _gcm>](&key).ok(),
                     )*
-                    EncAlgorithm::Rc2Gcm => Some(AeadAlgorithm::Rc2Gcm),
-                    EncAlgorithm::Rc5Gcm => Some(AeadAlgorithm::Rc5Gcm),
-                    EncAlgorithm::Rc6Gcm => Some(AeadAlgorithm::Rc6Gcm),
                     _ => None,
                 }
-
             }
         };
-
+        (#rc $($name:ident,)*) => {
+            paste::paste! {
+                match algorithm {
+                    $(
+                        EncAlgorithm::[<$name Gcm>] => EvpAeadCipher::[<new_ $name:lower _gcm>](&key, Some(rounds)).ok(),
+                    )*
+                    _ => None,
+                }
+            }
+        };
     }
 
-    let aead_cipher = aead_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea,)
-        .map(|v| EvpAeadCipher::new(v, &key, Some(rounds)).unwrap());
+    let mut aead_cipher =
+        aead_cipher_create!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea,);
+    if aead_cipher.is_none() {
+        aead_cipher = aead_cipher_create!(#rc Rc2, Rc5, Rc6,);
+    }
+
     if let Some(cipher) = aead_cipher {
         match tagout {
             Some(tagout) => {

@@ -13,12 +13,8 @@ fn test_vector() {
         let aad = hex::decode(aad).unwrap();
         let plaintext = hex::decode(plaintext).unwrap();
         let cipher = match nonce.len() {
-            12 => EvpAeadCipher::new(crate::envelope::AeadAlgorithm::Chacha20Poly1305, &key, None),
-            24 => EvpAeadCipher::new(
-                crate::envelope::AeadAlgorithm::XChacha20Poly1305,
-                &key,
-                None,
-            ),
+            12 => EvpAeadCipher::new_chacha20_poly1305(&key),
+            24 => EvpAeadCipher::new_xchacha20_poly1305(&key),
             _ => unreachable!(),
         }
         .unwrap();
