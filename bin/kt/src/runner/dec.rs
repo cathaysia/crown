@@ -5,9 +5,8 @@ use kittycrypto::{
     cipher::{cbc::CbcDecAble, padding::*},
     des::{Des, TripleDes},
     envelope::AeadAlgorithm,
-    envelope::AeadCipher,
+    envelope::EvpAeadCipher,
     envelope::EvpStreamCipher,
-    envelope::StreamCipherAlgorithm,
     rc2::Rc2,
     rc5::Rc5,
     rc6::Rc6,
@@ -58,7 +57,7 @@ pub fn run_dec(args: ArgsDec) -> anyhow::Result<()> {
     }
 
     let aead_cipher = aead_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea,)
-        .map(|v| AeadCipher::new(v, &key, Some(rounds)).unwrap());
+        .map(|v| EvpAeadCipher::new(v, &key, Some(rounds)).unwrap());
 
     if let Some(cipher) = aead_cipher {
         match tagin {
@@ -78,26 +77,39 @@ pub fn run_dec(args: ArgsDec) -> anyhow::Result<()> {
         ($($name:ident,)*) => {
             paste::paste! {
                 match algorithm {
-                    EncAlgorithm::Rc4 => Some(StreamCipherAlgorithm::Rc4),
-                    EncAlgorithm::Salsa20 => Some(StreamCipherAlgorithm::Salsa20),
-                    EncAlgorithm::Chacha20 => Some(StreamCipherAlgorithm::Chacha20),
+                    EncAlgorithm::Rc4 => EvpStreamCipher::new_rc4(&key).ok(),
+                    EncAlgorithm::Salsa20 =>EvpStreamCipher::new_salsa20(&key, &iv).ok(),
+                    EncAlgorithm::Chacha20 => EvpStreamCipher::new_chacha20(&key, &iv).ok(),
                     $(
-                        EncAlgorithm::[<$name Cfb>] => Some(StreamCipherAlgorithm::[<$name Cfb>]),
-                        EncAlgorithm::[<$name Ctr>] => Some(StreamCipherAlgorithm::[<$name Ctr>]),
-                        EncAlgorithm::[<$name Ofb>] => Some(StreamCipherAlgorithm::[<$name Ofb>]),
+                        EncAlgorithm::[<$name Cfb>] => EvpStreamCipher::[<new_ $name:lower _cfb>](&key, &iv).ok(),
+                        EncAlgorithm::[<$name Ctr>] => EvpStreamCipher::[<new_ $name:lower _ctr>](&key, &iv).ok(),
+                        EncAlgorithm::[<$name Ofb>] => EvpStreamCipher::[<new_ $name:lower _ofb>](&key, &iv).ok(),
                     )*
                     _ => None
                 }
 
             }
         };
+        (#rc $($name:ident,)*) => {
+            paste::paste! {
+                match algorithm {
+                    $(
+                        EncAlgorithm::[<$name Cfb>] => EvpStreamCipher::[<new_ $name:lower _cfb>](&key, &iv, rounds).ok(),
+                        EncAlgorithm::[<$name Ctr>] => EvpStreamCipher::[<new_ $name:lower _ctr>](&key, &iv, rounds).ok(),
+                        EncAlgorithm::[<$name Ofb>] => EvpStreamCipher::[<new_ $name:lower _ofb>](&key, &iv, rounds).ok(),
+                    )*
+                    _ => None,
+                }
 
+            }
+        };
     }
 
-    let stream_cipher =
-        stream_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Rc2, Rc5, Rc6,)
-            .map(|v| EvpStreamCipher::new(v, &key, &iv, Some(rounds)).unwrap());
-
+    let mut stream_cipher =
+        stream_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea,);
+    if stream_cipher.is_none() {
+        stream_cipher = stream_cipher!(#rc Rc2, Rc5, Rc6,);
+    }
     if let Some(mut cipher) = stream_cipher {
         cipher.decrypt(&mut infile)?;
         std::fs::write(out_file, infile)?;

@@ -1,16 +1,18 @@
 mod wycheproof;
 
-use kittycrypto::envelope::{AeadAlgorithm, AeadCipher};
+use kittycrypto::envelope::{AeadAlgorithm, EvpAeadCipher};
 use wycheproof::aead::*;
 
 #[test]
 fn test_aead() {
-    let builder = |alg: &str, key: &[u8]| -> Option<AeadCipher> {
+    let builder = |alg: &str, key: &[u8]| -> Option<EvpAeadCipher> {
         Some(
             match alg {
-                "CHACHA20-POLY1305" => AeadCipher::new(AeadAlgorithm::Chacha20Poly1305, key, None),
+                "CHACHA20-POLY1305" => {
+                    EvpAeadCipher::new(AeadAlgorithm::Chacha20Poly1305, key, None)
+                }
                 "XCHACHA20-POLY1305" => {
-                    AeadCipher::new(AeadAlgorithm::XChacha20Poly1305, key, None)
+                    EvpAeadCipher::new(AeadAlgorithm::XChacha20Poly1305, key, None)
                 }
                 _ => return None,
             }

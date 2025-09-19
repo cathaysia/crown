@@ -2,7 +2,7 @@ use crate::args::ArgsHash;
 use crate::utils::read_file;
 use kittycrypto::{
     core::CoreWrite,
-    envelope::{HashAlgorithm, MessageDigest},
+    envelope::{EvpMd, HashAlgorithm},
 };
 use rayon::prelude::*;
 use std::{collections::BTreeMap, str::FromStr};
@@ -47,14 +47,14 @@ pub fn create_hash_from_str(
     use_hmac: bool,
     key: Option<&[u8]>,
     length: Option<usize>,
-) -> Option<MessageDigest> {
+) -> Option<EvpMd> {
     if use_hmac && key.is_none() {
         panic!("HMAC key is required for HMAC");
     }
 
     let alg =
         HashAlgorithm::from_str(hash).unwrap_or_else(|_| panic!("Unknown hash algorithm: {hash}"));
-    MessageDigest::new(alg, key, length).ok()
+    EvpMd::new(alg, key, length).ok()
 }
 
 pub(crate) fn calc_and_output_hash(
@@ -77,7 +77,7 @@ pub(crate) fn calc_and_output_hash(
                     let mut hasher = create_hash_from_str(algorithm, use_hmac, key, length)
                         .unwrap_or_else(|| panic!("unknown hash algorithm: {algorithm}"));
 
-                    hasher.write_all(&content).unwrap();
+                    hasher.write_all(content).unwrap();
                     let sum = hasher.sum();
                     tx.send((i, path, hex::encode(sum))).unwrap();
                 });

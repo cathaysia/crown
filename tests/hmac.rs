@@ -1,6 +1,6 @@
 use kittycrypto::{
     core::CoreWrite,
-    envelope::{HashAlgorithm, MessageDigest},
+    envelope::{EvpMd, HashAlgorithm},
     hash::HashUser,
     hmac,
 };
@@ -11,7 +11,7 @@ mod wycheproof;
 
 #[test]
 fn test_wycheproof_hmac_test() {
-    let builder = |alg: &str, key: &[u8]| -> Option<MessageDigest> {
+    let builder = |alg: &str, key: &[u8]| -> Option<EvpMd> {
         let alg = match alg {
             "SHA224" => HashAlgorithm::Sha224,
             "SHA256" => HashAlgorithm::Sha256,
@@ -24,7 +24,7 @@ fn test_wycheproof_hmac_test() {
             _ => return None,
         };
 
-        MessageDigest::new(alg, Some(key), None).ok()
+        EvpMd::new(alg, Some(key), None).ok()
     };
 
     for file in wycheproof::mac::HMAC_TESTS {

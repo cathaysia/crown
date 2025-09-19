@@ -50,9 +50,9 @@ macro_rules! aead_cipher {
 
 aead_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea,);
 
-pub struct AeadCipher(Box<dyn ErasedAeadInner>);
+pub struct EvpAeadCipher(Box<dyn ErasedAeadInner>);
 
-impl AeadCipher {
+impl EvpAeadCipher {
     pub fn new(algorithm: AeadAlgorithm, key: &[u8], rounds: Option<usize>) -> CryptoResult<Self> {
         macro_rules! aead_cipher {
         ($($name:ident,)*) => {

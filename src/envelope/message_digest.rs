@@ -69,9 +69,9 @@ trait ErasedHashInner: CoreWrite + CoreRead + HashUser {
     fn sum(&mut self) -> Vec<u8>;
 }
 
-pub struct MessageDigest(Box<dyn ErasedHashInner>);
+pub struct EvpMd(Box<dyn ErasedHashInner>);
 
-impl MessageDigest {
+impl EvpMd {
     fn new_impl<T, const N: usize>(h: T) -> Self
     where
         T: Hash<N> + 'static,
@@ -277,13 +277,13 @@ impl MessageDigest {
     }
 }
 
-impl CoreRead for MessageDigest {
+impl CoreRead for EvpMd {
     fn read(&mut self, buf: &mut [u8]) -> CryptoResult<usize> {
         self.0.read(buf)
     }
 }
 
-impl CoreWrite for MessageDigest {
+impl CoreWrite for EvpMd {
     fn write(&mut self, buf: &[u8]) -> CryptoResult<usize> {
         self.0.write(buf)
     }
@@ -293,7 +293,7 @@ impl CoreWrite for MessageDigest {
     }
 }
 
-impl HashUser for MessageDigest {
+impl HashUser for EvpMd {
     fn reset(&mut self) {
         self.0.reset()
     }
