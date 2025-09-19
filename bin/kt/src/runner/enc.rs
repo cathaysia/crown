@@ -102,9 +102,9 @@ pub fn run_enc(args: ArgsEnc) -> anyhow::Result<()> {
             paste::paste! {
                 match algorithm {
                     $(
-                        EncAlgorithm::[<$name Cfb>] => EvpStreamCipher::[<new_ $name:lower _cfb>](&key, &iv, rounds).ok(),
-                        EncAlgorithm::[<$name Ctr>] => EvpStreamCipher::[<new_ $name:lower _ctr>](&key, &iv, rounds).ok(),
-                        EncAlgorithm::[<$name Ofb>] => EvpStreamCipher::[<new_ $name:lower _ofb>](&key, &iv, rounds).ok(),
+                        EncAlgorithm::[<$name Cfb>] => EvpStreamCipher::[<new_ $name:lower _cfb>](&key, &iv, Some(rounds)).ok(),
+                        EncAlgorithm::[<$name Ctr>] => EvpStreamCipher::[<new_ $name:lower _ctr>](&key, &iv, Some(rounds)).ok(),
+                        EncAlgorithm::[<$name Ofb>] => EvpStreamCipher::[<new_ $name:lower _ofb>](&key, &iv, Some(rounds)).ok(),
                     )*
                     _ => None,
                 }

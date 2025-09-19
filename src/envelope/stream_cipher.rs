@@ -47,16 +47,16 @@ macro_rules! impl_stream_cipher {
         )*
         $(
             paste::paste! {
-                pub fn [<new_ $rc:lower _cfb>](key: &[u8], iv: &[u8], rounds: usize) -> CryptoResult<Self> {
-                    Self::new_cfb_mode($rc::new(key, rounds)?, $rc::new(key, rounds)?, iv)
+                pub fn [<new_ $rc:lower _cfb>](key: &[u8], iv: &[u8], rounds: Option<usize>) -> CryptoResult<Self> {
+                    Self::new_cfb_mode($rc::new(key, rounds.unwrap_or(20))?, $rc::new(key, rounds.unwrap_or(20))?, iv)
                 }
 
-                pub fn [<new_ $rc:lower _ctr>](key: &[u8], iv: &[u8], rounds: usize) -> CryptoResult<Self> {
-                    Self::new_impl($rc::new(key, rounds)?.to_ctr(iv)?)
+                pub fn [<new_ $rc:lower _ctr>](key: &[u8], iv: &[u8], rounds: Option<usize>) -> CryptoResult<Self> {
+                    Self::new_impl($rc::new(key, rounds.unwrap_or(20))?.to_ctr(iv)?)
                 }
 
-                pub fn [<new_ $rc:lower _ofb>](key: &[u8], iv: &[u8], rounds: usize) -> CryptoResult<Self> {
-                    Self::new_impl($rc::new(key, rounds)?.to_ofb(iv)?)
+                pub fn [<new_ $rc:lower _ofb>](key: &[u8], iv: &[u8], rounds: Option<usize>) -> CryptoResult<Self> {
+                    Self::new_impl($rc::new(key, rounds.unwrap_or(20))?.to_ofb(iv)?)
                 }
             }
         )*
