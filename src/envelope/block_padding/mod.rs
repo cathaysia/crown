@@ -1,20 +1,70 @@
 mod block_mode;
+
+#[cfg(test)]
+mod tests;
+
+use crate::cipher::cbc::{CbcDecAble, CbcEncAble};
+use crate::cipher::BlockCipher;
+use crate::{
+    aes::Aes,
+    blowfish::Blowfish,
+    cast5::Cast5,
+    cipher::padding::Pkcs7,
+    des::{Des, TripleDes},
+    rc2::Rc2,
+    rc5::Rc5,
+    rc6::Rc6,
+    tea::Tea,
+    twofish::Twofish,
+    xtea::Xtea,
+};
 use block_mode::ErasedBlockMode;
 
 use crate::{
-    cipher::{padding::Padding, BlockMode},
+    cipher::padding::Padding,
     error::{CryptoError, CryptoResult},
 };
 
-pub struct BlockPadding {
+pub struct EvpBlockCipher {
     cipher: ErasedBlockMode,
     padding: Box<dyn Padding>,
 }
 
-impl BlockPadding {
-    pub fn new(cipher: impl BlockMode + 'static, padding: Box<dyn Padding>) -> Self {
-        BlockPadding {
-            cipher: ErasedBlockMode::new(cipher),
+macro_rules! impl_newer {
+    ($($name:ident,)*) => {
+        paste::paste! {
+            $(
+                pub fn [<new_ $name:lower _cbc>](key: &[u8], iv: &[u8]) -> CryptoResult<Self> {
+                    Ok(Self::new_impl($name::new(key)?, $name::new(key)?, iv, Box::new(Pkcs7)))
+                }
+            )*
+
+            pub fn new_rc2_cbc(key: &[u8], iv: &[u8], rounds: usize)->CryptoResult<Self> {
+                Ok(Self::new_impl(Rc2::new(key, rounds)?, Rc2::new(key, rounds)?, iv, Box::new(Pkcs7)))
+            }
+
+            pub fn new_rc5_cbc(key: &[u8], iv: &[u8], rounds: usize)->CryptoResult<Self> {
+                Ok(Self::new_impl(Rc5::new(key, rounds)?, Rc5::new(key, rounds)?, iv, Box::new(Pkcs7)))
+            }
+
+            pub fn new_rc6_cbc(key: &[u8], iv: &[u8], rounds: usize)->CryptoResult<Self> {
+                Ok(Self::new_impl(Rc6::new(key, rounds)?, Rc6::new(key, rounds)?, iv, Box::new(Pkcs7)))
+            }
+        }
+    };
+}
+
+impl EvpBlockCipher {
+    impl_newer!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea,);
+
+    pub(crate) fn new_impl<D: BlockCipher>(
+        enc: impl CbcEncAble<D> + 'static,
+        dec: impl CbcDecAble<D> + 'static,
+        iv: &[u8],
+        padding: Box<dyn Padding>,
+    ) -> Self {
+        EvpBlockCipher {
+            cipher: ErasedBlockMode::new_cbc(enc, dec, iv),
             padding,
         }
     }
@@ -48,7 +98,7 @@ impl BlockPadding {
             return Err(CryptoError::InvalidLength);
         }
         self.padding.pad(&mut inout[start..end], pos - start);
-        self.cipher.crypt_blocks(&mut inout[..end]);
+        self.cipher.encrypt(&mut inout[..end]);
 
         Ok(end)
     }
@@ -68,7 +118,7 @@ impl BlockPadding {
             return Err(CryptoError::InvalidLength);
         }
 
-        self.cipher.crypt_blocks(inout);
+        self.cipher.decrypt(inout);
         let start = inout.len() - self.block_size();
         let end = inout.len();
 

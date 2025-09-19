@@ -1,36 +1,57 @@
-use crate::cipher::BlockMode;
+use crate::cipher::cbc::{CbcDecAble, CbcEncAble};
+use crate::cipher::{BlockCipher, BlockMode};
 
 trait ErasedBlockModeInner {
     fn block_size(&self) -> usize;
-    fn crypt_blocks(&mut self, inout: &mut [u8]);
+    fn encrypt(&mut self, inout: &mut [u8]);
+    fn decrypt(&mut self, inout: &mut [u8]);
 }
 
 pub struct ErasedBlockMode(Box<dyn ErasedBlockModeInner>);
 
 impl ErasedBlockMode {
-    pub fn new(block_mode: impl BlockMode + 'static) -> Self {
-        struct Wrapper<T>(T);
+    pub fn new_cbc<D: BlockCipher>(
+        enc: impl CbcEncAble<D> + 'static,
+        dec: impl CbcDecAble<D> + 'static,
+        iv: &[u8],
+    ) -> Self {
+        let enc = Box::new(enc.to_cbc_enc(iv));
+        let dec = Box::new(dec.to_cbc_dec(iv));
 
-        impl<T> ErasedBlockModeInner for Wrapper<T>
+        pub struct Wrapper<T, U> {
+            enc: Box<T>,
+            dec: Box<U>,
+        }
+
+        impl<T, U> ErasedBlockModeInner for Wrapper<U, T>
         where
             T: BlockMode + 'static,
+            U: BlockMode + 'static,
         {
             fn block_size(&self) -> usize {
-                self.0.block_size()
+                self.enc.block_size()
             }
 
-            fn crypt_blocks(&mut self, inout: &mut [u8]) {
-                self.0.crypt_blocks(inout)
+            fn encrypt(&mut self, inout: &mut [u8]) {
+                self.enc.crypt_blocks(inout)
+            }
+
+            fn decrypt(&mut self, inout: &mut [u8]) {
+                self.dec.crypt_blocks(inout)
             }
         }
-        Self(Box::new(Wrapper(block_mode)))
+        Self(Box::new(Wrapper { enc, dec }))
     }
 
     pub fn block_size(&self) -> usize {
         self.0.block_size()
     }
 
-    pub fn crypt_blocks(&mut self, inout: &mut [u8]) {
-        self.0.crypt_blocks(inout)
+    pub fn encrypt(&mut self, inout: &mut [u8]) {
+        self.0.encrypt(inout)
+    }
+
+    pub fn decrypt(&mut self, inout: &mut [u8]) {
+        self.0.decrypt(inout)
     }
 }
