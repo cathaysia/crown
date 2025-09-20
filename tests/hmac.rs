@@ -1,9 +1,4 @@
-use kittycrypto::{
-    core::CoreWrite,
-    envelope::{EvpHash, HashAlgorithm},
-    hash::HashUser,
-    hmac,
-};
+use kittycrypto::{core::CoreWrite, envelope::EvpHash, hash::HashUser, hmac};
 
 use crate::wycheproof::mac::{MacTestFile, MacTestGroup, MacTestVector};
 
@@ -12,19 +7,18 @@ mod wycheproof;
 #[test]
 fn test_wycheproof_hmac_test() {
     let builder = |alg: &str, key: &[u8]| -> Option<EvpHash> {
-        let alg = match alg {
-            "SHA224" => HashAlgorithm::Sha224,
-            "SHA256" => HashAlgorithm::Sha256,
-            "SHA384" => HashAlgorithm::Sha384,
-            "SHA3-224" => HashAlgorithm::Sha3_224,
-            "SHA3-256" => HashAlgorithm::Sha3_256,
-            "SHA3-384" => HashAlgorithm::Sha3_384,
-            "SHA3-512" => HashAlgorithm::Sha3_512,
-            "SHA512" => HashAlgorithm::Sha512,
+        match alg {
+            "SHA224" => EvpHash::new_sha224_hmac(key),
+            "SHA256" => EvpHash::new_sha256_hmac(key),
+            "SHA384" => EvpHash::new_sha384_hmac(key),
+            "SHA3-224" => EvpHash::new_sha3_224_hmac(key),
+            "SHA3-256" => EvpHash::new_sha3_256_hmac(key),
+            "SHA3-384" => EvpHash::new_sha3_384_hmac(key),
+            "SHA3-512" => EvpHash::new_sha3_512_hmac(key),
+            "SHA512" => EvpHash::new_sha512_hmac(key),
             _ => return None,
-        };
-
-        EvpHash::new(alg, Some(key), None).ok()
+        }
+        .ok()
     };
 
     for file in wycheproof::mac::HMAC_TESTS {
