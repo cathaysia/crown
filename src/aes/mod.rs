@@ -11,6 +11,9 @@ use noasm::*;
 
 pub mod gcm;
 
+#[cfg(target_arch = "x86_64")]
+mod x86_64;
+
 #[cfg(test)]
 mod tests;
 

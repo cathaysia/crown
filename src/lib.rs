@@ -108,5 +108,7 @@ pub mod error;
 
 pub mod utils;
 
+mod simd;
+
 #[cfg(feature = "std")]
 pub use utils::rand;
