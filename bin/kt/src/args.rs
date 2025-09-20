@@ -180,6 +180,7 @@ pub struct Md5 {
 #[derive(Debug, Default, Clone, Copy, ValueEnum, strum_macros::EnumString)]
 #[clap(rename_all = "kebab-case")]
 pub enum HashAlgorithm {
+    Md2,
     Md4,
     #[default]
     Md5,
@@ -229,6 +230,7 @@ impl HashAlgorithm {
 impl Display for HashAlgorithm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let v = match self {
+            Self::Md2 => "md2",
             Self::Md4 => "md4",
             Self::Md5 => "md5",
             Self::Sha1 => "sha1",

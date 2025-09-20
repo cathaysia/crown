@@ -73,6 +73,7 @@ pub fn create_hasher(
     create_hasher_match!(
         hash, use_hmac, key, length,
         normal: [
+            (Md2, new_md2),
             (Md4, new_md4),
             (Md5, new_md5),
             (Sha1, new_sha1),

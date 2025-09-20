@@ -71,6 +71,7 @@ pub mod hash;
 #[cfg(feature = "std")]
 pub mod hkdf;
 pub mod hmac;
+pub mod md2;
 pub mod md4;
 pub mod md5;
 #[cfg(feature = "alloc")]

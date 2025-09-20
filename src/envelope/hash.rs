@@ -184,6 +184,7 @@ impl EvpHash {
 
     impl_hash_methods!(
         normal: [
+            md2, crate::md2::new_md2,
             md4, crate::md4::new_md4,
             md5, crate::md5::new_md5,
             sha1, crate::sha1::new,
