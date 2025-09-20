@@ -1,11 +1,35 @@
-use crate::args::ArgsHash;
+use crate::args::{ArgsHash, HashAlgorithm};
 use crate::utils::read_file;
-use kittycrypto::{
-    core::CoreWrite,
-    envelope::{EvpHash, HashAlgorithm},
-};
+use kittycrypto::{core::CoreWrite, envelope::EvpHash};
 use rayon::prelude::*;
-use std::{collections::BTreeMap, str::FromStr};
+use std::collections::BTreeMap;
+
+macro_rules! create_hasher_match {
+    (
+        $hash:expr, $use_hmac:expr, $key:expr, $length:expr,
+        normal: [$(($variant:ident, $method:ident)),* $(,)?],
+        blake_fixed: [$(($blake_variant:ident, $blake_method:ident, $size:expr)),* $(,)?],
+        blake_variable: [$(($var_variant:ident, $var_method:ident, $default_len:expr)),* $(,)?] $(,)?
+    ) => {
+        match $hash {
+            $(
+                HashAlgorithm::$variant => {
+                    if $use_hmac {
+                        paste::paste! { EvpHash::[<$method _hmac>]($key.unwrap()) }
+                    } else {
+                        EvpHash::$method()
+                    }
+                }
+            )*
+            $(
+                HashAlgorithm::$blake_variant => EvpHash::$blake_method($key, $size),
+            )*
+            $(
+                HashAlgorithm::$var_variant => EvpHash::$var_method($key, $length.unwrap_or($default_len)),
+            )*
+        }
+    };
+}
 
 pub fn run_hash(args_hash: ArgsHash) -> anyhow::Result<()> {
     let ArgsHash {
@@ -31,19 +55,13 @@ pub fn run_hash(args_hash: ArgsHash) -> anyhow::Result<()> {
         panic!("use HMAC but not provided a key.")
     }
 
-    calc_and_output_hash(
-        &algorithm.to_string(),
-        files,
-        hmac,
-        key.as_deref(),
-        Some(length),
-    );
+    calc_and_output_hash(algorithm, files, hmac, key.as_deref(), Some(length));
 
     Ok(())
 }
 
-pub fn create_hash_from_str(
-    hash: &str,
+pub fn create_hasher(
+    hash: HashAlgorithm,
     use_hmac: bool,
     key: Option<&[u8]>,
     length: Option<usize>,
@@ -52,13 +70,42 @@ pub fn create_hash_from_str(
         panic!("HMAC key is required for HMAC");
     }
 
-    let alg =
-        HashAlgorithm::from_str(hash).unwrap_or_else(|_| panic!("Unknown hash algorithm: {hash}"));
-    EvpHash::new(alg, key, length).ok()
+    create_hasher_match!(
+        hash, use_hmac, key, length,
+        normal: [
+            (Md4, new_md4),
+            (Md5, new_md5),
+            (Sha1, new_sha1),
+            (Sha224, new_sha224),
+            (Sha256, new_sha256),
+            (Sha384, new_sha384),
+            (Sha512, new_sha512),
+            (Sha512224, new_sha512_224),
+            (Sha512256, new_sha512_256),
+            (Sha3224, new_sha3_224),
+            (Sha3256, new_sha3_256),
+            (Sha3384, new_sha3_384),
+            (Sha3512, new_sha3_512),
+            (Shake128, new_shake128),
+            (Shake256, new_shake256),
+        ],
+        blake_fixed: [
+            (Blake2b256, new_blake2b, 32),
+            (Blake2b384, new_blake2b, 48),
+            (Blake2b512, new_blake2b, 64),
+            (Blake2s128, new_blake2s, 16),
+            (Blake2s256, new_blake2s, 32),
+        ],
+        blake_variable: [
+            (Blake2b, new_blake2b, 64),
+            (Blake2s, new_blake2s, 32),
+        ],
+    )
+    .ok()
 }
 
 pub(crate) fn calc_and_output_hash(
-    algorithm: &str,
+    algorithm: HashAlgorithm,
     files: Vec<String>,
     use_hmac: bool,
     key: Option<&[u8]>,
@@ -74,7 +121,7 @@ pub(crate) fn calc_and_output_hash(
                 .for_each(|(i, path)| {
                     let c = read_file(&path).unwrap();
                     let content = c.as_ref();
-                    let mut hasher = create_hash_from_str(algorithm, use_hmac, key, length)
+                    let mut hasher = create_hasher(algorithm, use_hmac, key, length)
                         .unwrap_or_else(|| panic!("unknown hash algorithm: {algorithm}"));
 
                     hasher.write_all(content).unwrap();

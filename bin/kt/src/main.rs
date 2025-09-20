@@ -43,7 +43,7 @@ fn main() -> anyhow::Result<()> {
 fn main_mock(prog: &str) -> anyhow::Result<()> {
     debug!("mock as {prog}");
     let arg = args::Md5::parse();
-    calc_and_output_hash(prog, arg.files, false, None, None);
+    calc_and_output_hash(prog.parse()?, arg.files, false, None, None);
 
     Ok(())
 }

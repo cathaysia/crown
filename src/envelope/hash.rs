@@ -1,5 +1,5 @@
 use crate::core::{CoreRead, CoreWrite};
-use crate::error::{CryptoError, CryptoResult};
+use crate::error::CryptoResult;
 use crate::hash::Hash;
 use crate::hash::HashUser;
 use crate::hmac::HMAC;
@@ -7,62 +7,30 @@ use crate::hmac::HMAC;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HashAlgorithm {
-    Md4,
-    Md5,
-    Sha1,
-    Sha224,
-    Sha256,
-    Sha384,
-    Sha512,
-    Sha512_224,
-    Sha512_256,
-    Sha3_224,
-    Sha3_256,
-    Sha3_384,
-    Sha3_512,
-    Blake2b256,
-    Blake2b384,
-    Blake2b512,
-    Blake2s128,
-    Blake2s256,
-    Blake2s,
-    Blake2b,
-    Shake128,
-    Shake256,
-}
+macro_rules! impl_hash_methods {
+    (
+        normal: [$($normal:ident, $hash_fn:expr),* $(,)?],
+        variant: [$($variant:ident, $variant_fn:expr),* $(,)?] $(,)?
+    ) => {
+        $(
+            paste::paste! {
+                pub fn [<new_ $normal:lower>]() -> CryptoResult<Self> {
+                    Ok(Self::new_impl($hash_fn()))
+                }
 
-impl core::str::FromStr for HashAlgorithm {
-    type Err = CryptoError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "md4" | "md4sum" => Ok(Self::Md4),
-            "md5" | "md5sum" => Ok(Self::Md5),
-            "sha1" => Ok(Self::Sha1),
-            "sha224" => Ok(Self::Sha224),
-            "sha256" => Ok(Self::Sha256),
-            "sha384" => Ok(Self::Sha384),
-            "sha512" => Ok(Self::Sha512),
-            "sha512-224" => Ok(Self::Sha512_224),
-            "sha512-256" => Ok(Self::Sha512_256),
-            "sha3-224" => Ok(Self::Sha3_224),
-            "sha3-256" => Ok(Self::Sha3_256),
-            "sha3-384" => Ok(Self::Sha3_384),
-            "sha3-512" => Ok(Self::Sha3_512),
-            "blake2b256" => Ok(Self::Blake2b256),
-            "blake2b384" => Ok(Self::Blake2b384),
-            "blake2b512" => Ok(Self::Blake2b512),
-            "blake2s128" => Ok(Self::Blake2s128),
-            "blake2s256" => Ok(Self::Blake2s256),
-            "blake2s" => Ok(Self::Blake2s),
-            "blake2b" => Ok(Self::Blake2b),
-            "shake128" => Ok(Self::Shake128),
-            "shake256" => Ok(Self::Shake256),
-            _ => Err(CryptoError::InvalidHasher),
-        }
-    }
+                pub fn [<new_ $normal:lower _hmac>](key: &[u8]) -> CryptoResult<Self> {
+                    Ok(Self::new_impl(HMAC::new($hash_fn, key)))
+                }
+            }
+        )*
+        $(
+            paste::paste! {
+                pub fn [<new_ $variant:lower>](key: Option<&[u8]>, key_len: usize) -> CryptoResult<Self> {
+                    Ok(Self::new_impl_variant($variant_fn(key, key_len)?))
+                }
+            }
+        )*
+    };
 }
 
 trait EvpHashInner: CoreWrite + CoreRead + HashUser {
@@ -214,63 +182,29 @@ impl EvpHash {
         Self(Box::new(VariantWrapper(h)))
     }
 
-    pub fn new(
-        algorithm: HashAlgorithm,
-        key: Option<&[u8]>,
-        key_len: Option<usize>,
-    ) -> CryptoResult<Self> {
-        macro_rules! hash_match {
-            (
-                $(($variant:ident, $hash_fn:expr, $type:ident)),* $(,)?
-            ) => {
-                match algorithm {
-                    $(
-                        HashAlgorithm::$variant => {
-                            hash_match!(@create $hash_fn, $type, key)
-                        }
-                    )*
-                }
-            };
-            (@create $hash_fn:expr, normal, $key:expr) => {
-                if let Some(key) = $key {
-                    Self::new_impl(HMAC::new($hash_fn, key))
-                } else {
-                    Self::new_impl($hash_fn())
-                }
-            };
-            (@create $hash_fn:expr, blake, $key:expr) => {
-                Self::new_impl($hash_fn($key)?)
-            };
-            (@create $hash_fn:expr, variant, $key:expr) => {
-                Self::new_impl_variant($hash_fn(key, key_len.expect("XOF hash algorithm needs key_len"))?)
-            };
-        }
-
-        Ok(hash_match!(
-            (Md4, crate::md4::new_md4, normal),
-            (Md5, crate::md5::new_md5, normal),
-            (Sha1, crate::sha1::new, normal),
-            (Sha224, crate::sha256::new224, normal),
-            (Sha256, crate::sha256::new256, normal),
-            (Sha384, crate::sha512::new384, normal),
-            (Sha512, crate::sha512::new512, normal),
-            (Sha512_224, crate::sha512::new512_224, normal),
-            (Sha512_256, crate::sha512::new512_256, normal),
-            (Sha3_224, crate::sha3::new224, normal),
-            (Sha3_256, crate::sha3::new256, normal),
-            (Sha3_384, crate::sha3::new384, normal),
-            (Sha3_512, crate::sha3::new512, normal),
-            (Blake2b256, crate::blake2b::new256, blake),
-            (Blake2b384, crate::blake2b::new384, blake),
-            (Blake2b512, crate::blake2b::new512, blake),
-            (Blake2s128, crate::blake2s::new128, blake),
-            (Blake2s256, crate::blake2s::new256, blake),
-            (Blake2s, crate::blake2s::Blake2sVariable::new, variant),
-            (Blake2b, crate::blake2b::Blake2bVariable::new, variant),
-            (Shake128, crate::sha3::new_shake128, normal),
-            (Shake256, crate::sha3::new_shake256, normal),
-        ))
-    }
+    impl_hash_methods!(
+        normal: [
+            md4, crate::md4::new_md4,
+            md5, crate::md5::new_md5,
+            sha1, crate::sha1::new,
+            sha224, crate::sha256::new224,
+            sha256, crate::sha256::new256,
+            sha384, crate::sha512::new384,
+            sha512, crate::sha512::new512,
+            sha512_224, crate::sha512::new512_224,
+            sha512_256, crate::sha512::new512_256,
+            sha3_224, crate::sha3::new224,
+            sha3_256, crate::sha3::new256,
+            sha3_384, crate::sha3::new384,
+            sha3_512, crate::sha3::new512,
+            shake128, crate::sha3::new_shake128,
+            shake256, crate::sha3::new_shake256,
+        ],
+        variant: [
+            blake2s, crate::blake2s::Blake2sVariable::new,
+            blake2b, crate::blake2b::Blake2bVariable::new,
+        ],
+    );
 
     pub fn sum(&mut self) -> Vec<u8> {
         self.0.sum()

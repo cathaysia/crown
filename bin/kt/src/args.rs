@@ -177,7 +177,7 @@ pub struct Md5 {
     pub files: Vec<String>,
 }
 
-#[derive(Debug, Default, Clone, ValueEnum)]
+#[derive(Debug, Default, Clone, Copy, ValueEnum, strum_macros::EnumString)]
 #[clap(rename_all = "kebab-case")]
 pub enum HashAlgorithm {
     Md4,
