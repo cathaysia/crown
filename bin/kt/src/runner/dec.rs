@@ -4,8 +4,8 @@ use kittycrypto::{
     cast5::Cast5,
     cipher::{cbc::CbcDecAble, padding::*},
     des::{Des, TripleDes},
-    envelope::EvpAeadCipher,
-    envelope::EvpStreamCipher,
+    envelope::{EvpAeadCipher, EvpStreamCipher},
+    idea::Idea,
     rc2::Rc2,
     rc5::Rc5,
     rc6::Rc6,
@@ -159,7 +159,7 @@ pub fn run_dec(args: ArgsDec) -> anyhow::Result<()> {
     }
 
     if let Some(mut padding_cipher) =
-        padding_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea,)
+        padding_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea,)
     {
         padding_cipher.encrypt_alloc(&mut infile).unwrap();
         std::fs::write(out_file, infile)?;

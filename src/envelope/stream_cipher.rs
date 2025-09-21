@@ -7,6 +7,7 @@ use crate::cipher::ctr::CtrAble;
 use crate::cipher::ofb::OfbAble;
 use crate::des::Des;
 use crate::des::TripleDes;
+use crate::idea::Idea;
 use crate::rc2::Rc2;
 use crate::rc4::Rc4;
 use crate::rc5::Rc5;
@@ -83,7 +84,7 @@ macro_rules! impl_stream_cipher {
 
 impl EvpStreamCipher {
     impl_stream_cipher!(
-        basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea],
+        basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea],
         rounds: [(Rc2, 20), (Rc5, 20), (Rc6, 20)],
         special: [rc4, salsa20, chacha20],
     );

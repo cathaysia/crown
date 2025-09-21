@@ -5,6 +5,7 @@ mod tests;
 
 use crate::cipher::cbc::{CbcDecAble, CbcEncAble};
 use crate::cipher::BlockCipher;
+use crate::idea::Idea;
 use crate::{
     aes::Aes,
     blowfish::Blowfish,
@@ -55,7 +56,7 @@ macro_rules! impl_newer {
 }
 
 impl EvpBlockCipher {
-    impl_newer!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea,);
+    impl_newer!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea,);
 
     fn new_impl<D: BlockCipher>(
         enc: impl CbcEncAble<D> + 'static,

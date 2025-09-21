@@ -164,7 +164,7 @@ macro_rules! enc_algorithm {
     };
 }
 
-enc_algorithm!(Aes, Blowfish, Cast5, Des, TripleDes, Rc2, Rc5, Rc6, Tea, Twofish, Xtea,);
+enc_algorithm!(Aes, Blowfish, Cast5, Des, TripleDes, Rc2, Rc5, Rc6, Tea, Twofish, Xtea, Idea,);
 
 #[derive(Debug, Parser)]
 pub struct Md5 {
