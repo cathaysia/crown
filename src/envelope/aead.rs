@@ -71,8 +71,8 @@ macro_rules! impl_aead_cipher {
 }
 impl EvpAeadCipher {
     impl_aead_cipher!(
-        basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea],
-        rounds: [(Rc2, 20), (Rc5, 20), (Rc6, 20)],
+        basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Rc6],
+        rounds: [(Rc2, 20), (Rc5, 20)],
         special: [chacha20_poly1305, xchacha20_poly1305],
     );
 

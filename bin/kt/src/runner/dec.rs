@@ -61,9 +61,9 @@ pub fn run_dec(args: ArgsDec) -> anyhow::Result<()> {
     }
 
     let mut aead_cipher =
-        aead_cipher_create!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea,);
+        aead_cipher_create!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Rc6,);
     if aead_cipher.is_none() {
-        aead_cipher = aead_cipher_create!(#rc Rc2, Rc5, Rc6,);
+        aead_cipher = aead_cipher_create!(#rc Rc2, Rc5,);
     }
     if let Some(cipher) = aead_cipher {
         match tagin {
@@ -112,9 +112,9 @@ pub fn run_dec(args: ArgsDec) -> anyhow::Result<()> {
     }
 
     let mut stream_cipher =
-        stream_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea,);
+        stream_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Rc6,);
     if stream_cipher.is_none() {
-        stream_cipher = stream_cipher!(#rc Rc2, Rc5, Rc6,);
+        stream_cipher = stream_cipher!(#rc Rc2, Rc5,);
     }
     if let Some(mut cipher) = stream_cipher {
         cipher.decrypt(&mut infile)?;
@@ -149,7 +149,6 @@ pub fn run_dec(args: ArgsDec) -> anyhow::Result<()> {
                     )*
                     EncAlgorithm::Rc2Cbc => Some(impl_padding_mode!(Rc2::new(&key, rounds)?.to_cbc_dec(&iv))),
                     EncAlgorithm::Rc5Cbc => Some(impl_padding_mode!(Rc5::new(&key, rounds)?.to_cbc_dec(&iv))),
-                    EncAlgorithm::Rc6Cbc => Some(impl_padding_mode!(Rc6::new(&key, rounds)?.to_cbc_dec(&iv))),
                     _=> None
                 }
 
@@ -159,7 +158,7 @@ pub fn run_dec(args: ArgsDec) -> anyhow::Result<()> {
     }
 
     if let Some(mut padding_cipher) =
-        padding_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea,)
+        padding_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6,)
     {
         padding_cipher.encrypt_alloc(&mut infile).unwrap();
         std::fs::write(out_file, infile)?;

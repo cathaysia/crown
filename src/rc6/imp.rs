@@ -27,15 +27,7 @@ static RC6_STAB: [u32; 44] = [
     0x708c564b, 0xec3d004, 0xacfb49bd, 0x4b32c376,
 ];
 
-pub fn rc6_setup(
-    key: &[u8],
-    keylen: usize,
-    num_rounds: usize,
-    skey: &mut Rc6Key,
-) -> CryptoResult<()> {
-    if num_rounds != 0 && num_rounds != 20 {
-        return Err(CryptoError::InvalidRound(num_rounds));
-    }
+pub fn rc6_setup(key: &[u8], keylen: usize, skey: &mut Rc6Key) -> CryptoResult<()> {
     if !(..=128).contains(&keylen) {
         return Err(CryptoError::InvalidKeySize {
             expected: "<= 128",

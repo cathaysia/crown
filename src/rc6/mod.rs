@@ -16,10 +16,10 @@ pub struct Rc6 {
 impl BlockCipherMarker for Rc6 {}
 
 impl Rc6 {
-    pub fn new(key: &[u8], num_rounds: usize) -> CryptoResult<Self> {
+    pub fn new(key: &[u8]) -> CryptoResult<Self> {
         let mut skey: Rc6Key = Rc6Key { key: [0; 44] };
 
-        rc6_setup(key, key.len(), num_rounds, &mut skey)?;
+        rc6_setup(key, key.len(), &mut skey)?;
 
         Ok(Self { skey })
     }

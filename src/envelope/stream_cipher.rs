@@ -84,8 +84,8 @@ macro_rules! impl_stream_cipher {
 
 impl EvpStreamCipher {
     impl_stream_cipher!(
-        basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea],
-        rounds: [(Rc2, 20), (Rc5, 20), (Rc6, 20)],
+        basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6],
+        rounds: [(Rc2, 20), (Rc5, 20)],
         special: [rc4, salsa20, chacha20],
     );
 

@@ -47,16 +47,12 @@ macro_rules! impl_newer {
             pub fn new_rc5_cbc(key: &[u8], iv: &[u8], rounds: Option<usize>)->CryptoResult<Self> {
                 Ok(Self::new_impl(Rc5::new(key, rounds.unwrap_or(20))?, Rc5::new(key, rounds.unwrap_or(20))?, iv, Box::new(Pkcs7)))
             }
-
-            pub fn new_rc6_cbc(key: &[u8], iv: &[u8], rounds: Option<usize>)->CryptoResult<Self> {
-                Ok(Self::new_impl(Rc6::new(key, rounds.unwrap_or(20))?, Rc6::new(key, rounds.unwrap_or(20))?, iv, Box::new(Pkcs7)))
-            }
         }
     };
 }
 
 impl EvpBlockCipher {
-    impl_newer!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea,);
+    impl_newer!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6,);
 
     fn new_impl<D: BlockCipher>(
         enc: impl CbcEncAble<D> + 'static,
