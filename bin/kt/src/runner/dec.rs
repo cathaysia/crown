@@ -1,6 +1,7 @@
 use kittycrypto::{
     aes::Aes,
     blowfish::Blowfish,
+    camellia::Camellia,
     cast5::Cast5,
     cipher::{cbc::CbcDecAble, padding::*},
     des::{Des, TripleDes},
@@ -63,7 +64,7 @@ pub fn run_dec(args: ArgsDec) -> anyhow::Result<()> {
     let mut aead_cipher =
         aead_cipher_create!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Rc6,);
     if aead_cipher.is_none() {
-        aead_cipher = aead_cipher_create!(#rc Rc2, Rc5,);
+        aead_cipher = aead_cipher_create!(#rc Rc2, Rc5, Camellia,);
     }
     if let Some(cipher) = aead_cipher {
         match tagin {
@@ -114,7 +115,7 @@ pub fn run_dec(args: ArgsDec) -> anyhow::Result<()> {
     let mut stream_cipher =
         stream_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Rc6,);
     if stream_cipher.is_none() {
-        stream_cipher = stream_cipher!(#rc Rc2, Rc5,);
+        stream_cipher = stream_cipher!(#rc Rc2, Rc5, Camellia,);
     }
     if let Some(mut cipher) = stream_cipher {
         cipher.decrypt(&mut infile)?;
@@ -149,6 +150,7 @@ pub fn run_dec(args: ArgsDec) -> anyhow::Result<()> {
                     )*
                     EncAlgorithm::Rc2Cbc => Some(impl_padding_mode!(Rc2::new(&key, rounds)?.to_cbc_dec(&iv))),
                     EncAlgorithm::Rc5Cbc => Some(impl_padding_mode!(Rc5::new(&key, rounds)?.to_cbc_dec(&iv))),
+                    EncAlgorithm::CamelliaCbc => Some(impl_padding_mode!(Camellia::new(&key, rounds)?.to_cbc_dec(&iv))),
                     _=> None
                 }
 

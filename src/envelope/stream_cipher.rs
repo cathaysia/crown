@@ -1,5 +1,6 @@
 use crate::aes::Aes;
 use crate::blowfish::Blowfish;
+use crate::camellia::Camellia;
 use crate::cast5::Cast5;
 use crate::chacha20::Chacha20;
 use crate::cipher::cfb::CfbAble;
@@ -85,7 +86,7 @@ macro_rules! impl_stream_cipher {
 impl EvpStreamCipher {
     impl_stream_cipher!(
         basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6],
-        rounds: [(Rc2, 20), (Rc5, 20)],
+        rounds: [(Rc2, 20), (Rc5, 20), (Camellia, 20)],
         special: [rc4, salsa20, chacha20],
     );
 

@@ -9,6 +9,7 @@ use crate::idea::Idea;
 use crate::{
     aes::Aes,
     blowfish::Blowfish,
+    camellia::Camellia,
     cast5::Cast5,
     cipher::padding::Pkcs7,
     des::{Des, TripleDes},
@@ -46,6 +47,10 @@ macro_rules! impl_newer {
 
             pub fn new_rc5_cbc(key: &[u8], iv: &[u8], rounds: Option<usize>)->CryptoResult<Self> {
                 Ok(Self::new_impl(Rc5::new(key, rounds.unwrap_or(20))?, Rc5::new(key, rounds.unwrap_or(20))?, iv, Box::new(Pkcs7)))
+            }
+
+            pub fn new_camellia_cbc(key: &[u8], iv: &[u8], rounds: Option<usize>)->CryptoResult<Self> {
+                Ok(Self::new_impl(Camellia::new(key, rounds.unwrap_or(20))?, Camellia::new(key, rounds.unwrap_or(20))?, iv, Box::new(Pkcs7)))
             }
         }
     };

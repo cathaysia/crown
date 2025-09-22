@@ -86,6 +86,7 @@ pub mod sha512;
 
 pub mod aes;
 pub mod blowfish;
+pub mod camellia;
 pub mod cast5;
 pub mod chacha20;
 pub mod cipher;
