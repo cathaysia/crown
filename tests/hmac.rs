@@ -1,4 +1,4 @@
-use kittycrypto::{core::CoreWrite, envelope::EvpHash, hash::HashUser, hmac};
+use kittycrypto::{core::CoreWrite, envelope::EvpHash, hash::HashUser, mac::hmac};
 
 use crate::wycheproof::mac::{MacTestFile, MacTestGroup, MacTestVector};
 

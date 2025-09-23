@@ -1,18 +1,19 @@
 use kittycrypto::{
-    aes::Aes,
-    blowfish::Blowfish,
-    camellia::Camellia,
-    cast5::Cast5,
-    cipher::{cbc::CbcDecAble, padding::*},
-    des::{Des, TripleDes},
+    block::aes::Aes,
+    block::blowfish::Blowfish,
+    block::camellia::Camellia,
+    block::cast5::Cast5,
+    block::des::{Des, TripleDes},
+    block::idea::Idea,
+    block::rc2::Rc2,
+    block::rc5::Rc5,
+    block::rc6::Rc6,
+    block::tea::Tea,
+    block::twofish::Twofish,
+    block::xtea::Xtea,
     envelope::{EvpAeadCipher, EvpStreamCipher},
-    idea::Idea,
-    rc2::Rc2,
-    rc5::Rc5,
-    rc6::Rc6,
-    tea::Tea,
-    twofish::Twofish,
-    xtea::Xtea,
+    modes::cbc::CbcDecryptor,
+    padding::*,
 };
 
 use crate::args::{ArgsDec, EncAlgorithm, PaddingMode};
@@ -148,9 +149,9 @@ pub fn run_dec(args: ArgsDec) -> anyhow::Result<()> {
                             Some(impl_padding_mode!($name::new(&key)?.to_cbc_dec(&iv)))
                         },
                     )*
-                    EncAlgorithm::Rc2Cbc => Some(impl_padding_mode!(Rc2::new(&key, rounds)?.to_cbc_dec(&iv))),
-                    EncAlgorithm::Rc5Cbc => Some(impl_padding_mode!(Rc5::new(&key, rounds)?.to_cbc_dec(&iv))),
-                    EncAlgorithm::CamelliaCbc => Some(impl_padding_mode!(Camellia::new(&key, rounds)?.to_cbc_dec(&iv))),
+                    EncAlgorithm::Rc2Cbc => Some(impl_padding_mode!(Rc2::new(&key, Some(rounds))?.to_cbc_dec(&iv))),
+                    EncAlgorithm::Rc5Cbc => Some(impl_padding_mode!(Rc5::new(&key, Some(rounds))?.to_cbc_dec(&iv))),
+                    EncAlgorithm::CamelliaCbc => Some(impl_padding_mode!(Camellia::new(&key, Some(rounds))?.to_cbc_dec(&iv))),
                     _=> None
                 }
 

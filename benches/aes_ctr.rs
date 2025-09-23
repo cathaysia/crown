@@ -1,6 +1,7 @@
 use cipher::KeyIvInit;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use kittycrypto::cipher::{ctr::CtrAble, StreamCipher};
+use kittycrypto::modes::ctr::Ctr;
+use kittycrypto::stream::StreamCipher;
 use std::hint::black_box;
 
 fn bench_aes_ctr(c: &mut Criterion) {
@@ -21,7 +22,7 @@ fn bench_aes_ctr(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(size as u64));
 
         group.bench_function(format!("kittycrypto_aes_ctr_{size}",), |b| {
-            let mut cipher = kittycrypto::aes::Aes::new(&key)
+            let mut cipher = kittycrypto::block::aes::Aes::new(&key)
                 .unwrap()
                 .to_ctr(&[0u8; 16])
                 .unwrap();

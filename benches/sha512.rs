@@ -37,7 +37,7 @@ fn bench_sha512(c: &mut Criterion) {
             ),
             |b| {
                 b.iter(|| {
-                    let _ = kittycrypto::sha512::sum512(black_box(data));
+                    let _ = kittycrypto::hash::sha512::sum512(black_box(data));
                 })
             },
         );

@@ -8,26 +8,26 @@ use wycheproof::hkdf::*;
 fn test_hkdf() {
     let builder = |alg: &str, secret: &[u8], salt: &[u8], info: &[u8]| -> Option<Box<dyn Read>> {
         Some(match alg {
-            "SHA-1" => Box::new(kittycrypto::hkdf::new(
-                kittycrypto::sha1::new,
+            "SHA-1" => Box::new(kittycrypto::kdf::hkdf::new(
+                kittycrypto::hash::sha1::new,
                 secret,
                 salt,
                 info,
             )),
-            "SHA-256" => Box::new(kittycrypto::hkdf::new(
-                kittycrypto::sha256::new256,
+            "SHA-256" => Box::new(kittycrypto::kdf::hkdf::new(
+                kittycrypto::hash::sha256::new256,
                 secret,
                 salt,
                 info,
             )),
-            "SHA-384" => Box::new(kittycrypto::hkdf::new(
-                kittycrypto::sha512::new384,
+            "SHA-384" => Box::new(kittycrypto::kdf::hkdf::new(
+                kittycrypto::hash::sha512::new384,
                 secret,
                 salt,
                 info,
             )),
-            "SHA-512" => Box::new(kittycrypto::hkdf::new(
-                kittycrypto::sha512::new512,
+            "SHA-512" => Box::new(kittycrypto::kdf::hkdf::new(
+                kittycrypto::hash::sha512::new512,
                 secret,
                 salt,
                 info,

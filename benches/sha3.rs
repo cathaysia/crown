@@ -36,7 +36,7 @@ fn bench_sha3(c: &mut Criterion) {
             ),
             |b| {
                 b.iter(|| {
-                    let _ = kittycrypto::sha3::sum256(black_box(data));
+                    let _ = kittycrypto::hash::sha3::sum256(black_box(data));
                 })
             },
         );

@@ -1,6 +1,7 @@
 use cipher::{generic_array::GenericArray, BlockEncrypt, KeyIvInit};
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use kittycrypto::cipher::{ctr::CtrAble, BlockCipher, StreamCipher};
+use kittycrypto::stream::StreamCipher;
+use kittycrypto::{block::BlockCipher, modes::ctr::Ctr};
 use rc4::KeyInit;
 use std::hint::black_box;
 
@@ -17,7 +18,7 @@ fn bench_twofish(c: &mut Criterion) {
     group.throughput(Throughput::Bytes(BLOCK_SIZE as u64));
 
     group.bench_function("kittycrypto".to_string(), |b| {
-        let cipher = kittycrypto::twofish::Twofish::new(&key).unwrap();
+        let cipher = kittycrypto::block::twofish::Twofish::new(&key).unwrap();
         b.iter(|| {
             let mut dst = pt;
             for i in (0..pt.len()).step_by(BLOCK_SIZE) {
@@ -53,7 +54,7 @@ fn bench_twofish(c: &mut Criterion) {
         rand::fill(pt.as_mut_slice());
 
         group.bench_function("kittycrypto".to_string(), |b| {
-            let mut cipher = kittycrypto::twofish::Twofish::new(&key)
+            let mut cipher = kittycrypto::block::twofish::Twofish::new(&key)
                 .unwrap()
                 .to_ctr(&iv)
                 .unwrap();

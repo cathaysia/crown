@@ -1,6 +1,6 @@
 use chacha20poly1305::aead::AeadMutInPlace;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use kittycrypto::cipher::Aead;
+use kittycrypto::aead::Aead;
 use rc4::KeyInit;
 use ring::aead::UnboundKey;
 
@@ -21,7 +21,7 @@ fn bench_chacha20poly1305(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(size as u64));
 
         group.bench_function(format!("kittycrypto_{size}",), |b| {
-            let cipher = kittycrypto::chacha20poly1305::ChaCha20Poly1305::new(&key).unwrap();
+            let cipher = kittycrypto::aead::chacha20poly1305::ChaCha20Poly1305::new(&key).unwrap();
             b.iter(|| {
                 let mut dst = data.clone();
                 cipher

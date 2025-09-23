@@ -1,11 +1,13 @@
-mod hash;
-pub use hash::*;
+#![cfg(feature = "alloc")]
 
-mod aead;
-pub use aead::*;
+mod evp_hash;
+pub use evp_hash::*;
 
-mod stream_cipher;
-pub use stream_cipher::*;
+mod evp_aead;
+pub use evp_aead::*;
 
-mod block_padding;
-pub use block_padding::*;
+mod evp_stream;
+pub use evp_stream::*;
+
+mod evp_block;
+pub use evp_block::*;

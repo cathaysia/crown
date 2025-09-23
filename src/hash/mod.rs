@@ -1,3 +1,13 @@
+pub mod blake2b;
+pub mod blake2s;
+pub mod md2;
+pub mod md4;
+pub mod md5;
+pub mod sha1;
+pub mod sha256;
+pub mod sha3;
+pub mod sha512;
+
 use crate::core::CoreWrite;
 
 /// Common interface for all hash algorithms.
