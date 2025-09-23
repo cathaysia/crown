@@ -7,6 +7,9 @@ pub use enc::*;
 mod kdf;
 pub use kdf::*;
 
+mod dd;
+pub use dd::*;
+
 use clap::Parser;
 
 #[derive(Debug, Parser)]
@@ -16,6 +19,7 @@ pub enum Args {
     Enc(ArgsEnc),
     Dec(ArgsDec),
     Kdf(ArgsKdf),
+    Dd(ArgsDd),
 }
 
 #[derive(Debug, Parser)]
