@@ -72,8 +72,8 @@ impl EvpBlockCipher {
         }
     }
 
-    pub fn set_padding(&mut self, padding: impl Padding + 'static) {
-        self.padding = Box::new(padding);
+    pub fn set_padding(&mut self, padding: Box<dyn Padding>) {
+        self.padding = padding;
     }
 
     fn block_size(&self) -> usize {

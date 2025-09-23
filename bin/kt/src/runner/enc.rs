@@ -1,18 +1,6 @@
 use kittycrypto::{
-    block::aes::Aes,
-    block::blowfish::Blowfish,
-    block::camellia::Camellia,
-    block::cast5::Cast5,
-    block::des::{Des, TripleDes},
-    block::idea::Idea,
-    block::rc2::Rc2,
-    block::rc5::Rc5,
-    block::rc6::Rc6,
-    block::tea::Tea,
-    block::twofish::Twofish,
-    block::xtea::Xtea,
+    envelope::EvpBlockCipher,
     envelope::{EvpAeadCipher, EvpStreamCipher},
-    modes::cbc::CbcEncryptor,
     padding::*,
 };
 
@@ -126,34 +114,20 @@ pub fn run_enc(args: ArgsEnc) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    macro_rules! impl_padding_mode {
-        ($b:expr) => {
-            match padding_mode {
-                PaddingMode::Pkcs7 => impl_padding_mode!($b, Pkcs7),
-                PaddingMode::AnsiX923 => impl_padding_mode!($b, AnsiX923),
-                PaddingMode::Iso10126 => impl_padding_mode!($b, Iso10126),
-                PaddingMode::Iso7816 => impl_padding_mode!($b, Iso7816),
-                PaddingMode::NoPadding => impl_padding_mode!($b, NoPadding),
-                PaddingMode::ZeroPadding => impl_padding_mode!($b, ZeroPadding),
-            }
-        };
-        ($b:expr, $p:ident) => {
-            ErasedBlockPadding::new($b.to_padding_crypt($p))
-        };
-    }
-
     macro_rules! padding_cipher {
         ($($name:ident,)*) => {
             paste::paste! {
                 match algorithm {
                     $(
                         EncAlgorithm::[<$name Cbc>] => {
-                            impl_padding_mode!($name::new(&key)?.to_cbc_enc(&iv))
+                            EvpBlockCipher::[<new_ $name:lower _cbc>](
+                               &key, &iv
+                            )
                         },
                     )*
-                    EncAlgorithm::Rc2Cbc => impl_padding_mode!(Rc2::new(&key, Some(rounds))?.to_cbc_enc(&iv)),
-                    EncAlgorithm::Rc5Cbc => impl_padding_mode!(Rc5::new(&key, Some(rounds))?.to_cbc_enc(&iv)),
-                    EncAlgorithm::CamelliaCbc => impl_padding_mode!(Camellia::new(&key, Some(rounds))?.to_cbc_enc(&iv)),
+                    EncAlgorithm::Rc2Cbc => EvpBlockCipher::new_rc2_cbc(&key, &iv, Some(rounds)),
+                    EncAlgorithm::Rc5Cbc => EvpBlockCipher::new_rc5_cbc(&key, &iv, Some(rounds)),
+                    EncAlgorithm::CamelliaCbc => EvpBlockCipher::new_camellia_cbc(&key, &iv, Some(rounds)),
                     _=> return Ok(())
                 }
 
@@ -163,7 +137,18 @@ pub fn run_enc(args: ArgsEnc) -> anyhow::Result<()> {
     }
 
     let mut padding_cipher =
-        padding_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6,);
+        padding_cipher!(Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6,)
+            .unwrap();
+    let mode: Box<dyn Padding> = match padding_mode {
+        PaddingMode::Pkcs7 => Box::new(kittycrypto::padding::Pkcs7),
+        PaddingMode::AnsiX923 => Box::new(kittycrypto::padding::AnsiX923),
+        PaddingMode::Iso10126 => Box::new(kittycrypto::padding::Iso10126),
+        PaddingMode::Iso7816 => Box::new(kittycrypto::padding::Iso7816),
+        PaddingMode::NoPadding => Box::new(kittycrypto::padding::NoPadding),
+        PaddingMode::ZeroPadding => Box::new(kittycrypto::padding::ZeroPadding),
+    };
+    padding_cipher.set_padding(mode);
+
     padding_cipher.encrypt_alloc(&mut infile).unwrap();
     std::fs::write(out_file, infile)?;
 
