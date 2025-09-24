@@ -11,6 +11,3 @@ pub(crate) mod rand;
 
 mod kdf;
 pub use kdf::run_kdf;
-
-mod dd;
-pub use dd::run_dd;

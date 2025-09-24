@@ -851,6 +851,7 @@ dependencies = [
  "hex",
  "kittycrypto",
  "libc",
+ "nix",
  "paste",
  "pest",
  "pest_derive",

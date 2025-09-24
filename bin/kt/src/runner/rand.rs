@@ -2,19 +2,26 @@ use std::io::Write;
 
 use base64::Engine;
 
-use crate::args::ArgsRand;
+use crate::{args::ArgsRand, size_parser::parse_size};
 
 pub fn run_hash(args_hash: ArgsRand) -> anyhow::Result<()> {
     let ArgsRand {
         hex,
         base64,
         out,
-        num,
+        size,
     } = args_hash;
+    let size = parse_size(&size)?;
 
-    let mut buf = vec![0u8; num];
-    kittycrypto::rand::fill(buf.as_mut_slice());
     let mut out: Box<dyn Write> = if let Some(out) = out {
+        #[cfg(unix)]
+        {
+            let mut file = crate::utils::write_file(&out, size)?;
+            let buffer = file.as_mut();
+            kittycrypto::rand::fill(buffer);
+            return Ok(());
+        }
+        #[cfg(not(unix))]
         Box::new(
             std::fs::OpenOptions::new()
                 .write(true)
@@ -27,6 +34,8 @@ pub fn run_hash(args_hash: ArgsRand) -> anyhow::Result<()> {
         Box::new(std::io::stdout())
     };
 
+    let mut buf = vec![0u8; size];
+    kittycrypto::rand::fill(buf.as_mut_slice());
     if hex {
         write!(out, "{}", hex::encode(&buf)).unwrap();
     } else if base64 {

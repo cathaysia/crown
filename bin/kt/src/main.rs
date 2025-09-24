@@ -36,7 +36,6 @@ fn main() -> anyhow::Result<()> {
         args::Args::Enc(args) => runner::run_enc(args)?,
         args::Args::Dec(args) => runner::run_dec(args)?,
         args::Args::Kdf(args) => runner::run_kdf(args)?,
-        args::Args::Dd(args) => runner::run_dd(args)?,
     }
 
     Ok(())

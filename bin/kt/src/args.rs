@@ -7,9 +7,6 @@ pub use enc::*;
 mod kdf;
 pub use kdf::*;
 
-mod dd;
-pub use dd::*;
-
 use clap::Parser;
 
 #[derive(Debug, Parser)]
@@ -19,7 +16,6 @@ pub enum Args {
     Enc(ArgsEnc),
     Dec(ArgsDec),
     Kdf(ArgsKdf),
-    Dd(ArgsDd),
 }
 
 #[derive(Debug, Parser)]
@@ -30,6 +26,6 @@ pub struct ArgsRand {
     pub base64: bool,
     #[clap(long)]
     pub out: Option<String>,
-    #[clap(default_value_t = 0)]
-    pub num: usize,
+    #[clap(default_value = "0")]
+    pub size: String,
 }

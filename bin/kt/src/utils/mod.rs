@@ -1,6 +1,8 @@
-mod read_file;
+mod io;
 
-pub use read_file::read_file;
+pub use io::read_file;
+#[cfg(unix)]
+pub use io::write_file;
 
 pub fn init_logger() {
     use tracing_subscriber::{fmt, prelude::*, util::SubscriberInitExt, EnvFilter};
