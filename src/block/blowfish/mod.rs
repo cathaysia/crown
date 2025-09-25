@@ -17,6 +17,7 @@ pub(crate) use block::*;
 use consts::{P, S0, S1, S2, S3};
 
 use crate::{
+    aead::ocb::OcbGeneric,
     block::{BlockCipher, BlockCipherMarker},
     error::{CryptoError, CryptoResult},
 };
@@ -31,6 +32,8 @@ pub struct Blowfish {
 }
 
 impl BlockCipherMarker for Blowfish {}
+
+impl OcbGeneric for Blowfish {}
 
 impl Blowfish {
     pub const BLOCK_SIZE: usize = 8;

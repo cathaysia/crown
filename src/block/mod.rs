@@ -11,6 +11,7 @@ pub mod tea;
 pub mod twofish;
 pub mod xtea;
 
+pub const MAX_BLOCK_SIZE: usize = 144;
 /// A Block represents an implementation of block cipher
 /// using a given key. It provides the capability to encrypt
 /// or decrypt individual blocks. The mode implementations
