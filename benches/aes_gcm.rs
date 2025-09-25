@@ -1,8 +1,8 @@
 use aes_gcm::aead::AeadMutInPlace;
 use cipher::KeyInit;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
+use kittycrypto::aead::gcm::Gcm;
 use kittycrypto::aead::Aead;
-use kittycrypto::modes::gcm::Gcm;
 use std::hint::black_box;
 
 fn bench_aes_gcm(c: &mut Criterion) {

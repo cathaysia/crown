@@ -1,3 +1,4 @@
+use crate::aead::gcm::Gcm;
 use crate::block::aes::Aes;
 use crate::block::blowfish::Blowfish;
 use crate::block::camellia::Camellia;
@@ -10,7 +11,6 @@ use crate::block::rc6::Rc6;
 use crate::block::tea::Tea;
 use crate::block::twofish::Twofish;
 use crate::block::xtea::Xtea;
-use crate::modes::gcm::Gcm;
 use crate::{aead::Aead, error::CryptoResult};
 
 trait ErasedAeadInner {

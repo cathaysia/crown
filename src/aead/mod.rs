@@ -1,6 +1,8 @@
-use crate::error::CryptoResult;
-
 pub mod chacha20poly1305;
+#[cfg(feature = "std")]
+pub mod gcm;
+
+use crate::error::CryptoResult;
 
 pub trait AeadUser {
     /// NonceSize returns the size of the nonce that must be passed to Seal

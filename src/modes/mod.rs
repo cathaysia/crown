@@ -4,8 +4,7 @@ pub mod cbc;
 pub mod cfb;
 #[cfg(feature = "std")]
 pub mod ctr;
-#[cfg(feature = "std")]
-pub mod gcm;
+
 #[cfg(feature = "alloc")]
 pub mod ofb;
 
