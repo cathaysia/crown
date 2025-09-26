@@ -46,7 +46,7 @@ impl<B: BlockCipher> BlockMode for CbcEncryptorImpl<B> {
         self.0.block_size
     }
 
-    fn crypt_blocks(&mut self, inout: &mut [u8]) {
+    fn encrypt(&mut self, inout: &mut [u8]) {
         if inout.len() % self.0.block_size != 0 {
             panic!("crypto/cipher: input not full blocks");
         }
@@ -65,5 +65,8 @@ impl<B: BlockCipher> BlockMode for CbcEncryptorImpl<B> {
 
         // Save the iv for the next CryptBlocks call
         self.0.iv.copy_from_slice(&iv);
+    }
+    fn decrypt(&mut self, _inout: &mut [u8]) {
+        todo!()
     }
 }

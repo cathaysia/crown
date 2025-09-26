@@ -74,7 +74,7 @@ where
             return Err(CryptoError::InvalidLength);
         }
         self.padding.pad(&mut inout[start..end], pos - start);
-        self.cipher.crypt_blocks(&mut inout[..end]);
+        self.cipher.encrypt(&mut inout[..end]);
 
         Ok(end)
     }
@@ -94,7 +94,7 @@ where
             return Err(CryptoError::InvalidLength);
         }
 
-        self.cipher.crypt_blocks(inout);
+        self.cipher.encrypt(inout);
         let start = inout.len() - self.block_size();
         let end = inout.len();
 

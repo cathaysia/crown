@@ -22,12 +22,16 @@ impl BlockMode for CBCEncryptor {
     /// * If input is not full blocks
     /// * If output buffer is smaller than input
     /// * If buffers have invalid overlap
-    fn crypt_blocks(&mut self, inout: &mut [u8]) {
+    fn encrypt(&mut self, inout: &mut [u8]) {
         if inout.is_empty() {
             return;
         }
 
         self.crypt_blocks_enc(inout);
+    }
+
+    fn decrypt(&mut self, _inout: &mut [u8]) {
+        unreachable!()
     }
 }
 
@@ -92,12 +96,16 @@ impl BlockMode for CBCDecrypter {
     /// * If input is not full blocks
     /// * If output buffer is smaller than input
     /// * If buffers have invalid overlap
-    fn crypt_blocks(&mut self, inout: &mut [u8]) {
+    fn encrypt(&mut self, inout: &mut [u8]) {
         if inout.is_empty() {
             return;
         }
 
         self.crypt_blocks_dec(inout);
+    }
+
+    fn decrypt(&mut self, _inout: &mut [u8]) {
+        unreachable!()
     }
 }
 

@@ -59,7 +59,7 @@ fn test_cbc_encrypter_aes() {
             .unwrap()
             .to_cbc_enc(case.iv);
         let mut dst = case.input.to_vec();
-        c.crypt_blocks(&mut dst);
+        c.encrypt(&mut dst);
         assert_eq!(dst, case.output, "{} failed", case.name)
     }
 }

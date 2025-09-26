@@ -34,11 +34,11 @@ impl ErasedBlockMode {
             }
 
             fn encrypt(&mut self, inout: &mut [u8]) {
-                self.enc.crypt_blocks(inout)
+                self.enc.encrypt(inout)
             }
 
             fn decrypt(&mut self, inout: &mut [u8]) {
-                self.dec.crypt_blocks(inout)
+                self.dec.encrypt(inout)
             }
         }
         Self(Box::new(Wrapper { enc, dec }))

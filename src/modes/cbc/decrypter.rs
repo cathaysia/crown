@@ -39,7 +39,7 @@ impl<B: BlockCipher> BlockMode for CbcDecryptorImpl<B> {
         self.0.block_size
     }
 
-    fn crypt_blocks(&mut self, inout: &mut [u8]) {
+    fn encrypt(&mut self, inout: &mut [u8]) {
         if inout.len() % self.0.block_size != 0 {
             panic!("crypto/cipher: input not full blocks");
         }
@@ -76,5 +76,9 @@ impl<B: BlockCipher> BlockMode for CbcDecryptorImpl<B> {
 
         // Set the new iv to the first block we copied earlier
         std::mem::swap(&mut self.0.iv, &mut self.0.tmp);
+    }
+
+    fn decrypt(&mut self, _inout: &mut [u8]) {
+        unreachable!()
     }
 }
