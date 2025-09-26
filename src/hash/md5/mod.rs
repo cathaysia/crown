@@ -11,15 +11,13 @@
 //! (from [sha256](crate::sha256::Sha256))
 //!
 
-mod md5block;
+mod block;
+use block::block;
 
 #[cfg(feature = "cuda")]
 pub mod cuda;
 
-mod md5_generic;
-
 use bytes::BufMut;
-use md5_generic::*;
 
 use crate::{
     core::CoreWrite,

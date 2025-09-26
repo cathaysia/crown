@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use core::num::Wrapping;
 
 use bytes::Buf;

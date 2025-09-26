@@ -14,7 +14,7 @@ std = ["alloc", "once_cell/std"]
 ## Enable alloc
 alloc = []
 ## Enable Cuda
-cuda = ["dep:cc"]
+cuda = []
 ## regenerate cuda sys.rs
 bindgen = ["dep:bindgen"]
 
@@ -39,7 +39,7 @@ tinyvec = "1.10.0"
 block-padding = "0.3.3"
 
 [build-dependencies]
-cc = { version = "1.2.34", optional = true }
+cc = "1.2.34"
 bindgen = { version = "0.72.1", optional = true }
 toml = { version = "0.9.5", optional = true }
 
