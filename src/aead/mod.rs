@@ -2,6 +2,7 @@ pub mod chacha20poly1305;
 #[cfg(feature = "std")]
 pub mod gcm;
 pub mod ocb;
+pub mod ocb3;
 
 use crate::error::CryptoResult;
 

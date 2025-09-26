@@ -1,5 +1,6 @@
 use super::block::*;
 use crate::{
+    aead::ocb::OcbGeneric,
     block::{BlockCipher, BlockCipherMarker},
     error::{CryptoError, CryptoResult},
 };
@@ -10,6 +11,8 @@ pub struct Des {
 }
 
 impl BlockCipherMarker for Des {}
+impl OcbGeneric for Des {}
+impl crate::aead::ocb3::Ocb3Generic for Des {}
 
 impl BlockCipher for Des {
     fn block_size(&self) -> usize {
@@ -73,6 +76,8 @@ pub struct TripleDes {
     cipher3: Des,
 }
 impl BlockCipherMarker for TripleDes {}
+impl OcbGeneric for TripleDes {}
+impl crate::aead::ocb3::Ocb3Generic for TripleDes {}
 
 impl TripleDes {
     pub fn new(key: &[u8]) -> CryptoResult<Self> {
