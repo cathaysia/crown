@@ -24,6 +24,7 @@ use crate::{
     error::{CryptoError, CryptoResult},
     hash::{Hash, HashUser},
     mac::hmac::Marshalable,
+    utils::erase_ownership,
 };
 
 #[cfg(test)]
@@ -74,18 +75,17 @@ impl Md5 {
 }
 
 impl CoreWrite for Md5 {
-    fn write(&mut self, p: &[u8]) -> CryptoResult<usize> {
+    fn write(&mut self, mut p: &[u8]) -> CryptoResult<usize> {
         let nn = p.len();
         self.len += nn as u64;
-        let mut p = p;
 
         if self.nx > 0 {
             let n = (Md5::BLOCK_SIZE - self.nx).min(p.len());
             self.x[self.nx..self.nx + n].copy_from_slice(&p[..n]);
             self.nx += n;
             if self.nx == Md5::BLOCK_SIZE {
-                let x_copy = self.x;
-                block(self, &x_copy);
+                let x = unsafe { erase_ownership(&self.x) };
+                block(self, x);
                 self.nx = 0;
             }
             p = &p[n..];
