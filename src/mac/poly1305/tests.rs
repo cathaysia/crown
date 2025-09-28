@@ -3,7 +3,7 @@ mod data;
 use bytes::Buf;
 use data::TEST_DATA;
 
-use super::{verify, TAG_SIZE};
+use super::verify;
 
 struct Test {
     inx: String,
@@ -41,9 +41,8 @@ impl Test {
 
 fn test_sum_imp(
     unaligned: bool,
-    sum_impl: fn(tag: &mut [u8; TAG_SIZE], msg: &[u8], key: &[u8; 32]),
+    sum_impl: fn(msg: &[u8], key: &[u8; 32]) -> [u8; super::Poly1305::TAG_SIZE],
 ) {
-    let mut tag = [0u8; 16];
     for v in TEST_DATA.iter() {
         if v.initial_state() != [0; 3] {
             continue;
@@ -55,7 +54,7 @@ fn test_sum_imp(
         }
 
         let mut key = v.key();
-        sum_impl(&mut tag, &inx, &key);
+        let mut tag = sum_impl(&inx, &key);
 
         assert_eq!(hex::encode(tag), hex::encode(v.tag()));
         assert!(verify(&tag, &inx, &key));
@@ -84,7 +83,7 @@ fn test_sum() {
 
 #[test]
 fn test_sum_generic() {
-    test_sum_imp(false, super::sum_generic);
+    test_sum_imp(false, super::sum::sum_generic);
 }
 
 fn unalign_bytes(_input: &[u8]) -> Vec<u8> {

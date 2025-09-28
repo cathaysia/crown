@@ -17,34 +17,20 @@ mod tests;
 mod sum;
 pub use sum::*;
 
-#[cfg(not(target_arch = "aarch64"))]
-mod no_asm;
-#[cfg(not(target_arch = "aarch64"))]
-use no_asm::*;
-
-#[cfg(target_arch = "aarch64")]
-mod aarch64_mac;
-#[cfg(target_arch = "aarch64")]
-use aarch64_mac::*;
-
 use crate::utils::subtle::constant_time_eq;
-
-/// TagSize is the size, in bytes, of a poly1305 authenticator.
-pub const TAG_SIZE: usize = 16;
 
 /// Sum generates an authenticator for msg using a one-time key and puts the
 /// 16-byte result into out. Authenticating two different messages with the same
 /// key allows an attacker to forge messages at will.
-pub fn sum(out: &mut [u8; TAG_SIZE], msg: &[u8], key: &[u8; 32]) {
-    let mut mac = MAC::new(key);
+pub fn sum(msg: &[u8], key: &[u8; 32]) -> [u8; Poly1305::TAG_SIZE] {
+    let mut mac = Poly1305::new(key);
     mac.write(msg);
-    mac.sum(out);
+    mac.sum()
 }
 
 /// Verify returns true if mac is a valid authenticator for m with the given key.
-pub fn verify(mac: &[u8; TAG_SIZE], m: &[u8], key: &[u8; 32]) -> bool {
-    let mut tmp = [0u8; TAG_SIZE];
-    sum(&mut tmp, m, key);
+pub fn verify(mac: &[u8; Poly1305::TAG_SIZE], m: &[u8], key: &[u8; 32]) -> bool {
+    let tmp = sum(m, key);
     constant_time_eq(&tmp, mac)
 }
 
@@ -55,12 +41,14 @@ pub fn verify(mac: &[u8; TAG_SIZE], m: &[u8], key: &[u8; 32]) -> bool {
 /// because using a poly1305 key twice breaks its security.
 /// Therefore writing data to a running MAC after calling
 /// Sum or Verify causes it to panic.
-pub struct MAC {
+pub struct Poly1305 {
     mac: Mac,
     finalized: bool,
 }
 
-impl MAC {
+impl Poly1305 {
+    /// TagSize is the size, in bytes, of a poly1305 authenticator.
+    pub const TAG_SIZE: usize = 16;
     /// New returns a new MAC computing an authentication
     /// tag of all data written to it with the given key.
     /// This allows writing the message progressively instead
@@ -70,15 +58,15 @@ impl MAC {
     /// The key must be unique for each message, as authenticating
     /// two different messages with the same key allows an attacker
     /// to forge messages at will.
-    pub fn new(key: &[u8; 32]) -> MAC {
-        MAC {
+    pub fn new(key: &[u8; 32]) -> Poly1305 {
+        Poly1305 {
             mac: Mac::new(key),
             finalized: false,
         }
     }
     /// Size returns the number of bytes Sum will return.
     pub const fn size() -> usize {
-        TAG_SIZE
+        Self::TAG_SIZE
     }
 
     /// Write adds more data to the running message authentication code.
@@ -94,15 +82,17 @@ impl MAC {
 
     /// Sum computes the authenticator of all data written to the
     /// message authentication code.
-    pub fn sum(&mut self, out: &mut [u8; TAG_SIZE]) {
-        self.mac.sum(out);
+    pub fn sum(&mut self) -> [u8; Self::TAG_SIZE] {
+        let mut tag = [0u8; Self::TAG_SIZE];
+        self.mac.sum(&mut tag);
         self.finalized = true;
+        tag
     }
 
     /// Verify returns whether the authenticator of all data written to
     /// the message authentication code matches the expected value.
     pub fn verify(&mut self, expected: &[u8]) -> bool {
-        let mut mac = [0u8; TAG_SIZE];
+        let mut mac = [0u8; Self::TAG_SIZE];
         self.mac.sum(&mut mac);
         self.finalized = true;
         constant_time_eq(&mac, expected)
