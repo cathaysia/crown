@@ -17,8 +17,15 @@ mod tests;
 mod sum;
 pub use sum::*;
 
+#[cfg(not(target_arch = "aarch64"))]
 mod no_asm;
+#[cfg(not(target_arch = "aarch64"))]
 use no_asm::*;
+
+#[cfg(target_arch = "aarch64")]
+mod aarch64_mac;
+#[cfg(target_arch = "aarch64")]
+use aarch64_mac::*;
 
 use crate::utils::subtle::constant_time_eq;
 
