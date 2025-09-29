@@ -4,7 +4,7 @@
 #[cfg(test)]
 mod tests;
 
-mod generic;
+mod xor_key_stream;
 
 use crate::error::{CryptoError, CryptoResult};
 use crate::stream::StreamCipher;
