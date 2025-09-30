@@ -3,8 +3,8 @@
 //! # WARNING
 //!
 //! SHA-1 is cryptographically broken and should not be used for secure
-//! applications. You should try the [sha256](crate::sha256), [sha512](crate::sha512)
-//! or the [sha3](crate::sha3).
+//! applications. You should try the [sha256](crate::hash::sha256),
+//! [sha512](crate::hash::sha512) or the [sha3](crate::hash::sha3).
 //!
 mod block;
 

@@ -1,7 +1,7 @@
 //! Module sha256 implements the SHA224 and SHA256 hash algorithms as defined
 //! in FIPS 180-4.
 //!
-//! [SHA-256](crate::sha256) and [SHA-512](crate::sha512) belongs to the
+//! [SHA-256](crate::hash::sha256) and [SHA-512](crate::hash::sha512) belongs to the
 //! [SHA-2](https://en.wikipedia.org/wiki/SHA-2) family of hash functions.
 
 use bytes::BufMut;
@@ -256,7 +256,7 @@ fn block<const N: usize, const IS_224: bool>(d: &mut Sha256<N, IS_224>, p: &[u8]
 
 /// Create a new [Hash] computing the SHA-256 checksum.
 ///
-/// The Hash also implements [Marshalable](crate::hmac::Marshalable)
+/// The Hash also implements [Marshalable]
 /// to marshal and unmarshal the internal state of the hash.
 pub fn new256() -> Sha256<32, false> {
     let mut d = Sha256 {
@@ -271,7 +271,7 @@ pub fn new256() -> Sha256<32, false> {
 
 /// Create a new [Hash] computing the SHA-224 checksum.
 ///
-/// The Hash also implements [Marshalable](crate::hmac::Marshalable)
+/// The Hash also implements [Marshalable]
 /// to marshal and unmarshal the internal state of the hash.
 pub fn new224() -> Sha256<28, true> {
     let mut d = Sha256 {

@@ -1,4 +1,4 @@
-//! Module [sha3](crate::sha3) implements the [SHA-3](https://en.wikipedia.org/wiki/SHA-3)
+//! Module [sha3](crate::hash::sha3) implements the [SHA-3](https://en.wikipedia.org/wiki/SHA-3)
 //! fixed-output-length hash functions and the SHAKE variable-output-length functions
 //! defined by [FIPS 202], as well as the cSHAKE extendable-output-length
 //! functions defined by [SP 800-185].
@@ -48,7 +48,7 @@ macro_rules! impl_new_for {
         paste::paste! {
             #[doc =
                 "Create a new [Hash] computing the " $kind " checksum.\n\n"
-                "The Hash also implements [Marshalable](crate::hmac::Marshalable)"
+                "The Hash also implements [Marshalable](crate::mac::hmac::Marshalable)"
                 "to marshal and unmarshal the internal state of the hash."
             ]
             pub fn $name() -> Sha3<$output_len> {

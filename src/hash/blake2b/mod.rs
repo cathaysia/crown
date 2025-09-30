@@ -91,7 +91,7 @@ macro_rules! impl_new_for {
         paste::paste! {
             #[doc =
                 "Create a new [Hash] computing the " $x " checksum.\n\n"
-                "The Hash also implements [Marshalable](crate::hmac::Marshalable)"
+                "The Hash also implements [Marshalable](crate::mac::hmac::Marshalable)"
                 "to marshal and unmarshal the internal state of the hash."
             ]
             pub fn $name(key: Option<&[u8]>) -> CryptoResult<Blake2b<$len>> {

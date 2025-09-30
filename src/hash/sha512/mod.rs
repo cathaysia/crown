@@ -1,7 +1,7 @@
 //! Package sha512 implements the SHA-384, SHA-512, SHA-512/224, and SHA-512/256
 //! hash algorithms as defined in FIPS 180-4.
 //!
-//! [SHA-256](crate::sha256) and [SHA-512](crate::sha512) belongs to the
+//! [SHA-256](crate::hash::sha256) and [SHA-512](crate::hash::sha512) belongs to the
 //! [SHA-2](https://en.wikipedia.org/wiki/SHA-2) family of hash functions.
 
 use crate::{
@@ -304,7 +304,7 @@ macro_rules! impl_new_for {
         paste::paste! {
             #[doc =
                 "Create a new [Hash] computing the " $x " checksum.\n\n"
-                "The Hash also implements [Marshalable](crate::hmac::Marshalable)"
+                "The Hash also implements [Marshalable](crate::mac::hmac::Marshalable)"
                 "to marshal and unmarshal the internal state of the hash."
             ]
             pub fn $name() -> Sha512<$len> {

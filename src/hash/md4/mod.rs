@@ -8,7 +8,7 @@
 //!
 //! Deprecated: MD4 is cryptographically broken and should only be used
 //! where compatibility with legacy systems, not security, is the goal. Instead,
-//! use a secure hash like SHA-256 (from [sha256](crate::sha256::Sha256)).
+//! use a secure hash like SHA-256 (from [sha256](crate::hash::sha256::Sha256)).
 
 mod block;
 
@@ -193,8 +193,8 @@ impl Marshalable for Md4 {
 
 /// Create a new [Hash] computing the Md4 checksum.
 ///
-/// The Hash also implements [Marshalable](crate::hmac::Marshalable)
-///  to marshal and unmarshal the internal state of the hash.
+/// The Hash also implements [Marshalable] to marshal and unmarshal
+/// the internal state of the hash.
 pub fn new_md4() -> Md4 {
     let mut d = Md4 {
         s: [0; 4],

@@ -6,9 +6,9 @@
 //! birthday bound attacks (see <https://sweet32.info>). It should only be used
 //! where compatibility with legacy systems, not security, is the goal.
 //!
-//! Deprecated: any new system should use [AES](crate::aes::Aes) (if necessary in
-//! an AEAD mode like [Aes-Gcm](crate::aes::gcm::GCM)) or
-//! [ChaCha20-Poly1305](crate::chacha20poly1305::ChaCha20Poly1305).
+//! Deprecated: any new system should use [AES](crate::block::aes::Aes) (if necessary in
+//! an AEAD mode like Aes-Gcm or
+//! [ChaCha20-Poly1305](crate::aead::chacha20poly1305::ChaCha20Poly1305).
 
 mod data;
 

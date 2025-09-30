@@ -52,7 +52,7 @@ pub fn sum_generic(msg: &[u8], key: &[u8; 32]) -> [u8; TAG_SIZE] {
 }
 
 /// MacState holds numbers in saturated 64-bit little-endian limbs. That is,
-/// the value of [x0, x1, x2] is x[0] + x[1] * 2⁶⁴ + x[2] * 2¹²⁸.
+/// the value of `[x0, x1, x2] is x[0] + x[1] * 2⁶⁴ + x[2] * 2¹²⁸`.
 #[derive(Clone, Copy)]
 pub struct MacState {
     // h is the main accumulator. It is to be interpreted modulo 2¹³⁰ - 5, but

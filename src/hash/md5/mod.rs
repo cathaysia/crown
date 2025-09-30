@@ -8,7 +8,7 @@
 //!
 //! MD5 is cryptographically broken and should **not be used for secure
 //! applications**. Instead, use a secure hash like SHA-256
-//! (from [sha256](crate::sha256::Sha256))
+//! (from [sha256](crate::hash::sha256::Sha256))
 //!
 
 mod block;
@@ -192,8 +192,8 @@ fn le_put_u64(b: &mut [u8], v: u64) {
 
 /// Create a new [Hash] computing the Md5 checksum.
 ///
-/// The Hash also implements [Marshalable](crate::hmac::Marshalable)
-/// to marshal and unmarshal the internal state of the hash.
+/// The Hash also implements [Marshalable] to marshal
+/// and unmarshal the internal state of the hash.
 pub fn new_md5() -> Md5 {
     let mut d = Md5 {
         s: [0; 4],
