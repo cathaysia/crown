@@ -1,17 +1,17 @@
 mod generic;
 
-#[cfg(target_arch = "aarch64")]
-mod aarch64;
+#[cfg(any(target_arch = "aarch64", target_arch = "x86_64"))]
+mod asm;
 
 use super::Md5;
 
 pub(super) fn block(d: &mut Md5, p: &[u8]) {
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(any(target_arch = "aarch64", target_arch = "x86_64"))]
     {
-        aarch64::block(d, p);
+        asm::block(d, p);
     }
 
-    #[cfg(not(target_arch = "aarch64"))]
+    #[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
     {
         generic::block_generic(d, p);
     }

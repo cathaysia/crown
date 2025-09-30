@@ -1,4 +1,4 @@
-//! AArch64 assembly optimized MD5 implementation
+//! md5 assembly optimized MD5 implementation
 
 use super::Md5;
 
