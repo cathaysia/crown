@@ -107,7 +107,7 @@ impl MacAarch64 {
         original_len
     }
 
-    pub fn sum(&self, out: &mut [u8; 16]) {
+    pub fn sum(&self) -> [u8; 16] {
         // Copy state for final processing
         let mut temp_state = self.state;
 
@@ -127,6 +127,7 @@ impl MacAarch64 {
             }
         }
 
+        let mut out = [0u8; 16];
         // Generate MAC using assembly function
         unsafe {
             poly1305_emit(
@@ -135,12 +136,6 @@ impl MacAarch64 {
                 self.nonce.as_ptr(),
             );
         }
+        out
     }
-}
-
-/// AArch64 platform optimized sum function
-pub fn sum_aarch64(out: &mut [u8; 16], msg: &[u8], key: &[u8; 32]) {
-    let mut mac = MacAarch64::new(key);
-    mac.write(msg);
-    mac.sum(out);
 }

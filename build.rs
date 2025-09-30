@@ -33,6 +33,108 @@ bitflags::bitflags! {
     }
 }
 
+pub struct X86Cap {
+    pub caps: [u32; 10],
+}
+
+impl X86Cap {
+    pub fn detect() -> Self {
+        let mut caps = [0u32; 10];
+
+        // P[0] - CPUID EDX features (basic feature)
+        caps[0] |= 1 << 0; // FPU
+        caps[0] |= 1 << 4; // TSC
+        caps[0] |= 1 << 15; // CMOV
+        caps[0] |= 1 << 23; // MMX
+        caps[0] |= 1 << 24; // FXSR
+
+        // SSE
+        if cfg!(target_feature = "sse") {
+            caps[0] |= 1 << 25; // SSE
+        }
+        if cfg!(target_feature = "sse2") {
+            caps[0] |= 1 << 26; // SSE2
+        }
+
+        // P[1] - CPUID ECX features (extend feature)
+        if cfg!(target_feature = "sse3") {
+            caps[1] |= 1 << 0; // SSE3
+        }
+        if cfg!(target_feature = "pclmulqdq") {
+            caps[1] |= 1 << 1; // PCLMULQDQ
+        }
+        if cfg!(target_feature = "ssse3") {
+            caps[1] |= 1 << 9; // SSSE3
+        }
+        if cfg!(target_feature = "fma") {
+            caps[1] |= 1 << 12; // FMA
+        }
+        if cfg!(target_feature = "cmpxchg16b") {
+            caps[1] |= 1 << 13; // CMPXCHG16B
+        }
+        if cfg!(target_feature = "sse4.1") {
+            caps[1] |= 1 << 19; // SSE4.1
+        }
+        if cfg!(target_feature = "sse4.2") {
+            caps[1] |= 1 << 20; // SSE4.2
+        }
+        if cfg!(target_feature = "movbe") {
+            caps[1] |= 1 << 22; // MOVBE
+        }
+        if cfg!(target_feature = "popcnt") {
+            caps[1] |= 1 << 23; // POPCNT
+        }
+        if cfg!(target_feature = "aes") {
+            caps[1] |= 1 << 25; // AES
+        }
+        if cfg!(target_feature = "avx") {
+            caps[1] |= 1 << 28; // AVX
+        }
+        if cfg!(target_feature = "f16c") {
+            caps[1] |= 1 << 29; // F16C
+        }
+        if cfg!(target_feature = "rdrand") {
+            caps[1] |= 1 << 30; // RDRAND
+        }
+
+        // P[2] - Extended features (AVX2, BMI, etc.)
+        if cfg!(target_feature = "avx2") {
+            caps[2] |= 1 << 5; // AVX2
+        }
+        if cfg!(target_feature = "bmi1") {
+            caps[2] |= 1 << 3; // BMI1
+        }
+        if cfg!(target_feature = "bmi2") {
+            caps[2] |= 1 << 8; // BMI2
+        }
+        if cfg!(target_feature = "adx") {
+            caps[2] |= 1 << 19; // ADX
+        }
+        if cfg!(target_feature = "sha") {
+            caps[2] |= 1 << 29; // SHA
+        }
+
+        // P[3] - AVX-512 features
+        if cfg!(target_feature = "avx512f") {
+            caps[3] |= 1 << 16; // AVX512F
+        }
+        if cfg!(target_feature = "avx512dq") {
+            caps[3] |= 1 << 17; // AVX512DQ
+        }
+        if cfg!(target_feature = "avx512cd") {
+            caps[3] |= 1 << 28; // AVX512CD
+        }
+        if cfg!(target_feature = "avx512bw") {
+            caps[3] |= 1 << 30; // AVX512BW
+        }
+        if cfg!(target_feature = "avx512vl") {
+            caps[3] |= 1 << 31; // AVX512VL
+        }
+
+        Self { caps }
+    }
+}
+
 impl ArmCap {
     pub fn detect() -> Self {
         let mut cap = ArmCap::empty();
@@ -171,9 +273,34 @@ fn build_cuda() {
 
 #[cfg(target_arch = "x86_64")]
 fn build_x86_64() {
+    let x86cap = X86Cap::detect();
+
     let outdir = std::env::var("OUT_DIR").unwrap();
+
+    let cap_array = format!(
+        "{{0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x}}}",
+        x86cap.caps[0], x86cap.caps[1], x86cap.caps[2], x86cap.caps[3], x86cap.caps[4],
+        x86cap.caps[5], x86cap.caps[6], x86cap.caps[7], x86cap.caps[8], x86cap.caps[9]
+    );
+
+    std::fs::write(
+        format!("{outdir}/cap.c"),
+        format!(
+            r#"
+unsigned int kittycrypto_ia32cap_P[10] = {};
+"#,
+            cap_array
+        ),
+    )
+    .unwrap();
+
     let mut build = cc::Build::new();
-    build.file("./src/hash/md5/block/x86_64.S").include(outdir);
+    build
+        .file("./src/hash/md5/block/x86_64.S")
+        .file("src/mac/poly1305/sum/x86_64.S")
+        .file("src/stream/chacha20/xor_key_stream/x86_64.S")
+        .file(format!("{outdir}/cap.c"))
+        .include(outdir);
 
     build.compile("kittycrypto_asm");
 }

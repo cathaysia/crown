@@ -1,5 +1,5 @@
-#[cfg(target_arch = "aarch64")]
-mod aarch64;
+#[cfg(any(target_arch = "aarch64", target_arch = "x86_64"))]
+mod asm;
 
-#[cfg(not(target_arch = "aarch64"))]
+#[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
 mod generic;
