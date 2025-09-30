@@ -15,7 +15,7 @@
 
 
 
-.private_extern	_OPENSSL_armcap_P
+.private_extern	_kittycrypto_armcap_P
 
 .text
 
@@ -40,8 +40,8 @@ _ChaCha20_ctr32_sve:
 	cmp	x2,x5,lsl #6
 	b.lt	Lreturn
 	mov	x7,0
-	adrp	x6,_OPENSSL_armcap_P@PAGE
-	ldr	w6,[x6,_OPENSSL_armcap_P@PAGEOFF]
+	adrp	x6,_kittycrypto_armcap_P@PAGE
+	ldr	w6,[x6,_kittycrypto_armcap_P@PAGEOFF]
 	tst	w6,#ARMV8_SVE2
 	b.eq	1f
 	mov	x7,1

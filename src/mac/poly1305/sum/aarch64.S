@@ -4,7 +4,7 @@
 
 // forward "declarations" are required for Apple
 
-.private_extern	_OPENSSL_armcap_P
+.private_extern	_kittycrypto_armcap_P
 .globl	_poly1305_init
 .private_extern	_poly1305_init
 .globl	_poly1305_blocks
@@ -23,8 +23,8 @@ _poly1305_init:
 	csel	x0,xzr,x0,eq
 	b.eq	Lno_key
 
-	adrp	x17,_OPENSSL_armcap_P@PAGE
-	ldr	w17,[x17,_OPENSSL_armcap_P@PAGEOFF]
+	adrp	x17,_kittycrypto_armcap_P@PAGE
+	ldr	w17,[x17,_kittycrypto_armcap_P@PAGEOFF]
 
 	ldp	x7,x8,[x1]		// load key
 	mov	x9,#0xfffffffc0fffffff

@@ -180,7 +180,7 @@ fn build_aarch64() {
         format!("{outdir}/cap.c"),
         format!(
             r#"
-unsigned int OPENSSL_armcap_P = {armcap};
+unsigned int kittycrypto_armcap_P = {armcap};
 "#
         ),
     )

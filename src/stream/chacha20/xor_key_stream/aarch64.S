@@ -1,7 +1,7 @@
 #include "arm_arch.h"
 #ifndef	__KERNEL__
 
-.private_extern	_OPENSSL_armcap_P
+.private_extern	_kittycrypto_armcap_P
 
 
 #endif
@@ -28,8 +28,8 @@ _ChaCha20_ctr32_dflt:
 	cmp	x2,#192
 	b.lo	Lshort
 #ifndef	__KERNEL__
-	adrp	x17,_OPENSSL_armcap_P@PAGE
-	ldr	w17,[x17,_OPENSSL_armcap_P@PAGEOFF]
+	adrp	x17,_kittycrypto_armcap_P@PAGE
+	ldr	w17,[x17,_kittycrypto_armcap_P@PAGEOFF]
 Lcheck_neon:
 	tst	w17,#ARMV7_NEON
 	b.ne	LChaCha20_neon
@@ -318,8 +318,8 @@ _ChaCha20_ctr32:
 	cmp	x2,#192
 	b.lo	Lshort
 #ifndef	__KERNEL__
-	adrp	x17,_OPENSSL_armcap_P@PAGE
-	ldr	w17,[x17,_OPENSSL_armcap_P@PAGEOFF]
+	adrp	x17,_kittycrypto_armcap_P@PAGE
+	ldr	w17,[x17,_kittycrypto_armcap_P@PAGEOFF]
 	tst	w17,#ARMV8_SVE
 	b.eq	Lcheck_neon
 	stp	x29,x30,[sp,#-16]!
