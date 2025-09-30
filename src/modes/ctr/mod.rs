@@ -9,6 +9,7 @@ use crate::block::BlockCipherMarker;
 use crate::error::{CryptoError, CryptoResult};
 use crate::stream::StreamCipher;
 use crate::utils::subtle::xor::xor_bytes;
+use alloc::vec::Vec;
 
 const STREAM_BUFFER_SIZE: usize = 512;
 

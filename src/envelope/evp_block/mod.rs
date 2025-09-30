@@ -20,12 +20,12 @@ use crate::{
     block::xtea::Xtea,
     padding::Pkcs7,
 };
-use block_mode::ErasedBlockMode;
-
 use crate::{
     error::{CryptoError, CryptoResult},
     padding::Padding,
 };
+use alloc::boxed::Box;
+use block_mode::ErasedBlockMode;
 
 pub struct EvpBlockCipher {
     cipher: ErasedBlockMode,

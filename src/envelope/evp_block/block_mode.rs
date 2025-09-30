@@ -1,6 +1,7 @@
 use crate::block::BlockCipher;
 use crate::modes::cbc::{CbcDecryptor, CbcEncryptor};
 use crate::modes::BlockMode;
+use alloc::boxed::Box;
 
 trait ErasedBlockModeInner {
     fn block_size(&self) -> usize;

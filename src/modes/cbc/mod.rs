@@ -15,6 +15,8 @@ mod encryptor;
 pub use encryptor::*;
 
 use crate::block::BlockCipher;
+use alloc::vec;
+use alloc::vec::Vec;
 
 /// CBC mode structure
 struct CbcImpl<B: BlockCipher> {

@@ -75,7 +75,7 @@ impl<B: BlockCipher> BlockMode for CbcDecryptorImpl<B> {
         xor_bytes(&mut inout[start..end], &self.0.iv);
 
         // Set the new iv to the first block we copied earlier
-        std::mem::swap(&mut self.0.iv, &mut self.0.tmp);
+        core::mem::swap(&mut self.0.iv, &mut self.0.tmp);
     }
 
     fn decrypt(&mut self, _inout: &mut [u8]) {

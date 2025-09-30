@@ -3,8 +3,8 @@ use crate::error::CryptoResult;
 use crate::hash::Hash;
 use crate::hash::HashUser;
 use crate::mac::hmac::HMAC;
-
 use alloc::boxed::Box;
+use alloc::vec;
 use alloc::vec::Vec;
 
 macro_rules! impl_hash_methods {

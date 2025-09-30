@@ -10,4 +10,4 @@ pub use aarch64::*;
 pub type Mac = MacAarch64;
 
 #[cfg(not(target_arch = "aarch64"))]
-pub type Mac = MacGeneric;
+pub(crate) type Mac = MacGeneric;

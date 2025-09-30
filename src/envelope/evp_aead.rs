@@ -14,6 +14,8 @@ use crate::block::tea::Tea;
 use crate::block::twofish::Twofish;
 use crate::block::xtea::Xtea;
 use crate::{aead::Aead, error::CryptoResult};
+use alloc::boxed::Box;
+use alloc::vec::Vec;
 
 trait ErasedAeadInner {
     fn tag_size(&self) -> usize;

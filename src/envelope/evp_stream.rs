@@ -18,6 +18,7 @@ use crate::stream::chacha20::Chacha20;
 use crate::stream::rc4::Rc4;
 use crate::stream::sala20::Sala20;
 use crate::{error::CryptoResult, stream::StreamCipher};
+use alloc::boxed::Box;
 
 trait EvpStreamInner {
     fn encrypt(&mut self, inout: &mut [u8]) -> CryptoResult<()>;

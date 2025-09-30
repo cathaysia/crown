@@ -1,8 +1,8 @@
-#[cfg(feature = "std")]
+#[cfg(feature = "alloc")]
 pub mod cbc;
 #[cfg(feature = "alloc")]
 pub mod cfb;
-#[cfg(feature = "std")]
+#[cfg(feature = "alloc")]
 pub mod ctr;
 #[cfg(feature = "alloc")]
 pub mod ecb;
@@ -10,7 +10,6 @@ pub mod ecb;
 #[cfg(feature = "alloc")]
 pub mod ofb;
 
-#[cfg(feature = "std")]
 #[cfg(test)]
 pub mod common_test;
 

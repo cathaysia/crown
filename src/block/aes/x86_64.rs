@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
-use crate::{aes::BlockExpanded, simd::u32x4::u32x4};
+use super::BlockExpanded;
+use crate::simd::u32x4::u32x4;
 
 pub fn encrypt_block_generic(c: &BlockExpanded, inout: &mut [u8]) {
     assert!(inout.len() >= 16);

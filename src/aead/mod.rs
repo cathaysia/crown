@@ -1,5 +1,5 @@
 pub mod chacha20poly1305;
-#[cfg(feature = "std")]
+#[cfg(feature = "alloc")]
 pub mod gcm;
 pub mod ocb;
 pub mod ocb3;

@@ -83,8 +83,7 @@ impl Poly1305 {
     /// Sum computes the authenticator of all data written to the
     /// message authentication code.
     pub fn sum(&mut self) -> [u8; Self::TAG_SIZE] {
-        let mut tag = [0u8; Self::TAG_SIZE];
-        self.mac.sum(&mut tag);
+        let tag = self.mac.sum();
         self.finalized = true;
         tag
     }
@@ -92,8 +91,7 @@ impl Poly1305 {
     /// Verify returns whether the authenticator of all data written to
     /// the message authentication code matches the expected value.
     pub fn verify(&mut self, expected: &[u8]) -> bool {
-        let mut mac = [0u8; Self::TAG_SIZE];
-        self.mac.sum(&mut mac);
+        let mac = self.mac.sum();
         self.finalized = true;
         constant_time_eq(&mac, expected)
     }
