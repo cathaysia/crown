@@ -9,6 +9,7 @@ mod xor_key_stream;
 use crate::error::{CryptoError, CryptoResult};
 use crate::stream::StreamCipher;
 use crate::utils::erase_ownership_mut;
+use crate::utils::subtle::xor::xor_bytes;
 use bytes::{Buf, BufMut};
 
 const BUF_SIZE: usize = 64;
@@ -68,9 +69,7 @@ impl StreamCipher for Chacha20 {
                 key_stream = &key_stream[..inout.len()];
             }
             let key_stream = key_stream;
-            for i in 0..key_stream.len() {
-                inout[i] ^= key_stream[i];
-            }
+            xor_bytes(inout, key_stream);
             self.len -= key_stream.len();
             inout = &mut inout[key_stream.len()..];
         }
@@ -109,7 +108,7 @@ impl StreamCipher for Chacha20 {
             buf[..dst.len()].copy_from_slice(dst);
             let buf = unsafe { erase_ownership_mut(buf) };
 
-            self.xor_key_stream_blocks_generic(buf);
+            self.xor_key_stream_blocks(buf);
             self.len = buf_len - dst.len();
             return Ok(());
         }
