@@ -8,7 +8,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["std"]
+default = ["std", "asm"]
 ## Enable std
 std = ["alloc", "once_cell/std"]
 ## Enable alloc
@@ -17,6 +17,8 @@ alloc = []
 cuda = []
 ## regenerate cuda sys.rs
 bindgen = ["dep:bindgen"]
+## Enable asm support.
+asm = []
 
 [profile.relwithdebinfo]
 inherits = "release"

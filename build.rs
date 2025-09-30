@@ -5,10 +5,13 @@ fn main() {
     #[cfg(feature = "cuda")]
     build_cuda();
 
-    #[cfg(target_arch = "aarch64")]
-    build_aarch64();
-    #[cfg(target_arch = "x86_64")]
-    build_x86_64();
+    #[cfg(feature = "asm")]
+    {
+        #[cfg(target_arch = "aarch64")]
+        build_aarch64();
+        #[cfg(target_arch = "x86_64")]
+        build_x86_64();
+    }
 }
 
 bitflags::bitflags! {
