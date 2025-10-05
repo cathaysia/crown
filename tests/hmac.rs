@@ -1,4 +1,6 @@
-use kittycrypto::{core::CoreWrite, envelope::EvpHash, hash::HashUser, mac::hmac};
+use kittycrypto::{
+    core::CoreWrite, envelope::EvpHash, error::CryptoResult, hash::HashUser, mac::hmac,
+};
 
 use crate::wycheproof::mac::{MacTestFile, MacTestGroup, MacTestVector};
 
@@ -79,6 +81,71 @@ fn test_wycheproof_hmac_test() {
                         );
                     }
                     wycheproof::mac::MacTestVectorResult::Acceptable => todo!(),
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn test_pyca_hmac_vectors() {
+    const BASE_DIR: &str = "tests/cryptography/vectors/cryptography_vectors/HMAC";
+    let files: [(&str, fn(&[u8]) -> CryptoResult<EvpHash>); 6] = [
+        ("rfc-2202-md5.txt", EvpHash::new_md5_hmac),
+        ("rfc-2202-sha1.txt", EvpHash::new_sha1_hmac),
+        // "rfc-2286-ripemd160.txt",
+        ("rfc-4231-sha224.txt", EvpHash::new_sha224_hmac),
+        ("rfc-4231-sha256.txt", EvpHash::new_sha256_hmac),
+        ("rfc-4231-sha384.txt", EvpHash::new_sha384_hmac),
+        ("rfc-4231-sha512.txt", EvpHash::new_sha512_hmac),
+    ];
+
+    for (filename, hmac_constructor) in files {
+        let content = std::fs::read_to_string(format!("{BASE_DIR}/{filename}")).unwrap();
+        let mut lines = content.lines();
+
+        while let Some(line) = lines.next() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+
+            if line.starts_with("Len = ") {
+                let mut key = None;
+                let mut msg = None;
+                let mut expected_md = None;
+
+                for line in lines.by_ref() {
+                    let line = line.trim();
+                    if line.is_empty() {
+                        break;
+                    }
+                    if line.starts_with('#') {
+                        continue;
+                    }
+
+                    if let Some(key_hex) = line.strip_prefix("Key = ") {
+                        key = Some(hex::decode(key_hex).unwrap());
+                    } else if let Some(msg_hex) = line.strip_prefix("Msg = ") {
+                        msg = Some(hex::decode(msg_hex).unwrap());
+                    } else if let Some(md_hex) = line.strip_prefix("MD = ") {
+                        expected_md = Some(hex::decode(md_hex).unwrap());
+                    }
+                }
+
+                if let (Some(key), Some(msg), Some(expected_md)) = (key, msg, expected_md) {
+                    let mut hmac = hmac_constructor(&key).unwrap();
+                    hmac.write_all(&msg).unwrap();
+                    let result = hmac.sum();
+
+                    assert_eq!(
+                        result,
+                        expected_md,
+                        "HMAC test failed for {}: expected {}, got {}",
+                        filename,
+                        hex::encode(&expected_md),
+                        hex::encode(&result)
+                    );
                 }
             }
         }
