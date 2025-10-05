@@ -105,22 +105,52 @@ impl<const TAG_SIZE: usize, const NONCE_SIZE: usize, T: BlockCipher>
 
     fn process_nonce(&self, nonce: &[u8]) -> tinyvec::ArrayVec<[u8; MAX_BLOCK_SIZE]> {
         let block_size = self.cipher.block_size();
-        let mut ktop = new_array(block_size);
+        let mut nonce_formatted = new_array(block_size);
+        let mut stretch = [0u8; 24];
 
         let nonce_len = nonce.len();
-        if nonce_len < block_size {
-            ktop[..nonce_len].copy_from_slice(nonce);
-            ktop[nonce_len] = 0x80;
-            ktop[block_size - 1] &= 0xc0;
-            ktop[block_size - 1] |= (nonce_len * 8) as u8 & 0x3f;
-        } else {
-            ktop[..block_size].copy_from_slice(&nonce[..block_size]);
-        }
 
-        Self::xor_blocks(&mut ktop, &self.l_star[..block_size]);
+        nonce_formatted[0] = (((TAG_SIZE * 8) % 128) as u8) << 1;
+        nonce_formatted[block_size - nonce_len..block_size].copy_from_slice(nonce);
+        nonce_formatted[block_size - nonce_len - 1] |= 1;
+
+        let mut ktop = nonce_formatted;
+        ktop[block_size - 1] &= 0xc0;
         self.cipher.encrypt(&mut ktop);
 
-        ktop
+        stretch[..16].copy_from_slice(&ktop[..16]);
+        for i in 0..8 {
+            stretch[16 + i] = ktop[i] ^ ktop[i + 1];
+        }
+
+        let bottom = nonce_formatted[block_size - 1] & 0x3f;
+        let shift = bottom % 8;
+        let byte_offset = (bottom / 8) as usize;
+
+        let mut offset = new_array(block_size);
+
+        for i in 0..block_size {
+            let src_idx = byte_offset + i;
+            if src_idx < 24 {
+                offset[i] = stretch[src_idx];
+            }
+        }
+
+        if shift > 0 {
+            let mut carry = 0u8;
+            for i in (0..block_size).rev() {
+                let new_carry = offset[i] >> (8 - shift);
+                offset[i] = (offset[i] << shift) | carry;
+                carry = new_carry;
+            }
+
+            if byte_offset + block_size < 24 {
+                let mask = 0xff << (8 - shift);
+                offset[block_size - 1] |= (stretch[byte_offset + block_size] & mask) >> (8 - shift);
+            }
+        }
+
+        offset
     }
 }
 
@@ -153,10 +183,38 @@ impl<const TAG_SIZE: usize, const NONCE_SIZE: usize, T: BlockCipher> Aead<TAG_SI
         }
 
         let block_size = self.cipher.block_size();
-        let ktop = self.process_nonce(nonce);
-
-        let mut offset = ktop;
+        let mut offset = self.process_nonce(nonce);
         let mut checksum = new_array(block_size);
+        let mut sum = new_array(block_size);
+
+        if !additional_data.is_empty() {
+            let mut ad_offset = new_array(block_size);
+            let ad_full_blocks = additional_data.len() / block_size;
+
+            for i in 0..ad_full_blocks {
+                let start = i * block_size;
+                let end = start + block_size;
+                let mut block = new_array(block_size);
+                block[..block_size].copy_from_slice(&additional_data[start..end]);
+
+                Self::xor_blocks(&mut ad_offset, self.get_l(i + 1));
+                Self::xor_blocks(&mut block, &ad_offset);
+                self.cipher.encrypt(&mut block);
+                Self::xor_blocks(&mut sum, &block);
+            }
+
+            let remaining = additional_data.len() % block_size;
+            if remaining > 0 {
+                Self::xor_blocks(&mut ad_offset, &self.l_star[..block_size]);
+                let mut block = new_array(block_size);
+                let start = ad_full_blocks * block_size;
+                block[..remaining].copy_from_slice(&additional_data[start..start + remaining]);
+                block[remaining] = 0x80;
+                Self::xor_blocks(&mut block, &ad_offset);
+                self.cipher.encrypt(&mut block);
+                Self::xor_blocks(&mut sum, &block);
+            }
+        }
 
         let full_blocks = inout.len() / block_size;
 
@@ -193,34 +251,10 @@ impl<const TAG_SIZE: usize, const NONCE_SIZE: usize, T: BlockCipher> Aead<TAG_SI
         Self::xor_blocks(&mut checksum, &offset);
         Self::xor_blocks(&mut checksum, &self.l_dollar[..block_size]);
         self.cipher.encrypt(&mut checksum);
-
-        let mut auth = checksum;
-
-        if !additional_data.is_empty() {
-            let mut ad_offset = new_array(block_size);
-            let ad_blocks = additional_data.len().div_ceil(block_size);
-
-            for i in 0..ad_blocks {
-                let start = i * block_size;
-                let end = core::cmp::min(start + block_size, additional_data.len());
-                let mut block = new_array(block_size);
-                block[..end - start].copy_from_slice(&additional_data[start..end]);
-
-                if end - start < block_size {
-                    block[end - start] = 0x80;
-                    Self::xor_blocks(&mut ad_offset, &self.l_star[..block_size]);
-                } else {
-                    Self::xor_blocks(&mut ad_offset, self.get_l(i + 1));
-                }
-
-                Self::xor_blocks(&mut block, &ad_offset);
-                self.cipher.encrypt(&mut block);
-                Self::xor_blocks(&mut auth, &block);
-            }
-        }
+        Self::xor_blocks(&mut checksum, &sum);
 
         let mut tag = [0u8; TAG_SIZE];
-        tag.copy_from_slice(&auth[..TAG_SIZE]);
+        tag.copy_from_slice(&checksum[..TAG_SIZE]);
         Ok(tag)
     }
 
@@ -246,10 +280,38 @@ impl<const TAG_SIZE: usize, const NONCE_SIZE: usize, T: BlockCipher> Aead<TAG_SI
         }
 
         let block_size = self.cipher.block_size();
-        let ktop = self.process_nonce(nonce);
-
-        let mut offset = ktop;
+        let mut offset = self.process_nonce(nonce);
         let mut checksum = new_array(block_size);
+        let mut sum = new_array(block_size);
+
+        if !additional_data.is_empty() {
+            let mut ad_offset = new_array(block_size);
+            let ad_full_blocks = additional_data.len() / block_size;
+
+            for i in 0..ad_full_blocks {
+                let start = i * block_size;
+                let end = start + block_size;
+                let mut block = new_array(block_size);
+                block[..block_size].copy_from_slice(&additional_data[start..end]);
+
+                Self::xor_blocks(&mut ad_offset, self.get_l(i + 1));
+                Self::xor_blocks(&mut block, &ad_offset);
+                self.cipher.encrypt(&mut block);
+                Self::xor_blocks(&mut sum, &block);
+            }
+
+            let remaining = additional_data.len() % block_size;
+            if remaining > 0 {
+                Self::xor_blocks(&mut ad_offset, &self.l_star[..block_size]);
+                let mut block = new_array(block_size);
+                let start = ad_full_blocks * block_size;
+                block[..remaining].copy_from_slice(&additional_data[start..start + remaining]);
+                block[remaining] = 0x80;
+                Self::xor_blocks(&mut block, &ad_offset);
+                self.cipher.encrypt(&mut block);
+                Self::xor_blocks(&mut sum, &block);
+            }
+        }
 
         let full_blocks = inout.len() / block_size;
 
@@ -286,33 +348,9 @@ impl<const TAG_SIZE: usize, const NONCE_SIZE: usize, T: BlockCipher> Aead<TAG_SI
         Self::xor_blocks(&mut checksum, &offset);
         Self::xor_blocks(&mut checksum, &self.l_dollar[..block_size]);
         self.cipher.encrypt(&mut checksum);
+        Self::xor_blocks(&mut checksum, &sum);
 
-        let mut auth = checksum;
-
-        if !additional_data.is_empty() {
-            let mut ad_offset = new_array(block_size);
-            let ad_blocks = additional_data.len().div_ceil(block_size);
-
-            for i in 0..ad_blocks {
-                let start = i * block_size;
-                let end = core::cmp::min(start + block_size, additional_data.len());
-                let mut block = new_array(block_size);
-                block[..end - start].copy_from_slice(&additional_data[start..end]);
-
-                if end - start < block_size {
-                    block[end - start] = 0x80;
-                    Self::xor_blocks(&mut ad_offset, &self.l_star[..block_size]);
-                } else {
-                    Self::xor_blocks(&mut ad_offset, self.get_l(i + 1));
-                }
-
-                Self::xor_blocks(&mut block, &ad_offset);
-                self.cipher.encrypt(&mut block);
-                Self::xor_blocks(&mut auth, &block);
-            }
-        }
-
-        let computed_tag = &auth[..TAG_SIZE];
+        let computed_tag = &checksum[..TAG_SIZE];
         if computed_tag != tag {
             return Err(CryptoError::AuthenticationFailed);
         }
