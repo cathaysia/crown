@@ -1,3 +1,6 @@
 [submodule "tests/wycheproof/data"]
 	path = tests/wycheproof/data
 	url = https://github.com/C2SP/wycheproof.git
+[submodule "tests/cryptography"]
+	path = tests/cryptography
+	url = https://github.com/pyca/cryptography.git
