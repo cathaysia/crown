@@ -10,6 +10,7 @@ fn test_aead() {
             match alg {
                 "CHACHA20-POLY1305" => EvpAeadCipher::new_chacha20_poly1305(key),
                 "XCHACHA20-POLY1305" => EvpAeadCipher::new_xchacha20_poly1305(key),
+                "AES-GCM" => EvpAeadCipher::new_aes_gcm(key),
                 _ => return None,
             }
             .unwrap(),
