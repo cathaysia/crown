@@ -7,19 +7,19 @@ use crate::utils::parse_response_line;
 fn test_pyca_block_vectors() {
     const BASE_DIR: &str = "tests/cryptography/vectors/cryptography_vectors/";
     #[rustfmt::skip]
-    const FILES: [(fn(key: &[u8], iv: &[u8]) -> CryptoResult<EvpBlockCipher>, &str); 18] = [
-        // (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCIinvperm.rsp"),
-        // (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCIMMT1.rsp"),
-        // (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCIMMT2.rsp"),
-        // (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCIMMT3.rsp"),
+    const FILES: [(fn(key: &[u8], iv: &[u8]) -> CryptoResult<EvpBlockCipher>, &str); 31] = [
+        (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCIinvperm.rsp"),
+        (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCIMMT1.rsp"),
+        (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCIMMT2.rsp"),
+        (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCIMMT3.rsp"),
         // (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCinvperm.rsp"),
-        // (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCIpermop.rsp"),
-        // (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCIsubtab.rsp"),
-        // (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCIvarkey.rsp"),
-        // (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCIvartext.rsp"),
-        // (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCMMT1.rsp"),
-        // (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCMMT2.rsp"),
-        // (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCMMT3.rsp"),
+        (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCIpermop.rsp"),
+        (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCIsubtab.rsp"),
+        (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCIvarkey.rsp"),
+        (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCIvartext.rsp"),
+        (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCMMT1.rsp"),
+        (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCMMT2.rsp"),
+        (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCMMT3.rsp"),
         // (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCpermop.rsp"),
         // (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCsubtab.rsp"),
         // (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCvarkey.rsp"),
@@ -40,10 +40,10 @@ fn test_pyca_block_vectors() {
         (EvpBlockCipher::new_aes_cbc, "ciphers/AES/CBC/CBCVarTxt192.rsp"),
         (EvpBlockCipher::new_aes_cbc, "ciphers/AES/CBC/CBCVarTxt256.rsp"),
         (EvpBlockCipher::new_blowfish_cbc, "ciphers/Blowfish/bf-cbc.txt"),
-        // (EvpBlockCipher::new_camellia_cbc, "ciphers/Camellia/camellia-cbc.txt"),
+        (|key: &[u8], iv: &[u8]| ->CryptoResult<EvpBlockCipher> { EvpBlockCipher::new_camellia_cbc (key, iv, None)}, "ciphers/Camellia/camellia-cbc.txt"),
         (EvpBlockCipher::new_cast5_cbc, "ciphers/CAST5/cast5-cbc.txt"),
         (EvpBlockCipher::new_idea_cbc, "ciphers/IDEA/idea-cbc.txt"),
-        // (EvpBlockCipher::new_rc2_cbc, "ciphers/RC2/rc2-cbc.txt"),
+        (|key: &[u8], iv: &[u8]| ->CryptoResult<EvpBlockCipher> { EvpBlockCipher::new_rc2_cbc (key, iv, None)}, "ciphers/RC2/rc2-cbc.txt"),
         // (EvpBlockCipher::new_sm4_cbc, "ciphers/SM4/draft-ribose-cfrg-sm4-10-cbc.txt"),
     ];
 

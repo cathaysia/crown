@@ -36,7 +36,7 @@ impl BlockCipherMarker for Camellia {}
 
 impl BlockCipher for Camellia {
     fn block_size(&self) -> usize {
-        128
+        16
     }
 
     fn encrypt(&self, inout: &mut [u8]) {

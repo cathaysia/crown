@@ -146,7 +146,7 @@ impl Idea {
 
 impl BlockCipher for Idea {
     fn block_size(&self) -> usize {
-        64
+        8
     }
 
     fn encrypt(&self, inout: &mut [u8]) {
