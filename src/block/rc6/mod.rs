@@ -4,7 +4,7 @@ mod tests;
 
 mod imp;
 use crate::{
-    aead::{ocb::OcbGeneric, ocb3::Ocb3Generic},
+    aead::ocb3::Ocb3Generic,
     block::{BlockCipher, BlockCipherMarker},
     error::CryptoResult,
 };
@@ -15,7 +15,6 @@ pub struct Rc6 {
 }
 
 impl BlockCipherMarker for Rc6 {}
-impl OcbGeneric for Rc6 {}
 impl Ocb3Generic for Rc6 {}
 
 impl Rc6 {

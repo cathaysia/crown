@@ -1,5 +1,4 @@
 use crate::aead::gcm::Gcm;
-use crate::aead::ocb::Ocb;
 use crate::aead::ocb3::Ocb3;
 use crate::block::aes::Aes;
 use crate::block::blowfish::Blowfish;
@@ -49,9 +48,6 @@ macro_rules! impl_aead_cipher {
             paste::paste! {
                 pub fn [<new_ $basic:lower _gcm>](key: &[u8]) -> CryptoResult<Self> {
                     Ok(Self::new_impl($basic::new(key)?.to_gcm()?))
-                }
-                pub fn [<new_ $basic:lower _ocb>]<const TAG_SIZE: usize, const NONCE_SIZE: usize>(key: &[u8]) -> CryptoResult<Self> {
-                    Ok(Self::new_impl($basic::new(key)?.to_ocb::<TAG_SIZE, NONCE_SIZE>()?))
                 }
                 pub fn [<new_ $basic:lower _ocb3>]<const TAG_SIZE: usize, const NONCE_SIZE: usize>(key: &[u8]) -> CryptoResult<Self> {
                     Ok(Self::new_impl($basic::new(key)?.to_ocb3::<TAG_SIZE, NONCE_SIZE>()?))
