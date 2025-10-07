@@ -5,10 +5,14 @@ use kittycrypto::{envelope::EvpStreamCipher, error::CryptoResult};
 use crate::utils::parse_response_line;
 
 #[test]
-fn test_pyca_cfb_vectors() {
+fn test_pyca_stream_vectors() {
     const BASE_DIR: &str = "tests/cryptography/vectors/cryptography_vectors/";
     #[rustfmt::skip]
-    const FILES: [(fn (key:&[u8], iv:&[u8])->CryptoResult<EvpStreamCipher>, &str); 87] = [
+    const FILES: [(fn (key:&[u8], iv:&[u8])->CryptoResult<EvpStreamCipher>, &str); 121] = [
+        (EvpStreamCipher::new_aes_ctr, "ciphers/AES/CTR/aes-128-ctr.txt"),
+        (EvpStreamCipher::new_aes_ctr, "ciphers/AES/CTR/aes-192-ctr.txt"),
+        (EvpStreamCipher::new_aes_ctr, "ciphers/AES/CTR/aes-256-ctr.txt"),
+        // CFB
         (EvpStreamCipher::new_tripledes_cfb,"ciphers/3DES/CFB/TCFB1invperm.rsp"),
         (EvpStreamCipher::new_tripledes_cfb,"ciphers/3DES/CFB/TCFB1MMT1.rsp"),
         (EvpStreamCipher::new_tripledes_cfb,"ciphers/3DES/CFB/TCFB1MMT2.rsp"),
@@ -102,6 +106,38 @@ fn test_pyca_cfb_vectors() {
         (EvpStreamCipher::new_aes_cfb,"ciphers/AES/CFB/CFB8VarTxt128.rsp"),
         (EvpStreamCipher::new_aes_cfb,"ciphers/AES/CFB/CFB8VarTxt192.rsp"),
         (EvpStreamCipher::new_aes_cfb,"ciphers/AES/CFB/CFB8VarTxt256.rsp"),
+        // OFB
+        (EvpStreamCipher::new_tripledes_ofb,"ciphers/3DES/OFB/TOFBIinvperm.rsp"),
+        (EvpStreamCipher::new_tripledes_ofb,"ciphers/3DES/OFB/TOFBIMMT1.rsp"),
+        (EvpStreamCipher::new_tripledes_ofb,"ciphers/3DES/OFB/TOFBIMMT2.rsp"),
+        (EvpStreamCipher::new_tripledes_ofb,"ciphers/3DES/OFB/TOFBIMMT3.rsp"),
+        (EvpStreamCipher::new_tripledes_ofb,"ciphers/3DES/OFB/TOFBinvperm.rsp"),
+        (EvpStreamCipher::new_tripledes_ofb,"ciphers/3DES/OFB/TOFBIpermop.rsp"),
+        (EvpStreamCipher::new_tripledes_ofb,"ciphers/3DES/OFB/TOFBIsubtab.rsp"),
+        (EvpStreamCipher::new_tripledes_ofb,"ciphers/3DES/OFB/TOFBIvarkey.rsp"),
+        (EvpStreamCipher::new_tripledes_ofb,"ciphers/3DES/OFB/TOFBIvartext.rsp"),
+        (EvpStreamCipher::new_tripledes_ofb,"ciphers/3DES/OFB/TOFBMMT1.rsp"),
+        (EvpStreamCipher::new_tripledes_ofb,"ciphers/3DES/OFB/TOFBMMT2.rsp"),
+        (EvpStreamCipher::new_tripledes_ofb,"ciphers/3DES/OFB/TOFBMMT3.rsp"),
+        (EvpStreamCipher::new_tripledes_ofb,"ciphers/3DES/OFB/TOFBpermop.rsp"),
+        (EvpStreamCipher::new_tripledes_ofb,"ciphers/3DES/OFB/TOFBsubtab.rsp"),
+        (EvpStreamCipher::new_tripledes_ofb,"ciphers/3DES/OFB/TOFBvarkey.rsp"),
+        (EvpStreamCipher::new_tripledes_ofb,"ciphers/3DES/OFB/TOFBvartext.rsp"),
+        (EvpStreamCipher::new_aes_ofb,"ciphers/AES/OFB/OFBGFSbox128.rsp"),
+        (EvpStreamCipher::new_aes_ofb,"ciphers/AES/OFB/OFBGFSbox192.rsp"),
+        (EvpStreamCipher::new_aes_ofb,"ciphers/AES/OFB/OFBGFSbox256.rsp"),
+        (EvpStreamCipher::new_aes_ofb,"ciphers/AES/OFB/OFBKeySbox128.rsp"),
+        (EvpStreamCipher::new_aes_ofb,"ciphers/AES/OFB/OFBKeySbox192.rsp"),
+        (EvpStreamCipher::new_aes_ofb,"ciphers/AES/OFB/OFBKeySbox256.rsp"),
+        (EvpStreamCipher::new_aes_ofb,"ciphers/AES/OFB/OFBMMT128.rsp"),
+        (EvpStreamCipher::new_aes_ofb,"ciphers/AES/OFB/OFBMMT192.rsp"),
+        (EvpStreamCipher::new_aes_ofb,"ciphers/AES/OFB/OFBMMT256.rsp"),
+        (EvpStreamCipher::new_aes_ofb,"ciphers/AES/OFB/OFBVarKey128.rsp"),
+        (EvpStreamCipher::new_aes_ofb,"ciphers/AES/OFB/OFBVarKey192.rsp"),
+        (EvpStreamCipher::new_aes_ofb,"ciphers/AES/OFB/OFBVarKey256.rsp"),
+        (EvpStreamCipher::new_aes_ofb,"ciphers/AES/OFB/OFBVarTxt128.rsp"),
+        (EvpStreamCipher::new_aes_ofb,"ciphers/AES/OFB/OFBVarTxt192.rsp"),
+        (EvpStreamCipher::new_aes_ofb,"ciphers/AES/OFB/OFBVarTxt256.rsp"),
     ];
 
     for (newer, filename) in FILES {
