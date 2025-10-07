@@ -6,15 +6,18 @@ use crate::utils::parse_response_line;
 #[test]
 fn test_pyca_aead_vectors() {
     const BASE_DIR: &str = "tests/cryptography/vectors/cryptography_vectors/";
-    const FILES: [(fn(key: &[u8]) -> CryptoResult<EvpAeadCipher>, &str); 2] = [
-        (
-            EvpAeadCipher::new_aes_ocb3::<16, 12>,
-            "ciphers/AES/OCB3/rfc7253.txt",
-        ),
-        (
-            EvpAeadCipher::new_aes_ocb3::<16, 13>,
-            "ciphers/AES/OCB3/test-vector-1-nonce104.txt",
-        ),
+    #[rustfmt::skip]
+    const FILES: [(fn(key: &[u8]) -> CryptoResult<EvpAeadCipher>, &str); 10] = [
+        (EvpAeadCipher::new_chacha20_poly1305, "ciphers/ChaCha20Poly1305/boringssl.txt"),
+        (EvpAeadCipher::new_chacha20_poly1305, "ciphers/ChaCha20Poly1305/openssl.txt"),
+        (EvpAeadCipher::new_aes_ocb3::<16, 12>, "ciphers/AES/OCB3/rfc7253.txt"),
+        (EvpAeadCipher::new_aes_ocb3::<16, 13>, "ciphers/AES/OCB3/test-vector-1-nonce104.txt"),
+        (EvpAeadCipher::new_aes_gcm, "ciphers/AES/GCM/gcmDecrypt128.rsp"),
+        (EvpAeadCipher::new_aes_gcm, "ciphers/AES/GCM/gcmDecrypt192.rsp"),
+        (EvpAeadCipher::new_aes_gcm, "ciphers/AES/GCM/gcmDecrypt256.rsp"),
+        (EvpAeadCipher::new_aes_gcm, "ciphers/AES/GCM/gcmEncryptExtIV128.rsp"),
+        (EvpAeadCipher::new_aes_gcm, "ciphers/AES/GCM/gcmEncryptExtIV192.rsp"),
+        (EvpAeadCipher::new_aes_gcm, "ciphers/AES/GCM/gcmEncryptExtIV256.rsp"),
     ];
 
     for (newer, filename) in FILES {

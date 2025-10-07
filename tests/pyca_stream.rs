@@ -8,10 +8,13 @@ use crate::utils::parse_response_line;
 fn test_pyca_stream_vectors() {
     const BASE_DIR: &str = "tests/cryptography/vectors/cryptography_vectors/";
     #[rustfmt::skip]
-    const FILES: [(fn (key:&[u8], iv:&[u8])->CryptoResult<EvpStreamCipher>, &str); 121] = [
+    const FILES: [(fn (key:&[u8], iv:&[u8])->CryptoResult<EvpStreamCipher>, &str); 128] = [
+        (EvpStreamCipher::new_chacha20, "ciphers/ChaCha20/counter-overflow.txt"),
+        (EvpStreamCipher::new_chacha20, "ciphers/ChaCha20/rfc7539.txt"),
         (EvpStreamCipher::new_aes_ctr, "ciphers/AES/CTR/aes-128-ctr.txt"),
         (EvpStreamCipher::new_aes_ctr, "ciphers/AES/CTR/aes-192-ctr.txt"),
         (EvpStreamCipher::new_aes_ctr, "ciphers/AES/CTR/aes-256-ctr.txt"),
+        (EvpStreamCipher::new_cast5_ctr, "ciphers/CAST5/cast5-ctr.txt"),
         // CFB
         (EvpStreamCipher::new_tripledes_cfb,"ciphers/3DES/CFB/TCFB1invperm.rsp"),
         (EvpStreamCipher::new_tripledes_cfb,"ciphers/3DES/CFB/TCFB1MMT1.rsp"),
@@ -106,6 +109,12 @@ fn test_pyca_stream_vectors() {
         (EvpStreamCipher::new_aes_cfb,"ciphers/AES/CFB/CFB8VarTxt128.rsp"),
         (EvpStreamCipher::new_aes_cfb,"ciphers/AES/CFB/CFB8VarTxt192.rsp"),
         (EvpStreamCipher::new_aes_cfb,"ciphers/AES/CFB/CFB8VarTxt256.rsp"),
+        (EvpStreamCipher::new_blowfish_cfb, "ciphers/Blowfish/bf-cfb.txt"),
+        // (|key: &[u8], iv: &[u8]| ->CryptoResult<EvpStreamCipher> { EvpStreamCipher::new_camellia_cfb (key, iv, None)} , "ciphers/Camellia/camellia-cfb.txt"),
+        (EvpStreamCipher::new_cast5_cfb, "ciphers/CAST5/cast5-cfb.txt"),
+        // (EvpStreamCipher::new_idea_cfb, "ciphers/IDEA/idea-cfb.txt"),
+        // (EvpStreamCipher::new_seed_cfb, "ciphers/SEED/seed-cfb.txt"),
+        // (EvpStreamCipher::new_blowfish_cfb, "ciphers/SM4/draft-ribose-cfrg-sm4-10-cfb.txt"),
         // OFB
         (EvpStreamCipher::new_tripledes_ofb,"ciphers/3DES/OFB/TOFBIinvperm.rsp"),
         (EvpStreamCipher::new_tripledes_ofb,"ciphers/3DES/OFB/TOFBIMMT1.rsp"),
@@ -138,6 +147,12 @@ fn test_pyca_stream_vectors() {
         (EvpStreamCipher::new_aes_ofb,"ciphers/AES/OFB/OFBVarTxt128.rsp"),
         (EvpStreamCipher::new_aes_ofb,"ciphers/AES/OFB/OFBVarTxt192.rsp"),
         (EvpStreamCipher::new_aes_ofb,"ciphers/AES/OFB/OFBVarTxt256.rsp"),
+        (EvpStreamCipher::new_blowfish_ofb, "ciphers/Blowfish/bf-ofb.txt"),
+        // (EvpStreamCipher::new_camellia_ofb, "ciphers/Camellia/camellia-ofb.txt"),
+        (EvpStreamCipher::new_cast5_ofb, "ciphers/CAST5/cast5-ofb.txt"),
+        // (EvpStreamCipher::new_idea_ofb, "ciphers/IDEA/idea-ofb.txt"),
+        // (EvpStreamCipher::new_seed_ofb, "ciphers/SEED/seed-ofb.txt"),
+        // (EvpStreamCipher::new_sm4_ofb, "ciphers/SM4/draft-ribose-cfrg-sm4-10-ofb.txt"),
     ];
 
     for (newer, filename) in FILES {
