@@ -1,3 +1,4 @@
+mod utils;
 use kittycrypto::envelope::EvpStreamCipher;
 
 #[test]
@@ -34,21 +35,27 @@ fn test_pyca_ctr_vectors() {
                         continue;
                     }
 
-                    if let Some(key_hex) = line.strip_prefix("Key = ") {
-                        key = Some(hex::decode(key_hex).unwrap());
-                    } else if let Some(pt_hex) = line.strip_prefix("PLAINTEXT = ") {
-                        if pt_hex.len() % 2 != 0 {
-                            continue;
+                    let Ok((rkey, value)) = utils::parse_response_line(line) else {
+                        eprintln!("parse response line failed: {line}");
+                        continue;
+                    };
+
+                    match rkey.as_str() {
+                        "key" => {
+                            key = Some(value);
                         }
-                        if pt_hex.is_empty() {
-                            plaintext = Some(Vec::new());
-                        } else {
-                            plaintext = Some(hex::decode(pt_hex).unwrap());
+                        "plaintext" => {
+                            plaintext = Some(value);
                         }
-                    } else if let Some(ct_hex) = line.strip_prefix("CIPHERTEXT = ") {
-                        expected_ciphertext = Some(hex::decode(ct_hex).unwrap());
-                    } else if let Some(ct_hex) = line.strip_prefix("IV = ") {
-                        iv = Some(hex::decode(ct_hex).unwrap());
+                        "ciphertext" => {
+                            expected_ciphertext = Some(value);
+                        }
+                        "iv" => {
+                            iv = Some(value);
+                        }
+                        _ => {
+                            eprintln!("unexpected key: {rkey}");
+                        }
                     }
                 }
 
