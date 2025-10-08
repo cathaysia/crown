@@ -9,12 +9,12 @@
 //! legacy purposes only.
 
 use bytes::BufMut;
+use derive::Marshal;
 
 use crate::{
     core::CoreWrite,
-    error::{CryptoError, CryptoResult},
+    error::CryptoResult,
     hash::{Hash, HashUser},
-    mac::hmac::Marshalable,
 };
 
 #[cfg(test)]
@@ -40,7 +40,7 @@ static S: [u8; 256] = [
     0x31, 0x44, 0x50, 0xB4, 0x8F, 0xED, 0x1F, 0x1A, 0xDB, 0x99, 0x8D, 0x33, 0x9F, 0x11, 0x83, 0x14,
 ];
 
-#[derive(Clone)]
+#[derive(Clone, Marshal)]
 pub struct Md2 {
     state: [u8; Self::BLOCK_SIZE],
     cksm: [u8; Self::BLOCK_SIZE],
@@ -196,48 +196,6 @@ impl Hash<16> for Md2 {
     fn sum(&mut self) -> [u8; 16] {
         let mut d0 = self.clone();
         d0.finalize()
-    }
-}
-
-const MAGIC: &[u8] = b"md2\x01";
-const MARSHALED_SIZE: usize = MAGIC.len() + 16 * 3 + 8;
-
-impl Marshalable for Md2 {
-    fn marshal_size(&self) -> usize {
-        MARSHALED_SIZE
-    }
-
-    fn marshal_into(&self, mut out: &mut [u8]) -> CryptoResult<usize> {
-        let len = out.len();
-        if len < self.marshal_size() {
-            return Err(CryptoError::BufferTooSmall);
-        }
-        out.put_slice(MAGIC);
-        out.put_slice(&self.state);
-        out.put_slice(&self.cksm);
-        out.put_slice(&self.data);
-        out.put_u64(self.num as _);
-        Ok(len - out.len())
-    }
-
-    fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
-        use crate::error::CryptoError;
-        use bytes::Buf;
-
-        if b.len() < MAGIC.len() || &b[..MAGIC.len()] != MAGIC {
-            return Err(CryptoError::InvalidHashIdentifier);
-        }
-        if b.len() != MARSHALED_SIZE {
-            return Err(CryptoError::InvalidHashState);
-        }
-
-        let mut b = &b[MAGIC.len()..];
-        b.copy_to_slice(&mut self.state);
-
-        b.copy_to_slice(&mut self.cksm);
-        b.copy_to_slice(&mut self.data);
-        self.num = b.get_u64() as usize;
-        Ok(())
     }
 }
 

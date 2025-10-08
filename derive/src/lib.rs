@@ -1,8 +1,15 @@
+mod marshal;
+
 use minijinja::{context, Environment};
 use proc_macro::{Span, TokenStream};
 use quote::quote;
 use std::fs;
 use syn::{parse_macro_input, LitStr};
+
+#[proc_macro_derive(Marshal, attributes(marshal))]
+pub fn marshal(input: TokenStream) -> TokenStream {
+    marshal::marshal(input)
+}
 
 #[proc_macro]
 pub fn jinja(input: TokenStream) -> TokenStream {

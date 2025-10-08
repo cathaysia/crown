@@ -1,6 +1,7 @@
 use bytes::BufMut;
+use derive::Marshal;
 
-use crate::{core::CoreRead, hash::HashVariable, mac::hmac::Marshalable, utils::copy};
+use crate::{core::CoreRead, hash::HashVariable, utils::copy};
 
 use super::*;
 
@@ -9,6 +10,8 @@ use super::*;
 /// This struct provides a BLAKE2b hasher that can generate checksums of
 /// variable length between 1 and 64 bytes. It implements the [HashVariable]
 /// trait and supports keying for MAC (Message Authentication Code) generation.
+#[derive(Marshal)]
+#[marshal(magic = b"b2b")]
 pub struct Blake2bVariable {
     h: [u64; 8],
     c: [u64; 2],
@@ -18,9 +21,6 @@ pub struct Blake2bVariable {
     key: [u8; BLOCK_SIZE],
     key_len: usize,
 }
-
-const MAGIC: &[u8] = b"b2b";
-const MARSHALED_SIZE: usize = MAGIC.len() + 8 * 8 + 2 * 8 + 1 + BLOCK_SIZE + 1;
 
 impl Blake2bVariable {
     /// Create a [HashVariable] hasher allow generate checksum between [0, 64].
@@ -88,64 +88,6 @@ impl HashVariable for Blake2bVariable {
         self.finalize(&mut hash);
 
         copy(sum, &hash[..self.hash_size])
-    }
-}
-
-impl Marshalable for Blake2bVariable {
-    fn marshal_size(&self) -> usize {
-        MARSHALED_SIZE
-    }
-
-    fn marshal_into(&self, mut out: &mut [u8]) -> CryptoResult<usize> {
-        let len = out.len();
-        if self.key_len != 0 {
-            return Err(CryptoError::InvalidParameterStr("cannot marshal MACs"));
-        }
-
-        out.put_slice(MAGIC);
-
-        for &h in &self.h {
-            out.put_u64(h);
-        }
-
-        out.put_u64(self.c[0]);
-        out.put_u64(self.c[1]);
-        out.put_u8(self.hash_size as u8);
-        out.put_slice(&self.block);
-        out.put_u8(self.offset as u8);
-
-        Ok(len - out.len())
-    }
-
-    fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
-        if b.len() < MAGIC.len() || &b[..MAGIC.len()] != MAGIC {
-            return Err(CryptoError::InvalidHashIdentifier);
-        }
-        if b.len() != MARSHALED_SIZE {
-            return Err(CryptoError::InvalidHashState);
-        }
-
-        let mut b = &b[MAGIC.len()..];
-
-        for h in &mut self.h {
-            *h = u64::from_be_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]);
-            b = &b[8..];
-        }
-
-        self.c[0] = u64::from_be_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]);
-        b = &b[8..];
-        self.c[1] = u64::from_be_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]);
-        b = &b[8..];
-
-        self.hash_size = b[0] as usize;
-        b = &b[1..];
-
-        self.block.copy_from_slice(&b[..BLOCK_SIZE]);
-        b = &b[BLOCK_SIZE..];
-
-        self.offset = b[0] as usize;
-
-        Ok(())
     }
 }
 

@@ -1,9 +1,12 @@
 use bytes::BufMut;
+use derive::Marshal;
 
-use crate::{core::CoreRead, mac::hmac::Marshalable};
+use crate::core::CoreRead;
 
 use super::*;
 
+#[derive(Marshal)]
+#[marshal(magic = b"b2s")]
 pub struct Blake2sVariable {
     h: [u32; 8],
     c: [u32; 2],
@@ -13,9 +16,6 @@ pub struct Blake2sVariable {
     key: [u8; BLOCK_SIZE],
     key_len: usize,
 }
-
-const MAGIC: &[u8] = b"b2s";
-const MARSHALED_SIZE: usize = MAGIC.len() + 8 * 4 + 2 * 4 + 1 + BLOCK_SIZE + 1;
 
 impl Blake2sVariable {
     pub fn new(key: Option<&[u8]>, hash_size: usize) -> CryptoResult<Self> {
@@ -113,64 +113,6 @@ impl Blake2sVariable {
             let bytes = v.to_le_bytes();
             hash[4 * i..4 * i + 4].copy_from_slice(&bytes);
         }
-    }
-}
-
-impl Marshalable for Blake2sVariable {
-    fn marshal_size(&self) -> usize {
-        MARSHALED_SIZE
-    }
-
-    fn marshal_into(&self, mut b: &mut [u8]) -> CryptoResult<usize> {
-        let len = b.len();
-        if self.key_len != 0 {
-            return Err(CryptoError::InvalidParameterStr(
-                "crypto/blake2s: cannot marshal MACs",
-            ));
-        }
-
-        b.put_slice(MAGIC);
-
-        for &h in &self.h {
-            b.put_u32(h);
-        }
-        b.put_u32(self.c[0]);
-        b.put_u32(self.c[1]);
-        b.put_u8(self.size as u8);
-        b.put_slice(&self.block);
-        b.put_u8(self.offset as u8);
-
-        Ok(len - b.len())
-    }
-
-    fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
-        if b.len() < MAGIC.len() || &b[..MAGIC.len()] != MAGIC {
-            return Err(CryptoError::InvalidHashIdentifier);
-        }
-        if b.len() != MARSHALED_SIZE {
-            return Err(CryptoError::InvalidHashState);
-        }
-
-        let mut pos = MAGIC.len();
-        for i in 0..8 {
-            self.h[i] = u32::from_be_bytes([b[pos], b[pos + 1], b[pos + 2], b[pos + 3]]);
-            pos += 4;
-        }
-
-        self.c[0] = u32::from_be_bytes([b[pos], b[pos + 1], b[pos + 2], b[pos + 3]]);
-        pos += 4;
-        self.c[1] = u32::from_be_bytes([b[pos], b[pos + 1], b[pos + 2], b[pos + 3]]);
-        pos += 4;
-
-        self.size = b[pos] as usize;
-        pos += 1;
-
-        self.block.copy_from_slice(&b[pos..pos + BLOCK_SIZE]);
-        pos += BLOCK_SIZE;
-
-        self.offset = b[pos] as usize;
-
-        Ok(())
     }
 }
 

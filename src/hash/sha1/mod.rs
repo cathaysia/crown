@@ -10,6 +10,7 @@ mod block;
 
 mod generic;
 use bytes::BufMut;
+use derive::Marshal;
 use generic::*;
 
 #[cfg(test)]
@@ -19,7 +20,6 @@ use crate::{
     core::CoreWrite,
     error::CryptoResult,
     hash::{Hash, HashUser},
-    mac::hmac::Marshalable,
 };
 
 const CHUNK: usize = 64;
@@ -29,11 +29,8 @@ const INIT2: u32 = 0x98BADCFE;
 const INIT3: u32 = 0x10325476;
 const INIT4: u32 = 0xC3D2E1F0;
 
-const MAGIC: &[u8] = b"sha\x01";
-const MARSHALED_SIZE: usize = MAGIC.len() + 5 * 4 + CHUNK + 8;
-
 /// [Sha1] is a SHA-1 hash implementation.
-#[derive(Clone)]
+#[derive(Clone, Marshal)]
 pub struct Sha1 {
     h: [u32; 5],
     x: [u8; CHUNK],
@@ -216,66 +213,6 @@ impl Hash<20> for Sha1 {
     fn sum(&mut self) -> [u8; 20] {
         let mut d0 = self.clone();
         d0.check_sum()
-    }
-}
-
-impl Marshalable for Sha1 {
-    fn marshal_size(&self) -> usize {
-        MARSHALED_SIZE
-    }
-
-    fn marshal_into(&self, mut b: &mut [u8]) -> CryptoResult<usize> {
-        let len = b.len();
-        b.put_slice(MAGIC);
-        b.put_u32(self.h[0]);
-        b.put_u32(self.h[1]);
-        b.put_u32(self.h[2]);
-        b.put_u32(self.h[3]);
-        b.put_u32(self.h[4]);
-        b.put_slice(&self.x[..self.nx]);
-        b.put_bytes(0, CHUNK - self.nx);
-        b.put_u64(self.len);
-        Ok(len - b.len())
-    }
-    fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
-        use crate::error::CryptoError;
-
-        if b.len() < MAGIC.len() || &b[..MAGIC.len()] != MAGIC {
-            return Err(CryptoError::InvalidHashIdentifier);
-        }
-        if b.len() != MARSHALED_SIZE {
-            return Err(CryptoError::InvalidHashState);
-        }
-
-        let mut offset = MAGIC.len();
-
-        self.h[0] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[1] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[2] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[3] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-        self.h[4] = u32::from_be_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]);
-        offset += 4;
-
-        self.x.copy_from_slice(&b[offset..offset + CHUNK]);
-        offset += CHUNK;
-
-        self.len = u64::from_be_bytes([
-            b[offset],
-            b[offset + 1],
-            b[offset + 2],
-            b[offset + 3],
-            b[offset + 4],
-            b[offset + 5],
-            b[offset + 6],
-            b[offset + 7],
-        ]);
-
-        self.nx = (self.len % CHUNK as u64) as usize;
-        Ok(())
     }
 }
 

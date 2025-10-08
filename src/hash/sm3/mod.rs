@@ -2,9 +2,9 @@ use crate::{
     core::CoreWrite,
     error::CryptoResult,
     hash::{Hash, HashUser},
-    mac::hmac::Marshalable,
 };
 use bytes::{Buf, BufMut};
+use derive::Marshal;
 
 #[cfg(test)]
 mod test;
@@ -18,7 +18,7 @@ const SM3_F: u32 = 0x163138aa;
 const SM3_G: u32 = 0xe38dee4d;
 const SM3_H: u32 = 0xb0fb0e4e;
 
-#[derive(Clone)]
+#[derive(Clone, Marshal)]
 pub struct Sm3 {
     a: u32,
     b: u32,
@@ -112,65 +112,6 @@ macro_rules! R2 {
     ($A:expr, $B:expr, $C:expr, $D:expr, $E:expr, $F:expr, $G:expr, $H:expr, $TJ:expr, $Wi:expr, $Wj:expr) => {
         RND!($A, $B, $C, $D, $E, $F, $G, $H, $TJ, $Wi, $Wj, FF1, GG1)
     };
-}
-
-impl Marshalable for Sm3 {
-    fn marshal_size(&self) -> usize {
-        // A, B, C, D, E, F, G, H (8 * 4 bytes) + Nl, Nh (2 * 4 bytes) + data (16 * 4 bytes) + num (8 bytes)
-        32 + 8 + 64 + 8
-    }
-
-    fn marshal_into(&self, mut out: &mut [u8]) -> CryptoResult<usize> {
-        if out.len() < self.marshal_size() {
-            return Err(crate::error::CryptoError::InvalidLength);
-        }
-
-        out.put_u32(self.a);
-        out.put_u32(self.b);
-        out.put_u32(self.c);
-        out.put_u32(self.d);
-        out.put_u32(self.e);
-        out.put_u32(self.f);
-        out.put_u32(self.g);
-        out.put_u32(self.h);
-
-        out.put_u32(self.nl);
-        out.put_u32(self.nh);
-
-        for &word in &self.data {
-            out.put_u32(word);
-        }
-
-        out.put_u64(self.num as u64);
-
-        Ok(self.marshal_size())
-    }
-
-    fn unmarshal_binary(&mut self, mut data: &[u8]) -> CryptoResult<()> {
-        if data.len() < self.marshal_size() {
-            return Err(crate::error::CryptoError::InvalidLength);
-        }
-
-        self.a = data.get_u32();
-        self.b = data.get_u32();
-        self.c = data.get_u32();
-        self.d = data.get_u32();
-        self.e = data.get_u32();
-        self.f = data.get_u32();
-        self.g = data.get_u32();
-        self.h = data.get_u32();
-
-        self.nl = data.get_u32();
-        self.nh = data.get_u32();
-
-        for i in 0..Self::SM3_LBLOCK {
-            self.data[i] = data.get_u32();
-        }
-
-        self.num = data.get_u64() as usize;
-
-        Ok(())
-    }
 }
 
 impl Sm3 {

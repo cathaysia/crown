@@ -1,3 +1,5 @@
+use crate::{core::CoreWrite, mac::hmac::Marshalable};
+
 #[test]
 fn test_sm3_openssl() {
     let content = include_str!("./evpmd_sm3.txt");
@@ -65,4 +67,19 @@ pub fn parse_response_line(line: &str) -> (String, Vec<u8>) {
         }
         _ => unreachable!(),
     }
+}
+
+#[test]
+fn test_marsh_unmarsh() {
+    let mut x = super::new_sm3();
+    x.write_all(b"xxxxx").unwrap();
+
+    let status = x.marshal_binary().unwrap();
+
+    let ret1 = x.finalize();
+    let mut x2 = super::new_sm3();
+    x2.unmarshal_binary(&status).unwrap();
+    let ret2 = x2.finalize();
+
+    assert_eq!(ret1, ret2);
 }

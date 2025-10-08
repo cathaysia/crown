@@ -16,12 +16,12 @@ mod block;
 mod tests;
 
 use bytes::BufMut;
+use derive::Marshal;
 
 use crate::{
     core::CoreWrite,
-    error::{CryptoError, CryptoResult},
+    error::CryptoResult,
     hash::{Hash, HashUser},
-    mac::hmac::Marshalable,
     utils::erase_ownership,
 };
 
@@ -31,11 +31,7 @@ const INIT1: u32 = 0xEFCDAB89;
 const INIT2: u32 = 0x98BADCFE;
 const INIT3: u32 = 0x10325476;
 
-const MAGIC: &[u8] = b"md4\x01";
-
-const MARSHALED_SIZE: usize = MAGIC.len() + 4 * 4 + Md4::BLOCK_SIZE + 8;
-
-#[derive(Clone)]
+#[derive(Clone, Marshal)]
 pub struct Md4 {
     s: [u32; 4],
     x: [u8; CHUNK],
@@ -139,55 +135,6 @@ impl Hash<16> for Md4 {
             result.put_u32_le(d.s[3]);
         }
         result
-    }
-}
-
-impl Marshalable for Md4 {
-    fn marshal_size(&self) -> usize {
-        MARSHALED_SIZE
-    }
-
-    fn marshal_into(&self, mut out: &mut [u8]) -> CryptoResult<usize> {
-        let len = out.len();
-        if len < self.marshal_size() {
-            return Err(CryptoError::BufferTooSmall);
-        }
-        out.put_slice(MAGIC);
-        out.put_u32(self.s[0]);
-        out.put_u32(self.s[1]);
-        out.put_u32(self.s[2]);
-        out.put_u32(self.s[3]);
-        out.put_slice(&self.x[..self.nx]);
-        out.put_bytes(0, self.x.len() - self.nx);
-        out.put_u64(self.len);
-        Ok(len - out.len())
-    }
-
-    fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
-        use crate::error::CryptoError;
-        use bytes::Buf;
-
-        if b.len() < MAGIC.len() || &b[..MAGIC.len()] != MAGIC {
-            return Err(CryptoError::InvalidHashIdentifier);
-        }
-        if b.len() != MARSHALED_SIZE {
-            return Err(CryptoError::InvalidHashState);
-        }
-
-        let mut b = &b[MAGIC.len()..];
-
-        self.s[0] = b.get_u32();
-        self.s[1] = b.get_u32();
-        self.s[2] = b.get_u32();
-        self.s[3] = b.get_u32();
-
-        let copied = b.len().min(self.x.len());
-        b.copy_to_slice(&mut self.x[..copied]);
-
-        self.len = b.get_u64();
-        self.nx = (self.len % Md4::BLOCK_SIZE as u64) as usize;
-
-        Ok(())
     }
 }
 
