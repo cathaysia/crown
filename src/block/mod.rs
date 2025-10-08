@@ -7,6 +7,7 @@ pub mod idea;
 pub mod rc2;
 pub mod rc5;
 pub mod rc6;
+pub mod skipjack;
 pub mod sm4;
 pub mod tea;
 pub mod twofish;
