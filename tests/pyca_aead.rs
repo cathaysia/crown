@@ -6,6 +6,7 @@ use crate::utils::parse_response_line;
 #[test]
 fn test_pyca_aead_vectors() {
     const BASE_DIR: &str = "tests/cryptography/vectors/cryptography_vectors/";
+    #[allow(clippy::type_complexity)]
     #[rustfmt::skip]
     const FILES: [(fn(key: &[u8]) -> CryptoResult<EvpAeadCipher>, &str); 10] = [
         (EvpAeadCipher::new_chacha20_poly1305, "ciphers/ChaCha20Poly1305/boringssl.txt"),

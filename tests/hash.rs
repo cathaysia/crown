@@ -3,6 +3,7 @@ use kittycrypto::{core::CoreWrite, envelope::EvpHash, error::CryptoResult};
 #[test]
 fn test_pyca_hash_vectors() {
     const BASE_DIR: &str = "tests/cryptography/vectors/cryptography_vectors/hashes";
+    #[allow(clippy::type_complexity)]
     const FILES: [(&str, fn() -> CryptoResult<EvpHash>); 40] = [
         ("MD5/rfc-1321.txt", EvpHash::new_md5),
         ("SHA1/SHA1LongMsg.rsp", EvpHash::new_sha1),

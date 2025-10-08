@@ -90,6 +90,7 @@ fn test_wycheproof_hmac_test() {
 #[test]
 fn test_pyca_hmac_vectors() {
     const BASE_DIR: &str = "tests/cryptography/vectors/cryptography_vectors/HMAC";
+    #[allow(clippy::type_complexity)]
     let files: [(&str, fn(&[u8]) -> CryptoResult<EvpHash>); 6] = [
         ("rfc-2202-md5.txt", EvpHash::new_md5_hmac),
         ("rfc-2202-sha1.txt", EvpHash::new_sha1_hmac),
