@@ -6,8 +6,9 @@ use crate::utils::parse_response_line;
 #[test]
 fn test_pyca_block_vectors() {
     const BASE_DIR: &str = "tests/cryptography/vectors/cryptography_vectors/";
+    #[allow(clippy::type_complexity)]
     #[rustfmt::skip]
-    const FILES: [(fn(key: &[u8], iv: &[u8]) -> CryptoResult<EvpBlockCipher>, &str); 31] = [
+    const FILES: [(fn(key: &[u8], iv: &[u8]) -> CryptoResult<EvpBlockCipher>, &str); 32] = [
         (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCIinvperm.rsp"),
         (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCIMMT1.rsp"),
         (EvpBlockCipher::new_tripledes_cbc, "ciphers/3DES/CBC/TCBCIMMT2.rsp"),
@@ -44,7 +45,7 @@ fn test_pyca_block_vectors() {
         (EvpBlockCipher::new_cast5_cbc, "ciphers/CAST5/cast5-cbc.txt"),
         (EvpBlockCipher::new_idea_cbc, "ciphers/IDEA/idea-cbc.txt"),
         (|key: &[u8], iv: &[u8]| ->CryptoResult<EvpBlockCipher> { EvpBlockCipher::new_rc2_cbc (key, iv, None)}, "ciphers/RC2/rc2-cbc.txt"),
-        // (EvpBlockCipher::new_sm4_cbc, "ciphers/SM4/draft-ribose-cfrg-sm4-10-cbc.txt"),
+        (EvpBlockCipher::new_sm4_cbc, "ciphers/SM4/draft-ribose-cfrg-sm4-10-cbc.txt"),
     ];
 
     for (newer, filename) in FILES {

@@ -4,6 +4,7 @@ mod block_mode;
 mod tests;
 
 use crate::block::idea::Idea;
+use crate::block::sm4::Sm4;
 use crate::block::BlockCipher;
 use crate::modes::cbc::{CbcDecryptor, CbcEncryptor};
 use crate::{
@@ -56,7 +57,7 @@ macro_rules! impl_newer {
 
 impl EvpBlockCipher {
     impl_newer!(
-        basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6],
+        basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4],
         rounds: [Rc2, Rc5, Camellia]
     );
 
