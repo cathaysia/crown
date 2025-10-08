@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["bin/kt"]
+members = ["derive"]
+exclude = ["bin/kt"]
 
 [package]
 name = "kittycrypto"
