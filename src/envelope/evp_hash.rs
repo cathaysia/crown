@@ -200,6 +200,7 @@ impl EvpHash {
             sha3_512, crate::hash::sha3::new512,
             shake128, crate::hash::sha3::new_shake128,
             shake256, crate::hash::sha3::new_shake256,
+            sm3, crate::hash::sm3::new_sm3,
         ],
         variant: [
             blake2s, crate::hash::blake2s::Blake2sVariable::new,
