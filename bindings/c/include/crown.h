@@ -1,5 +1,5 @@
-#ifndef KITTYCRYPTO_H
-#define KITTYCRYPTO_H
+#ifndef crown_H
+#define crown_H
 
 #include <stdarg.h>
 #include <stdbool.h>
@@ -564,4 +564,4 @@ int32_t stream_cipher_decrypt(struct StreamCipher *self, uint8_t *inout, uintptr
 
 void stream_cipher_free(struct StreamCipher *cipher);
 
-#endif  /* KITTYCRYPTO_H */
+#endif  /* crown_H */

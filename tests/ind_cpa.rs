@@ -1,6 +1,6 @@
 mod wycheproof;
 
-use kittycrypto::envelope::EvpBlockCipher;
+use crown::envelope::EvpBlockCipher;
 use wycheproof::ind_cpa::*;
 
 #[test]

@@ -1,5 +1,5 @@
 use super::*;
-use kittycrypto::envelope::EvpBlockCipher;
+use crown::envelope::EvpBlockCipher;
 
 pub struct BlockCipher(EvpBlockCipher);
 

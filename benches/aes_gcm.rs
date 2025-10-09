@@ -1,8 +1,8 @@
 use aes_gcm::aead::AeadMutInPlace;
 use cipher::KeyInit;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use kittycrypto::aead::gcm::Gcm;
-use kittycrypto::aead::Aead;
+use crown::aead::gcm::Gcm;
+use crown::aead::Aead;
 use std::hint::black_box;
 
 fn bench_aes_gcm(c: &mut Criterion) {
@@ -26,11 +26,8 @@ fn bench_aes_gcm(c: &mut Criterion) {
         let mut group = c.benchmark_group("aes_gcm");
         group.throughput(Throughput::Bytes(size as u64));
 
-        group.bench_function(format!("kittycrypto_{size}",), |b| {
-            let cipher = kittycrypto::block::aes::Aes::new(&key)
-                .unwrap()
-                .to_gcm()
-                .unwrap();
+        group.bench_function(format!("crown_{size}",), |b| {
+            let cipher = crown::block::aes::Aes::new(&key).unwrap().to_gcm().unwrap();
             let mut dst = data.clone();
             b.iter(|| {
                 let _ = cipher.seal_in_place_separate_tag(black_box(&mut dst), &nonce, &[]);

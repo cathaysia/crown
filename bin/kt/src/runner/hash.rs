@@ -1,6 +1,6 @@
 use crate::args::{ArgsHash, HashAlgorithm};
 use crate::utils::read_file;
-use kittycrypto::{core::CoreWrite, envelope::EvpHash};
+use crown::{core::CoreWrite, envelope::EvpHash};
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 

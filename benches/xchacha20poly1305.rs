@@ -1,6 +1,6 @@
 use chacha20poly1305::aead::AeadMutInPlace;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use kittycrypto::aead::Aead;
+use crown::aead::Aead;
 use rc4::KeyInit;
 
 fn bench_chacha20poly1305(c: &mut Criterion) {
@@ -19,8 +19,8 @@ fn bench_chacha20poly1305(c: &mut Criterion) {
         let mut group = c.benchmark_group("crypto");
         group.throughput(Throughput::Bytes(size as u64));
 
-        group.bench_function(format!("kittycrypto_{size}",), |b| {
-            let cipher = kittycrypto::aead::chacha20poly1305::XChaCha20Poly1305::new(&key).unwrap();
+        group.bench_function(format!("crown_{size}",), |b| {
+            let cipher = crown::aead::chacha20poly1305::XChaCha20Poly1305::new(&key).unwrap();
             b.iter(|| {
                 let mut dst = data.clone();
                 cipher
@@ -45,7 +45,7 @@ fn bench_chacha20poly1305(c: &mut Criterion) {
     for size in case {
         let mut data = vec![0u8; size];
         rand::fill(data.as_mut_slice());
-        let cipher = kittycrypto::aead::chacha20poly1305::XChaCha20Poly1305::new(&key).unwrap();
+        let cipher = crown::aead::chacha20poly1305::XChaCha20Poly1305::new(&key).unwrap();
         cipher
             .seal_in_place_append_tag(&mut data, &nonce, &[])
             .unwrap();
@@ -53,8 +53,8 @@ fn bench_chacha20poly1305(c: &mut Criterion) {
         let mut group = c.benchmark_group("decrypt");
         group.throughput(Throughput::Bytes(size as u64));
 
-        group.bench_function(format!("kittycrypto_{size}",), |b| {
-            let cipher = kittycrypto::aead::chacha20poly1305::XChaCha20Poly1305::new(&key).unwrap();
+        group.bench_function(format!("crown_{size}",), |b| {
+            let cipher = crown::aead::chacha20poly1305::XChaCha20Poly1305::new(&key).unwrap();
             b.iter(|| {
                 let mut dst = data.clone();
                 cipher.open_in_place(&mut dst, &nonce, &[]).unwrap();

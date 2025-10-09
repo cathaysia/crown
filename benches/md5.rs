@@ -31,12 +31,12 @@ fn bench_md5(c: &mut Criterion) {
 
         group.bench_function(
             format!(
-                "kittycrypto_md5_{size}_{}",
+                "crown_md5_{size}_{}",
                 if unaligned { "unaligned" } else { "aligned" }
             ),
             |b| {
                 b.iter(|| {
-                    let _ = kittycrypto::hash::md5::sum_md5(black_box(data));
+                    let _ = crown::hash::md5::sum_md5(black_box(data));
                 })
             },
         );

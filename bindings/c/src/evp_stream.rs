@@ -1,5 +1,5 @@
 use super::*;
-use kittycrypto::envelope::EvpStreamCipher;
+use crown::envelope::EvpStreamCipher;
 
 pub struct StreamCipher(EvpStreamCipher);
 

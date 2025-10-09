@@ -1,5 +1,5 @@
 use super::*;
-use kittycrypto::envelope::EvpAeadCipher;
+use crown::envelope::EvpAeadCipher;
 
 pub struct AeadCipher(EvpAeadCipher);
 

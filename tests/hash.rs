@@ -1,4 +1,4 @@
-use kittycrypto::{core::CoreWrite, envelope::EvpHash, error::CryptoResult};
+use crown::{core::CoreWrite, envelope::EvpHash, error::CryptoResult};
 
 #[test]
 fn test_pyca_hash_vectors() {

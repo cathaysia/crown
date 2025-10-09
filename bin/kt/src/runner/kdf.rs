@@ -18,17 +18,17 @@ pub fn run_kdf(args: ArgsKdf) -> anyhow::Result<()> {
     let salt_bytes = salt.as_bytes();
 
     let derived_key = match algorithm {
-        crate::args::KdfAlgorithm::Pbkdf2 => kittycrypto::password_hash::pbkdf2::key(
+        crate::args::KdfAlgorithm::Pbkdf2 => crown::password_hash::pbkdf2::key(
             password_bytes,
             salt_bytes,
             iterations,
             length,
-            kittycrypto::hash::sha256::new256,
+            crown::hash::sha256::new256,
         ),
         crate::args::KdfAlgorithm::Scrypt => {
-            kittycrypto::password_hash::scrypt::key(password_bytes, salt_bytes, 14, 8, 1, length)?
+            crown::password_hash::scrypt::key(password_bytes, salt_bytes, 14, 8, 1, length)?
         }
-        crate::args::KdfAlgorithm::Argon2 => kittycrypto::password_hash::argon2::id_key(
+        crate::args::KdfAlgorithm::Argon2 => crown::password_hash::argon2::id_key(
             password_bytes,
             salt_bytes,
             iterations,
@@ -37,20 +37,16 @@ pub fn run_kdf(args: ArgsKdf) -> anyhow::Result<()> {
             length as u32,
         )?,
         crate::args::KdfAlgorithm::Hkdf => {
-            let prk = kittycrypto::kdf::hkdf::extract(
-                kittycrypto::hash::sha256::new256,
-                password_bytes,
-                salt_bytes,
-            );
-            let mut hkdf =
-                kittycrypto::kdf::hkdf::expand(kittycrypto::hash::sha256::new256, &prk, &[]);
+            let prk =
+                crown::kdf::hkdf::extract(crown::hash::sha256::new256, password_bytes, salt_bytes);
+            let mut hkdf = crown::kdf::hkdf::expand(crown::hash::sha256::new256, &prk, &[]);
             let mut output = vec![0u8; length];
             std::io::Read::read_exact(&mut hkdf, &mut output)?;
             output
         }
         crate::args::KdfAlgorithm::Bcrypt => {
             let cost = (iterations as f64).log2().round() as u32;
-            kittycrypto::password_hash::bcrypt::generate_from_password(password_bytes, cost)?
+            crown::password_hash::bcrypt::generate_from_password(password_bytes, cost)?
         }
     };
 

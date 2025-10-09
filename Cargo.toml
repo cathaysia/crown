@@ -4,7 +4,7 @@ members = ["bindings/c", "derive"]
 exclude = ["bin/kt"]
 
 [package]
-name = "kittycrypto"
+name = "crown"
 version = "0.1.0"
 edition = "2021"
 
@@ -53,7 +53,7 @@ toml = { version = "0.9.5", optional = true }
 bitflags = "2.9.4"
 
 [dev-dependencies]
-kittycrypto = { path = ".", features = ["std"] }
+crown = { path = ".", features = ["std"] }
 rand = "0.9.2"
 criterion = { version = "0.7", features = ["html_reports"] }
 md5 = "0.8.0"

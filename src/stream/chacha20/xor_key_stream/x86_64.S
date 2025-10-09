@@ -42,7 +42,7 @@ ChaCha20_ctr32:
 .cfi_startproc
 	cmpq	$0,%rdx
 	je	.Lno_data
-	movq	kittycrypto_ia32cap_P+4(%rip),%r10
+	movq	crown_ia32cap_P+4(%rip),%r10
 	btq	$48,%r10
 	jc	.LChaCha20_avx512
 	testq	%r10,%r10

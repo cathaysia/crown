@@ -1,6 +1,6 @@
 mod utils;
 
-use kittycrypto::{envelope::EvpStreamCipher, error::CryptoResult};
+use crown::{envelope::EvpStreamCipher, error::CryptoResult};
 
 use crate::utils::parse_response_line;
 

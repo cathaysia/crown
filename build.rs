@@ -180,7 +180,7 @@ fn build_aarch64() {
         format!("{outdir}/cap.c"),
         format!(
             r#"
-unsigned int kittycrypto_armcap_P = {armcap};
+unsigned int crown_armcap_P = {armcap};
 "#
         ),
     )
@@ -228,7 +228,7 @@ unsigned int kittycrypto_armcap_P = {armcap};
         .file(format!("{outdir}/cap.c"))
         .include(outdir);
 
-    build.compile("kittycrypto_asm");
+    build.compile("crown_asm");
 }
 
 #[cfg(feature = "cuda")]
@@ -271,7 +271,7 @@ fn build_cuda() {
         build.flags(&["-O0", "-G", "-Xptxas", "-O0"]);
     };
 
-    build.compile("kittycrypto_cuda");
+    build.compile("crown_cuda");
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -290,7 +290,7 @@ fn build_x86_64() {
         format!("{outdir}/cap.c"),
         format!(
             r#"
-unsigned int kittycrypto_ia32cap_P[10] = {};
+unsigned int crown_ia32cap_P[10] = {};
 "#,
             cap_array
         ),
@@ -305,5 +305,5 @@ unsigned int kittycrypto_ia32cap_P[10] = {};
         .file(format!("{outdir}/cap.c"))
         .include(outdir);
 
-    build.compile("kittycrypto_asm");
+    build.compile("crown_asm");
 }

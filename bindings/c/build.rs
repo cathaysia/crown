@@ -15,5 +15,5 @@ fn generate_cbindgen() {
         .with_crate(crate_dir)
         .generate()
         .expect("Unable to generate bindings")
-        .write_to_file("include/kittycrypto.h");
+        .write_to_file("include/crown.h");
 }

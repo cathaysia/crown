@@ -1,5 +1,5 @@
 [package]
-name = "kittycrypto_c"
+name = "crown_c"
 version = "0.1.0"
 edition = "2024"
 
@@ -11,7 +11,7 @@ default = []
 cbindgen = []
 
 [dependencies]
-kittycrypto = { path = "../../" }
+crown = { path = "../../" }
 paste.workspace = true
 
 [build-dependencies]

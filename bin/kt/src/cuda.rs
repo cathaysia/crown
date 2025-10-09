@@ -1,5 +1,5 @@
 use crate::args::HashAlgorithm;
-use kittycrypto::cuda::mem::CudaMemory;
+use crown::cuda::mem::CudaMemory;
 
 pub fn calc_and_output_hash(algorithm: HashAlgorithm, files: Vec<String>) {
     let mut all_data = Vec::new();
@@ -29,7 +29,7 @@ pub fn calc_and_output_hash(algorithm: HashAlgorithm, files: Vec<String>) {
 
     match algorithm {
         HashAlgorithm::Md5Cuda => {
-            kittycrypto::md5::cuda::md5_sum_batch_cuda(
+            crown::md5::cuda::md5_sum_batch_cuda(
                 &all_data,
                 &file_sizes,
                 &file_offsets,
@@ -38,7 +38,7 @@ pub fn calc_and_output_hash(algorithm: HashAlgorithm, files: Vec<String>) {
             .unwrap();
         }
         HashAlgorithm::Sha256Cuda => {
-            kittycrypto::sha256::cuda::sha256_sum_batch_cuda(
+            crown::sha256::cuda::sha256_sum_batch_cuda(
                 &all_data,
                 &file_sizes,
                 &file_offsets,

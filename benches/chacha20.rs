@@ -1,6 +1,6 @@
 use cipher::KeyIvInit;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use kittycrypto::stream::StreamCipher;
+use crown::stream::StreamCipher;
 use std::hint::black_box;
 
 fn bench_chacha20(c: &mut Criterion) {
@@ -20,11 +20,10 @@ fn bench_chacha20(c: &mut Criterion) {
         let mut group = c.benchmark_group("chacha20");
         group.throughput(Throughput::Bytes(size as u64));
 
-        group.bench_function(format!("kittycrypto_chacha20_{size}",), |b| {
-            let mut cipher = kittycrypto::stream::chacha20::Chacha20::new_unauthenticated_cipher(
-                &key, &[0u8; 12],
-            )
-            .unwrap();
+        group.bench_function(format!("crown_chacha20_{size}",), |b| {
+            let mut cipher =
+                crown::stream::chacha20::Chacha20::new_unauthenticated_cipher(&key, &[0u8; 12])
+                    .unwrap();
             let mut dst = data.clone();
             b.iter(|| {
                 let _ = cipher.xor_key_stream(black_box(&mut dst));

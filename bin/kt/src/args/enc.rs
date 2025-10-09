@@ -1,5 +1,5 @@
 use clap::{Parser, ValueEnum};
-use kittycrypto::{
+use crown::{
     envelope::{EvpAeadCipher, EvpBlockCipher, EvpStreamCipher},
     error::CryptoResult,
     padding::Padding,
@@ -64,12 +64,12 @@ pub enum PaddingMode {
 impl From<PaddingMode> for Box<dyn Padding> {
     fn from(value: PaddingMode) -> Self {
         match value {
-            PaddingMode::Pkcs7 => Box::new(kittycrypto::padding::Pkcs7),
-            PaddingMode::AnsiX923 => Box::new(kittycrypto::padding::AnsiX923),
-            PaddingMode::Iso10126 => Box::new(kittycrypto::padding::Iso10126),
-            PaddingMode::Iso7816 => Box::new(kittycrypto::padding::Iso7816),
-            PaddingMode::NoPadding => Box::new(kittycrypto::padding::NoPadding),
-            PaddingMode::ZeroPadding => Box::new(kittycrypto::padding::ZeroPadding),
+            PaddingMode::Pkcs7 => Box::new(crown::padding::Pkcs7),
+            PaddingMode::AnsiX923 => Box::new(crown::padding::AnsiX923),
+            PaddingMode::Iso10126 => Box::new(crown::padding::Iso10126),
+            PaddingMode::Iso7816 => Box::new(crown::padding::Iso7816),
+            PaddingMode::NoPadding => Box::new(crown::padding::NoPadding),
+            PaddingMode::ZeroPadding => Box::new(crown::padding::ZeroPadding),
         }
     }
 }

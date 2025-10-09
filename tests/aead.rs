@@ -1,6 +1,6 @@
 mod wycheproof;
 
-use kittycrypto::envelope::EvpAeadCipher;
+use crown::envelope::EvpAeadCipher;
 use wycheproof::aead::*;
 
 #[test]

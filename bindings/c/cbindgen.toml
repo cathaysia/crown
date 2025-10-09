@@ -1,5 +1,5 @@
 language = "C"
-include_guard = "KITTYCRYPTO_H"
+include_guard = "crown_H"
 
 [parse.expand]
-crates = ["kittycrypto_c"]
+crates = ["crown_c"]

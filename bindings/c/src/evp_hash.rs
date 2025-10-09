@@ -1,7 +1,7 @@
 use super::*;
-use kittycrypto::core::{CoreRead, CoreWrite};
-use kittycrypto::envelope::EvpHash;
-use kittycrypto::hash::HashUser;
+use crown::core::{CoreRead, CoreWrite};
+use crown::envelope::EvpHash;
+use crown::hash::HashUser;
 
 pub struct Hash(EvpHash);
 

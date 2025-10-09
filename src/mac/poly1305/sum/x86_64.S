@@ -23,7 +23,7 @@ poly1305_init:
 
 	leaq	poly1305_blocks(%rip),%r10
 	leaq	poly1305_emit(%rip),%r11
-	movq	kittycrypto_ia32cap_P+4(%rip),%r9
+	movq	crown_ia32cap_P+4(%rip),%r9
 	leaq	poly1305_blocks_avx(%rip),%rax
 	leaq	poly1305_emit_avx(%rip),%rcx
 	btq	$28,%r9
@@ -1547,7 +1547,7 @@ poly1305_blocks_avx2:
 
 .Lproceed_avx2:
 	movq	%r15,%rdx
-	movl	kittycrypto_ia32cap_P+8(%rip),%r10d
+	movl	crown_ia32cap_P+8(%rip),%r10d
 	movl	$3221291008,%r11d
 
 	movq	0(%rsp),%r15
@@ -1572,7 +1572,7 @@ poly1305_blocks_avx2:
 .align	32
 .Leven_avx2:
 .cfi_startproc
-	movl	kittycrypto_ia32cap_P+8(%rip),%r10d
+	movl	crown_ia32cap_P+8(%rip),%r10d
 	vmovd	0(%rdi),%xmm0
 	vmovd	4(%rdi),%xmm1
 	vmovd	8(%rdi),%xmm2

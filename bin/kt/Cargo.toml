@@ -5,14 +5,14 @@ edition = "2024"
 
 [features]
 default = []
-cuda = ["kittycrypto/cuda"]
+cuda = ["crown/cuda"]
 
 [dependencies]
 anyhow = "1.0.99"
 base64 = "0.22.1"
 clap = { version = "4.5.45", features = ["derive"] }
 hex = "0.4.3"
-kittycrypto = { path = "../../" }
+crown = { path = "../../" }
 paste = "1.0.15"
 rayon = "1.11.0"
 tracing = "0.1"

@@ -1,5 +1,5 @@
 mod utils;
-use kittycrypto::{envelope::EvpAeadCipher, error::CryptoResult};
+use crown::{envelope::EvpAeadCipher, error::CryptoResult};
 
 use crate::utils::parse_response_line;
 

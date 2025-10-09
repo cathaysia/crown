@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use kittycrypto::stream::StreamCipher;
+use crown::stream::StreamCipher;
 use rc4::KeyInit;
 use std::hint::black_box;
 
@@ -16,8 +16,8 @@ fn bench_rc4(c: &mut Criterion) {
         let mut group = c.benchmark_group("rc4");
         group.throughput(Throughput::Bytes(size as u64));
 
-        group.bench_function(format!("kittycrypto_rc4_{size}",), |b| {
-            let mut cipher = kittycrypto::stream::rc4::Rc4::new(&KEY).unwrap();
+        group.bench_function(format!("crown_rc4_{size}",), |b| {
+            let mut cipher = crown::stream::rc4::Rc4::new(&KEY).unwrap();
             let mut dst = data.clone();
             b.iter(|| {
                 let _ = cipher.xor_key_stream(black_box(&mut dst));
