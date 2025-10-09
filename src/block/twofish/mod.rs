@@ -21,7 +21,7 @@ mod tests;
 use bytes::{Buf, BufMut};
 
 use crate::{
-    aead::ocb3::Ocb3Generic,
+    aead::ocb3::Ocb3Marker,
     block::{BlockCipher, BlockCipherMarker},
     error::{CryptoError, CryptoResult},
 };
@@ -37,7 +37,7 @@ pub struct Twofish {
 
 impl BlockCipherMarker for Twofish {}
 
-impl Ocb3Generic for Twofish {}
+impl Ocb3Marker for Twofish {}
 
 impl Twofish {
     /// BlockSize is the constant block size of Twofish.

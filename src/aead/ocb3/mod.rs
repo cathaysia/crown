@@ -13,11 +13,11 @@ pub trait Ocb3 {
     ) -> CryptoResult<impl Aead<TAG_SIZE>>;
 }
 
-pub trait Ocb3Generic {}
+pub trait Ocb3Marker {}
 
 impl<T> Ocb3 for T
 where
-    T: BlockCipher + Ocb3Generic,
+    T: BlockCipher + Ocb3Marker,
 {
     fn to_ocb3<const TAG_SIZE: usize, const NONCE_SIZE: usize>(
         self,

@@ -11,7 +11,7 @@ use crate::error::CryptoResult;
 use crate::modes::BlockMode;
 
 /// ECB mode implementation
-pub struct EcbImpl<B: BlockCipher> {
+struct EcbImpl<B: BlockCipher> {
     cipher: B,
 }
 
@@ -20,12 +20,12 @@ pub trait Ecb {
     fn to_ecb(self) -> CryptoResult<impl BlockMode + 'static>;
 }
 
-pub trait EcbGenericMarker {}
-impl<T: BlockCipherMarker> EcbGenericMarker for T {}
+pub trait EcbMarker {}
+impl<T: BlockCipherMarker> EcbMarker for T {}
 
 impl<T> Ecb for T
 where
-    T: BlockCipher + EcbGenericMarker + 'static,
+    T: BlockCipher + EcbMarker + 'static,
 {
     fn to_ecb(self) -> CryptoResult<impl BlockMode + 'static> {
         Ok(EcbImpl { cipher: self })

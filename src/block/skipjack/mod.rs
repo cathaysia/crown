@@ -4,7 +4,7 @@ mod tests;
 use bytes::{Buf, BufMut};
 
 use crate::{
-    aead::ocb3::Ocb3Generic,
+    aead::ocb3::Ocb3Marker,
     block::{BlockCipher, BlockCipherMarker},
     error::{CryptoError, CryptoResult},
 };
@@ -41,7 +41,7 @@ pub struct Skipjack {
 }
 
 impl BlockCipherMarker for Skipjack {}
-impl Ocb3Generic for Skipjack {}
+impl Ocb3Marker for Skipjack {}
 
 impl Skipjack {
     pub fn new(key: &[u8]) -> CryptoResult<Self> {

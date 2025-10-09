@@ -16,7 +16,7 @@ mod data;
 mod tests;
 
 use crate::{
-    aead::ocb3::Ocb3Generic,
+    aead::ocb3::Ocb3Marker,
     block::{BlockCipher, BlockCipherMarker},
     error::{CryptoError, CryptoResult},
 };
@@ -28,7 +28,7 @@ pub struct Cast5 {
     rotate: [u8; 16],
 }
 impl BlockCipherMarker for Cast5 {}
-impl Ocb3Generic for Cast5 {}
+impl Ocb3Marker for Cast5 {}
 
 impl Cast5 {
     pub const KEY_SIZE: usize = 16;

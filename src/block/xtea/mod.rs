@@ -19,7 +19,7 @@ mod tests;
 mod block;
 
 use crate::{
-    aead::ocb3::Ocb3Generic,
+    aead::ocb3::Ocb3Marker,
     block::{BlockCipher, BlockCipherMarker},
     error::{CryptoError, CryptoResult},
 };
@@ -31,7 +31,7 @@ pub struct Xtea {
 }
 
 impl BlockCipherMarker for Xtea {}
-impl Ocb3Generic for Xtea {}
+impl Ocb3Marker for Xtea {}
 
 impl Xtea {
     /// The XTEA block size in bytes.

@@ -22,7 +22,7 @@ mod tests;
 use crate::modes::{cfb::CfbMarker, ofb::OfbMarker};
 
 use crate::{
-    aead::ocb3::Ocb3Generic,
+    aead::ocb3::Ocb3Marker,
     block::BlockCipher,
     error::{CryptoError, CryptoResult},
 };
@@ -46,7 +46,7 @@ impl OfbMarker for Aes {}
 #[cfg(feature = "alloc")]
 impl CfbMarker for Aes {}
 
-impl Ocb3Generic for Aes {}
+impl Ocb3Marker for Aes {}
 
 impl Aes {
     pub const BLOCK_SIZE: usize = 16;

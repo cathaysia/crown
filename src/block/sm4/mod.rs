@@ -3,7 +3,7 @@ mod tests;
 
 use bytes::BufMut;
 
-use crate::aead::ocb3::Ocb3Generic;
+use crate::aead::ocb3::Ocb3Marker;
 use crate::error::CryptoError;
 use crate::error::CryptoResult;
 
@@ -18,7 +18,7 @@ pub struct Sm4 {
 }
 
 impl BlockCipherMarker for Sm4 {}
-impl Ocb3Generic for Sm4 {}
+impl Ocb3Marker for Sm4 {}
 
 impl Sm4 {
     pub fn new(key: &[u8]) -> CryptoResult<Self> {

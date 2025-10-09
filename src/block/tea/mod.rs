@@ -17,7 +17,7 @@ mod tests;
 
 use bytes::{Buf, BufMut};
 
-use crate::aead::ocb3::Ocb3Generic;
+use crate::aead::ocb3::Ocb3Marker;
 use crate::block::BlockCipher;
 use crate::block::BlockCipherMarker;
 
@@ -36,7 +36,7 @@ pub struct Tea {
 }
 
 impl BlockCipherMarker for Tea {}
-impl Ocb3Generic for Tea {}
+impl Ocb3Marker for Tea {}
 
 impl Tea {
     /// The size of a TEA block, in bytes.
