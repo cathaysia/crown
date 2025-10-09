@@ -12,7 +12,7 @@ use noasm::*;
 
 pub(crate) mod gcm;
 
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(target_arch = "x86_64", feature = "unstable"))]
 mod x86_64;
 
 #[cfg(test)]

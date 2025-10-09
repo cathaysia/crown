@@ -80,6 +80,7 @@ pub mod error;
 
 pub mod utils;
 
+#[cfg(feature = "unstable")]
 mod simd;
 
 #[cfg(feature = "std")]

@@ -20,6 +20,8 @@ cuda = []
 bindgen = ["dep:bindgen"]
 ## Enable asm support.
 asm = []
+## Enable experimental features
+unstable = []
 
 [profile.relwithdebinfo]
 inherits = "release"
