@@ -1,0 +1,5 @@
+language = "C"
+include_guard = "KITTYCRYPTO_H"
+
+[parse.expand]
+crates = ["kittycrypto_c"]

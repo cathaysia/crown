@@ -78,6 +78,7 @@ macro_rules! impl_aead_cipher {
         }
     };
 }
+
 impl EvpAeadCipher {
     impl_aead_cipher!(
         basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Rc6, Sm4, Skipjack],

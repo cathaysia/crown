@@ -1,0 +1,19 @@
+[package]
+name = "kittycrypto_c"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+default = []
+cbindgen = []
+
+[dependencies]
+kittycrypto = { path = "../../" }
+paste.workspace = true
+
+[build-dependencies]
+cbindgen = "0.29"
+toml = "0.9"
