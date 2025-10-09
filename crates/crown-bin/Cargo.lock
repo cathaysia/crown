@@ -220,7 +220,7 @@ dependencies = [
  "block-padding",
  "bytes",
  "cc",
- "derive",
+ "crown-derive",
  "document-features",
  "libc",
  "nix",
@@ -249,6 +249,18 @@ dependencies = [
  "strum_macros",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "crown-derive"
+version = "0.1.0"
+dependencies = [
+ "darling",
+ "minijinja",
+ "proc-macro2",
+ "quote",
+ "serde_json",
+ "syn",
 ]
 
 [[package]]
@@ -293,18 +305,6 @@ checksum = "d38308df82d1080de0afee5d069fa14b0326a88c14f15c5ccda35b4a6c414c81"
 dependencies = [
  "darling_core",
  "quote",
- "syn",
-]
-
-[[package]]
-name = "derive"
-version = "0.1.0"
-dependencies = [
- "darling",
- "minijinja",
- "proc-macro2",
- "quote",
- "serde_json",
  "syn",
 ]
 

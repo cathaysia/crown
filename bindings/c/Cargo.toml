@@ -8,11 +8,12 @@ crate-type = ["cdylib"]
 name = "crown"
 
 [features]
-default = []
+default = ["asm"]
 cbindgen = []
+asm = ["crown/asm"]
 
 [dependencies]
-crown = { path = "../../" }
+crown = { path = "../../", default-features = false, features = ["std"] }
 paste.workspace = true
 
 [build-dependencies]

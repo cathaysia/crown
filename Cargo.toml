@@ -14,6 +14,7 @@ keywords = ["cryptography", "crypto", "encryption", "hashing", "cuda"]
 categories = ["cryptography", "algorithms", "science"]
 repository = "https://github.com/cathaysia/crown"
 autoexamples = false
+exclude = ["tests"]
 
 [features]
 default = ["std", "asm"]

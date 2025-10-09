@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = []
+default = ["asm"]
+asm = ["crown/asm"]
 cuda = ["crown/cuda"]
 
 [[bin]]
@@ -16,7 +17,7 @@ anyhow = "1.0.99"
 base64 = "0.22.1"
 clap = { version = "4.5.45", features = ["derive"] }
 hex = "0.4.3"
-crown = { path = "../../" }
+crown = { path = "../../", default-features = false, features = ["std"] }
 paste = "1.0.15"
 rayon = "1.11.0"
 tracing = "0.1"

@@ -8,17 +8,17 @@
       "release-type": "rust",
       "extra-files": [
         {
-          "path": "./crates/Cargo.toml",
+          "path": "crates/crown-derive/Cargo.toml",
           "type": "toml",
           "jsonpath": "$.package.version"
         },
         {
-          "path": "./crates/crown-bin/Cargo.toml",
+          "path": "crates/crown-bin/Cargo.toml",
           "type": "toml",
           "jsonpath": "$.package.version"
         },
         {
-          "path": "./bindings/c/Cargo.toml",
+          "path": "bindings/c/Cargo.toml",
           "type": "toml",
           "jsonpath": "$.package.version"
         }
