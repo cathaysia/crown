@@ -10,7 +10,7 @@ mod block;
 
 mod generic;
 use bytes::BufMut;
-use derive::Marshal;
+use crown_derive::Marshal;
 use generic::*;
 
 #[cfg(test)]

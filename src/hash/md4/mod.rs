@@ -16,7 +16,7 @@ mod block;
 mod tests;
 
 use bytes::BufMut;
-use derive::Marshal;
+use crown_derive::Marshal;
 
 use crate::{
     core::CoreWrite,

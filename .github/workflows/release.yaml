@@ -69,7 +69,7 @@ jobs:
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: "sccache"
         run: |
-          cd bin/crown-bin
+          cd crates/crown-bin
           cross build --release --target ${{ matrix.target }}
 
       - name: build c bindings
@@ -87,7 +87,7 @@ jobs:
           mkdir -p sysroot/include
 
           # Copy binary
-          cp bin/crown-bin/target/${{ matrix.target }}/release/crown sysroot/bin/
+          cp crates/crown-bin/target/${{ matrix.target }}/release/crown sysroot/bin/
 
           # Copy library with correct extension
           if [[ "${{ matrix.target }}" == *"windows"* ]]; then

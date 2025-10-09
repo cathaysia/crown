@@ -4,7 +4,7 @@ use crate::{
     hash::{Hash, HashUser},
 };
 use bytes::{Buf, BufMut};
-use derive::Marshal;
+use crown_derive::Marshal;
 
 #[cfg(test)]
 mod test;

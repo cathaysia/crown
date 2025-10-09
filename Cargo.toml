@@ -1,12 +1,19 @@
 [workspace]
 resolver = "2"
-members = ["bindings/c", "derive"]
-exclude = ["bin/crown-bin"]
+members = ["bindings/c", "crates/crown-derive"]
+exclude = ["crates/crown-bin"]
 
 [package]
 name = "crown"
 version = "0.1.0"
 edition = "2021"
+description = "A cryptographic library."
+license = "Apache-2.0"
+readme = "README.md"
+keywords = ["cryptography", "crypto", "encryption", "hashing", "cuda"]
+categories = ["cryptography", "algorithms", "science"]
+repository = "https://github.com/cathaysia/crown"
+autoexamples = false
 
 [features]
 default = ["std", "asm"]
@@ -32,7 +39,7 @@ strip = false
 paste = "1.0.15"
 
 [dependencies]
-derive = { path = "./derive" }
+crown-derive = { path = "./crates/crown-derive", version = "0.1.0" }
 thiserror = "2.0.12"
 bytes = "1.10.1"
 base64 = "0.22.1"
@@ -118,6 +125,7 @@ harness = false
 
 [[bench]]
 name = "des"
+harness = false
 
 [[bench]]
 name = "des_ctr"
