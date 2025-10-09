@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["bindings/c", "derive"]
-exclude = ["bin/kt"]
+exclude = ["bin/crown-bin"]
 
 [package]
 name = "crown"

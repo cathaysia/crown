@@ -1,11 +1,15 @@
 [package]
-name = "kt"
+name = "crown-bin"
 version = "0.1.0"
 edition = "2024"
 
 [features]
 default = []
 cuda = ["crown/cuda"]
+
+[[bin]]
+name = "crown"
+path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.99"
