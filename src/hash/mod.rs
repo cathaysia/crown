@@ -1,3 +1,11 @@
+//! # Hash Function Implementations
+//!
+//! This module provides implementations of various cryptographic hash functions,
+//! including both fixed-length and variable-length output algorithms.
+//!
+//! Fixed-length hash functions produce a digest of predetermined size, while
+//! variable-length functions like SHAKE can produce outputs of arbitrary length.
+
 pub mod blake2b;
 pub mod blake2s;
 pub mod md2;

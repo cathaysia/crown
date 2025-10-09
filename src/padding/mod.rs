@@ -1,3 +1,9 @@
+//! # Padding Schemes
+//!
+//! This module defines padding schemes for buffer alignment in block cipher operations.
+//! Padding enables block ciphers to handle data of arbitrary length by filling incomplete
+//! blocks, effectively allowing enhanced block ciphers to operate like stream ciphers.
+
 mod pkcs7;
 pub use pkcs7::Pkcs7;
 

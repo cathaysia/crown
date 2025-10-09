@@ -140,7 +140,7 @@ fn le_put_u64(b: &mut [u8], v: u64) {
 
 /// Create a new [Hash] computing the Md5 checksum.
 ///
-/// The Hash also implements [Marshalable] to marshal
+/// The Hash also implements [crate::mac::hmac::Marshalable] to marshal
 /// and unmarshal the internal state of the hash.
 pub fn new_md5() -> Md5 {
     let mut d = Md5 {

@@ -35,7 +35,7 @@ static KEYSTEP: [usize; 10] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
 static IKEYSTEP: [usize; 10] = [9, 0, 1, 2, 3, 4, 5, 6, 7, 8];
 
 /// Skipjack block cipher implement as defined in
-/// https://en.wikipedia.org/wiki/Skipjack_(cipher)
+/// <https://en.wikipedia.org/wiki/Skipjack_(cipher)>
 pub struct Skipjack {
     key: [u8; 10],
 }

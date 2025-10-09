@@ -140,7 +140,7 @@ impl Hash<16> for Md4 {
 
 /// Create a new [Hash] computing the Md4 checksum.
 ///
-/// The Hash also implements [Marshalable] to marshal and unmarshal
+/// The Hash also implements [crate::mac::hmac::Marshalable] to marshal and unmarshal
 /// the internal state of the hash.
 pub fn new_md4() -> Md4 {
     let mut d = Md4 {

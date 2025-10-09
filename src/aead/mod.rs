@@ -1,3 +1,11 @@
+//! # Authenticated Encryption with Associated Data (AEAD)
+//!
+//! This module provides AEAD cipher implementations that combine encryption and authentication
+//! in a single operation. AEAD ciphers ensure both confidentiality and authenticity of data.
+//!
+//! The module includes native AEAD algorithms like ChaCha20-Poly1305, as well as modes like
+//! GCM and OCB3 that can transform block ciphers and stream ciphers into AEAD constructions.
+
 pub mod chacha20poly1305;
 #[cfg(feature = "alloc")]
 pub mod gcm;

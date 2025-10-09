@@ -1,3 +1,9 @@
+//! # Cipher Modes of Operation
+//!
+//! This module provides various modes of operation for block ciphers, including both
+//! block modes and stream modes. These modes transform block ciphers into different
+//! operational forms, enabling block ciphers to work as stream ciphers or enhanced block ciphers.
+
 #[cfg(feature = "alloc")]
 pub mod cbc;
 #[cfg(feature = "alloc")]

@@ -1,3 +1,8 @@
+//! # Stream Cipher Implementations
+//!
+//! This module provides implementations of stream ciphers that encrypt data
+//! continuously by XORing plaintext with a pseudorandom key stream.
+
 use crate::error::CryptoResult;
 
 pub mod chacha20;
