@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "include-v-in-tag": true,
+  "include-component-in-tag": false,
+  "bump-minor-pre-major": true,
+  "packages": {
+    ".": {
+      "release-type": "rust",
+      "extra-files": [
+        {
+          "path": "./bin/kt/Cargo.toml",
+          "type": "toml",
+          "jsonpath": "$.package.version"
+        },
+        {
+          "path": "./bindings/c/Cargo.toml",
+          "type": "toml",
+          "jsonpath": "$.package.version"
+        }
+      ]
+    }
+  }
+}

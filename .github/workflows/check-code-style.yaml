@@ -12,11 +12,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: true
-      - uses: Jimver/cuda-toolkit@v0.2.27
       - name: setup env
         run: |
           sudo apt update -y
-          sudo apt upgrade -y
           sudo apt install build-essential gcc cpp libclang-dev openssl libssl-dev -y
       - uses: actions/setup-python@v5
         with:
@@ -29,6 +27,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.9
       - name: install Rust 1.85.0
         uses: dtolnay/rust-toolchain@1.85.0
         with:
@@ -41,6 +41,9 @@ jobs:
         run: |
           pip3 install pre-commit
       - name: check style
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: "sccache"
         run: |
           pre-commit run -a
           rustup component remove clippy
@@ -49,4 +52,4 @@ jobs:
           cargo clippy --tests -- -Dwarnings
           cargo clippy --no-default-features -- -Dwarnings
           cargo clippy --no-default-features -F alloc -- -Dwarnings
-          cargo clippy --no-default-features -F cuda -- -Dwarnings
+          cargo clippy --no-default-features -F std -- -Dwarnings

@@ -331,7 +331,7 @@ impl CoreWrite for Sm3 {
         if self.num != 0 {
             let space = Self::SM3_CBLOCK - self.num;
             if remaining >= space {
-                let mut temp_data = vec![0u8; Self::SM3_CBLOCK];
+                let mut temp_data = tinyvec::array_vec![0u8; Self::SM3_CBLOCK];
 
                 (0..self.num).for_each(|i| {
                     temp_data[i] = ((self.data[i / 4] >> (8 * (3 - (i % 4)))) & 0xff) as u8;

@@ -9,7 +9,8 @@
 //! unified interfaces for common cryptographic operations:
 //!
 //! ```rust
-//! use kittytls::envelope::*;
+//! use crown::envelope::*;
+//! use crown::core::CoreWrite;
 //!
 //! // Hash operations
 //! let mut hasher = EvpHash::new_sha256()?;
@@ -17,6 +18,9 @@
 //! let digest = hasher.sum();
 //!
 //! // AEAD encryption
+//! # let key = [0u8; 16];
+//! # let nonce = [0u8; 12];
+//! # let mut data = [0u8; 1024];
 //! let cipher = EvpAeadCipher::new_aes_gcm(&key)?;
 //! cipher.seal_in_place_separate_tag(&mut data, &nonce, &[])?;
 //! # Ok::<(), Box<dyn std::error::Error>>(())
