@@ -17,7 +17,7 @@ autoexamples = false
 exclude = ["tests"]
 
 [features]
-default = ["std", "asm"]
+default = ["std"]
 ## Enable std
 std = ["alloc", "once_cell/std"]
 ## Enable alloc
