@@ -7,10 +7,17 @@ fn main() {
 
     #[cfg(feature = "asm")]
     {
-        #[cfg(target_arch = "aarch64")]
-        build_aarch64();
-        #[cfg(target_arch = "x86_64")]
-        build_x86_64();
+        // https://github.com/cross-rs/cross/discussions/1285
+        let arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap();
+        match arch.as_str() {
+            "aarch64" => {
+                build_aarch64();
+            }
+            "x86_64" => {
+                build_x86_64();
+            }
+            _ => {}
+        }
     }
 }
 
@@ -167,7 +174,6 @@ impl ArmCap {
     }
 }
 
-#[cfg(target_arch = "aarch64")]
 fn build_aarch64() {
     let mut macros = vec![];
     if cfg!(target_endian = "big") {
@@ -274,7 +280,6 @@ fn build_cuda() {
     build.compile("crown_cuda");
 }
 
-#[cfg(target_arch = "x86_64")]
 fn build_x86_64() {
     let x86cap = X86Cap::detect();
 
