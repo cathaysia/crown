@@ -22,11 +22,11 @@ default = ["std"]
 std = ["alloc", "once_cell/std"]
 ## Enable alloc
 alloc = []
-## Enable Cuda
+## Enable Cuda. (Experimental)
 cuda = []
 ## regenerate cuda sys.rs
 bindgen = ["dep:bindgen"]
-## Enable asm support.
+## Enable asm support. (Experimental)
 asm = []
 ## Enable experimental features
 unstable = []
