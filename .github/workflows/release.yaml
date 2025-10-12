@@ -128,11 +128,15 @@ jobs:
           fi
 
 
+      - name: create archive
+        run: |
+          tar -cJf ${{ matrix.target }}.tar.xz -C sysroot .
+
       - name: upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: crown-${{ matrix.target }}
-          path: sysroot/
+          name: ${{ matrix.target }}
+          path: ${{ matrix.target }}.tar.xz
 
   create-release:
     # needs: [publish-crate, build-cross]
@@ -147,10 +151,16 @@ jobs:
         with:
           path: artifacts/
 
+      - name: list artifacts
+        run: |
+          echo "Listing artifacts directory structure:"
+          find artifacts/ -type f -ls || echo "No files found in artifacts/"
+          ls -la artifacts/ || echo "artifacts/ directory not found"
+
       - name: create release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*
+          files: artifacts/*/*.tar.xz
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
