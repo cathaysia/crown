@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/cathaysia/crown/compare/v0.2.2...v0.2.3) (2025-10-12)
+
+
+### Bug Fixes
+
+* **ci:** fix create-release ([9b3a29a](https://github.com/cathaysia/crown/commit/9b3a29a44a15e236e5cd9f11175420cd5eeaf8d7))
+
 ## [0.2.2](https://github.com/cathaysia/crown/compare/v0.2.1...v0.2.2) (2025-10-12)
 
 
