@@ -13,7 +13,9 @@ cbindgen = []
 asm = ["crown/asm"]
 
 [dependencies]
-crown = { path = "../../", default-features = false, features = ["std"] }
+crown = { path = "../../", default-features = false, features = [
+  "std",
+], version = "0.2.0" }
 paste.workspace = true
 
 [build-dependencies]

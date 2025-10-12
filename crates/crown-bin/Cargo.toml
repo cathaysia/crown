@@ -17,7 +17,9 @@ anyhow = "1.0.99"
 base64 = "0.22.1"
 clap = { version = "4.5.45", features = ["derive"] }
 hex = "0.4.3"
-crown = { path = "../../", default-features = false, features = ["std"] }
+crown = { path = "../../", default-features = false, features = [
+  "std",
+], version = "0.2.0" }
 paste = "1.0.15"
 rayon = "1.11.0"
 tracing = "0.1"
