@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.5](https://github.com/cathaysia/crown/compare/v0.2.4...v0.2.5) (2025-10-12)
+
+
+### Bug Fixes
+
+* **crown-bin:** fix pkgname ([9433021](https://github.com/cathaysia/crown/commit/94330219de528f2fd821f06b71aa84d481d24596))
+
 ## [0.2.4](https://github.com/cathaysia/crown/compare/v0.2.3...v0.2.4) (2025-10-12)
 
 
