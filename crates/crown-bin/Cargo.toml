@@ -2,6 +2,12 @@
 name = "crown-bin"
 version = "0.2.1"
 edition = "2024"
+description = "crown cryptographic library cli tool"
+license = "Apache-2.0"
+readme = "../../README.md"
+keywords = ["cryptography", "crypto", "procedural-macros", "derive"]
+categories = ["cryptography", "development-tools::procedural-macro-helpers"]
+repository = "https://github.com/cathaysia/crown"
 
 [features]
 default = ["asm"]
