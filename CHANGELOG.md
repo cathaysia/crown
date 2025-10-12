@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/cathaysia/crown/compare/v0.2.1...v0.2.2) (2025-10-12)
+
+
+### Bug Fixes
+
+* **crown-bin:** add metadata ([a2636b2](https://github.com/cathaysia/crown/commit/a2636b27724f0c4f840bdf34bfe0c8969ecdef57))
+
 ## [0.2.1](https://github.com/cathaysia/crown/compare/v0.2.0...v0.2.1) (2025-10-12)
 
 

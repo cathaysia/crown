@@ -5,7 +5,7 @@ exclude = ["crates/crown-bin"]
 
 [package]
 name = "crown"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 description = "A cryptographic library."
 license = "Apache-2.0"
@@ -40,7 +40,7 @@ strip = false
 paste = "1.0.15"
 
 [dependencies]
-crown-derive = { path = "./crates/crown-derive", version = "0.2.1" }
+crown-derive = { path = "./crates/crown-derive", version = "0.2.2" }
 thiserror = "2.0.12"
 bytes = "1.10.1"
 base64 = "0.22.1"
