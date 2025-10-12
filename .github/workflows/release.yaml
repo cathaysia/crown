@@ -139,8 +139,10 @@ jobs:
           path: ${{ matrix.target }}.tar.xz
 
   create-release:
-    # needs: [publish-crate, build-cross]
-    needs: [build-cross]
+    needs: [publish-crate, build-cross]
+    permissions:
+      contents: write
+      discussions: write
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
@@ -154,8 +156,7 @@ jobs:
       - name: list artifacts
         run: |
           echo "Listing artifacts directory structure:"
-          find artifacts/ -type f -ls || echo "No files found in artifacts/"
-          ls -la artifacts/ || echo "artifacts/ directory not found"
+          ls artifacts/**/*
 
       - name: create release
         uses: softprops/action-gh-release@v2
