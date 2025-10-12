@@ -12,6 +12,8 @@ use utils::init_logger;
 
 mod args;
 
+const BIN_NAME: &str = "crown";
+
 fn main() -> anyhow::Result<()> {
     init_logger();
 
@@ -24,7 +26,7 @@ fn main() -> anyhow::Result<()> {
         .unwrap_or("md5sum".into())
         .to_lowercase()
     };
-    if prog != env!("CARGO_PKG_NAME").to_lowercase() {
+    if prog != BIN_NAME {
         return main_mock(&prog);
     }
 
