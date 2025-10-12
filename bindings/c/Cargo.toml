@@ -1,6 +1,6 @@
 [package]
 name = "crown_c"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2024"
 
 [lib]
@@ -15,7 +15,7 @@ asm = ["crown/asm"]
 [dependencies]
 crown = { path = "../../", default-features = false, features = [
   "std",
-], version = "0.2.4" }
+], version = "0.2.5" }
 paste.workspace = true
 
 [build-dependencies]

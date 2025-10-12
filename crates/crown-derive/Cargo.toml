@@ -1,6 +1,6 @@
 [package]
 name = "crown-derive"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2021"
 description = "Procedural macros for the crown cryptographic library"
 license = "Apache-2.0"
