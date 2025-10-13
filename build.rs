@@ -57,87 +57,88 @@ impl X86Cap {
         caps[0] |= 1 << 15; // CMOV
         caps[0] |= 1 << 23; // MMX
         caps[0] |= 1 << 24; // FXSR
+        let target_feature = std::env::var("CARGO_CFG_TARGET_FEATURE").unwrap();
 
         // SSE
-        if cfg!(target_feature = "sse") {
+        if target_feature.contains("sse") {
             caps[0] |= 1 << 25; // SSE
         }
-        if cfg!(target_feature = "sse2") {
+        if target_feature.contains("sse2") {
             caps[0] |= 1 << 26; // SSE2
         }
 
         // P[1] - CPUID ECX features (extend feature)
-        if cfg!(target_feature = "sse3") {
+        if target_feature.contains("sse3") {
             caps[1] |= 1 << 0; // SSE3
         }
-        if cfg!(target_feature = "pclmulqdq") {
+        if target_feature.contains("pclmulqdq") {
             caps[1] |= 1 << 1; // PCLMULQDQ
         }
-        if cfg!(target_feature = "ssse3") {
+        if target_feature.contains("ssse3") {
             caps[1] |= 1 << 9; // SSSE3
         }
-        if cfg!(target_feature = "fma") {
+        if target_feature.contains("fma") {
             caps[1] |= 1 << 12; // FMA
         }
-        if cfg!(target_feature = "cmpxchg16b") {
+        if target_feature.contains("cmpxchg16b") {
             caps[1] |= 1 << 13; // CMPXCHG16B
         }
-        if cfg!(target_feature = "sse4.1") {
+        if target_feature.contains("sse4.1") {
             caps[1] |= 1 << 19; // SSE4.1
         }
-        if cfg!(target_feature = "sse4.2") {
+        if target_feature.contains("sse4.2") {
             caps[1] |= 1 << 20; // SSE4.2
         }
-        if cfg!(target_feature = "movbe") {
+        if target_feature.contains("movbe") {
             caps[1] |= 1 << 22; // MOVBE
         }
-        if cfg!(target_feature = "popcnt") {
+        if target_feature.contains("popcnt") {
             caps[1] |= 1 << 23; // POPCNT
         }
-        if cfg!(target_feature = "aes") {
+        if target_feature.contains("aes") {
             caps[1] |= 1 << 25; // AES
         }
-        if cfg!(target_feature = "avx") {
+        if target_feature.contains("avx") {
             caps[1] |= 1 << 28; // AVX
         }
-        if cfg!(target_feature = "f16c") {
+        if target_feature.contains("f16c") {
             caps[1] |= 1 << 29; // F16C
         }
-        if cfg!(target_feature = "rdrand") {
+        if target_feature.contains("rdrand") {
             caps[1] |= 1 << 30; // RDRAND
         }
 
         // P[2] - Extended features (AVX2, BMI, etc.)
-        if cfg!(target_feature = "avx2") {
+        if target_feature.contains("avx2") {
             caps[2] |= 1 << 5; // AVX2
         }
-        if cfg!(target_feature = "bmi1") {
+        if target_feature.contains("bmi1") {
             caps[2] |= 1 << 3; // BMI1
         }
-        if cfg!(target_feature = "bmi2") {
+        if target_feature.contains("bmi2") {
             caps[2] |= 1 << 8; // BMI2
         }
-        if cfg!(target_feature = "adx") {
+        if target_feature.contains("adx") {
             caps[2] |= 1 << 19; // ADX
         }
-        if cfg!(target_feature = "sha") {
+        if target_feature.contains("sha") {
             caps[2] |= 1 << 29; // SHA
         }
 
         // P[3] - AVX-512 features
-        if cfg!(target_feature = "avx512f") {
+        if target_feature.contains("avx512f") {
             caps[3] |= 1 << 16; // AVX512F
         }
-        if cfg!(target_feature = "avx512dq") {
+        if target_feature.contains("avx512dq") {
             caps[3] |= 1 << 17; // AVX512DQ
         }
-        if cfg!(target_feature = "avx512cd") {
+        if target_feature.contains("avx512cd") {
             caps[3] |= 1 << 28; // AVX512CD
         }
-        if cfg!(target_feature = "avx512bw") {
+        if target_feature.contains("avx512bw") {
             caps[3] |= 1 << 30; // AVX512BW
         }
-        if cfg!(target_feature = "avx512vl") {
+        if target_feature.contains("avx512vl") {
             caps[3] |= 1 << 31; // AVX512VL
         }
 
@@ -147,26 +148,28 @@ impl X86Cap {
 
 impl ArmCap {
     pub fn detect() -> Self {
+        let target_feature = std::env::var("CARGO_CFG_TARGET_FEATURE").unwrap();
+
         let mut cap = ArmCap::empty();
-        if cfg!(target_feature = "neon") {
+        if target_feature.contains("neon") {
             cap |= Self::ARMV7_NEON;
         }
         cap |= Self::ARMV7_TICK;
-        if cfg!(target_feature = "sha2") {
+        if target_feature.contains("sha2") {
             cap |= Self::ARMV8_SHA1;
             cap |= Self::ARMV8_SHA256;
         }
-        if cfg!(target_feature = "aes") {
+        if target_feature.contains("aes") {
             cap |= Self::ARMV8_AES;
             cap |= Self::ARMV8_PMULL;
         }
-        if cfg!(target_feature = "sve") {
+        if target_feature.contains("sve") {
             cap |= Self::ARMV8_SVE;
         }
-        if cfg!(target_feature = "sve2") {
+        if target_feature.contains("sve2") {
             cap |= Self::ARMV8_SVE2;
         }
-        if cfg!(target_feature = "sha3") {
+        if target_feature.contains("sha3") {
             cap |= Self::ARMV8_HAVE_SHA3_AND_WORTH_USING;
         }
 
