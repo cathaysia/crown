@@ -1,5 +1,5 @@
 [package]
-name = "crown_c"
+name = "crown_cabi"
 version = "0.3.0"
 edition = "2024"
 
@@ -13,9 +13,7 @@ cbindgen = []
 asm = ["crown/asm"]
 
 [dependencies]
-crown = { path = "../../", default-features = false, features = [
-  "std",
-], version = "0.3.0" }
+crown = { workspace = true }
 paste.workspace = true
 
 [build-dependencies]

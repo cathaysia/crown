@@ -3,36 +3,12 @@
 	"include-v-in-tag": true,
 	"include-component-in-tag": false,
 	"bump-minor-pre-major": true,
+	"plugins": ["cargo-workspace"],
+	"release-type": "rust",
 	"packages": {
-		".": {
-			"release-type": "rust",
-			"extra-files": [
-				{
-					"path": "crates/crown-derive/Cargo.toml",
-					"type": "toml",
-					"jsonpath": "$.package.version"
-				},
-				{
-					"path": "crates/crown-bin/Cargo.toml",
-					"type": "toml",
-					"jsonpath": "$.package.version"
-				},
-				{
-					"path": "crates/crown-bin/Cargo.toml",
-					"type": "toml",
-					"jsonpath": "$.dependencies.crown.version"
-				},
-				{
-					"path": "bindings/c/Cargo.toml",
-					"type": "toml",
-					"jsonpath": "$.package.version"
-				},
-				{
-					"path": "bindings/c/Cargo.toml",
-					"type": "toml",
-					"jsonpath": "$.dependencies.crown.version"
-				}
-			]
-		}
+		"crown": {},
+		"crown-bin": {},
+		"crown-cabi": {},
+		"crown-derive": {}
 	}
 }
