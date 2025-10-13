@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/cathaysia/crown/compare/v0.2.6...v0.3.0) (2025-10-13)
+
+
+### Features
+
+* **crown:** don't expose utils and rand function ([1f1f93b](https://github.com/cathaysia/crown/commit/1f1f93b6174e32f2197f8188c6bf13080d0e8eb4))
+
 ## [0.2.6](https://github.com/cathaysia/crown/compare/v0.2.5...v0.2.6) (2025-10-13)
 
 
