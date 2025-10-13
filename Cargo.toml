@@ -61,7 +61,7 @@ toml = { version = "0.9.5", optional = true }
 bitflags = "2.9.4"
 
 [dev-dependencies]
-crown = { path = ".", features = ["std"] }
+crown = { path = ".", features = ["std", "unstable"] }
 rand = "0.9.2"
 criterion = { version = "0.7", features = ["html_reports"] }
 md5 = "0.8.0"
