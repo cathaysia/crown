@@ -82,10 +82,13 @@ pub mod cuda;
 
 pub mod error;
 
+#[cfg(not(feature = "unstable"))]
+mod utils;
+#[cfg(feature = "unstable")]
 pub mod utils;
 
 #[cfg(feature = "unstable")]
 mod simd;
 
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", feature = "unstable"))]
 pub use utils::rand;

@@ -2,10 +2,12 @@ pub fn fill(b: &mut [u8]) {
     super::drbg::read(b);
 }
 
+#[allow(dead_code)]
 pub trait Random: Sized {
     fn random() -> Self;
 }
 
+#[allow(dead_code)]
 pub fn random<T>() -> T
 where
     T: Random,
