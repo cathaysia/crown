@@ -2,7 +2,21 @@ pub fn fill(b: &mut [u8]) {
     super::drbg::read(b);
 }
 
+pub trait Random: Sized {
+    fn random() -> Self;
+}
+
 pub fn random<T>() -> T
+where
+    T: Random,
+{
+    T::random()
+}
+
+/// # Safety
+///
+/// use this function by your own risk.
+pub unsafe fn unsafe_random<T>() -> T
 where
     T: Sized,
 {
@@ -12,3 +26,18 @@ where
     fill(s);
     unsafe { uninit.assume_init() }
 }
+
+macro_rules! impl_random_for {
+    (#inner $t: ty) => {
+        impl Random for $t {
+            fn random() -> Self {
+                unsafe { unsafe_random() }
+            }
+        }
+    };
+    ($($ty:ty),* $(,)?) => {
+        $(impl_random_for!(#inner $ty);)*
+    }
+}
+
+impl_random_for!(i8, u8, i16, u16, i32, u32, i64, u64, f32, f64);
