@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.6](https://github.com/cathaysia/crown/compare/v0.2.5...v0.2.6) (2025-10-13)
+
+
+### Bug Fixes
+
+* **build.rs:** fix feature detect ([e289af0](https://github.com/cathaysia/crown/commit/e289af03b9b4d52c626f66b7d31492e79969d03b))
+* **random:** fix ub ([b92c7ec](https://github.com/cathaysia/crown/commit/b92c7ec3ff8bb4818716884fc154a8fad40bde68))
+
 ## [0.2.5](https://github.com/cathaysia/crown/compare/v0.2.4...v0.2.5) (2025-10-12)
 
 
