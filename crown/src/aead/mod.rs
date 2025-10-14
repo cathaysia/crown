@@ -14,13 +14,12 @@ pub mod ocb3;
 use crate::error::CryptoResult;
 
 pub trait AeadUser {
-    /// NonceSize returns the size of the nonce that must be passed to Seal
+    /// nonce_size returns the size of the nonce that must be passed to Seal
     /// and Open.
     fn nonce_size(&self) -> usize;
 
-    /// Overhead returns the maximum difference between the lengths of a
-    /// plaintext and its ciphertext.
-    fn overhead(&self) -> usize;
+    /// tag_size returns the size of the tag.
+    fn tag_size(&self) -> usize;
 }
 
 /// AEAD is a cipher mode providing authenticated encryption with associated
@@ -42,15 +41,17 @@ pub trait Aead<const N: usize>: AeadUser {
         additional_data: &[u8],
     ) -> CryptoResult<[u8; N]>;
 
-    #[cfg(feature = "alloc")]
-    fn seal_in_place_append_tag(
+    fn seal_in_place_append_tag<T>(
         &self,
-        inout: &mut alloc::vec::Vec<u8>,
+        inout: &mut T,
         nonce: &[u8],
         additional_data: &[u8],
-    ) -> CryptoResult<()> {
-        let tag = self.seal_in_place_separate_tag(inout, nonce, additional_data)?;
-        inout.extend_from_slice(&tag);
+    ) -> CryptoResult<()>
+    where
+        T: Extend<u8> + AsMut<[u8]> + ?Sized,
+    {
+        let tag = self.seal_in_place_separate_tag(inout.as_mut(), nonce, additional_data)?;
+        inout.extend(tag);
         Ok(())
     }
     /// Open decrypts and authenticates ciphertext, authenticates the
@@ -73,17 +74,15 @@ pub trait Aead<const N: usize>: AeadUser {
         additional_data: &[u8],
     ) -> CryptoResult<()>;
 
-    #[cfg(feature = "alloc")]
-    fn open_in_place(
+    fn open_in_place<'a>(
         &self,
-        inout: &mut alloc::vec::Vec<u8>,
+        inout: &'a mut [u8],
         nonce: &[u8],
         additional_data: &[u8],
-    ) -> CryptoResult<()> {
+    ) -> CryptoResult<&'a mut [u8]> {
         let pos = inout.len() - N;
-        let (inout1, tag) = inout.split_at_mut(pos);
-        self.open_in_place_separate_tag(inout1, tag, nonce, additional_data)?;
-        inout.truncate(pos);
-        Ok(())
+        let (inout, tag) = inout.split_at_mut(pos);
+        self.open_in_place_separate_tag(inout, tag, nonce, additional_data)?;
+        Ok(inout)
     }
 }

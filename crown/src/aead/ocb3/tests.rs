@@ -1,5 +1,5 @@
 use crate::{
-    aead::{ocb3::Ocb3, Aead},
+    aead::{ocb3::Ocb3, Aead, AeadUser},
     block::aes::Aes,
     envelope::EvpAeadCipher,
 };
@@ -24,6 +24,7 @@ fn test_aes_ocb_enc_and_dec() {
             .seal_in_place_append_tag(&mut ct, &nonce, &[])
             .unwrap();
         cipher.open_in_place(&mut ct, &nonce, &[]).unwrap();
+        ct.truncate(ct.len() - cipher.tag_size());
 
         assert_eq!(pt, ct);
     }

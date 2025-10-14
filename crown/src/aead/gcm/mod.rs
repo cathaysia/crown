@@ -93,7 +93,7 @@ impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize> AeadUser
         NONCE_SIZE
     }
 
-    fn overhead(&self) -> usize {
+    fn tag_size(&self) -> usize {
         TAG_SIZE
     }
 }

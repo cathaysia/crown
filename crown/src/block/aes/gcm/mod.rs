@@ -69,7 +69,7 @@ impl<const NONCE_SIZE: usize, const TAG_SIZE: usize> AeadUser for Gcm<NONCE_SIZE
         NONCE_SIZE
     }
 
-    fn overhead(&self) -> usize {
+    fn tag_size(&self) -> usize {
         TAG_SIZE
     }
 }

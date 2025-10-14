@@ -3,7 +3,10 @@ use super::{ChaCha20Poly1305, XChaCha20Poly1305};
 use chacha20poly1305::aead::AeadMutInPlace;
 use rc4::KeyInit;
 
-use crate::{aead::Aead, envelope::EvpAeadCipher};
+use crate::{
+    aead::{Aead, AeadUser},
+    envelope::EvpAeadCipher,
+};
 
 #[test]
 fn test_vector() {
@@ -114,6 +117,7 @@ fn rustcrypto_chacha20poly1305_interop() {
             let mut inout = ciphertext.clone();
             let cipher = ChaCha20Poly1305::new(&key).unwrap();
             cipher.open_in_place(&mut inout, &nonce, &[]).unwrap();
+            inout.truncate(inout.len() - cipher.tag_size());
             inout
         };
 
@@ -173,6 +177,7 @@ fn rustcrypto_xchacha20poly1305_interop() {
             let mut inout = ciphertext.clone();
             let cipher = XChaCha20Poly1305::new(&key).unwrap();
             cipher.open_in_place(&mut inout, &nonce, &[]).unwrap();
+            inout.truncate(inout.len() - cipher.tag_size());
             inout
         };
 

@@ -43,7 +43,7 @@ impl AeadUser for XChaCha20Poly1305 {
         Self::NONCE_SIZE
     }
 
-    fn overhead(&self) -> usize {
+    fn tag_size(&self) -> usize {
         Self::OVERHEAD
     }
 }
