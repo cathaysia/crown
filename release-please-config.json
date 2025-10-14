@@ -4,14 +4,25 @@
 	"include-component-in-tag": false,
 	"bump-minor-pre-major": true,
 	"packages": {
-     ".": {
-      "release-type": "simple",
-      "extra-files": [
-        {
-          "path": "crates/client-daemon/Cargo.toml",
-          "type": "toml",
-          "jsonpath": "$.package.version"
-        }
-     }
+		".": {
+			"release-type": "simple",
+			"extra-files": [
+				{
+					"path": "Cargo.toml",
+					"type": "toml",
+					"jsonpath": "$.workspace.package.version"
+				},
+				{
+					"path": "Cargo.toml",
+					"type": "toml",
+					"jsonpath": "$.workspace.dependencies.crown.version"
+				},
+				{
+					"path": "Cargo.toml",
+					"type": "toml",
+					"jsonpath": "$.workspace.dependencies.crown-derive.version"
+				}
+			]
+		}
 	}
 }
