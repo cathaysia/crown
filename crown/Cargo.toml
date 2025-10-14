@@ -105,9 +105,6 @@ harness = false
 name = "des"
 harness = false
 
-[[bench]]
-name = "des_ctr"
-harness = false
 
 [[bench]]
 name = "xor"
@@ -123,8 +120,4 @@ harness = false
 
 [[bench]]
 name = "xchacha20poly1305"
-harness = false
-
-[[bench]]
-name = "twofish"
 harness = false
