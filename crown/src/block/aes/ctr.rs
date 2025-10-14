@@ -28,20 +28,6 @@ impl Ctr {
         })
     }
 
-    pub fn round_to_block(&mut self) -> Result<(), CryptoError> {
-        let remainder = self.offset % Aes::BLOCK_SIZE as u64;
-        if remainder != 0 {
-            let (new_offset, carry) = self
-                .offset
-                .overflowing_add(Aes::BLOCK_SIZE as u64 - remainder);
-            if carry {
-                return Err(CryptoError::CounterOverflow);
-            }
-            self.offset = new_offset;
-        }
-        Ok(())
-    }
-
     pub fn xor_key_stream_at(&self, inout: &mut [u8], offset: u64) -> Result<(), CryptoError> {
         let (mut ivlo, mut ivhi) = add128(self.ivlo, self.ivhi, offset / Aes::BLOCK_SIZE as u64);
         let mut inout = inout;
@@ -161,10 +147,4 @@ fn add128(lo: u64, hi: u64, x: u64) -> (u64, u64) {
     let (new_lo, carry) = lo.overflowing_add(x);
     let (new_hi, _) = hi.overflowing_add(if carry { 1 } else { 0 });
     (new_lo, new_hi)
-}
-
-// RoundToBlock is used by CTR_DRBG, which discards the rightmost unused bits at
-// each request. It rounds the offset up to the next block boundary.
-pub fn round_to_block(ctr: &mut Ctr) -> Result<(), CryptoError> {
-    ctr.round_to_block()
 }

@@ -14,16 +14,6 @@ struct GcmFieldElement {
 
 const GCM_BLOCK_SIZE: usize = 16;
 
-// GHASH is exposed to allow crypto/cipher to implement non-AES GCM modes.
-// It is not allowed as a stand-alone operation in FIPS mode because it
-// is not ACVP tested.
-pub fn ghash_public(key: &[u8; 16], inputs: &[&[u8]]) -> [u8; GCM_BLOCK_SIZE] {
-    // fips140.RecordNonApproved() - Not applicable in Rust implementation
-    let mut out = [0u8; GCM_BLOCK_SIZE];
-    ghash(&mut out, key, inputs);
-    out
-}
-
 // ghash is a variable-time generic implementation of GHASH, which shouldn't
 // be used on any architecture with hardware support for AES-GCM.
 //

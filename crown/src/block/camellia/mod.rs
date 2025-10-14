@@ -24,7 +24,12 @@ pub struct Camellia {
 
 impl Camellia {
     pub fn new(key: &[u8], num_rounds: Option<usize>) -> CryptoResult<Self> {
-        let mut s: Self = unsafe { core::mem::zeroed() };
+        let mut s = Self {
+            kw: [0; 4],
+            k: [0; 24],
+            kl: [0; 6],
+            rounds: 0,
+        };
 
         s.init(key, num_rounds.unwrap_or(0))?;
 

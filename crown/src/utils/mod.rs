@@ -11,24 +11,14 @@ pub(crate) mod randutil;
 #[cfg(feature = "std")]
 pub(crate) mod sysrand;
 
-#[allow(dead_code)]
-pub(crate) fn inexact_overlap(dst: &[u8], src: &[u8]) -> bool {
-    let dst_ptr = dst.as_ptr() as usize;
-    let src_ptr = src.as_ptr() as usize;
-    let dst_end = dst_ptr + dst.len();
-    let src_end = src_ptr + src.len();
-
-    (dst_ptr < src_end && src_ptr < dst_end) && (dst_ptr != src_ptr)
-}
-
-pub fn copy(dst: &mut [u8], src: &[u8]) -> usize {
+pub(crate) fn copy(dst: &mut [u8], src: &[u8]) -> usize {
     let len = dst.len().min(src.len());
     dst[..len].copy_from_slice(&src[..len]);
     len
 }
 
 /// Check if two slices have any overlap in memory
-pub fn any_overlap(a: &[u8], b: &[u8]) -> bool {
+pub(crate) fn any_overlap(a: &[u8], b: &[u8]) -> bool {
     if a.is_empty() || b.is_empty() {
         return false;
     }
@@ -84,19 +74,7 @@ pub unsafe fn erase_ownership<'a, T>(slice: &[T]) -> &'a [T] {
 /// # Returns
 ///
 /// A new slice with the same data and length but with a different lifetime.
-pub unsafe fn erase_ownership_mut<'a, T>(slice: &mut [T]) -> &'a mut [T] {
+pub(crate) unsafe fn erase_ownership_mut<'a, T>(slice: &mut [T]) -> &'a mut [T] {
     let ptr = slice.as_mut_ptr();
     unsafe { core::slice::from_raw_parts_mut(ptr, slice.len()) }
 }
-
-#[allow(unused_macros)]
-macro_rules! const_assert {
-    ($cond:expr) => {
-        const _: () = assert!($cond);
-    };
-    ($cond:expr, $msg:literal) => {
-        const _: () = assert!($cond, $msg);
-    };
-}
-#[allow(unused_imports)]
-pub(crate) use const_assert;
