@@ -15,7 +15,6 @@ fn rustcrypto_blake2s_interop() {
             digest.update(&buf);
             digest.finalize()
         };
-        let rustcrypto = rustcrypto.as_slice();
 
         assert_eq!(hex::encode(this), hex::encode(rustcrypto));
     }

@@ -28,13 +28,13 @@ fn test_vector() {
             .seal_in_place_append_tag(&mut plaintext2, &nonce, &aad)
             .unwrap();
 
-        let ct = plaintext2.clone();
+        let mut ct = plaintext2.clone();
         assert_eq!(hex::encode(&plaintext2), out);
 
-        cipher
-            .open_in_place(&mut plaintext2, &nonce, &aad)
+        let plaintext2 = cipher
+            .open_in_place(&mut ct, &nonce, &aad)
             .unwrap_or_else(|_| panic!("failed to decrypt ciphertext: {idx}"));
-        assert_eq!(plaintext, plaintext2);
+        assert_eq!(plaintext2, plaintext);
 
         let mut aad = aad;
         if !aad.is_empty() {

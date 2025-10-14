@@ -24,7 +24,7 @@ fn rustcrypto_sha1_interop() {
         rand::fill(buf.as_mut_slice());
         let this = &super::sum(&buf);
 
-        let rustcrypto = sha1::Sha1::digest(&buf).as_slice().to_vec();
+        let rustcrypto = sha1::Sha1::digest(&buf).to_vec();
 
         assert_eq!(this, rustcrypto.as_slice());
     }

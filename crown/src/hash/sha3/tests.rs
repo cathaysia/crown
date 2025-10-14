@@ -10,9 +10,9 @@ fn rustcrypto_sha3_interop() {
         let k384 = super::sum384(&buf);
         let k512 = super::sum512(&buf);
 
-        let r256 = sha3::Sha3_256::digest(&buf).as_slice().to_vec();
-        let r384 = sha3::Sha3_384::digest(&buf).as_slice().to_vec();
-        let r512 = sha3::Sha3_512::digest(&buf).as_slice().to_vec();
+        let r256 = sha3::Sha3_256::digest(&buf).to_vec();
+        let r384 = sha3::Sha3_384::digest(&buf).to_vec();
+        let r512 = sha3::Sha3_512::digest(&buf).to_vec();
 
         assert_eq!(k256, r256.as_slice());
         assert_eq!(k384, r384.as_slice());
