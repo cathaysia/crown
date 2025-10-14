@@ -44,7 +44,7 @@ impl<const TAG_SIZE: usize, const NONCE_SIZE: usize, T: BlockCipher>
 
         let mut l_star = [0u8; MAX_BLOCK_SIZE];
         l_star[..block_size].fill(0);
-        cipher.encrypt(&mut l_star[..block_size]);
+        cipher.encrypt_block(&mut l_star[..block_size]);
 
         let mut l_dollar = [0u8; MAX_BLOCK_SIZE];
         l_dollar[..block_size].copy_from_slice(&l_star[..block_size]);
@@ -116,7 +116,7 @@ impl<const TAG_SIZE: usize, const NONCE_SIZE: usize, T: BlockCipher>
 
         let mut ktop = nonce_formatted;
         ktop[block_size - 1] &= 0xc0;
-        self.cipher.encrypt(&mut ktop);
+        self.cipher.encrypt_block(&mut ktop);
 
         stretch[..16].copy_from_slice(&ktop[..16]);
         for i in 0..8 {
@@ -199,7 +199,7 @@ impl<const TAG_SIZE: usize, const NONCE_SIZE: usize, T: BlockCipher> Aead<TAG_SI
 
                 Self::xor_blocks(&mut ad_offset, self.get_l(i + 1));
                 Self::xor_blocks(&mut block, &ad_offset);
-                self.cipher.encrypt(&mut block);
+                self.cipher.encrypt_block(&mut block);
                 Self::xor_blocks(&mut sum, &block);
             }
 
@@ -211,7 +211,7 @@ impl<const TAG_SIZE: usize, const NONCE_SIZE: usize, T: BlockCipher> Aead<TAG_SI
                 block[..remaining].copy_from_slice(&additional_data[start..start + remaining]);
                 block[remaining] = 0x80;
                 Self::xor_blocks(&mut block, &ad_offset);
-                self.cipher.encrypt(&mut block);
+                self.cipher.encrypt_block(&mut block);
                 Self::xor_blocks(&mut sum, &block);
             }
         }
@@ -230,7 +230,7 @@ impl<const TAG_SIZE: usize, const NONCE_SIZE: usize, T: BlockCipher> Aead<TAG_SI
             }
 
             Self::xor_blocks(block, &offset);
-            self.cipher.encrypt(block);
+            self.cipher.encrypt_block(block);
             Self::xor_blocks(block, &offset);
         }
 
@@ -238,7 +238,7 @@ impl<const TAG_SIZE: usize, const NONCE_SIZE: usize, T: BlockCipher> Aead<TAG_SI
         if remaining > 0 {
             Self::xor_blocks(&mut offset, &self.l_star[..block_size]);
             let mut pad = offset;
-            self.cipher.encrypt(&mut pad);
+            self.cipher.encrypt_block(&mut pad);
 
             let start = full_blocks * block_size;
             for i in 0..remaining {
@@ -250,7 +250,7 @@ impl<const TAG_SIZE: usize, const NONCE_SIZE: usize, T: BlockCipher> Aead<TAG_SI
 
         Self::xor_blocks(&mut checksum, &offset);
         Self::xor_blocks(&mut checksum, &self.l_dollar[..block_size]);
-        self.cipher.encrypt(&mut checksum);
+        self.cipher.encrypt_block(&mut checksum);
         Self::xor_blocks(&mut checksum, &sum);
 
         let mut tag = [0u8; TAG_SIZE];
@@ -296,7 +296,7 @@ impl<const TAG_SIZE: usize, const NONCE_SIZE: usize, T: BlockCipher> Aead<TAG_SI
 
                 Self::xor_blocks(&mut ad_offset, self.get_l(i + 1));
                 Self::xor_blocks(&mut block, &ad_offset);
-                self.cipher.encrypt(&mut block);
+                self.cipher.encrypt_block(&mut block);
                 Self::xor_blocks(&mut sum, &block);
             }
 
@@ -308,7 +308,7 @@ impl<const TAG_SIZE: usize, const NONCE_SIZE: usize, T: BlockCipher> Aead<TAG_SI
                 block[..remaining].copy_from_slice(&additional_data[start..start + remaining]);
                 block[remaining] = 0x80;
                 Self::xor_blocks(&mut block, &ad_offset);
-                self.cipher.encrypt(&mut block);
+                self.cipher.encrypt_block(&mut block);
                 Self::xor_blocks(&mut sum, &block);
             }
         }
@@ -323,7 +323,7 @@ impl<const TAG_SIZE: usize, const NONCE_SIZE: usize, T: BlockCipher> Aead<TAG_SI
             Self::xor_blocks(&mut offset, self.get_l(i + 1));
 
             Self::xor_blocks(block, &offset);
-            self.cipher.decrypt(block);
+            self.cipher.decrypt_block(block);
             Self::xor_blocks(block, &offset);
 
             for j in 0..block_size {
@@ -335,7 +335,7 @@ impl<const TAG_SIZE: usize, const NONCE_SIZE: usize, T: BlockCipher> Aead<TAG_SI
         if remaining > 0 {
             Self::xor_blocks(&mut offset, &self.l_star[..block_size]);
             let mut pad = offset;
-            self.cipher.encrypt(&mut pad);
+            self.cipher.encrypt_block(&mut pad);
 
             let start = full_blocks * block_size;
             for i in 0..remaining {
@@ -347,7 +347,7 @@ impl<const TAG_SIZE: usize, const NONCE_SIZE: usize, T: BlockCipher> Aead<TAG_SI
 
         Self::xor_blocks(&mut checksum, &offset);
         Self::xor_blocks(&mut checksum, &self.l_dollar[..block_size]);
-        self.cipher.encrypt(&mut checksum);
+        self.cipher.encrypt_block(&mut checksum);
         Self::xor_blocks(&mut checksum, &sum);
 
         let computed_tag = &checksum[..TAG_SIZE];

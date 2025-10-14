@@ -42,7 +42,7 @@ impl<B: BlockCipher> BlockMode for EcbImpl<B> {
         assert!(inout.len() % block_size == 0);
 
         for chunk in inout.chunks_mut(block_size) {
-            self.cipher.encrypt(chunk);
+            self.cipher.encrypt_block(chunk);
         }
     }
 
@@ -51,7 +51,7 @@ impl<B: BlockCipher> BlockMode for EcbImpl<B> {
         assert!(inout.len() % block_size == 0);
 
         for chunk in inout.chunks_mut(block_size) {
-            self.cipher.decrypt(chunk);
+            self.cipher.decrypt_block(chunk);
         }
     }
 }

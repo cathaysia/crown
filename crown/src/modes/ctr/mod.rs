@@ -78,7 +78,7 @@ impl<B: BlockCipher> CtrImpl<B> {
 
         while remain <= self.out.len() - bs {
             self.out[remain..remain + bs].copy_from_slice(&self.ctr);
-            self.b.encrypt(&mut self.out[remain..remain + bs]);
+            self.b.encrypt_block(&mut self.out[remain..remain + bs]);
             remain += bs;
 
             // Increment counter

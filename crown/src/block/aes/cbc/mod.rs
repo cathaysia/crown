@@ -66,7 +66,7 @@ impl CBCEncryptor {
         for dst_block in inout_chunks {
             // Write the xor to dst, then encrypt in place
             xor_bytes(dst_block, &self.iv);
-            self.block.encrypt(dst_block);
+            self.block.encrypt_block(dst_block);
 
             // Move to the next block with this block as the next iv
             self.iv.copy_from_slice(dst_block);
@@ -149,7 +149,7 @@ impl CBCDecrypter {
 
         while start < inout.len() {
             // Decrypt the block
-            self.block.decrypt(&mut inout[start..end]);
+            self.block.decrypt_block(&mut inout[start..end]);
 
             if start > 0 {
                 let prev = start - Aes::BLOCK_SIZE;

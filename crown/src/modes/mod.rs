@@ -25,9 +25,8 @@ pub trait BlockMode {
     /// BlockSize returns the mode's block size.
     fn block_size(&self) -> usize;
 
-    /// CryptBlocks encrypts or decrypts a number of blocks. The length of
-    /// src must be a multiple of the block size. Dst and src must overlap
-    /// entirely or not at all.
+    /// encrypts or decrypts a number of blocks. The length of
+    /// src must be a multiple of the block size.
     ///
     /// If len(dst) < len(src), CryptBlocks should panic. It is acceptable
     /// to pass a dst bigger than src, and in that case, CryptBlocks will

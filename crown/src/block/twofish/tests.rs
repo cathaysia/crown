@@ -21,7 +21,7 @@ fn rustcrypto_twofish_interop() {
             for i in (0..src.len()).step_by(Twofish::BLOCK_SIZE) {
                 let end = (i + Twofish::BLOCK_SIZE).min(src.len());
                 if end - i == Twofish::BLOCK_SIZE {
-                    cipher.encrypt(&mut dst[i..end]);
+                    cipher.encrypt_block(&mut dst[i..end]);
                 }
             }
             dst

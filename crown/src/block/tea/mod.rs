@@ -81,7 +81,7 @@ impl BlockCipher for Tea {
     /// Encrypts the 8 byte buffer src using the key and stores the result in dst.
     /// Note that for amounts of data larger than a block, it is not safe to just
     /// call encrypt on successive blocks; instead, use an encryption mode like CBC.
-    fn encrypt(&self, inout: &mut [u8]) {
+    fn encrypt_block(&self, inout: &mut [u8]) {
         assert_eq!(
             inout.len(),
             Self::BLOCK_SIZE,
@@ -120,7 +120,7 @@ impl BlockCipher for Tea {
     }
 
     /// Decrypts the 8 byte buffer src using the key and stores the result in dst.
-    fn decrypt(&self, inout: &mut [u8]) {
+    fn decrypt_block(&self, inout: &mut [u8]) {
         assert_eq!(
             inout.len(),
             Self::BLOCK_SIZE,

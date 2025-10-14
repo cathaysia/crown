@@ -19,7 +19,7 @@ fn rustcrypto_cast5_interop() {
             for i in (0..src.len()).step_by(super::Cast5::BLOCK_SIZE) {
                 let end = (i + super::Cast5::BLOCK_SIZE).min(src.len());
                 if end - i == super::Cast5::BLOCK_SIZE {
-                    cipher.encrypt(&mut dst[i..end]);
+                    cipher.encrypt_block(&mut dst[i..end]);
                 }
             }
             dst

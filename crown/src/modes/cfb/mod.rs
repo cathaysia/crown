@@ -55,7 +55,7 @@ impl<B: BlockCipher> StreamCipher for CfbImpl<B> {
         while !inout.is_empty() {
             if self.out_used == self.out.len() {
                 self.out.copy_from_slice(&self.next);
-                self.b.encrypt(&mut self.out);
+                self.b.encrypt_block(&mut self.out);
                 self.out_used = 0;
             }
 

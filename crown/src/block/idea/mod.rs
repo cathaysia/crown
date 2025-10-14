@@ -149,11 +149,11 @@ impl BlockCipher for Idea {
         8
     }
 
-    fn encrypt(&self, inout: &mut [u8]) {
+    fn encrypt_block(&self, inout: &mut [u8]) {
         let _ = Self::process_block(&self.ek, inout);
     }
 
-    fn decrypt(&self, inout: &mut [u8]) {
+    fn decrypt_block(&self, inout: &mut [u8]) {
         let _ = Self::process_block(&self.dk, inout);
     }
 }

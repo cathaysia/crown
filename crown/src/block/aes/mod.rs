@@ -82,7 +82,7 @@ impl BlockCipher for Aes {
         Self::BLOCK_SIZE
     }
 
-    fn encrypt(&self, inout: &mut [u8]) {
+    fn encrypt_block(&self, inout: &mut [u8]) {
         if inout.len() < Self::BLOCK_SIZE {
             panic!("crypto/aes: inout not full block");
         }
@@ -90,7 +90,7 @@ impl BlockCipher for Aes {
         encrypt_block(self, inout);
     }
 
-    fn decrypt(&self, inout: &mut [u8]) {
+    fn decrypt_block(&self, inout: &mut [u8]) {
         if inout.len() < Self::BLOCK_SIZE {
             panic!("crypto/aes: output not full block");
         }

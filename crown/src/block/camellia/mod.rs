@@ -44,11 +44,11 @@ impl BlockCipher for Camellia {
         16
     }
 
-    fn encrypt(&self, inout: &mut [u8]) {
+    fn encrypt_block(&self, inout: &mut [u8]) {
         self.encrypt_block(inout).unwrap();
     }
 
-    fn decrypt(&self, inout: &mut [u8]) {
+    fn decrypt_block(&self, inout: &mut [u8]) {
         self.decrypt_block(inout).unwrap();
     }
 }

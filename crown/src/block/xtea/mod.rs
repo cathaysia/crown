@@ -90,11 +90,11 @@ impl BlockCipher for Xtea {
         Xtea::BLOCK_SIZE
     }
 
-    fn encrypt(&self, inout: &mut [u8]) {
+    fn encrypt_block(&self, inout: &mut [u8]) {
         block::encrypt_block(self, inout);
     }
 
-    fn decrypt(&self, inout: &mut [u8]) {
+    fn decrypt_block(&self, inout: &mut [u8]) {
         block::decrypt_block(self, inout);
     }
 }

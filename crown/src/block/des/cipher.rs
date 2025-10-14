@@ -18,7 +18,7 @@ impl BlockCipher for Des {
         Des::BLOCK_SIZE
     }
 
-    fn encrypt(&self, inout: &mut [u8]) {
+    fn encrypt_block(&self, inout: &mut [u8]) {
         if inout.len() < Des::BLOCK_SIZE {
             panic!("crypto/des: inout not full block");
         }
@@ -26,7 +26,7 @@ impl BlockCipher for Des {
         crypt_block(&self.subkeys, inout, false);
     }
 
-    fn decrypt(&self, inout: &mut [u8]) {
+    fn decrypt_block(&self, inout: &mut [u8]) {
         if inout.len() < Des::BLOCK_SIZE {
             panic!("crypto/des: output not full block");
         }
@@ -107,7 +107,7 @@ impl BlockCipher for TripleDes {
         Des::BLOCK_SIZE
     }
 
-    fn encrypt(&self, inout: &mut [u8]) {
+    fn encrypt_block(&self, inout: &mut [u8]) {
         if inout.len() < Des::BLOCK_SIZE {
             panic!("crypto/des: output not full block");
         }
@@ -161,7 +161,7 @@ impl BlockCipher for TripleDes {
         inout[..8].copy_from_slice(&result.to_be_bytes());
     }
 
-    fn decrypt(&self, inout: &mut [u8]) {
+    fn decrypt_block(&self, inout: &mut [u8]) {
         if inout.len() < Des::BLOCK_SIZE {
             panic!("crypto/des: output not full block");
         }

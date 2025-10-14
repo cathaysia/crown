@@ -9,8 +9,8 @@ fn test_sm4() {
         let mut inout = [0u8; 16];
         rand::fill(&mut inout);
         let mut out = inout;
-        enc.encrypt(&mut out);
-        enc.decrypt(&mut out);
+        enc.encrypt_block(&mut out);
+        enc.decrypt_block(&mut out);
         assert_eq!(inout, out);
     }
 }
@@ -37,9 +37,9 @@ fn test_sm4_gloden() {
     {
         let enc = super::Sm4::new(key).unwrap();
         let mut out = plaintext.to_vec();
-        enc.encrypt(&mut out);
+        enc.encrypt_block(&mut out);
         assert_eq!(ciphertext, out);
-        enc.decrypt(&mut out);
+        enc.decrypt_block(&mut out);
         assert_eq!(plaintext, out);
     }
 
@@ -47,11 +47,11 @@ fn test_sm4_gloden() {
         let enc = super::Sm4::new(key).unwrap();
         let mut out = plaintext.to_vec();
         for _ in 0..1000000 {
-            enc.encrypt(&mut out);
+            enc.encrypt_block(&mut out);
         }
         assert_eq!(ciphertext_1000000t, out);
         for _ in 0..1000000 {
-            enc.decrypt(&mut out);
+            enc.decrypt_block(&mut out);
         }
         assert_eq!(plaintext, out);
     }

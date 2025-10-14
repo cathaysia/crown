@@ -34,9 +34,9 @@ fn test_rc5() {
         let [key, pt, ct] = case;
         let cipher = Rc5::new(key, Some(12)).unwrap();
         let mut dst = pt.to_vec();
-        cipher.encrypt(&mut dst);
+        cipher.encrypt_block(&mut dst);
         assert_eq!(dst, ct);
-        cipher.decrypt(&mut dst);
+        cipher.decrypt_block(&mut dst);
         assert_eq!(pt, dst);
     }
 }

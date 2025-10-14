@@ -105,7 +105,7 @@ impl BlockCipher for Cast5 {
         Self::BLOCK_SIZE
     }
 
-    fn encrypt(&self, inout: &mut [u8]) {
+    fn encrypt_block(&self, inout: &mut [u8]) {
         let mut l = u32::from_be_bytes([inout[0], inout[1], inout[2], inout[3]]);
         let mut r = u32::from_be_bytes([inout[4], inout[5], inout[6], inout[7]]);
 
@@ -139,7 +139,7 @@ impl BlockCipher for Cast5 {
         inout[7] = l as u8;
     }
 
-    fn decrypt(&self, inout: &mut [u8]) {
+    fn decrypt_block(&self, inout: &mut [u8]) {
         let mut l = u32::from_be_bytes([inout[0], inout[1], inout[2], inout[3]]);
         let mut r = u32::from_be_bytes([inout[4], inout[5], inout[6], inout[7]]);
 

@@ -24,7 +24,7 @@ fn bench_twofish(c: &mut Criterion) {
             for i in (0..pt.len()).step_by(BLOCK_SIZE) {
                 let end = (i + BLOCK_SIZE).min(pt.len());
                 if end - i == BLOCK_SIZE {
-                    cipher.encrypt(black_box(&mut dst[i..end]));
+                    cipher.encrypt_block(black_box(&mut dst[i..end]));
                 }
             }
         })

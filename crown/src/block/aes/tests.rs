@@ -96,7 +96,7 @@ fn test_cipher_encrypt() {
         };
 
         let mut out = test.input.to_vec();
-        cipher.encrypt(&mut out);
+        cipher.encrypt_block(&mut out);
 
         for (j, (&actual, &expected)) in out.iter().zip(test.output.iter()).enumerate() {
             if actual != expected {
@@ -120,7 +120,7 @@ fn test_cipher_decrypt() {
         };
 
         let mut plain = test.output.to_vec();
-        cipher.decrypt(&mut plain);
+        cipher.decrypt_block(&mut plain);
 
         for (j, (&actual, &expected)) in plain.iter().zip(test.input.iter()).enumerate() {
             if actual != expected {
@@ -146,9 +146,9 @@ fn test_aes_block() {
                 let plaintext = vec![0u8; Aes::BLOCK_SIZE];
                 let mut ciphertext = vec![0u8; Aes::BLOCK_SIZE];
 
-                cipher.encrypt(&mut ciphertext);
+                cipher.encrypt_block(&mut ciphertext);
                 let mut decrypted = ciphertext.clone();
-                cipher.decrypt(&mut decrypted);
+                cipher.decrypt_block(&mut decrypted);
 
                 assert_eq!(plaintext, decrypted, "AES-{} round trip failed", keylen);
             }
@@ -187,7 +187,7 @@ fn test_encrypt_short_output() {
     let key = vec![0u8; 16];
     let cipher = Aes::new(&key).unwrap();
     let mut dst = vec![0u8; 15]; // Too short
-    cipher.encrypt(&mut dst);
+    cipher.encrypt_block(&mut dst);
 }
 
 #[test]
@@ -207,7 +207,7 @@ fn rustcrypto_aes_interop() {
             for i in (0..src.len()).step_by(Aes::BLOCK_SIZE) {
                 let end = (i + Aes::BLOCK_SIZE).min(src.len());
                 if end - i == Aes::BLOCK_SIZE {
-                    cipher.encrypt(&mut dst[i..end]);
+                    cipher.encrypt_block(&mut dst[i..end]);
                 }
             }
             dst

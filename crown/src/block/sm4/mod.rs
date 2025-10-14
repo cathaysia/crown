@@ -50,11 +50,11 @@ impl BlockCipher for Sm4 {
         128 / 8
     }
 
-    fn encrypt(&self, inout: &mut [u8]) {
+    fn encrypt_block(&self, inout: &mut [u8]) {
         s_sm4_do(inout, &(self.ek));
     }
 
-    fn decrypt(&self, inout: &mut [u8]) {
+    fn decrypt_block(&self, inout: &mut [u8]) {
         s_sm4_do(inout, &(self.dk));
     }
 }

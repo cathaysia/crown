@@ -29,16 +29,14 @@ pub const MAX_BLOCK_SIZE: usize = 144;
 /// or decrypt individual blocks. The mode implementations
 /// extend that capability to streams of blocks.
 pub trait BlockCipher {
-    /// BlockSize returns the cipher's block size.
+    /// the cipher's block size(bytes).
     fn block_size(&self) -> usize;
 
-    /// Encrypt encrypts the first block in src into dst.
-    /// Dst and src must overlap entirely or not at all.
-    fn encrypt(&self, inout: &mut [u8]);
+    /// encrypt a block.
+    fn encrypt_block(&self, inout: &mut [u8]);
 
-    /// Decrypt decrypts the first block in src into dst.
-    /// Dst and src must overlap entirely or not at all.
-    fn decrypt(&self, inout: &mut [u8]);
+    /// decrypt a block.
+    fn decrypt_block(&self, inout: &mut [u8]);
 }
 
 pub trait BlockCipherMarker {}

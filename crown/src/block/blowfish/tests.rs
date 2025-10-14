@@ -190,7 +190,7 @@ fn test_cipher_encrypt() {
             }
         };
         let mut ct = tt.input.to_vec();
-        c.encrypt(&mut ct);
+        c.encrypt_block(&mut ct);
         for (j, (&actual, &expected)) in ct.iter().zip(tt.output.iter()).enumerate() {
             if actual != expected {
                 panic!(
@@ -212,7 +212,7 @@ fn test_cipher_decrypt() {
             }
         };
         let mut pt = tt.output.to_vec();
-        c.decrypt(&mut pt);
+        c.decrypt_block(&mut pt);
         for (j, (&actual, &expected)) in pt.iter().zip(tt.input.iter()).enumerate() {
             if actual != expected {
                 panic!(
@@ -291,7 +291,7 @@ fn test_salted_cipher() {
             }
         };
         let mut buf = [0u8; 8];
-        c.encrypt(&mut buf);
+        c.encrypt_block(&mut buf);
         assert_eq!(expected, buf);
     }
 }

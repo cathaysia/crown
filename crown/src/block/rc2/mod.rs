@@ -53,7 +53,7 @@ impl BlockCipher for Rc2 {
         BLOCK_SIZE
     }
 
-    fn encrypt(&self, inout: &mut [u8]) {
+    fn encrypt_block(&self, inout: &mut [u8]) {
         if inout.len() < BLOCK_SIZE {
             panic!("src and dst must be at least {} bytes", BLOCK_SIZE);
         }
@@ -184,7 +184,7 @@ impl BlockCipher for Rc2 {
         inout.put_u16_le(r3);
     }
 
-    fn decrypt(&self, inout: &mut [u8]) {
+    fn decrypt_block(&self, inout: &mut [u8]) {
         if inout.len() < BLOCK_SIZE {
             panic!("src and dst must be at least {} bytes", BLOCK_SIZE);
         }

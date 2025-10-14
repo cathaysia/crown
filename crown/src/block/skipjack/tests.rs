@@ -9,8 +9,8 @@ fn test_skipjack() {
         let mut inout = [0u8; 16];
         rand::fill(&mut inout);
         let mut out = inout;
-        enc.encrypt(&mut out);
-        enc.decrypt(&mut out);
+        enc.encrypt_block(&mut out);
+        enc.decrypt_block(&mut out);
         assert_eq!(inout, out);
     }
 }
@@ -24,10 +24,10 @@ fn test_skipjack_basic() {
     let cipher = Skipjack::new(&key).unwrap();
 
     let mut data = plaintext;
-    cipher.encrypt(&mut data);
+    cipher.encrypt_block(&mut data);
     assert_eq!(data, expected_ciphertext);
 
-    cipher.decrypt(&mut data);
+    cipher.decrypt_block(&mut data);
     assert_eq!(data, plaintext);
 }
 
@@ -39,11 +39,11 @@ fn test_skipjack_multiple_rounds() {
     let mut data = [0u8; 8];
 
     for _ in 0..1000 {
-        cipher.encrypt(&mut data);
+        cipher.encrypt_block(&mut data);
     }
 
     for _ in 0..1000 {
-        cipher.decrypt(&mut data);
+        cipher.decrypt_block(&mut data);
     }
 
     assert_eq!(data, [0u8; 8]);
