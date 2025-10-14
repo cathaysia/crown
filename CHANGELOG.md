@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/cathaysia/crown/compare/v0.3.0...v0.3.1) (2025-10-14)
+
+
+### Bug Fixes
+
+* **cargo:** fix cargo manifest ([bb29271](https://github.com/cathaysia/crown/commit/bb29271363b5a72d9cc420c1fbaf3ecf1664750a))
+
 ## [0.3.0](https://github.com/cathaysia/crown/compare/v0.2.6...v0.3.0) (2025-10-13)
 
 
