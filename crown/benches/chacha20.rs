@@ -21,9 +21,7 @@ fn bench_chacha20(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(size as u64));
 
         group.bench_function(format!("crown_chacha20_{size}",), |b| {
-            let mut cipher =
-                crown::stream::chacha20::Chacha20::new_unauthenticated_cipher(&key, &[0u8; 12])
-                    .unwrap();
+            let mut cipher = crown::stream::chacha20::Chacha20::new(&key, &[0u8; 12]).unwrap();
             let mut dst = data.clone();
             b.iter(|| {
                 let _ = cipher.xor_key_stream(black_box(&mut dst));

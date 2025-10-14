@@ -131,7 +131,7 @@ impl StreamCipher for Chacha20 {
 }
 
 impl Chacha20 {
-    /// [Self::new_unauthenticated_cipher] creates a new ChaCha20 stream cipher.
+    /// [Self::new] creates a new ChaCha20 stream cipher.
     ///
     /// - if the key is 32 bytes long, then create a chacha20 cipher.
     /// - if the key is 24 bytes long, then create a xchacha20 cipher.
@@ -144,7 +144,7 @@ impl Chacha20 {
     /// # Error
     ///
     /// Return error if the key is not 12 or 24 bytes. Or the nonce is not 12 or 24 bytes.
-    pub fn new_unauthenticated_cipher(key: &[u8], nonce: &[u8]) -> CryptoResult<Self> {
+    pub fn new(key: &[u8], nonce: &[u8]) -> CryptoResult<Self> {
         let mut c = Chacha20 {
             key: [0; 8],
             counter: 0,

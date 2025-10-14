@@ -81,7 +81,7 @@ macro_rules! impl_stream_cipher {
     };
     (@special chacha20) => {
         pub fn new_chacha20(key: &[u8], iv: &[u8]) -> CryptoResult<Self> {
-            Self::new_impl(Chacha20::new_unauthenticated_cipher(key, iv)?)
+            Self::new_impl(Chacha20::new(key, iv)?)
         }
     };
 }
