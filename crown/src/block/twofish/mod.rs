@@ -187,7 +187,7 @@ impl BlockCipher for Twofish {
     // Note that for amounts of data larger than a block,
     // it is not safe to just call Encrypt on successive blocks;
     // instead, use an encryption mode like CBC (see crypto/cipher/cbc.go).
-    fn encrypt(&self, inout: &mut [u8]) {
+    fn encrypt_block(&self, inout: &mut [u8]) {
         let s1 = &self.sbox[0];
         let s2 = &self.sbox[1];
         let s3 = &self.sbox[2];
@@ -250,7 +250,7 @@ impl BlockCipher for Twofish {
     }
 
     // Decrypt decrypts a 16-byte block from src to dst, which may overlap.
-    fn decrypt(&self, inout: &mut [u8]) {
+    fn decrypt_block(&self, inout: &mut [u8]) {
         let s1 = &self.sbox[0];
         let s2 = &self.sbox[1];
         let s3 = &self.sbox[2];

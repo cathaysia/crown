@@ -91,7 +91,7 @@ impl BlockCipher for Blowfish {
         Self::BLOCK_SIZE
     }
 
-    fn encrypt(&self, inout: &mut [u8]) {
+    fn encrypt_block(&self, inout: &mut [u8]) {
         let l = ((inout[0] as u32) << 24)
             | ((inout[1] as u32) << 16)
             | ((inout[2] as u32) << 8)
@@ -111,7 +111,7 @@ impl BlockCipher for Blowfish {
         inout[7] = r as u8;
     }
 
-    fn decrypt(&self, inout: &mut [u8]) {
+    fn decrypt_block(&self, inout: &mut [u8]) {
         let l = ((inout[0] as u32) << 24)
             | ((inout[1] as u32) << 16)
             | ((inout[2] as u32) << 8)

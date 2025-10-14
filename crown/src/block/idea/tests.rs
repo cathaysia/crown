@@ -9,8 +9,8 @@ fn test_idea() {
         let mut inout = [0u8; 8];
         rand::fill(&mut inout);
         let mut out = inout;
-        enc.encrypt(&mut out);
-        enc.decrypt(&mut out);
+        enc.encrypt_block(&mut out);
+        enc.decrypt_block(&mut out);
         assert_eq!(inout, out);
     }
 }

@@ -194,11 +194,11 @@ impl BlockCipher for Skipjack {
         SKIPJACK_BLOCK_SIZE
     }
 
-    fn encrypt(&self, inout: &mut [u8]) {
+    fn encrypt_block(&self, inout: &mut [u8]) {
         self.encrypt_block(inout);
     }
 
-    fn decrypt(&self, inout: &mut [u8]) {
+    fn decrypt_block(&self, inout: &mut [u8]) {
         self.decrypt_block(inout);
     }
 }

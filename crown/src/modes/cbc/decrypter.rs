@@ -62,7 +62,7 @@ impl<B: BlockCipher> BlockMode for CbcDecryptorImpl<B> {
         while start > 0 {
             let prev = start - block_size;
 
-            self.0.b.decrypt(&mut inout[start..end]);
+            self.0.b.decrypt_block(&mut inout[start..end]);
             let src = unsafe { erase_ownership(&*inout) };
             xor_bytes(&mut inout[start..end], &src[prev..start]);
 
@@ -71,7 +71,7 @@ impl<B: BlockCipher> BlockMode for CbcDecryptorImpl<B> {
         }
 
         // The first block is special because it uses the saved iv
-        self.0.b.decrypt(&mut inout[start..end]);
+        self.0.b.decrypt_block(&mut inout[start..end]);
         xor_bytes(&mut inout[start..end], &self.0.iv);
 
         // Set the new iv to the first block we copied earlier

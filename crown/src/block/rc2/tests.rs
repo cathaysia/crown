@@ -52,7 +52,7 @@ fn test_encrypt_decrypt() {
         let mut dst = plain.clone();
 
         // Test encryption
-        cipher.encrypt(&mut dst);
+        cipher.encrypt_block(&mut dst);
         assert_eq!(
             dst.as_slice(),
             expected_cipher.as_slice(),
@@ -62,7 +62,7 @@ fn test_encrypt_decrypt() {
         );
 
         // Test decryption
-        cipher.decrypt(&mut dst);
+        cipher.decrypt_block(&mut dst);
         assert_eq!(
             dst.as_slice(),
             plain.as_slice(),

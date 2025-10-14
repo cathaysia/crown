@@ -20,7 +20,7 @@ fn rustcrypto_twofish_interop() {
             for i in (0..src.len()).step_by(Xtea::BLOCK_SIZE) {
                 let end = (i + Xtea::BLOCK_SIZE).min(src.len());
                 if end - i == Xtea::BLOCK_SIZE {
-                    cipher.encrypt(&mut dst[i..end]);
+                    cipher.encrypt_block(&mut dst[i..end]);
                 }
             }
             dst

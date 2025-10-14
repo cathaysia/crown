@@ -84,7 +84,7 @@ fn test_cipher_encrypt() {
             .unwrap_or_else(|_| panic!("#{}: NewCipherWithRounds should not return error", i));
 
         let mut ciphertext = test.plaintext.to_vec();
-        c.encrypt(&mut ciphertext);
+        c.encrypt_block(&mut ciphertext);
 
         assert_eq!(
             ciphertext, test.ciphertext,
@@ -93,7 +93,7 @@ fn test_cipher_encrypt() {
         );
 
         let mut plaintext2 = ciphertext.clone();
-        c.decrypt(&mut plaintext2);
+        c.decrypt_block(&mut plaintext2);
 
         assert_eq!(
             plaintext2, test.plaintext,
@@ -112,9 +112,9 @@ fn test_encrypt_decrypt_roundtrip() {
     let plaintext = [0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
     let mut ciphertext = plaintext.to_vec();
 
-    tea.encrypt(&mut ciphertext);
+    tea.encrypt_block(&mut ciphertext);
     let mut decrypted = ciphertext.to_vec();
-    tea.decrypt(&mut decrypted);
+    tea.decrypt_block(&mut decrypted);
 
     assert_eq!(&plaintext, decrypted.as_slice());
 }
@@ -140,9 +140,9 @@ fn test_different_rounds() {
         let tea = Tea::new_with_rounds(&key, *rounds).unwrap();
         let mut ciphertext = plaintext.to_vec();
 
-        tea.encrypt(&mut ciphertext);
+        tea.encrypt_block(&mut ciphertext);
         let mut decrypted = ciphertext.to_vec();
-        tea.decrypt(&mut decrypted);
+        tea.decrypt_block(&mut decrypted);
 
         assert_eq!(
             plaintext,

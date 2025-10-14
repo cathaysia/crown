@@ -32,12 +32,12 @@ impl BlockCipher for Rc6 {
         16
     }
 
-    fn encrypt(&self, inout: &mut [u8]) {
+    fn encrypt_block(&self, inout: &mut [u8]) {
         let ret = rc6_ecb_encrypt(inout, &self.skey);
         assert!(ret.is_ok());
     }
 
-    fn decrypt(&self, inout: &mut [u8]) {
+    fn decrypt_block(&self, inout: &mut [u8]) {
         let ret = rc6_ecb_decrypt(inout, &self.skey);
         assert!(ret.is_ok());
     }

@@ -125,7 +125,7 @@ impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize> Aead<NONCE_
         let mut tag_mask = [0u8; GCM_BLOCK_SIZE];
 
         // Initialize H
-        self.cipher.encrypt(&mut h);
+        self.cipher.encrypt_block(&mut h);
 
         // Derive counter
         Self::derive_counter(&mut h, &mut counter, nonce);
@@ -182,7 +182,7 @@ impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize> Aead<NONCE_
         let mut tag_mask = [0u8; GCM_BLOCK_SIZE];
 
         // Initialize H
-        self.cipher.encrypt(&mut h);
+        self.cipher.encrypt_block(&mut h);
 
         // Derive counter
         Self::derive_counter(&mut h, &mut counter, nonce);
@@ -246,7 +246,7 @@ impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize>
 
         while src_idx + GCM_BLOCK_SIZE <= src.len() {
             mask.copy_from_slice(&counter[..]);
-            self.cipher.encrypt(&mut mask);
+            self.cipher.encrypt_block(&mut mask);
             Self::gcm_inc32(counter);
 
             for i in 0..GCM_BLOCK_SIZE {
@@ -259,7 +259,7 @@ impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize>
 
         if src_idx < src.len() {
             mask.copy_from_slice(&counter[..]);
-            self.cipher.encrypt(&mut mask);
+            self.cipher.encrypt_block(&mut mask);
             Self::gcm_inc32(counter);
 
             for i in 0..(src.len() - src_idx) {

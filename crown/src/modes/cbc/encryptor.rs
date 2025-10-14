@@ -57,7 +57,7 @@ impl<B: BlockCipher> BlockMode for CbcEncryptorImpl<B> {
         for dst_block in dst_chunks {
             // Write the xor to dst, then encrypt in place
             xor_bytes(dst_block, &iv);
-            self.0.b.encrypt(dst_block);
+            self.0.b.encrypt_block(dst_block);
 
             // Move to the next block with this block as the next iv
             iv.copy_from_slice(dst_block);

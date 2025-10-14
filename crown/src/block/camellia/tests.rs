@@ -9,8 +9,8 @@ fn test_camellia() {
         let mut inout = [0u8; 16];
         rand::fill(&mut inout);
         let mut out = inout;
-        enc.encrypt(&mut out);
-        enc.decrypt(&mut out);
+        enc.encrypt_block(&mut out);
+        enc.decrypt_block(&mut out);
         assert_eq!(inout, out);
     }
 }
@@ -97,9 +97,9 @@ fn test_gloden() {
     {
         let cipher = Camellia::new(&key[..keylen], Some(0)).unwrap();
         let mut pt_copy = pt;
-        cipher.encrypt(&mut pt_copy);
+        cipher.encrypt_block(&mut pt_copy);
         assert_eq!(ct, pt_copy);
-        cipher.decrypt(&mut pt_copy);
+        cipher.decrypt_block(&mut pt_copy);
         assert_eq!(pt, pt_copy);
     }
 }

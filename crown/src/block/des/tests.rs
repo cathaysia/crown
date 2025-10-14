@@ -21,7 +21,7 @@ fn rustcrypto_des_interop() {
             for i in (0..src.len()).step_by(Des::BLOCK_SIZE) {
                 let end = (i + Des::BLOCK_SIZE).min(src.len());
                 if end - i == Des::BLOCK_SIZE {
-                    cipher.encrypt(&mut dst[i..end]);
+                    cipher.encrypt_block(&mut dst[i..end]);
                 }
             }
             dst
@@ -59,7 +59,7 @@ fn rustcrypto_trides_interop() {
             for i in (0..src.len()).step_by(Des::BLOCK_SIZE) {
                 let end = (i + Des::BLOCK_SIZE).min(src.len());
                 if end - i == Des::BLOCK_SIZE {
-                    cipher.encrypt(&mut dst[i..end]);
+                    cipher.encrypt_block(&mut dst[i..end]);
                 }
             }
             dst

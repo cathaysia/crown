@@ -36,11 +36,11 @@ impl BlockCipher for Rc5 {
         Self::BLOCK_SIZE
     }
 
-    fn encrypt(&self, inout: &mut [u8]) {
+    fn encrypt_block(&self, inout: &mut [u8]) {
         self.encrypt_generic(inout).unwrap();
     }
 
-    fn decrypt(&self, inout: &mut [u8]) {
+    fn decrypt_block(&self, inout: &mut [u8]) {
         self.decrypt_generic(inout).unwrap();
     }
 }

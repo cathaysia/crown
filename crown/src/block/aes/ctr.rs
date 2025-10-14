@@ -136,7 +136,7 @@ pub(crate) fn ctr_blocks(b: &Aes, inout: &mut [u8], mut ivlo: u64, mut ivhi: u64
         ivlo = new_ivlo;
         ivhi = new_ivhi;
 
-        b.encrypt(chunk);
+        b.encrypt_block(chunk);
     }
 
     xor_bytes(&mut buf, inout);
