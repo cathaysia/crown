@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0](https://github.com/cathaysia/crown/compare/v0.3.1...v0.4.0) (2025-10-14)
+
+
+### Features
+
+* adjust API interface ([8d8e110](https://github.com/cathaysia/crown/commit/8d8e110db12cf86e5c4bbbf75e8ddc9fbb8d0ad6))
+* **aead:** better aead interface ([a870a17](https://github.com/cathaysia/crown/commit/a870a1775acdc865bab2a0eff604f596c8b8909b))
+* **gcm:** refactor gcm ([dbab201](https://github.com/cathaysia/crown/commit/dbab201a0f596b6c7d73a562072cd975e3042ba7))
+
 ## [0.3.1](https://github.com/cathaysia/crown/compare/v0.3.0...v0.3.1) (2025-10-14)
 
 
