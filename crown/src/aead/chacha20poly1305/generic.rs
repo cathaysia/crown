@@ -34,7 +34,7 @@ impl ChaCha20Poly1305 {
     ) -> CryptoResult<[u8; 16]> {
         // Generate poly1305 key using ChaCha20
         let mut poly_key = [0u8; 32];
-        let mut cipher = ChaCha20::new_unauthenticated_cipher(&self.key, nonce)?;
+        let mut cipher = ChaCha20::new(&self.key, nonce)?;
         cipher.xor_key_stream(&mut poly_key)?;
 
         // Set counter to 1, skipping first 32 bytes
@@ -67,7 +67,7 @@ impl ChaCha20Poly1305 {
 
         // Generate poly1305 key using ChaCha20
         let mut poly_key = [0u8; 32];
-        let mut cipher = ChaCha20::new_unauthenticated_cipher(&self.key, nonce)?;
+        let mut cipher = ChaCha20::new(&self.key, nonce)?;
         cipher.xor_key_stream(&mut poly_key)?;
 
         // Set counter to 1, skipping first 32 bytes
