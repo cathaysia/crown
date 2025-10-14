@@ -161,7 +161,7 @@ impl<const TAG_SIZE: usize, const NONCE_SIZE: usize, T: BlockCipher> AeadUser
         NONCE_SIZE
     }
 
-    fn overhead(&self) -> usize {
+    fn tag_size(&self) -> usize {
         TAG_SIZE
     }
 }

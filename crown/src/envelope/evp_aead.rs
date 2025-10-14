@@ -98,7 +98,7 @@ impl EvpAeadCipher {
             }
 
             fn tag_size(&self) -> usize {
-                self.0.overhead()
+                self.0.tag_size()
             }
 
             fn open_in_place_separate_tag(
@@ -144,14 +144,17 @@ impl EvpAeadCipher {
             .seal_in_place_separate_tag(inout, nonce, additional_data)
     }
 
-    pub fn seal_in_place_append_tag(
+    pub fn seal_in_place_append_tag<T>(
         &self,
-        inout: &mut Vec<u8>,
+        inout: &mut T,
         nonce: &[u8],
         additional_data: &[u8],
-    ) -> CryptoResult<()> {
-        let tag = self.seal_in_place_separate_tag(inout, nonce, additional_data)?;
-        inout.extend_from_slice(&tag);
+    ) -> CryptoResult<()>
+    where
+        T: Extend<u8> + AsMut<[u8]> + ?Sized,
+    {
+        let tag = self.seal_in_place_separate_tag(inout.as_mut(), nonce, additional_data)?;
+        inout.extend(tag);
         Ok(())
     }
 
@@ -166,16 +169,15 @@ impl EvpAeadCipher {
             .open_in_place_separate_tag(inout, tag, nonce, additional_data)
     }
 
-    pub fn open_in_place(
+    pub fn open_in_place<'a>(
         &self,
-        inout: &mut Vec<u8>,
+        inout: &'a mut [u8],
         nonce: &[u8],
         additional_data: &[u8],
-    ) -> CryptoResult<()> {
-        let pos = inout.len() - self.0.tag_size();
-        let (inout1, tag) = inout.split_at_mut(pos);
-        self.open_in_place_separate_tag(inout1, tag, nonce, additional_data)?;
-        inout.truncate(pos);
-        Ok(())
+    ) -> CryptoResult<&'a mut [u8]> {
+        let pos = inout.len() - self.tag_size();
+        let (inout, tag) = inout.split_at_mut(pos);
+        self.open_in_place_separate_tag(inout, tag, nonce, additional_data)?;
+        Ok(inout)
     }
 }
