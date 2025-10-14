@@ -8,7 +8,7 @@ fn rustcrypto_sha256_interop() {
         rand::fill(buf.as_mut_slice());
         let this = &super::sum256(&buf);
 
-        let rustcrypto = sha2::Sha256::digest(&buf).as_slice().to_vec();
+        let rustcrypto = sha2::Sha256::digest(&buf).to_vec();
 
         assert_eq!(this, rustcrypto.as_slice());
     }

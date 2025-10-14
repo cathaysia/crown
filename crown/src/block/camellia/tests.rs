@@ -1,5 +1,4 @@
 use super::Camellia;
-use crate::block::BlockCipher;
 #[test]
 fn test_camellia() {
     let mut key = [0u8; 16];
@@ -9,8 +8,8 @@ fn test_camellia() {
         let mut inout = [0u8; 16];
         rand::fill(&mut inout);
         let mut out = inout;
-        enc.encrypt_block(&mut out);
-        enc.decrypt_block(&mut out);
+        let _ = enc.encrypt_block(&mut out);
+        let _ = enc.decrypt_block(&mut out);
         assert_eq!(inout, out);
     }
 }
@@ -97,9 +96,9 @@ fn test_gloden() {
     {
         let cipher = Camellia::new(&key[..keylen], Some(0)).unwrap();
         let mut pt_copy = pt;
-        cipher.encrypt_block(&mut pt_copy);
+        let _ = cipher.encrypt_block(&mut pt_copy);
         assert_eq!(ct, pt_copy);
-        cipher.decrypt_block(&mut pt_copy);
+        let _ = cipher.decrypt_block(&mut pt_copy);
         assert_eq!(pt, pt_copy);
     }
 }

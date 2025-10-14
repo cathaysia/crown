@@ -45,7 +45,6 @@ fn rustcrypto_blake2_interop() {
             digest.update(&buf);
             digest.finalize()
         };
-        let rustcrypto = rustcrypto.as_slice();
 
         assert_eq!(hex::encode(this), hex::encode(rustcrypto));
     }
@@ -68,7 +67,6 @@ fn rustcrypto_blake2_variable_interop() {
             digest.update(&buf);
             digest.finalize()
         };
-        let rustcrypto = rustcrypto.as_slice();
 
         assert_eq!(hex::encode(this), hex::encode(rustcrypto));
     }
