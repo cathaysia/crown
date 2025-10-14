@@ -3,12 +3,15 @@
 	"include-v-in-tag": true,
 	"include-component-in-tag": false,
 	"bump-minor-pre-major": true,
-	"plugins": ["cargo-workspace"],
-	"release-type": "rust",
 	"packages": {
-		"crown": {},
-		"crown-bin": {},
-		"crown-cabi": {},
-		"crown-derive": {}
+     ".": {
+      "release-type": "simple",
+      "extra-files": [
+        {
+          "path": "crates/client-daemon/Cargo.toml",
+          "type": "toml",
+          "jsonpath": "$.package.version"
+        }
+     }
 	}
 }

@@ -1,6 +1,14 @@
 [workspace]
 resolver = "2"
 members = ["crown", "crown-bin", "crown-cabi", "crown-derive"]
+package.version = "0.3.0"
+package.edition = "2021"
+package.description = "A cryptographic library."
+package.license = "Apache-2.0"
+package.readme = "./README.md"
+package.keywords = ["cryptography", "crypto", "encryption", "hashing", "cuda"]
+package.categories = ["cryptography", "algorithms", "science"]
+package.repository = "https://github.com/cathaysia/crown"
 
 [profile.relwithdebinfo]
 inherits = "release"

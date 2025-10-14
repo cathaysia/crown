@@ -1,13 +1,13 @@
 [package]
 name = "crown-bin"
-version = "0.3.0"
-edition = "2024"
-description = "crown cryptographic library cli tool"
-license = "Apache-2.0"
-readme = "../README.md"
-keywords = ["cryptography", "crypto", "procedural-macros", "derive"]
-categories = ["cryptography", "development-tools::procedural-macro-helpers"]
-repository = "https://github.com/cathaysia/crown"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+license.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+repository.workspace = true
 
 [features]
 default = ["asm"]

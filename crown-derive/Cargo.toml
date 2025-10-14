@@ -1,13 +1,13 @@
 [package]
 name = "crown-derive"
-version = "0.3.0"
-edition = "2021"
-description = "Procedural macros for the crown cryptographic library"
-license = "Apache-2.0"
-readme = "../README.md"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
 keywords = ["cryptography", "crypto", "procedural-macros", "derive"]
 categories = ["cryptography", "development-tools::procedural-macro-helpers"]
-repository = "https://github.com/cathaysia/crown"
 
 [lib]
 proc-macro = true
