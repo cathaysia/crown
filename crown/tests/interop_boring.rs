@@ -81,3 +81,8 @@ impl_test_interop!(
     32,
     16
 );
+
+fn new_rc4(key: &[u8], _iv: &[u8]) -> CryptoResult<EvpStreamCipher> {
+    EvpStreamCipher::new_rc4(key)
+}
+impl_test_interop!(rc4, new_rc4, Cipher::rc4, 32, 16);
