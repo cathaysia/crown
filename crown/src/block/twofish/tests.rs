@@ -1,4 +1,3 @@
-use cipher::generic_array::GenericArray;
 use cipher::KeyInit;
 
 use super::Twofish;
@@ -32,8 +31,7 @@ fn rustcrypto_twofish_interop() {
             let cipher = twofish::Twofish::new(&key.into());
 
             for chunk in dst.chunks_exact_mut(Twofish::BLOCK_SIZE) {
-                let block = GenericArray::from_mut_slice(chunk);
-                cipher::BlockEncrypt::encrypt_block(&cipher, block);
+                cipher::BlockEncrypt::encrypt_block(&cipher, chunk.into());
             }
             dst
         };

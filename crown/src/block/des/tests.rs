@@ -1,4 +1,3 @@
-use cipher::generic_array::GenericArray;
 use rc4::KeyInit;
 
 use super::{Des, TripleDes};
@@ -32,8 +31,7 @@ fn rustcrypto_des_interop() {
             let cipher = des::Des::new(&key.into());
 
             for chunk in dst.chunks_exact_mut(Des::BLOCK_SIZE) {
-                let block = GenericArray::from_mut_slice(chunk);
-                cipher::BlockEncrypt::encrypt_block(&cipher, block);
+                cipher::BlockEncrypt::encrypt_block(&cipher, chunk.into());
             }
             dst
         };
@@ -70,8 +68,7 @@ fn rustcrypto_trides_interop() {
             let cipher = des::TdesEde3::new(&key.into());
 
             for chunk in dst.chunks_exact_mut(Des::BLOCK_SIZE) {
-                let block = GenericArray::from_mut_slice(chunk);
-                cipher::BlockEncrypt::encrypt_block(&cipher, block);
+                cipher::BlockEncrypt::encrypt_block(&cipher, chunk.into());
             }
             dst
         };
