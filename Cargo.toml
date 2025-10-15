@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["crown", "crown-bin", "crown-cabi", "crown-derive"]
-package.version = "0.4.0"
+package.version = "0.5.0"
 package.edition = "2021"
 package.description = "A cryptographic library."
 package.license = "Apache-2.0"
@@ -17,5 +17,5 @@ strip = false
 
 [workspace.dependencies]
 paste = "1.0.15"
-crown = { path = "./crown", version = "0.4.0" }
-crown-derive = { path = "./crown-derive", version = "0.4.0" }
+crown = { path = "./crown", version = "0.5.0" }
+crown-derive = { path = "./crown-derive", version = "0.5.0" }

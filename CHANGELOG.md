@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/cathaysia/crown/compare/v0.4.0...v0.5.0) (2025-10-15)
+
+
+### Features
+
+* **block:** add kasumi ([4761bf9](https://github.com/cathaysia/crown/commit/4761bf9e88b49ac3f83233495441ba332e9919be))
+
 ## [0.4.0](https://github.com/cathaysia/crown/compare/v0.3.1...v0.4.0) (2025-10-14)
 
 
