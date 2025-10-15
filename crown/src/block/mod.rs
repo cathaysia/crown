@@ -14,6 +14,7 @@ pub mod cast5;
 pub mod des;
 pub mod idea;
 pub mod kasumi;
+pub mod kseed;
 pub mod rc2;
 pub mod rc5;
 pub mod rc6;

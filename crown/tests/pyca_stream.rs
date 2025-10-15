@@ -9,7 +9,7 @@ fn test_pyca_stream_vectors() {
     const BASE_DIR: &str = "tests/cryptography/vectors/cryptography_vectors/";
     #[allow(clippy::type_complexity)]
     #[rustfmt::skip]
-    const FILES: [(fn (key:&[u8], iv:&[u8])->CryptoResult<EvpStreamCipher>, &str); 134] = [
+    const FILES: [(fn (key:&[u8], iv:&[u8])->CryptoResult<EvpStreamCipher>, &str); 136] = [
         (EvpStreamCipher::new_chacha20, "ciphers/ChaCha20/counter-overflow.txt"),
         (EvpStreamCipher::new_chacha20, "ciphers/ChaCha20/rfc7539.txt"),
         (EvpStreamCipher::new_aes_ctr, "ciphers/AES/CTR/aes-128-ctr.txt"),
@@ -114,7 +114,7 @@ fn test_pyca_stream_vectors() {
         (|key: &[u8], iv: &[u8]| ->CryptoResult<EvpStreamCipher> { EvpStreamCipher::new_camellia_cfb (key, iv, None)} , "ciphers/Camellia/camellia-cfb.txt"),
         (EvpStreamCipher::new_cast5_cfb, "ciphers/CAST5/cast5-cfb.txt"),
         (EvpStreamCipher::new_idea_cfb, "ciphers/IDEA/idea-cfb.txt"),
-        // (EvpStreamCipher::new_seed_cfb, "ciphers/SEED/seed-cfb.txt"),
+        (EvpStreamCipher::new_kseed_cfb, "ciphers/SEED/seed-cfb.txt"),
         (EvpStreamCipher::new_sm4_cfb, "ciphers/SM4/draft-ribose-cfrg-sm4-10-cfb.txt"),
         // OFB
         (EvpStreamCipher::new_tripledes_ofb,"ciphers/3DES/OFB/TOFBIinvperm.rsp"),
@@ -152,7 +152,7 @@ fn test_pyca_stream_vectors() {
         (|key: &[u8], iv: &[u8]| ->CryptoResult<EvpStreamCipher> { EvpStreamCipher::new_camellia_ofb (key, iv, None)}, "ciphers/Camellia/camellia-ofb.txt"),
         (EvpStreamCipher::new_cast5_ofb, "ciphers/CAST5/cast5-ofb.txt"),
         (EvpStreamCipher::new_idea_ofb, "ciphers/IDEA/idea-ofb.txt"),
-        // (EvpStreamCipher::new_seed_ofb, "ciphers/SEED/seed-ofb.txt"),
+        (EvpStreamCipher::new_kseed_ofb, "ciphers/SEED/seed-ofb.txt"),
         (EvpStreamCipher::new_sm4_ofb, "ciphers/SM4/draft-ribose-cfrg-sm4-10-ofb.txt"),
     ];
 
