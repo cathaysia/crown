@@ -1,5 +1,4 @@
 use crate::block::BlockCipher;
-use cipher::generic_array::GenericArray;
 use cipher::KeyInit;
 
 #[test]
@@ -30,8 +29,7 @@ fn rustcrypto_cast5_interop() {
             let cipher = cast5::Cast5::new(&key.into());
 
             for chunk in dst.chunks_exact_mut(super::Cast5::BLOCK_SIZE) {
-                let block = GenericArray::from_mut_slice(chunk);
-                cipher::BlockEncrypt::encrypt_block(&cipher, block);
+                cipher::BlockEncrypt::encrypt_block(&cipher, chunk.into());
             }
             dst
         };

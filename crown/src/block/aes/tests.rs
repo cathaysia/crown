@@ -1,6 +1,3 @@
-use cipher::{generic_array::GenericArray, BlockEncrypt};
-use rc4::KeyInit;
-
 use super::*;
 
 #[test]
@@ -188,42 +185,4 @@ fn test_encrypt_short_output() {
     let cipher = Aes::new(&key).unwrap();
     let mut dst = vec![0u8; 15]; // Too short
     cipher.encrypt_block(&mut dst);
-}
-
-#[test]
-fn rustcrypto_aes_interop() {
-    let mut key = [0u8; 32];
-    rand::fill(&mut key);
-    let key = key;
-
-    for _ in 0..1000 {
-        let mut src = [0u8; 4];
-
-        rand::fill(src.as_mut_slice());
-        let this = {
-            let mut dst = src;
-            let cipher = super::Aes::new(&key).unwrap();
-
-            for i in (0..src.len()).step_by(Aes::BLOCK_SIZE) {
-                let end = (i + Aes::BLOCK_SIZE).min(src.len());
-                if end - i == Aes::BLOCK_SIZE {
-                    cipher.encrypt_block(&mut dst[i..end]);
-                }
-            }
-            dst
-        };
-
-        let rustcrypto = {
-            let mut dst = src;
-            let cipher = aes::Aes256::new(&key.into());
-
-            for chunk in dst.chunks_exact_mut(Aes::BLOCK_SIZE) {
-                let block = GenericArray::from_mut_slice(chunk);
-                cipher.encrypt_block(block);
-            }
-            dst
-        };
-
-        assert_eq!(this, rustcrypto);
-    }
 }
