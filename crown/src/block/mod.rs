@@ -13,6 +13,7 @@ pub mod camellia;
 pub mod cast5;
 pub mod des;
 pub mod idea;
+pub mod kasumi;
 pub mod rc2;
 pub mod rc5;
 pub mod rc6;
