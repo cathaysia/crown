@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crown", "crown-bin", "crown-cabi", "crown-derive"]
+members = ["crown", "crown-bin", "crown-cabi", "crown-derive", "crown-wasm"]
 package.version = "0.7.0"
 package.edition = "2021"
 package.description = "A cryptographic library."
