@@ -1,4 +1,4 @@
-use crate::args::ArgsEnc;
+use crate::args::{ArgsEnc, Cipher};
 
 pub fn run_enc(args: ArgsEnc) -> anyhow::Result<()> {
     let ArgsEnc {
@@ -20,37 +20,30 @@ pub fn run_enc(args: ArgsEnc) -> anyhow::Result<()> {
         None => vec![],
     };
 
-    let aead_cipher = algorithm.new_aead(&key, rounds);
-    if let Some(cipher) = aead_cipher {
-        let cipher = cipher.unwrap();
-        match tagout {
-            Some(tagout) => {
-                let tag = cipher.seal_in_place_separate_tag(&mut infile, &iv, &aad)?;
-                std::fs::write(tagout, tag)?;
+    let cipher = algorithm.to_cipher(&key, &iv, rounds)?;
+
+    match cipher {
+        Cipher::Aead(cipher) => {
+            match tagout {
+                Some(tagout) => {
+                    let tag = cipher.seal_in_place_separate_tag(&mut infile, &iv, &aad)?;
+                    std::fs::write(tagout, tag)?;
+                }
+                None => {
+                    cipher.seal_in_place_append_tag(&mut infile, &iv, &aad)?;
+                }
             }
-            None => {
-                cipher.seal_in_place_append_tag(&mut infile, &iv, &aad)?;
-            }
+            std::fs::write(&out_file, &infile)?;
         }
-        std::fs::write(&out_file, &infile)?;
-        return Ok(());
-    }
-
-    if let Some(cipher) = algorithm.new_stream(&key, &iv, rounds) {
-        let mut cipher = cipher.unwrap();
-        cipher.encrypt(&mut infile)?;
-        std::fs::write(out_file, infile)?;
-        return Ok(());
-    }
-
-    if let Some(cipher) = algorithm.new_block(&key, &iv, rounds) {
-        let mut cipher = cipher.unwrap();
-        cipher.set_padding(padding_mode.into());
-
-        cipher.encrypt_alloc(&mut infile).unwrap();
-        std::fs::write(out_file, infile)?;
-    } else {
-        unreachable!()
+        Cipher::Stream(mut cipher) => {
+            cipher.encrypt(&mut infile)?;
+            std::fs::write(out_file, infile)?;
+        }
+        Cipher::Block(mut cipher) => {
+            cipher.set_padding(padding_mode.into());
+            cipher.encrypt_alloc(&mut infile).unwrap();
+            std::fs::write(out_file, infile)?;
+        }
     }
 
     Ok(())
