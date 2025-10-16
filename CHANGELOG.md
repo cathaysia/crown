@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/cathaysia/crown/compare/v0.6.0...v0.7.0) (2025-10-16)
+
+
+### Features
+
+* **cli:** add more block cipher ([c7561db](https://github.com/cathaysia/crown/commit/c7561dbdb80177a89e7ba41c1851eff815e18cd1))
+
 ## [0.6.0](https://github.com/cathaysia/crown/compare/v0.5.0...v0.6.0) (2025-10-16)
 
 
