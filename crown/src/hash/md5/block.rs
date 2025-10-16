@@ -11,9 +11,9 @@ pub(super) fn block(d: &mut Md5, p: &[u8]) {
         asm::block(d, p);
     }
 
-    #[cfg(all(
+    #[cfg(any(
         not(feature = "asm"),
-        any(target_arch = "aarch64", target_arch = "x86_64")
+        not(any(target_arch = "aarch64", target_arch = "x86_64"))
     ))]
     {
         generic::block_generic(d, p);

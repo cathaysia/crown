@@ -212,12 +212,12 @@ impl Kseed {
             self.k[(2 * i + 1) as usize] = G!(k2.wrapping_sub(k4).wrapping_add(KCI[i as usize]));
             if i & 1 != 0 {
                 tmp = k3;
-                k3 = ((k3 << 8) | (k4 >> 24)) & 0xffffffff as libc::c_uint;
-                k4 = ((k4 << 8) | (tmp >> 24)) & 0xffffffff as libc::c_uint;
+                k3 = (k3 << 8) | (k4 >> 24);
+                k4 = (k4 << 8) | (tmp >> 24);
             } else {
                 tmp = k1;
-                k1 = ((k1 >> 8) | (k2 << 24)) & 0xffffffff as libc::c_uint;
-                k2 = ((k2 >> 8) | (tmp << 24)) & 0xffffffff as libc::c_uint;
+                k1 = (k1 >> 8) | (k2 << 24);
+                k2 = (k2 >> 8) | (tmp << 24);
             }
             self.dk[(2 * (15 - i)) as usize] = self.k[(2 * i) as usize];
             self.dk[(2 * (15 - i) + 1) as usize] = self.k[(2 * i + 1) as usize];

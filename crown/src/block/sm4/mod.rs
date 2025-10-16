@@ -133,7 +133,7 @@ macro_rules! ROLc {
 #[inline]
 fn s_sm4_sbox(a: u8) -> u8 {
     let a = a as i32;
-    SM4_SBOX_TABLE[((a >> 4) & 0xf) as usize][(a & 0xf as libc::c_int) as usize]
+    SM4_SBOX_TABLE[((a >> 4) & 0xf) as usize][(a & 0xf) as usize]
 }
 #[inline]
 fn s_sm4_t(a: u32) -> u32 {
