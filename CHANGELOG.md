@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/cathaysia/crown/compare/v0.5.0...v0.6.0) (2025-10-16)
+
+
+### Features
+
+* **block:** add kseed ([05a6423](https://github.com/cathaysia/crown/commit/05a642351582abbd58be59c879a4dac28793dbdb))
+
 ## [0.5.0](https://github.com/cathaysia/crown/compare/v0.4.0...v0.5.0) (2025-10-15)
 
 
