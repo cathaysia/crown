@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::Write,
+    io::{Read, Write},
     marker::PhantomData,
     os::{
         fd::{AsRawFd, FromRawFd},
@@ -21,6 +21,7 @@ pub struct MmapFile<T> {
     len: usize,
     ptr: *mut c_void,
     marker: PhantomData<T>,
+    is_vec: bool,
 }
 
 impl AsMut<[u8]> for MmapFile<MmapWrite> {
@@ -48,6 +49,9 @@ impl AsRef<[u8]> for MmapFile<MmapRead> {
 impl<T> Drop for MmapFile<T> {
     fn drop(&mut self) {
         unsafe {
+            if self.is_vec {
+                let _ = Box::from_raw(self.ptr as *mut u8);
+            }
             libc::munmap(self.ptr, self.len);
         }
     }
@@ -87,14 +91,23 @@ pub fn mmap_writer(file_path: &str, size: usize) -> anyhow::Result<MmapFile<Mmap
         len: size,
         ptr,
         marker: PhantomData,
+        is_vec: false,
     })
 }
 
 pub fn read_file_impl(file_path: &str) -> anyhow::Result<MmapFile<MmapRead>> {
     let file = if file_path == "-" {
-        // TODO: is this safe?
-        let fd = std::io::stdin().as_raw_fd();
-        unsafe { File::from_raw_fd(fd) }
+        let mut buf = Vec::new();
+        std::io::stdin().read_to_end(&mut buf)?;
+        let ptr = Vec::leak(buf);
+
+        return Ok(MmapFile {
+            file: unsafe { File::from_raw_fd(0) },
+            len: ptr.len(),
+            ptr: ptr.as_mut_ptr().cast(),
+            marker: PhantomData,
+            is_vec: true,
+        });
     } else {
         File::open(file_path)?
     };
@@ -113,5 +126,6 @@ pub fn read_file_impl(file_path: &str) -> anyhow::Result<MmapFile<MmapRead>> {
         len: file_size as _,
         ptr,
         marker: PhantomData,
+        is_vec: false,
     })
 }
