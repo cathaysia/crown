@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.8.0](https://github.com/cathaysia/crown/compare/v0.7.0...v0.8.0) (2025-10-17)
+
+
+### Features
+
+* **playground:** add playground ([8795449](https://github.com/cathaysia/crown/commit/87954497831df63aae72ff8a5348c0b60edbb0f1))
+* **playground:** export more hash function ([0172c19](https://github.com/cathaysia/crown/commit/0172c19563bf714866c5e0ddcce1d87358aecc07))
+* **wasm:** add crown-wasm ([f88b00c](https://github.com/cathaysia/crown/commit/f88b00c96b68f9114f1d1faeb507fd17bcab9378))
+
+
+### Bug Fixes
+
+* **crown-bin:** fix read from stdin ([99960bd](https://github.com/cathaysia/crown/commit/99960bdd1b65da2eccfb92a786348d056d3a08d5))
+
 ## [0.7.0](https://github.com/cathaysia/crown/compare/v0.6.0...v0.7.0) (2025-10-16)
 
 
