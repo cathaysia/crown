@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   generateRandomKey,
   initWasm,
@@ -8,8 +10,6 @@ import {
   stringToUint8Array,
   uint8ArrayToString,
 } from '@/lib/wasm';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from './ui/textarea';
 
 const streamAlgorithms = [
