@@ -4,7 +4,7 @@ use base64::Engine;
 
 use crate::{args::ArgsRand, size_parser::parse_size};
 
-pub fn run_hash(args_hash: ArgsRand) -> anyhow::Result<()> {
+pub fn run_rand(args_hash: ArgsRand) -> anyhow::Result<()> {
     let ArgsRand {
         hex,
         base64,
