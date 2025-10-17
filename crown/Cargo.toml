@@ -13,7 +13,7 @@ exclude = ["tests"]
 [features]
 default = ["std"]
 ## Enable std
-std = ["alloc", "once_cell/std"]
+std = ["alloc"]
 ## Enable alloc
 alloc = []
 ## Enable Cuda. (Experimental)
@@ -34,9 +34,6 @@ base64 = "0.22.1"
 libc = "0.2.175"
 nix = "0.30.1"
 document-features = "0.2.11"
-once_cell = { version = "1.21.3", default-features = false, features = [
-  "critical-section",
-] }
 tinyvec = "1.10.0"
 block-padding = "0.3.3"
 
