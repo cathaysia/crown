@@ -1,28 +1,28 @@
 {
-	"$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
-	"include-v-in-tag": true,
-	"include-component-in-tag": false,
-	"bump-minor-pre-major": true,
-	"packages": {
-		".": {
-			"release-type": "simple",
-			"extra-files": [
-				{
-					"path": "Cargo.toml",
-					"type": "toml",
-					"jsonpath": "$.workspace.package.version"
-				},
-				{
-					"path": "Cargo.toml",
-					"type": "toml",
-					"jsonpath": "$.workspace.dependencies.crown.version"
-				},
-				{
-					"path": "Cargo.toml",
-					"type": "toml",
-					"jsonpath": "$.workspace.dependencies.crown-derive.version"
-				}
-			]
-		}
-	}
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "include-v-in-tag": true,
+  "include-component-in-tag": false,
+  "bump-minor-pre-major": true,
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "extra-files": [
+        {
+          "path": "Cargo.toml",
+          "type": "toml",
+          "jsonpath": "$.workspace.package.version"
+        },
+        {
+          "path": "Cargo.toml",
+          "type": "toml",
+          "jsonpath": "$.workspace.dependencies.crown.version"
+        },
+        {
+          "path": "Cargo.toml",
+          "type": "toml",
+          "jsonpath": "$.workspace.dependencies.crown-derive.version"
+        }
+      ]
+    }
+  }
 }

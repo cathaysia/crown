@@ -1,0 +1,74 @@
+name: deploy-github-pages
+
+on:
+  push:
+    branches: [ master ]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: wasm32-unknown-unknown
+
+    - name: Install wasm-pack
+      run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'pnpm'
+        cache-dependency-path: crown-playground/pnpm-lock.yaml
+
+    - name: Install pnpm
+      run: npm install -g pnpm
+
+    - name: Build WASM module
+      run: |
+        cd crown-wasm
+        wasm-pack build --target web --out-dir pkg
+
+    - name: Install dependencies
+      run: |
+        cd crown-playground
+        pnpm install
+
+    - name: Build Next.js app
+      run: |
+        cd crown-playground
+        NODE_ENV=production pnpm run build
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: crown-playground/out
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
