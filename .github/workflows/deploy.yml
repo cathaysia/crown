@@ -3,6 +3,7 @@ name: deploy-github-pages
 on:
   push:
     branches: [ master ]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -29,15 +30,17 @@ jobs:
     - name: Install wasm-pack
       run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        package_json_file: crown-playground/package.json
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
         cache: 'pnpm'
         cache-dependency-path: crown-playground/pnpm-lock.yaml
-
-    - name: Install pnpm
-      run: npm install -g pnpm
 
     - name: Build WASM module
       run: |
