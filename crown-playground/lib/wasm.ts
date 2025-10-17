@@ -1,10 +1,17 @@
-import { AeadCipher, BlockCipher, Hash, StreamCipher } from 'crown-wasm';
+import init, { AeadCipher, BlockCipher, Hash, StreamCipher } from 'crown-wasm';
 
 let wasmInitialized = false;
 
 export async function initWasm() {
   if (!wasmInitialized) {
-    wasmInitialized = true;
+    try {
+      await init();
+      wasmInitialized = true;
+      console.log('WASM initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize WASM:', error);
+      throw error;
+    }
   }
 }
 
