@@ -14,14 +14,38 @@ import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 
 const hashAlgorithms = [
-  { value: 'sha256', label: 'SHA-256' },
-  { value: 'sha512', label: 'SHA-512' },
-  { value: 'sha3_256', label: 'SHA3-256' },
-  { value: 'sha3_512', label: 'SHA3-512' },
+  // MD family
+  { value: 'md2', label: 'MD2' },
+  { value: 'md4', label: 'MD4' },
   { value: 'md5', label: 'MD5' },
+
+  // SHA-1
   { value: 'sha1', label: 'SHA-1' },
+
+  // SHA-2 family
+  { value: 'sha224', label: 'SHA-224' },
+  { value: 'sha256', label: 'SHA-256' },
+  { value: 'sha384', label: 'SHA-384' },
+  { value: 'sha512', label: 'SHA-512' },
+  { value: 'sha512_224', label: 'SHA-512/224' },
+  { value: 'sha512_256', label: 'SHA-512/256' },
+
+  // SHA-3 family
+  { value: 'sha3_224', label: 'SHA3-224' },
+  { value: 'sha3_256', label: 'SHA3-256' },
+  { value: 'sha3_384', label: 'SHA3-384' },
+  { value: 'sha3_512', label: 'SHA3-512' },
+
+  // SHAKE (extendable-output functions)
+  { value: 'shake128', label: 'SHAKE128' },
+  { value: 'shake256', label: 'SHAKE256' },
+
+  // BLAKE2 family
   { value: 'blake2s', label: 'BLAKE2s' },
   { value: 'blake2b', label: 'BLAKE2b' },
+
+  // SM3 (Chinese national standard)
+  { value: 'sm3', label: 'SM3' },
 ];
 
 export function HashPanel() {
@@ -39,27 +63,12 @@ export function HashPanel() {
 
   useEffect(() => {
     initWasm().then(() => setWasmReady(true));
-
-    setAlgorithm(getParamValue('algorithm', 'sha256'));
-    setMessage(getParamValue('message', ''));
-    setHash(getParamValue('hash', ''));
-    setHmacKey(getParamValue('hmacKey', ''));
-    setUseHmac(getParamValue('useHmac', 'false') === 'true');
-    setInputFormat(
-      getParamValue('inputFormat', 'utf8') as 'utf8' | 'hex' | 'base64',
-    );
-    setOutputFormat(getParamValue('outputFormat', 'hex') as 'hex' | 'base64');
   }, []);
-
-  const updateState = (updates: Record<string, string>) => {
-    updateUrlParams(updates);
-  };
 
   const generateHmacKey = () => {
     const keyBytes = generateRandomKey(32);
     const keyHex = uint8ArrayToString(keyBytes, 'hex');
     setHmacKey(keyHex);
-    updateState({ hmacKey: keyHex });
   };
 
   const computeHash = async () => {
@@ -74,17 +83,11 @@ export function HashPanel() {
       if (useHmac && hmacKey) {
         const keyBytes = stringToUint8Array(hmacKey, 'hex');
         switch (algorithm) {
-          case 'sha256':
-            hasher = Hash.new_sha256_hmac(keyBytes);
+          case 'md2':
+            hasher = Hash.new_md2_hmac(keyBytes);
             break;
-          case 'sha512':
-            hasher = Hash.new_sha512_hmac(keyBytes);
-            break;
-          case 'sha3_256':
-            hasher = Hash.new_sha3_256_hmac(keyBytes);
-            break;
-          case 'sha3_512':
-            hasher = Hash.new_sha3_512_hmac(keyBytes);
+          case 'md4':
+            hasher = Hash.new_md4_hmac(keyBytes);
             break;
           case 'md5':
             hasher = Hash.new_md5_hmac(keyBytes);
@@ -92,22 +95,55 @@ export function HashPanel() {
           case 'sha1':
             hasher = Hash.new_sha1_hmac(keyBytes);
             break;
+          case 'sha224':
+            hasher = Hash.new_sha224_hmac(keyBytes);
+            break;
+          case 'sha256':
+            hasher = Hash.new_sha256_hmac(keyBytes);
+            break;
+          case 'sha384':
+            hasher = Hash.new_sha384_hmac(keyBytes);
+            break;
+          case 'sha512':
+            hasher = Hash.new_sha512_hmac(keyBytes);
+            break;
+          case 'sha512_224':
+            hasher = Hash.new_sha512_224_hmac(keyBytes);
+            break;
+          case 'sha512_256':
+            hasher = Hash.new_sha512_256_hmac(keyBytes);
+            break;
+          case 'sha3_224':
+            hasher = Hash.new_sha3_224_hmac(keyBytes);
+            break;
+          case 'sha3_256':
+            hasher = Hash.new_sha3_256_hmac(keyBytes);
+            break;
+          case 'sha3_384':
+            hasher = Hash.new_sha3_384_hmac(keyBytes);
+            break;
+          case 'sha3_512':
+            hasher = Hash.new_sha3_512_hmac(keyBytes);
+            break;
+          case 'shake128':
+            hasher = Hash.new_shake128_hmac(keyBytes);
+            break;
+          case 'shake256':
+            hasher = Hash.new_shake256_hmac(keyBytes);
+            break;
+          case 'sm3':
+            hasher = Hash.new_sm3_hmac(keyBytes);
+            break;
           default:
             throw new Error('HMAC not supported for this algorithm');
         }
       } else {
         switch (algorithm) {
-          case 'sha256':
-            hasher = Hash.new_sha256();
+          case 'md2':
+            hasher = Hash.new_md2();
             break;
-          case 'sha512':
-            hasher = Hash.new_sha512();
-            break;
-          case 'sha3_256':
-            hasher = Hash.new_sha3_256();
-            break;
-          case 'sha3_512':
-            hasher = Hash.new_sha3_512();
+          case 'md4':
+            hasher = Hash.new_md4();
             break;
           case 'md5':
             hasher = Hash.new_md5();
@@ -115,11 +151,50 @@ export function HashPanel() {
           case 'sha1':
             hasher = Hash.new_sha1();
             break;
+          case 'sha224':
+            hasher = Hash.new_sha224();
+            break;
+          case 'sha256':
+            hasher = Hash.new_sha256();
+            break;
+          case 'sha384':
+            hasher = Hash.new_sha384();
+            break;
+          case 'sha512':
+            hasher = Hash.new_sha512();
+            break;
+          case 'sha512_224':
+            hasher = Hash.new_sha512_224();
+            break;
+          case 'sha512_256':
+            hasher = Hash.new_sha512_256();
+            break;
+          case 'sha3_224':
+            hasher = Hash.new_sha3_224();
+            break;
+          case 'sha3_256':
+            hasher = Hash.new_sha3_256();
+            break;
+          case 'sha3_384':
+            hasher = Hash.new_sha3_384();
+            break;
+          case 'sha3_512':
+            hasher = Hash.new_sha3_512();
+            break;
+          case 'shake128':
+            hasher = Hash.new_shake128();
+            break;
+          case 'shake256':
+            hasher = Hash.new_shake256();
+            break;
           case 'blake2s':
             hasher = Hash.new_blake2s(null, 32);
             break;
           case 'blake2b':
             hasher = Hash.new_blake2b(null, 64);
+            break;
+          case 'sm3':
+            hasher = Hash.new_sm3();
             break;
           default:
             throw new Error('Unsupported algorithm');
@@ -130,7 +205,6 @@ export function HashPanel() {
       const hashBytes = hasher.sum();
       const hashResult = uint8ArrayToString(hashBytes, outputFormat);
       setHash(hashResult);
-      updateState({ hash: hashResult });
 
       hasher.free();
     } catch (err) {
@@ -158,7 +232,6 @@ export function HashPanel() {
             value={algorithm}
             onChange={e => {
               setAlgorithm(e.target.value);
-              updateState({ algorithm: e.target.value });
             }}
             className="w-full p-2 border rounded-md bg-background text-foreground"
           >
@@ -177,7 +250,6 @@ export function HashPanel() {
               value={inputFormat}
               onChange={e => {
                 setInputFormat(e.target.value as any);
-                updateState({ inputFormat: e.target.value });
               }}
               className="flex-1 p-2 border rounded-md bg-background text-foreground"
             >
@@ -189,7 +261,6 @@ export function HashPanel() {
               value={outputFormat}
               onChange={e => {
                 setOutputFormat(e.target.value as any);
-                updateState({ outputFormat: e.target.value });
               }}
               className="flex-1 p-2 border rounded-md bg-background text-foreground"
             >
@@ -208,7 +279,6 @@ export function HashPanel() {
             checked={useHmac}
             onChange={e => {
               setUseHmac(e.target.checked);
-              updateState({ useHmac: e.target.checked.toString() });
             }}
             className="mr-2"
           />
@@ -223,7 +293,6 @@ export function HashPanel() {
               value={hmacKey}
               onChange={e => {
                 setHmacKey(e.target.value);
-                updateState({ hmacKey: e.target.value });
               }}
               placeholder="Enter HMAC key in hex format"
               className="flex-1"
@@ -241,7 +310,6 @@ export function HashPanel() {
           value={message}
           onChange={e => {
             setMessage(e.target.value);
-            updateState({ message: e.target.value });
           }}
           placeholder="Enter message to hash"
           rows={4}
