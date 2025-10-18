@@ -2,15 +2,15 @@
 
 import { AppSidebar, menuItems } from '@/components/AppSidebar';
 import './global.css';
+import { usePathname } from 'next/navigation';
 import { Suspense } from 'react';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import {
   Sidebar,
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
-import { usePathname } from 'next/navigation';
-import { ThemeToggle } from '@/components/ThemeToggle';
 
 export default function RootLayout({
   children,
