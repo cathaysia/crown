@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.9.0](https://github.com/cathaysia/crown/compare/v0.8.0...v0.9.0) (2025-10-18)
+
+
+### Features
+
+* **crown:** add anbuis ([177297f](https://github.com/cathaysia/crown/commit/177297ffb5c20fb17e26bd6991f8013a49bce75d))
+* **playground:** add title ([d8e2f16](https://github.com/cathaysia/crown/commit/d8e2f1656ee17687465e11a8e336c84a1a85e8a3))
+* **playground:** allow encrypt file ([1741bad](https://github.com/cathaysia/crown/commit/1741badb3f1b3da2b7033100ac36a070bdddd382))
+* **playground:** allow encrypt file ([a8a47bf](https://github.com/cathaysia/crown/commit/a8a47bfdb2eba2f0531a881415270d4e47b12680))
+* **playground:** allow select file ([b0b148f](https://github.com/cathaysia/crown/commit/b0b148fbfa88d6809330025ef13a563dd57c92c9))
+* **playground:** better sidebar ([65fca8e](https://github.com/cathaysia/crown/commit/65fca8e85d079a1b602d4a99306827ef81450e4a))
+* **playground:** store state in queryparams ([a1de16c](https://github.com/cathaysia/crown/commit/a1de16cab85522b86e6c97c47dbb11c1748facc9))
+
+
+### Bug Fixes
+
+* **playground:** fix wasm init ([97939bb](https://github.com/cathaysia/crown/commit/97939bb7e8c25d7ea4731bea015f85c7b37adb5a))
+
 ## [0.8.0](https://github.com/cathaysia/crown/compare/v0.7.0...v0.8.0) (2025-10-17)
 
 
