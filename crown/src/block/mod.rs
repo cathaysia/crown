@@ -8,6 +8,7 @@
 //! For most use cases, consider using the high-level interfaces in the [`crate::envelope`] module instead.
 
 pub mod aes;
+pub mod anubis;
 pub mod blowfish;
 pub mod camellia;
 pub mod cast5;
