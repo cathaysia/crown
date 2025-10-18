@@ -26,6 +26,7 @@ import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
 import { Textarea } from '@/ui/textarea';
+import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Switch } from './ui/switch';
 
 const hashAlgorithms = getAvailableAlgorithms();
@@ -62,6 +63,8 @@ export function HashPanel() {
   const [error, setError] = useState('');
   const [wasmReady, setWasmReady] = useState(false);
   const [isComputing, setIsComputing] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [inputMode, setInputMode] = useState<'text' | 'file'>('text');
 
   useEffect(() => {
     initWasm().then(() => setWasmReady(true));
@@ -94,6 +97,9 @@ export function HashPanel() {
       hmacKey,
       useHmac,
       wasmReady,
+      inputMode,
+      selectedFile:
+        selectedFile?.name + selectedFile?.size + selectedFile?.lastModified,
     }),
     [
       algorithm,
@@ -103,6 +109,8 @@ export function HashPanel() {
       hmacKey,
       useHmac,
       wasmReady,
+      inputMode,
+      selectedFile,
     ],
   );
 
@@ -110,7 +118,17 @@ export function HashPanel() {
   const debouncedDependencies = useDebounce(hashDependencies, 500);
 
   const computeHash = useCallback(async () => {
-    if (!wasmReady || !message.trim()) {
+    if (!wasmReady) {
+      setHash('');
+      setError('');
+      return;
+    }
+
+    // Check if we have input data
+    const hasTextInput = inputMode === 'text' && message.trim();
+    const hasFileInput = inputMode === 'file' && selectedFile;
+
+    if (!hasTextInput && !hasFileInput) {
       setHash('');
       setError('');
       return;
@@ -119,7 +137,17 @@ export function HashPanel() {
     try {
       setIsComputing(true);
       setError('');
-      const messageBytes = stringToUint8Array(message, messageFormat);
+
+      let messageBytes: Uint8Array;
+
+      if (inputMode === 'file' && selectedFile) {
+        // Read file as ArrayBuffer and convert to Uint8Array
+        const arrayBuffer = await selectedFile.arrayBuffer();
+        messageBytes = new Uint8Array(arrayBuffer);
+      } else {
+        // Use text input
+        messageBytes = stringToUint8Array(message, messageFormat);
+      }
 
       // Use the type-safe hash creation function
       const hmacKeyBytes =
@@ -132,7 +160,18 @@ export function HashPanel() {
 
       const hasher = createHash(algorithm, hmacKeyBytes);
 
-      hasher.write(messageBytes);
+      // For large files, process in chunks to avoid blocking the UI
+      const chunkSize = 64 * 1024; // 64KB chunks
+      for (let i = 0; i < messageBytes.length; i += chunkSize) {
+        const chunk = messageBytes.slice(i, i + chunkSize);
+        hasher.write(chunk);
+
+        // Allow UI to update for large files
+        if (messageBytes.length > chunkSize && i % (chunkSize * 10) === 0) {
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+      }
+
       const hashBytes = hasher.sum();
       const hashResult = uint8ArrayToString(hashBytes, outputFormat);
       setHash(hashResult);
@@ -152,11 +191,16 @@ export function HashPanel() {
     outputFormat,
     hmacKey,
     useHmac,
+    inputMode,
+    selectedFile,
   ]);
 
   // Auto-compute hash when dependencies change
   useEffect(() => {
-    if (!wasmReady || !message.trim()) {
+    const hasTextInput = inputMode === 'text' && message.trim();
+    const hasFileInput = inputMode === 'file' && selectedFile;
+
+    if (!wasmReady || (!hasTextInput && !hasFileInput)) {
       setHash('');
       setError('');
       return;
@@ -247,37 +291,125 @@ export function HashPanel() {
           )}
         </div>
 
-        {/* Message Input */}
+        {/* Input Mode Selection */}
         <div className="space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <Label className="text-sm font-medium">Message</Label>
-            <Select
-              onValueChange={e => {
-                pushQuery('messageFormat', e);
-              }}
-              value={messageFormat}
-            >
-              <SelectTrigger className="w-full sm:w-[140px]">
-                <SelectValue placeholder="Format" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="hex">Hex</SelectItem>
-                <SelectItem value="base64">Base64</SelectItem>
-                <SelectItem value="utf8">UTF-8</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Textarea
-            value={message}
-            onChange={e => {
-              pushQuery('message', e.target.value);
-            }}
-            placeholder="Enter message to hash"
-            rows={4}
-            className="resize-none"
-          />
+          <Label className="text-sm font-medium">Input Source</Label>
+          <RadioGroup
+            value={inputMode}
+            onValueChange={(value: 'text' | 'file') => setInputMode(value)}
+            className="flex gap-6"
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="text" id="text-input" />
+              <Label htmlFor="text-input" className="text-sm cursor-pointer">
+                Text Input
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="file" id="file-input" />
+              <Label htmlFor="file-input" className="text-sm cursor-pointer">
+                File Upload
+              </Label>
+            </div>
+          </RadioGroup>
         </div>
+
+        {/* Text Input */}
+        {inputMode === 'text' && (
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <Label className="text-sm font-medium">Message</Label>
+              <Select
+                onValueChange={e => {
+                  pushQuery('messageFormat', e);
+                }}
+                value={messageFormat}
+              >
+                <SelectTrigger className="w-full sm:w-[140px]">
+                  <SelectValue placeholder="Format" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="hex">Hex</SelectItem>
+                  <SelectItem value="base64">Base64</SelectItem>
+                  <SelectItem value="utf8">UTF-8</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Textarea
+              value={message}
+              onChange={e => {
+                pushQuery('message', e.target.value);
+              }}
+              placeholder="Enter message to hash"
+              rows={4}
+              className="resize-none"
+            />
+          </div>
+        )}
+
+        {/* File Upload */}
+        {inputMode === 'file' && (
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">File Upload</Label>
+            <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+              <Input
+                type="file"
+                id="fileInput"
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  setSelectedFile(file || null);
+                }}
+                className="hidden"
+              />
+              <Label
+                htmlFor="fileInput"
+                className="cursor-pointer flex flex-col items-center space-y-2"
+              >
+                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                  <svg
+                    className="w-6 h-6 text-muted-foreground"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium">
+                    {selectedFile ? selectedFile.name : 'Click to upload file'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedFile
+                      ? `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB`
+                      : 'Any file type supported'}
+                  </p>
+                </div>
+              </Label>
+            </div>
+            {selectedFile && (
+              <Button
+                onClick={() => {
+                  setSelectedFile(null);
+                  const fileInput = document.getElementById(
+                    'fileInput',
+                  ) as HTMLInputElement;
+                  if (fileInput) fileInput.value = '';
+                }}
+                variant="outline"
+                size="sm"
+              >
+                Clear File
+              </Button>
+            )}
+          </div>
+        )}
 
         {/* Hash Output */}
         <div className="space-y-3">
@@ -311,19 +443,41 @@ export function HashPanel() {
         {/* Status and Manual Compute */}
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
-            {message.trim()
-              ? isComputing
-                ? 'Computing hash...'
-                : hash
-                  ? 'Hash computed automatically'
-                  : 'Ready to compute'
-              : 'Enter a message to compute hash'}
+            {(() => {
+              const hasTextInput = inputMode === 'text' && message.trim();
+              const hasFileInput = inputMode === 'file' && selectedFile;
+              const hasInput = hasTextInput || hasFileInput;
+
+              if (!hasInput) {
+                return inputMode === 'text'
+                  ? 'Enter a message to compute hash'
+                  : 'Upload a file to compute hash';
+              }
+
+              if (isComputing) {
+                return inputMode === 'file' && selectedFile
+                  ? `Computing hash for ${selectedFile.name}...`
+                  : 'Computing hash...';
+              }
+
+              if (hash) {
+                return inputMode === 'file' && selectedFile
+                  ? `Hash computed for ${selectedFile.name}`
+                  : 'Hash computed automatically';
+              }
+
+              return 'Ready to compute';
+            })()}
           </div>
           <Button
             onClick={computeHash}
             variant="outline"
             size="sm"
-            disabled={!message.trim() || isComputing}
+            disabled={
+              (inputMode === 'text' && !message.trim()) ||
+              (inputMode === 'file' && !selectedFile) ||
+              isComputing
+            }
           >
             {isComputing ? 'Computing...' : 'Compute Now'}
           </Button>
