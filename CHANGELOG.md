@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/cathaysia/crown/compare/v0.9.0...v0.9.1) (2025-10-18)
+
+
+### Bug Fixes
+
+* **wasm:** fix build for wasm ([a3563a6](https://github.com/cathaysia/crown/commit/a3563a6a78c73c62fd62dd3dd869ee8538c39bea))
+
 ## [0.9.0](https://github.com/cathaysia/crown/compare/v0.8.0...v0.9.0) (2025-10-18)
 
 
