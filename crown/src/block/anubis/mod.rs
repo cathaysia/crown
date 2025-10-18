@@ -226,7 +226,7 @@ static ANUBIS_RC: [u32; 19] = [
 pub struct Anubis {
     pub enc: [[u32; 4]; 19],
     pub dec: [[u32; 4]; 19],
-    pub key_bits: i32,
+    pub key_bits: usize,
     pub rounds: usize,
 }
 
@@ -238,7 +238,7 @@ impl Anubis {
             key_bits: 0,
             rounds: 0,
         };
-        unsafe { ret.anubis_setup(key.as_ptr(), key.len() as _, 0)? };
+        ret.anubis_setup(key, 0)?;
 
         Ok(ret)
     }
@@ -253,25 +253,16 @@ impl BlockCipher for Anubis {
         16
     }
     fn decrypt_block(&self, inout: &mut [u8]) {
-        unsafe {
-            self.anubis_ecb_decrypt(inout.as_mut_ptr());
-        }
+        self.anubis_ecb_decrypt(inout);
     }
 
     fn encrypt_block(&self, inout: &mut [u8]) {
-        unsafe {
-            self.anubis_ecb_encrypt(inout.as_mut_ptr());
-        }
+        self.anubis_ecb_encrypt(inout);
     }
 }
 
 impl Anubis {
-    pub unsafe fn anubis_setup(
-        &mut self,
-        key: *const u8,
-        keylen: i32,
-        num_rounds: usize,
-    ) -> CryptoResult<()> {
+    pub fn anubis_setup(&mut self, key: &[u8], num_rounds: usize) -> CryptoResult<()> {
         let mut i: i32;
         let mut pos: i32;
         let mut r: i32;
@@ -282,14 +273,15 @@ impl Anubis {
         let mut k1: u32;
         let mut k2: u32;
         let mut k3: u32;
-        if keylen & 3_i32 != 0 || !(16_i32..=40).contains(&keylen) {
+        let keylen = key.len();
+        if keylen & 3 != 0 || !(16..=40).contains(&keylen) {
             return Err(CryptoError::InvalidKeySize {
                 expected: "16..40",
                 actual: keylen as _,
             });
         }
         self.key_bits = keylen * 8;
-        let n = self.key_bits >> 5;
+        let n = (self.key_bits >> 5) as i32;
         let round = 8 + n as usize;
         self.rounds = round;
         if num_rounds != 0 && num_rounds != self.rounds {
@@ -298,10 +290,10 @@ impl Anubis {
         i = 0;
         pos = 0;
         while i < n {
-            kappa[i as usize] = ((*key.offset(pos as isize) as u32) << 24)
-                ^ ((*key.offset((pos + 1) as isize) as u32) << 16_i32)
-                ^ ((*key.offset((pos + 2_i32) as isize) as u32) << 8)
-                ^ *key.offset((pos + 3_i32) as isize) as u32;
+            kappa[i as usize] = ((key[pos as usize] as u32) << 24)
+                ^ ((key[(pos + 1) as usize] as u32) << 16_i32)
+                ^ ((key[(pos + 2_i32) as usize] as u32) << 8)
+                ^ key[(pos + 3_i32) as usize] as u32;
             i += 1;
             pos += 4;
         }
@@ -412,7 +404,7 @@ impl Anubis {
         Ok(())
     }
 
-    unsafe fn anubis_crypt(inout: *mut u8, round_key: *const [u32; 4], rounds: usize) {
+    fn anubis_crypt(inout: &mut [u8], round_key: &[[u32; 4]], rounds: usize) {
         let mut i: i32;
         let mut pos: i32;
         let mut r: i32;
@@ -421,11 +413,11 @@ impl Anubis {
         i = 0;
         pos = 0;
         while i < 4 {
-            state[i as usize] = ((*inout.offset(pos as isize) as u32) << 24)
-                ^ ((*inout.offset((pos + 1) as isize) as u32) << 16_i32)
-                ^ ((*inout.offset((pos + 2_i32) as isize) as u32) << 8)
-                ^ *inout.offset((pos + 3_i32) as isize) as u32
-                ^ (*round_key.offset(0))[i as usize];
+            state[i as usize] = ((inout[pos as usize] as u32) << 24)
+                ^ ((inout[(pos + 1) as usize] as u32) << 16_i32)
+                ^ ((inout[(pos + 2_i32) as usize] as u32) << 8)
+                ^ inout[(pos + 3_i32) as usize] as u32
+                ^ round_key[0][i as usize];
             i += 1;
             pos += 4;
         }
@@ -435,22 +427,22 @@ impl Anubis {
                 ^ ANUBIS_T1[((state[1_usize] >> 24) & 0xff_i32 as u32) as usize]
                 ^ ANUBIS_T2[((state[2_i32 as usize] >> 24) & 0xff_i32 as u32) as usize]
                 ^ ANUBIS_T3[((state[3_i32 as usize] >> 24) & 0xff_i32 as u32) as usize]
-                ^ (*round_key.offset(r as isize))[0];
+                ^ round_key[r as usize][0];
             inter[1_usize] = ANUBIS_T0[((state[0] >> 16_i32) & 0xff_i32 as u32) as usize]
                 ^ ANUBIS_T1[((state[1_usize] >> 16_i32) & 0xff_i32 as u32) as usize]
                 ^ ANUBIS_T2[((state[2_i32 as usize] >> 16_i32) & 0xff_i32 as u32) as usize]
                 ^ ANUBIS_T3[((state[3_i32 as usize] >> 16_i32) & 0xff_i32 as u32) as usize]
-                ^ (*round_key.offset(r as isize))[1_usize];
+                ^ round_key[r as usize][1_usize];
             inter[2_i32 as usize] = ANUBIS_T0[((state[0] >> 8) & 0xff_i32 as u32) as usize]
                 ^ ANUBIS_T1[((state[1_usize] >> 8) & 0xff_i32 as u32) as usize]
                 ^ ANUBIS_T2[((state[2_i32 as usize] >> 8) & 0xff_i32 as u32) as usize]
                 ^ ANUBIS_T3[((state[3_i32 as usize] >> 8) & 0xff_i32 as u32) as usize]
-                ^ (*round_key.offset(r as isize))[2_i32 as usize];
+                ^ round_key[r as usize][2_i32 as usize];
             inter[3_i32 as usize] = ANUBIS_T0[(state[0] & 0xff_i32 as u32) as usize]
                 ^ ANUBIS_T1[(state[1_usize] & 0xff_i32 as u32) as usize]
                 ^ ANUBIS_T2[(state[2_i32 as usize] & 0xff_i32 as u32) as usize]
                 ^ ANUBIS_T3[(state[3_i32 as usize] & 0xff_i32 as u32) as usize]
-                ^ (*round_key.offset(r as isize))[3_i32 as usize];
+                ^ round_key[r as usize][3_i32 as usize];
             state[0] = inter[0];
             state[1_usize] = inter[1_usize];
             state[2_i32 as usize] = inter[2_i32 as usize];
@@ -465,7 +457,7 @@ impl Anubis {
                 & 0xff00 as libc::c_uint
             ^ ANUBIS_T3[((state[3_i32 as usize] >> 24) & 0xff_i32 as u32) as usize]
                 & 0xff as libc::c_uint
-            ^ (*round_key.add(rounds))[0];
+            ^ round_key[rounds][0];
         inter[1_usize] = ANUBIS_T0[((state[0] >> 16_i32) & 0xff_i32 as u32) as usize]
             & 0xff000000 as libc::c_uint
             ^ ANUBIS_T1[((state[1_usize] >> 16_i32) & 0xff_i32 as u32) as usize]
@@ -474,7 +466,7 @@ impl Anubis {
                 & 0xff00 as libc::c_uint
             ^ ANUBIS_T3[((state[3_i32 as usize] >> 16_i32) & 0xff_i32 as u32) as usize]
                 & 0xff as libc::c_uint
-            ^ (*round_key.add(rounds))[1_usize];
+            ^ round_key[rounds][1_usize];
         inter[2_i32 as usize] = ANUBIS_T0[((state[0] >> 8) & 0xff_i32 as u32) as usize]
             & 0xff000000 as libc::c_uint
             ^ ANUBIS_T1[((state[1_usize] >> 8) & 0xff_i32 as u32) as usize]
@@ -483,32 +475,32 @@ impl Anubis {
                 & 0xff00 as libc::c_uint
             ^ ANUBIS_T3[((state[3_i32 as usize] >> 8) & 0xff_i32 as u32) as usize]
                 & 0xff as libc::c_uint
-            ^ (*round_key.add(rounds))[2_i32 as usize];
+            ^ round_key[rounds][2_i32 as usize];
         inter[3_i32 as usize] = ANUBIS_T0[(state[0] & 0xff_i32 as u32) as usize]
             & 0xff000000 as libc::c_uint
             ^ ANUBIS_T1[(state[1_usize] & 0xff_i32 as u32) as usize] & 0xff0000 as libc::c_uint
             ^ ANUBIS_T2[(state[2_i32 as usize] & 0xff_i32 as u32) as usize]
                 & 0xff00 as libc::c_uint
             ^ ANUBIS_T3[(state[3_i32 as usize] & 0xff_i32 as u32) as usize] & 0xff as libc::c_uint
-            ^ (*round_key.add(rounds))[3_i32 as usize];
+            ^ round_key[rounds][3_i32 as usize];
         i = 0;
         pos = 0;
         while i < 4 {
             let w = inter[i as usize];
-            *inout.offset(pos as isize) = (w >> 24) as u8;
-            *inout.offset((pos + 1) as isize) = (w >> 16_i32) as u8;
-            *inout.offset((pos + 2_i32) as isize) = (w >> 8) as u8;
-            *inout.offset((pos + 3_i32) as isize) = w as u8;
+            inout[pos as usize] = (w >> 24) as u8;
+            inout[(pos + 1) as usize] = (w >> 16_i32) as u8;
+            inout[(pos + 2_i32) as usize] = (w >> 8) as u8;
+            inout[(pos + 3_i32) as usize] = w as u8;
             i += 1;
             pos += 4;
         }
     }
 
-    pub unsafe fn anubis_ecb_encrypt(&self, inout: *mut u8) {
-        Self::anubis_crypt(inout, (self.enc).as_ptr(), self.rounds);
+    pub fn anubis_ecb_encrypt(&self, inout: &mut [u8]) {
+        Self::anubis_crypt(inout, &self.enc, self.rounds);
     }
 
-    pub unsafe fn anubis_ecb_decrypt(&self, pt: *mut u8) {
-        Self::anubis_crypt(pt, (self.dec).as_ptr(), self.rounds);
+    pub fn anubis_ecb_decrypt(&self, inout: &mut [u8]) {
+        Self::anubis_crypt(inout, &self.dec, self.rounds);
     }
 }
