@@ -1,205 +1,136 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { getParamValue, updateUrlParams } from '@/lib/url-state';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Format } from '@/lib/format';
+import {
+  createHash,
+  getAvailableAlgorithms,
+  HashAlgorithm,
+  supportsHmac,
+} from '@/lib/hash';
 import {
   generateRandomKey,
-  Hash,
   initWasm,
   stringToUint8Array,
   uint8ArrayToString,
-} from '../lib/wasm';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Textarea } from './ui/textarea';
+} from '@/lib/wasm';
+import { Button } from '@/ui/button';
+import { Input } from '@/ui/input';
+import { Label } from '@/ui/label';
+import { Textarea } from '@/ui/textarea';
+import { Switch } from './ui/switch';
 
-const hashAlgorithms = [
-  // MD family
-  { value: 'md2', label: 'MD2' },
-  { value: 'md4', label: 'MD4' },
-  { value: 'md5', label: 'MD5' },
-
-  // SHA-1
-  { value: 'sha1', label: 'SHA-1' },
-
-  // SHA-2 family
-  { value: 'sha224', label: 'SHA-224' },
-  { value: 'sha256', label: 'SHA-256' },
-  { value: 'sha384', label: 'SHA-384' },
-  { value: 'sha512', label: 'SHA-512' },
-  { value: 'sha512_224', label: 'SHA-512/224' },
-  { value: 'sha512_256', label: 'SHA-512/256' },
-
-  // SHA-3 family
-  { value: 'sha3_224', label: 'SHA3-224' },
-  { value: 'sha3_256', label: 'SHA3-256' },
-  { value: 'sha3_384', label: 'SHA3-384' },
-  { value: 'sha3_512', label: 'SHA3-512' },
-
-  // SHAKE (extendable-output functions)
-  { value: 'shake128', label: 'SHAKE128' },
-  { value: 'shake256', label: 'SHAKE256' },
-
-  // BLAKE2 family
-  { value: 'blake2s', label: 'BLAKE2s' },
-  { value: 'blake2b', label: 'BLAKE2b' },
-
-  // SM3 (Chinese national standard)
-  { value: 'sm3', label: 'SM3' },
-];
+const hashAlgorithms = getAvailableAlgorithms();
 
 export function HashPanel() {
-  const [algorithm, setAlgorithm] = useState('sha256');
-  const [message, setMessage] = useState('');
-  const [hash, setHash] = useState('');
-  const [hmacKey, setHmacKey] = useState('');
-  const [useHmac, setUseHmac] = useState(false);
-  const [inputFormat, setInputFormat] = useState<'utf8' | 'hex' | 'base64'>(
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  const pushQuery = useCallback(
+    (name: string, value: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set(name, value);
+      router.push(`${pathname}?${params.toString()}`);
+    },
+    [searchParams, pathname],
+  );
+
+  const algorithm = (searchParams.get('algorithm') ||
+    'sha256') as HashAlgorithm;
+  const message = searchParams.get('message') || '';
+  const messageFormat = Format.fromString(
+    searchParams.get('messageFormat'),
     'utf8',
   );
-  const [outputFormat, setOutputFormat] = useState<'hex' | 'base64'>('hex');
+  const outputFormat = Format.fromString(
+    searchParams.get('outputFormat'),
+    'hex',
+  );
+  const hmacKey = searchParams.get('hmacKey');
+  const useHmac = searchParams.get('useHmac') === 'true';
+
+  const [hash, setHash] = useState('');
   const [error, setError] = useState('');
   const [wasmReady, setWasmReady] = useState(false);
+  const [isComputing, setIsComputing] = useState(false);
 
   useEffect(() => {
     initWasm().then(() => setWasmReady(true));
   }, []);
 
-  const generateHmacKey = () => {
-    const keyBytes = generateRandomKey(32);
-    const keyHex = uint8ArrayToString(keyBytes, 'hex');
-    setHmacKey(keyHex);
+  // Debounce hook
+  const useDebounce = (value: any, delay: number) => {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+
+    useEffect(() => {
+      const handler = setTimeout(() => {
+        setDebouncedValue(value);
+      }, delay);
+
+      return () => {
+        clearTimeout(handler);
+      };
+    }, [value, delay]);
+
+    return debouncedValue;
   };
 
-  const computeHash = async () => {
-    if (!wasmReady) return;
+  // Create a dependency object for debouncing
+  const hashDependencies = useMemo(
+    () => ({
+      algorithm,
+      message,
+      messageFormat,
+      outputFormat,
+      hmacKey,
+      useHmac,
+      wasmReady,
+    }),
+    [
+      algorithm,
+      message,
+      messageFormat,
+      outputFormat,
+      hmacKey,
+      useHmac,
+      wasmReady,
+    ],
+  );
+
+  // Debounce the dependencies
+  const debouncedDependencies = useDebounce(hashDependencies, 500);
+
+  const computeHash = useCallback(async () => {
+    if (!wasmReady || !message.trim()) {
+      setHash('');
+      setError('');
+      return;
+    }
 
     try {
+      setIsComputing(true);
       setError('');
-      const messageBytes = stringToUint8Array(message, inputFormat);
+      const messageBytes = stringToUint8Array(message, messageFormat);
 
-      let hasher: Hash;
+      // Use the type-safe hash creation function
+      const hmacKeyBytes =
+        useHmac && hmacKey ? stringToUint8Array(hmacKey, 'hex') : undefined;
 
-      if (useHmac && hmacKey) {
-        const keyBytes = stringToUint8Array(hmacKey, 'hex');
-        switch (algorithm) {
-          case 'md2':
-            hasher = Hash.new_md2_hmac(keyBytes);
-            break;
-          case 'md4':
-            hasher = Hash.new_md4_hmac(keyBytes);
-            break;
-          case 'md5':
-            hasher = Hash.new_md5_hmac(keyBytes);
-            break;
-          case 'sha1':
-            hasher = Hash.new_sha1_hmac(keyBytes);
-            break;
-          case 'sha224':
-            hasher = Hash.new_sha224_hmac(keyBytes);
-            break;
-          case 'sha256':
-            hasher = Hash.new_sha256_hmac(keyBytes);
-            break;
-          case 'sha384':
-            hasher = Hash.new_sha384_hmac(keyBytes);
-            break;
-          case 'sha512':
-            hasher = Hash.new_sha512_hmac(keyBytes);
-            break;
-          case 'sha512_224':
-            hasher = Hash.new_sha512_224_hmac(keyBytes);
-            break;
-          case 'sha512_256':
-            hasher = Hash.new_sha512_256_hmac(keyBytes);
-            break;
-          case 'sha3_224':
-            hasher = Hash.new_sha3_224_hmac(keyBytes);
-            break;
-          case 'sha3_256':
-            hasher = Hash.new_sha3_256_hmac(keyBytes);
-            break;
-          case 'sha3_384':
-            hasher = Hash.new_sha3_384_hmac(keyBytes);
-            break;
-          case 'sha3_512':
-            hasher = Hash.new_sha3_512_hmac(keyBytes);
-            break;
-          case 'shake128':
-            hasher = Hash.new_shake128_hmac(keyBytes);
-            break;
-          case 'shake256':
-            hasher = Hash.new_shake256_hmac(keyBytes);
-            break;
-          case 'sm3':
-            hasher = Hash.new_sm3_hmac(keyBytes);
-            break;
-          default:
-            throw new Error('HMAC not supported for this algorithm');
-        }
-      } else {
-        switch (algorithm) {
-          case 'md2':
-            hasher = Hash.new_md2();
-            break;
-          case 'md4':
-            hasher = Hash.new_md4();
-            break;
-          case 'md5':
-            hasher = Hash.new_md5();
-            break;
-          case 'sha1':
-            hasher = Hash.new_sha1();
-            break;
-          case 'sha224':
-            hasher = Hash.new_sha224();
-            break;
-          case 'sha256':
-            hasher = Hash.new_sha256();
-            break;
-          case 'sha384':
-            hasher = Hash.new_sha384();
-            break;
-          case 'sha512':
-            hasher = Hash.new_sha512();
-            break;
-          case 'sha512_224':
-            hasher = Hash.new_sha512_224();
-            break;
-          case 'sha512_256':
-            hasher = Hash.new_sha512_256();
-            break;
-          case 'sha3_224':
-            hasher = Hash.new_sha3_224();
-            break;
-          case 'sha3_256':
-            hasher = Hash.new_sha3_256();
-            break;
-          case 'sha3_384':
-            hasher = Hash.new_sha3_384();
-            break;
-          case 'sha3_512':
-            hasher = Hash.new_sha3_512();
-            break;
-          case 'shake128':
-            hasher = Hash.new_shake128();
-            break;
-          case 'shake256':
-            hasher = Hash.new_shake256();
-            break;
-          case 'blake2s':
-            hasher = Hash.new_blake2s(null, 32);
-            break;
-          case 'blake2b':
-            hasher = Hash.new_blake2b(null, 64);
-            break;
-          case 'sm3':
-            hasher = Hash.new_sm3();
-            break;
-          default:
-            throw new Error('Unsupported algorithm');
-        }
+      // Check if HMAC is requested but not supported
+      if (useHmac && hmacKey && !supportsHmac(algorithm)) {
+        throw new Error(`HMAC not supported for ${algorithm}`);
       }
+
+      const hasher = createHash(algorithm, hmacKeyBytes);
 
       hasher.write(messageBytes);
       const hashBytes = hasher.sum();
@@ -209,133 +140,202 @@ export function HashPanel() {
       hasher.free();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hash computation failed');
+      setHash('');
+    } finally {
+      setIsComputing(false);
     }
-  };
+  }, [
+    wasmReady,
+    message,
+    messageFormat,
+    algorithm,
+    outputFormat,
+    hmacKey,
+    useHmac,
+  ]);
+
+  // Auto-compute hash when dependencies change
+  useEffect(() => {
+    if (!wasmReady || !message.trim()) {
+      setHash('');
+      setError('');
+      return;
+    }
+
+    computeHash();
+  }, [debouncedDependencies, computeHash]);
 
   if (!wasmReady) {
     return <div className="p-6">Loading WASM module...</div>;
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold mb-4">Hash Functions</h2>
+    <div className="p-6 max-w-4xl mx-auto">
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold mb-2">Hash Functions</h2>
         <p className="text-muted-foreground">
           Cryptographic hash functions and HMAC
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium mb-2">Algorithm</label>
-          <select
+      <div className="space-y-6">
+        {/* Algorithm Selection */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Algorithm</Label>
+          <Select
+            onValueChange={e => {
+              pushQuery('algorithm', e);
+            }}
             value={algorithm}
-            onChange={e => {
-              setAlgorithm(e.target.value);
-            }}
-            className="w-full p-2 border rounded-md bg-background text-foreground"
           >
-            {hashAlgorithms.map(alg => (
-              <option key={alg.value} value={alg.value}>
-                {alg.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full max-w-md">
+              <SelectValue placeholder="Select an algorithm" />
+            </SelectTrigger>
+            <SelectContent>
+              {hashAlgorithms.map(alg => (
+                <SelectItem key={alg.value} value={alg.value}>
+                  {alg.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-2">Format</label>
-          <div className="flex gap-2">
-            <select
-              value={inputFormat}
-              onChange={e => {
-                setInputFormat(e.target.value as any);
+        {/* HMAC Configuration */}
+        <div className="space-y-3">
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="useHmac"
+              checked={useHmac}
+              disabled={!supportsHmac(algorithm)}
+              onCheckedChange={e => {
+                pushQuery('useHmac', e ? 'true' : 'false');
               }}
-              className="flex-1 p-2 border rounded-md bg-background text-foreground"
-            >
-              <option value="utf8">UTF-8</option>
-              <option value="hex">Hex</option>
-              <option value="base64">Base64</option>
-            </select>
-            <select
-              value={outputFormat}
-              onChange={e => {
-                setOutputFormat(e.target.value as any);
-              }}
-              className="flex-1 p-2 border rounded-md bg-background text-foreground"
-            >
-              <option value="hex">Hex</option>
-              <option value="base64">Base64</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <div className="flex items-center mb-2">
-          <input
-            type="checkbox"
-            id="useHmac"
-            checked={useHmac}
-            onChange={e => {
-              setUseHmac(e.target.checked);
-            }}
-            className="mr-2"
-          />
-          <label htmlFor="useHmac" className="text-sm font-medium">
-            Use HMAC
-          </label>
-        </div>
-
-        {useHmac && (
-          <div className="flex gap-2">
-            <Input
-              value={hmacKey}
-              onChange={e => {
-                setHmacKey(e.target.value);
-              }}
-              placeholder="Enter HMAC key in hex format"
-              className="flex-1"
             />
-            <Button onClick={generateHmacKey} variant="outline">
-              Generate Key
-            </Button>
+            <Label htmlFor="useHmac" className="text-sm font-medium">
+              Use HMAC
+              {!supportsHmac(algorithm) && (
+                <span className="text-muted-foreground ml-1">
+                  (not supported)
+                </span>
+              )}
+            </Label>
+          </div>
+
+          {useHmac && supportsHmac(algorithm) && (
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Input
+                value={hmacKey || ''}
+                onChange={e => {
+                  pushQuery('hmacKey', e.target.value);
+                }}
+                placeholder="Enter HMAC key in hex format"
+                className="flex-1"
+              />
+              <Button
+                onClick={() => {
+                  const keyBytes = generateRandomKey(32);
+                  const keyHex = uint8ArrayToString(keyBytes, 'hex');
+                  pushQuery('hmacKey', keyHex);
+                }}
+                variant="outline"
+                className="sm:w-auto w-full"
+              >
+                Generate Key
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Message Input */}
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <Label className="text-sm font-medium">Message</Label>
+            <Select
+              onValueChange={e => {
+                pushQuery('messageFormat', e);
+              }}
+              value={messageFormat}
+            >
+              <SelectTrigger className="w-full sm:w-[140px]">
+                <SelectValue placeholder="Format" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="hex">Hex</SelectItem>
+                <SelectItem value="base64">Base64</SelectItem>
+                <SelectItem value="utf8">UTF-8</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Textarea
+            value={message}
+            onChange={e => {
+              pushQuery('message', e.target.value);
+            }}
+            placeholder="Enter message to hash"
+            rows={4}
+            className="resize-none"
+          />
+        </div>
+
+        {/* Hash Output */}
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <Label className="text-sm font-medium">Hash Output</Label>
+            <Select
+              onValueChange={e => {
+                pushQuery('outputFormat', e);
+              }}
+              value={outputFormat}
+            >
+              <SelectTrigger className="w-full sm:w-[140px]">
+                <SelectValue placeholder="Format" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="hex">Hex</SelectItem>
+                <SelectItem value="base64">Base64</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Textarea
+            value={hash}
+            readOnly
+            placeholder={isComputing ? 'Computing...' : 'Hash will appear here'}
+            rows={3}
+            className="bg-muted resize-none font-mono text-sm"
+          />
+        </div>
+
+        {/* Status and Manual Compute */}
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            {message.trim()
+              ? isComputing
+                ? 'Computing hash...'
+                : hash
+                  ? 'Hash computed automatically'
+                  : 'Ready to compute'
+              : 'Enter a message to compute hash'}
+          </div>
+          <Button
+            onClick={computeHash}
+            variant="outline"
+            size="sm"
+            disabled={!message.trim() || isComputing}
+          >
+            {isComputing ? 'Computing...' : 'Compute Now'}
+          </Button>
+        </div>
+
+        {/* Error Display */}
+        {error && (
+          <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-md">
+            <p className="text-destructive text-sm">{error}</p>
           </div>
         )}
       </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Message</label>
-        <Textarea
-          value={message}
-          onChange={e => {
-            setMessage(e.target.value);
-          }}
-          placeholder="Enter message to hash"
-          rows={4}
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Hash Output</label>
-        <Textarea
-          value={hash}
-          readOnly
-          placeholder="Hash will appear here"
-          rows={3}
-          className="bg-muted"
-        />
-      </div>
-
-      <Button onClick={computeHash} className="w-full">
-        Compute Hash
-      </Button>
-
-      {error && (
-        <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-md">
-          <p className="text-destructive">{error}</p>
-        </div>
-      )}
     </div>
   );
 }
