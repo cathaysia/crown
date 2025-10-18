@@ -40,6 +40,12 @@ jobs:
       - name: install pre-commit
         run: |
           pip3 install pre-commit
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      - name: Build WASM module
+        run: |
+          cd crown-wasm
+          wasm-pack build --target web --out-dir pkg
       - name: check style
         env:
           SCCACHE_GHA_ENABLED: "true"
