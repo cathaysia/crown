@@ -1,5 +1,11 @@
 # crown
 
+![Crates.io Version](<https://img.shields.io/crates/v/crown?label=crown(crates.io)>)
+![Crates.io Version](<https://img.shields.io/crates/v/crown-bin?label=crown-bin(crates.io)>)
+[![check-unittest](https://github.com/cathaysia/crown/actions/workflows/check-unittest.yaml/badge.svg)](https://github.com/cathaysia/crown/actions/workflows/check-unittest.yaml)
+[![release](https://github.com/cathaysia/crown/actions/workflows/release.yaml/badge.svg)](https://github.com/cathaysia/crown/actions/workflows/release.yaml)
+[![deploy-github-pages](https://github.com/cathaysia/crown/actions/workflows/deploy.yml/badge.svg)](https://github.com/cathaysia/crown/actions/workflows/deploy.yml)
+
 > [!IMPORTANT]
 > ALL ALGORITHMS ARE IMPLEMENTED FOLLOWING STANDARD SPECIFICATIONS, BUT THE LIBRARY HAS NOT UNDERGONE A FORMAL SECURITY AUDIT.
 >
