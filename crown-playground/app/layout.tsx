@@ -8,6 +8,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <title>Crown Playground</title>
+      </head>
       <body>
         <SidebarProvider defaultOpen={true}>{children}</SidebarProvider>
       </body>
