@@ -308,7 +308,7 @@ fn test_anubis_valid_key_sizes() {
         match Anubis::new(&key) {
             Ok(cipher) => {
                 assert_eq!(cipher.block_size(), 16);
-                assert_eq!(cipher.key_bits, (valid_size * 8) as i32);
+                assert_eq!(cipher.key_bits, (valid_size * 8));
             }
             Err(e) => panic!("Unexpected error for valid key size {}: {}", valid_size, e),
         }
