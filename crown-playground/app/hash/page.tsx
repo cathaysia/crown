@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { AppSidebar } from '@/components/AppSidebar';
 import { HashPanel } from '@/components/HashPanel';
 import { SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
@@ -12,7 +13,9 @@ export default function HashPage() {
           <h1 className="text-lg font-semibold">Hash</h1>
         </header>
         <div className="flex-1 overflow-auto bg-background text-foreground p-4">
-          <HashPanel />
+          <Suspense>
+            <HashPanel />
+          </Suspense>
         </div>
       </SidebarInset>
     </>

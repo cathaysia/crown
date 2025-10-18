@@ -2,7 +2,6 @@
 
 import { Crown, Hash, Lock, Shield, Zap } from 'lucide-react';
 import Link from 'next/link';
-import React from 'react';
 import {
   Sidebar,
   SidebarContent,
@@ -30,23 +29,32 @@ export function AppSidebar({ activeTab }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-4">
-        <div className="flex items-center gap-2">
-          <div className="group-data-[collapsible=icon]:hidden">
-            <h1 className="text-xl font-bold text-sidebar-foreground">
-              Crown Crypto
-            </h1>
-            <p className="text-xs text-sidebar-foreground/70 mt-1">
-              Cryptography Playground
-            </p>
+        <div className="flex flex-col items-center gap-3">
+          <div className="group-data-[collapsible=icon]:hidden w-full">
+            <div className="flex flex-col items-center gap-2">
+              <a
+                href="https://github.com/cathaysia/crown"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+              >
+                <Crown className="w-8 h-8 text-white" />
+              </a>
+              <div className="text-center">
+                <h1 className="text-lg font-bold text-sidebar-foreground">
+                  Crown Crypto
+                </h1>
+                <p className="text-xs text-sidebar-foreground/70">
+                  Cryptography Playground
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </SidebarHeader>
 
       <SidebarContent>
         <div className="px-2">
-          <div className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">
-            Cryptographic Functions
-          </div>
           <SidebarMenu>
             {menuItems.map(item => {
               const Icon = item.icon;
