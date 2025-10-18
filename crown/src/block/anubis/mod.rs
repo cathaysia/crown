@@ -306,33 +306,25 @@ impl Anubis {
             i = n - 2_i32;
             while i >= 0 {
                 k0 = ANUBIS_T4[((kappa[i as usize] >> 24) & 0xff_i32 as u32) as usize]
-                    ^ ANUBIS_T5[((k0 >> 24) & 0xff_i32 as u32) as usize]
-                        & 0xff000000 as libc::c_uint
-                    ^ ANUBIS_T5[((k0 >> 16_i32) & 0xff_i32 as u32) as usize]
-                        & 0xff0000 as libc::c_uint
-                    ^ ANUBIS_T5[((k0 >> 8) & 0xff_i32 as u32) as usize] & 0xff00 as libc::c_uint
-                    ^ ANUBIS_T5[(k0 & 0xff_i32 as u32) as usize] & 0xff as libc::c_uint;
+                    ^ ANUBIS_T5[((k0 >> 24) & 0xff_i32 as u32) as usize] & 0xff000000_u32
+                    ^ ANUBIS_T5[((k0 >> 16_i32) & 0xff_i32 as u32) as usize] & 0xff0000_u32
+                    ^ ANUBIS_T5[((k0 >> 8) & 0xff_i32 as u32) as usize] & 0xff00_u32
+                    ^ ANUBIS_T5[(k0 & 0xff_i32 as u32) as usize] & 0xff_u32;
                 k1 = ANUBIS_T4[((kappa[i as usize] >> 16_i32) & 0xff_i32 as u32) as usize]
-                    ^ ANUBIS_T5[((k1 >> 24) & 0xff_i32 as u32) as usize]
-                        & 0xff000000 as libc::c_uint
-                    ^ ANUBIS_T5[((k1 >> 16_i32) & 0xff_i32 as u32) as usize]
-                        & 0xff0000 as libc::c_uint
-                    ^ ANUBIS_T5[((k1 >> 8) & 0xff_i32 as u32) as usize] & 0xff00 as libc::c_uint
-                    ^ ANUBIS_T5[(k1 & 0xff_i32 as u32) as usize] & 0xff as libc::c_uint;
+                    ^ ANUBIS_T5[((k1 >> 24) & 0xff_i32 as u32) as usize] & 0xff000000_u32
+                    ^ ANUBIS_T5[((k1 >> 16_i32) & 0xff_i32 as u32) as usize] & 0xff0000_u32
+                    ^ ANUBIS_T5[((k1 >> 8) & 0xff_i32 as u32) as usize] & 0xff00_u32
+                    ^ ANUBIS_T5[(k1 & 0xff_i32 as u32) as usize] & 0xff_u32;
                 k2 = ANUBIS_T4[((kappa[i as usize] >> 8) & 0xff_i32 as u32) as usize]
-                    ^ ANUBIS_T5[((k2 >> 24) & 0xff_i32 as u32) as usize]
-                        & 0xff000000 as libc::c_uint
-                    ^ ANUBIS_T5[((k2 >> 16_i32) & 0xff_i32 as u32) as usize]
-                        & 0xff0000 as libc::c_uint
-                    ^ ANUBIS_T5[((k2 >> 8) & 0xff_i32 as u32) as usize] & 0xff00 as libc::c_uint
-                    ^ ANUBIS_T5[(k2 & 0xff_i32 as u32) as usize] & 0xff as libc::c_uint;
+                    ^ ANUBIS_T5[((k2 >> 24) & 0xff_i32 as u32) as usize] & 0xff000000_u32
+                    ^ ANUBIS_T5[((k2 >> 16_i32) & 0xff_i32 as u32) as usize] & 0xff0000_u32
+                    ^ ANUBIS_T5[((k2 >> 8) & 0xff_i32 as u32) as usize] & 0xff00_u32
+                    ^ ANUBIS_T5[(k2 & 0xff_i32 as u32) as usize] & 0xff_u32;
                 k3 = ANUBIS_T4[(kappa[i as usize] & 0xff_i32 as u32) as usize]
-                    ^ ANUBIS_T5[((k3 >> 24) & 0xff_i32 as u32) as usize]
-                        & 0xff000000 as libc::c_uint
-                    ^ ANUBIS_T5[((k3 >> 16_i32) & 0xff_i32 as u32) as usize]
-                        & 0xff0000 as libc::c_uint
-                    ^ ANUBIS_T5[((k3 >> 8) & 0xff_i32 as u32) as usize] & 0xff00 as libc::c_uint
-                    ^ ANUBIS_T5[(k3 & 0xff_i32 as u32) as usize] & 0xff as libc::c_uint;
+                    ^ ANUBIS_T5[((k3 >> 24) & 0xff_i32 as u32) as usize] & 0xff000000_u32
+                    ^ ANUBIS_T5[((k3 >> 16_i32) & 0xff_i32 as u32) as usize] & 0xff0000_u32
+                    ^ ANUBIS_T5[((k3 >> 8) & 0xff_i32 as u32) as usize] & 0xff00_u32
+                    ^ ANUBIS_T5[(k3 & 0xff_i32 as u32) as usize] & 0xff_u32;
                 i -= 1;
             }
             self.enc[r as usize][0] = k0;
@@ -449,39 +441,28 @@ impl Anubis {
             state[3_i32 as usize] = inter[3_i32 as usize];
             r += 1;
         }
-        inter[0] = ANUBIS_T0[((state[0] >> 24) & 0xff_i32 as u32) as usize]
-            & 0xff000000 as libc::c_uint
-            ^ ANUBIS_T1[((state[1_usize] >> 24) & 0xff_i32 as u32) as usize]
-                & 0xff0000 as libc::c_uint
-            ^ ANUBIS_T2[((state[2_i32 as usize] >> 24) & 0xff_i32 as u32) as usize]
-                & 0xff00 as libc::c_uint
-            ^ ANUBIS_T3[((state[3_i32 as usize] >> 24) & 0xff_i32 as u32) as usize]
-                & 0xff as libc::c_uint
+        inter[0] = ANUBIS_T0[((state[0] >> 24) & 0xff_i32 as u32) as usize] & 0xff000000_u32
+            ^ ANUBIS_T1[((state[1_usize] >> 24) & 0xff_i32 as u32) as usize] & 0xff0000_u32
+            ^ ANUBIS_T2[((state[2_i32 as usize] >> 24) & 0xff_i32 as u32) as usize] & 0xff00_u32
+            ^ ANUBIS_T3[((state[3_i32 as usize] >> 24) & 0xff_i32 as u32) as usize] & 0xff_u32
             ^ round_key[rounds][0];
         inter[1_usize] = ANUBIS_T0[((state[0] >> 16_i32) & 0xff_i32 as u32) as usize]
-            & 0xff000000 as libc::c_uint
-            ^ ANUBIS_T1[((state[1_usize] >> 16_i32) & 0xff_i32 as u32) as usize]
-                & 0xff0000 as libc::c_uint
+            & 0xff000000_u32
+            ^ ANUBIS_T1[((state[1_usize] >> 16_i32) & 0xff_i32 as u32) as usize] & 0xff0000_u32
             ^ ANUBIS_T2[((state[2_i32 as usize] >> 16_i32) & 0xff_i32 as u32) as usize]
-                & 0xff00 as libc::c_uint
-            ^ ANUBIS_T3[((state[3_i32 as usize] >> 16_i32) & 0xff_i32 as u32) as usize]
-                & 0xff as libc::c_uint
+                & 0xff00_u32
+            ^ ANUBIS_T3[((state[3_i32 as usize] >> 16_i32) & 0xff_i32 as u32) as usize] & 0xff_u32
             ^ round_key[rounds][1_usize];
         inter[2_i32 as usize] = ANUBIS_T0[((state[0] >> 8) & 0xff_i32 as u32) as usize]
-            & 0xff000000 as libc::c_uint
-            ^ ANUBIS_T1[((state[1_usize] >> 8) & 0xff_i32 as u32) as usize]
-                & 0xff0000 as libc::c_uint
-            ^ ANUBIS_T2[((state[2_i32 as usize] >> 8) & 0xff_i32 as u32) as usize]
-                & 0xff00 as libc::c_uint
-            ^ ANUBIS_T3[((state[3_i32 as usize] >> 8) & 0xff_i32 as u32) as usize]
-                & 0xff as libc::c_uint
+            & 0xff000000_u32
+            ^ ANUBIS_T1[((state[1_usize] >> 8) & 0xff_i32 as u32) as usize] & 0xff0000_u32
+            ^ ANUBIS_T2[((state[2_i32 as usize] >> 8) & 0xff_i32 as u32) as usize] & 0xff00_u32
+            ^ ANUBIS_T3[((state[3_i32 as usize] >> 8) & 0xff_i32 as u32) as usize] & 0xff_u32
             ^ round_key[rounds][2_i32 as usize];
-        inter[3_i32 as usize] = ANUBIS_T0[(state[0] & 0xff_i32 as u32) as usize]
-            & 0xff000000 as libc::c_uint
-            ^ ANUBIS_T1[(state[1_usize] & 0xff_i32 as u32) as usize] & 0xff0000 as libc::c_uint
-            ^ ANUBIS_T2[(state[2_i32 as usize] & 0xff_i32 as u32) as usize]
-                & 0xff00 as libc::c_uint
-            ^ ANUBIS_T3[(state[3_i32 as usize] & 0xff_i32 as u32) as usize] & 0xff as libc::c_uint
+        inter[3_i32 as usize] = ANUBIS_T0[(state[0] & 0xff_i32 as u32) as usize] & 0xff000000_u32
+            ^ ANUBIS_T1[(state[1_usize] & 0xff_i32 as u32) as usize] & 0xff0000_u32
+            ^ ANUBIS_T2[(state[2_i32 as usize] & 0xff_i32 as u32) as usize] & 0xff00_u32
+            ^ ANUBIS_T3[(state[3_i32 as usize] & 0xff_i32 as u32) as usize] & 0xff_u32
             ^ round_key[rounds][3_i32 as usize];
         i = 0;
         pos = 0;
