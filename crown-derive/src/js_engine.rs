@@ -37,8 +37,10 @@ fn execute_js_with_context(js_code: &str, context: &str) -> Result<String, Strin
             return Err(format!("Failed to evaluate JavaScript code: {}", e));
         }
     };
+    let result = result.display().to_string();
+    let result = result.trim_matches('"');
 
-    Ok(result.display().to_string())
+    Ok(result.to_string())
 }
 
 pub fn jsasm(input: TokenStream) -> TokenStream {
