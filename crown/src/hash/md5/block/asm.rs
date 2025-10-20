@@ -2,10 +2,15 @@
 
 use core::arch::global_asm;
 
+use crown_derive::jsasm_file;
+
 use super::Md5;
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
-global_asm!(include_str!("x86_64.S"), options(att_syntax));
+global_asm!(
+    jsasm_file!("crown/src/hash/md5/block/x86_64.js", "{}"),
+    options(att_syntax)
+);
 
 extern "C" {
     /// Assembly function for MD5 block processing on AArch64
