@@ -307,7 +307,6 @@ unsigned int crown_ia32cap_P[10] = {};
 
     let mut build = cc::Build::new();
     build
-        .file("./src/hash/md5/block/x86_64.S")
         .file("src/mac/poly1305/sum/x86_64.S")
         .file("src/stream/chacha20/xor_key_stream/x86_64.S")
         .file(format!("{outdir}/cap.c"))
