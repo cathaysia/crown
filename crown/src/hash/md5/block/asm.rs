@@ -1,6 +1,11 @@
 //! md5 assembly optimized MD5 implementation
 
+use core::arch::global_asm;
+
 use super::Md5;
+
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+global_asm!(include_str!("x86_64.S"), options(att_syntax));
 
 extern "C" {
     /// Assembly function for MD5 block processing on AArch64
