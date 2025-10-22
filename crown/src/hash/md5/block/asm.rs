@@ -1,14 +1,10 @@
 //! md5 assembly optimized MD5 implementation
 
-use core::arch::global_asm;
-
-use crown_derive::jsasm_file;
-
 use super::Md5;
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
-global_asm!(
-    jsasm_file!("crown/src/hash/md5/block/x86_64.js", "{}"),
+core::arch::global_asm!(
+    crown_derive::jsasm_file!("crown/src/hash/md5/block/x86_64.js"),
     options(att_syntax)
 );
 
