@@ -5,6 +5,7 @@
 [![check-unittest](https://github.com/cathaysia/crown/actions/workflows/check-unittest.yaml/badge.svg)](https://github.com/cathaysia/crown/actions/workflows/check-unittest.yaml)
 [![release](https://github.com/cathaysia/crown/actions/workflows/release.yaml/badge.svg)](https://github.com/cathaysia/crown/actions/workflows/release.yaml)
 [![deploy-github-pages](https://github.com/cathaysia/crown/actions/workflows/deploy.yml/badge.svg)](https://github.com/cathaysia/crown/actions/workflows/deploy.yml)
+[![check-build-cross](https://github.com/cathaysia/crown/actions/workflows/check-build-cross.yaml/badge.svg)](https://github.com/cathaysia/crown/actions/workflows/check-build-cross.yaml)
 
 > [!IMPORTANT]
 > ALL ALGORITHMS ARE IMPLEMENTED FOLLOWING STANDARD SPECIFICATIONS, BUT THE LIBRARY HAS NOT UNDERGONE A FORMAL SECURITY AUDIT.
