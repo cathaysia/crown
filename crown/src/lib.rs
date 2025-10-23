@@ -61,6 +61,7 @@
 //! ## Feature flags
 #![doc = document_features::document_features!()]
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(clippy::needless_range_loop)]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;

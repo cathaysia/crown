@@ -1,13 +1,15 @@
 #[cfg(test)]
 mod tests;
 
+use bytes::{Buf, BufMut};
+
 use crate::{
     aead::ocb3::Ocb3Marker,
     block::BlockCipher,
     error::{CryptoError, CryptoResult},
 };
 
-static ANUBIS_T0: [u32; 256] = [
+const ANUBIS_T0: [u32; 256] = [
     0xba69d2bb, 0x54a84de5, 0x2f5ebce2, 0x74e8cd25, 0x53a651f7, 0xd3bb6bd0, 0xd2b96fd6, 0x4d9a29b3,
     0x50a05dfd, 0xac458acf, 0x8d070e09, 0xbf63c6a5, 0x70e0dd3d, 0x52a455f1, 0x9a29527b, 0x4c982db5,
     0xeac98f46, 0xd5b773c4, 0x97336655, 0xd1bf63dc, 0x3366ccaa, 0x51a259fb, 0x5bb671c7, 0xa651a2f3,
@@ -42,7 +44,7 @@ static ANUBIS_T0: [u32; 256] = [
     0xcf831b98, 0xa259b2eb, 0x801d3a27, 0x4f9e21bf, 0x1f3e7c42, 0xca890f86, 0xaa4992db, 0x42841591,
 ];
 
-static ANUBIS_T1: [u32; 256] = [
+const ANUBIS_T1: [u32; 256] = [
     0x69babbd2, 0xa854e54d, 0x5e2fe2bc, 0xe87425cd, 0xa653f751, 0xbbd3d06b, 0xb9d2d66f, 0x9a4db329,
     0xa050fd5d, 0x45accf8a, 0x78d090e, 0x63bfa5c6, 0xe0703ddd, 0xa452f155, 0x299a7b52, 0x984cb52d,
     0xc9ea468f, 0xb7d5c473, 0x33975566, 0xbfd1dc63, 0x6633aacc, 0xa251fb59, 0xb65bc771, 0x51a6f3a2,
@@ -77,7 +79,7 @@ static ANUBIS_T1: [u32; 256] = [
     0x83cf981b, 0x59a2ebb2, 0x1d80273a, 0x9e4fbf21, 0x3e1f427c, 0x89ca860f, 0x49aadb92, 0x84429115,
 ];
 
-static ANUBIS_T2: [u32; 256] = [
+const ANUBIS_T2: [u32; 256] = [
     0xd2bbba69, 0x4de554a8, 0xbce22f5e, 0xcd2574e8, 0x51f753a6, 0x6bd0d3bb, 0x6fd6d2b9, 0x29b34d9a,
     0x5dfd50a0, 0x8acfac45, 0xe098d07, 0xc6a5bf63, 0xdd3d70e0, 0x55f152a4, 0x527b9a29, 0x2db54c98,
     0x8f46eac9, 0x73c4d5b7, 0x66559733, 0x63dcd1bf, 0xccaa3366, 0x59fb51a2, 0x71c75bb6, 0xa2f3a651,
@@ -112,7 +114,7 @@ static ANUBIS_T2: [u32; 256] = [
     0x1b98cf83, 0xb2eba259, 0x3a27801d, 0x21bf4f9e, 0x7c421f3e, 0xf86ca89, 0x92dbaa49, 0x15914284,
 ];
 
-static ANUBIS_T3: [u32; 256] = [
+const ANUBIS_T3: [u32; 256] = [
     0xbbd269ba, 0xe54da854, 0xe2bc5e2f, 0x25cde874, 0xf751a653, 0xd06bbbd3, 0xd66fb9d2, 0xb3299a4d,
     0xfd5da050, 0xcf8a45ac, 0x90e078d, 0xa5c663bf, 0x3ddde070, 0xf155a452, 0x7b52299a, 0xb52d984c,
     0x468fc9ea, 0xc473b7d5, 0x55663397, 0xdc63bfd1, 0xaacc6633, 0xfb59a251, 0xc771b65b, 0xf3a251a6,
@@ -147,7 +149,7 @@ static ANUBIS_T3: [u32; 256] = [
     0x981b83cf, 0xebb259a2, 0x273a1d80, 0xbf219e4f, 0x427c3e1f, 0x860f89ca, 0xdb9249aa, 0x91158442,
 ];
 
-static ANUBIS_T4: [u32; 256] = [
+const ANUBIS_T4: [u32; 256] = [
     0xbabababa, 0x54545454, 0x2f2f2f2f, 0x74747474, 0x53535353, 0xd3d3d3d3, 0xd2d2d2d2, 0x4d4d4d4d,
     0x50505050, 0xacacacac, 0x8d8d8d8d, 0xbfbfbfbf, 0x70707070, 0x52525252, 0x9a9a9a9a, 0x4c4c4c4c,
     0xeaeaeaea, 0xd5d5d5d5, 0x97979797, 0xd1d1d1d1, 0x33333333, 0x51515151, 0x5b5b5b5b, 0xa6a6a6a6,
@@ -182,7 +184,7 @@ static ANUBIS_T4: [u32; 256] = [
     0xcfcfcfcf, 0xa2a2a2a2, 0x80808080, 0x4f4f4f4f, 0x1f1f1f1f, 0xcacacaca, 0xaaaaaaaa, 0x42424242,
 ];
 
-static ANUBIS_T5: [u32; 256] = [
+const ANUBIS_T5: [u32; 256] = [
     0, 0x1020608, 0x2040c10, 0x3060a18, 0x4081820, 0x50a1e28, 0x60c1430, 0x70e1238, 0x8103040,
     0x9123648, 0xa143c50, 0xb163a58, 0xc182860, 0xd1a2e68, 0xe1c2470, 0xf1e2278, 0x10206080,
     0x11226688, 0x12246c90, 0x13266a98, 0x142878a0, 0x152a7ea8, 0x162c74b0, 0x172e72b8, 0x183050c0,
@@ -217,7 +219,7 @@ static ANUBIS_T5: [u32; 256] = [
     0xf9ef2c9b, 0xfae92683, 0xfbeb208b, 0xfce532b3, 0xfde734bb, 0xfee13ea3, 0xffe338ab,
 ];
 
-static ANUBIS_RC: [u32; 19] = [
+const ANUBIS_RC: [u32; 19] = [
     0xba542f74, 0x53d3d24d, 0x50ac8dbf, 0x70529a4c, 0xead597d1, 0x33515ba6, 0xde48a899, 0xdb32b7fc,
     0xe39e919b, 0xe2bb416e, 0xa5cb6b95, 0xa1f3b102, 0xccc41d14, 0xc363da5d, 0x5fdc7dcd, 0x7f5a6c5c,
     0xf726ffed, 0xe89d6f8e, 0x19a0f089,
@@ -238,7 +240,7 @@ impl Anubis {
             key_bits: 0,
             rounds: 0,
         };
-        ret.anubis_setup(key, 0)?;
+        ret.setup(key, 0)?;
 
         Ok(ret)
     }
@@ -252,23 +254,18 @@ impl BlockCipher for Anubis {
         // 16..40
         16
     }
-    fn decrypt_block(&self, inout: &mut [u8]) {
-        self.anubis_ecb_decrypt(inout);
-    }
-
     fn encrypt_block(&self, inout: &mut [u8]) {
-        self.anubis_ecb_encrypt(inout);
+        Self::crypt_block(inout, &self.enc, self.rounds);
+    }
+    fn decrypt_block(&self, inout: &mut [u8]) {
+        Self::crypt_block(inout, &self.dec, self.rounds);
     }
 }
 
 impl Anubis {
-    pub fn anubis_setup(&mut self, key: &[u8], num_rounds: usize) -> CryptoResult<()> {
-        let mut i: i32;
-        let mut pos: i32;
-        let mut r: i32;
+    fn setup(&mut self, key: &[u8], num_rounds: usize) -> CryptoResult<()> {
         let mut kappa: [u32; 10] = [0; 10];
-        let mut inter: [u32; 10] = [0_u32, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        let mut v: u32;
+        let mut inter: [u32; 10] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         let mut k0: u32;
         let mut k1: u32;
         let mut k2: u32;
@@ -281,207 +278,152 @@ impl Anubis {
             });
         }
         self.key_bits = keylen * 8;
-        let n = (self.key_bits >> 5) as i32;
-        let round = 8 + n as usize;
+        let n = self.key_bits >> 5;
+        let round = 8 + n;
         self.rounds = round;
         if num_rounds != 0 && num_rounds != self.rounds {
             return Err(CryptoError::InvalidRound(num_rounds as _));
         }
-        i = 0;
-        pos = 0;
-        while i < n {
-            kappa[i as usize] = ((key[pos as usize] as u32) << 24)
-                ^ ((key[(pos + 1) as usize] as u32) << 16_i32)
-                ^ ((key[(pos + 2_i32) as usize] as u32) << 8)
-                ^ key[(pos + 3_i32) as usize] as u32;
-            i += 1;
-            pos += 4;
-        }
-        r = 0;
-        while r <= round as _ {
-            k0 = ANUBIS_T4[((kappa[(n - 1) as usize] >> 24) & 0xff_i32 as u32) as usize];
-            k1 = ANUBIS_T4[((kappa[(n - 1) as usize] >> 16_i32) & 0xff_i32 as u32) as usize];
-            k2 = ANUBIS_T4[((kappa[(n - 1) as usize] >> 8) & 0xff_i32 as u32) as usize];
-            k3 = ANUBIS_T4[(kappa[(n - 1) as usize] & 0xff_i32 as u32) as usize];
-            i = n - 2_i32;
-            while i >= 0 {
-                k0 = ANUBIS_T4[((kappa[i as usize] >> 24) & 0xff_i32 as u32) as usize]
-                    ^ ANUBIS_T5[((k0 >> 24) & 0xff_i32 as u32) as usize] & 0xff000000_u32
-                    ^ ANUBIS_T5[((k0 >> 16_i32) & 0xff_i32 as u32) as usize] & 0xff0000_u32
-                    ^ ANUBIS_T5[((k0 >> 8) & 0xff_i32 as u32) as usize] & 0xff00_u32
-                    ^ ANUBIS_T5[(k0 & 0xff_i32 as u32) as usize] & 0xff_u32;
-                k1 = ANUBIS_T4[((kappa[i as usize] >> 16_i32) & 0xff_i32 as u32) as usize]
-                    ^ ANUBIS_T5[((k1 >> 24) & 0xff_i32 as u32) as usize] & 0xff000000_u32
-                    ^ ANUBIS_T5[((k1 >> 16_i32) & 0xff_i32 as u32) as usize] & 0xff0000_u32
-                    ^ ANUBIS_T5[((k1 >> 8) & 0xff_i32 as u32) as usize] & 0xff00_u32
-                    ^ ANUBIS_T5[(k1 & 0xff_i32 as u32) as usize] & 0xff_u32;
-                k2 = ANUBIS_T4[((kappa[i as usize] >> 8) & 0xff_i32 as u32) as usize]
-                    ^ ANUBIS_T5[((k2 >> 24) & 0xff_i32 as u32) as usize] & 0xff000000_u32
-                    ^ ANUBIS_T5[((k2 >> 16_i32) & 0xff_i32 as u32) as usize] & 0xff0000_u32
-                    ^ ANUBIS_T5[((k2 >> 8) & 0xff_i32 as u32) as usize] & 0xff00_u32
-                    ^ ANUBIS_T5[(k2 & 0xff_i32 as u32) as usize] & 0xff_u32;
-                k3 = ANUBIS_T4[(kappa[i as usize] & 0xff_i32 as u32) as usize]
-                    ^ ANUBIS_T5[((k3 >> 24) & 0xff_i32 as u32) as usize] & 0xff000000_u32
-                    ^ ANUBIS_T5[((k3 >> 16_i32) & 0xff_i32 as u32) as usize] & 0xff0000_u32
-                    ^ ANUBIS_T5[((k3 >> 8) & 0xff_i32 as u32) as usize] & 0xff00_u32
-                    ^ ANUBIS_T5[(k3 & 0xff_i32 as u32) as usize] & 0xff_u32;
-                i -= 1;
+        {
+            let mut key = key;
+            for i in 0..n {
+                kappa[i] = key.get_u32();
             }
-            self.enc[r as usize][0] = k0;
-            self.enc[r as usize][1_usize] = k1;
-            self.enc[r as usize][2_i32 as usize] = k2;
-            self.enc[r as usize][3_i32 as usize] = k3;
-            if r == round as _ {
+        }
+        for r in 0..=round {
+            k0 = ANUBIS_T4[((kappa[n - 1] >> 24) & 0xff) as usize];
+            k1 = ANUBIS_T4[((kappa[n - 1] >> 16) & 0xff) as usize];
+            k2 = ANUBIS_T4[((kappa[n - 1] >> 8) & 0xff) as usize];
+            k3 = ANUBIS_T4[(kappa[n - 1] & 0xff) as usize];
+            for i in (0..=n - 2).rev() {
+                k0 = ANUBIS_T4[((kappa[i] >> 24) & 0xff) as usize]
+                    ^ ANUBIS_T5[((k0 >> 24) & 0xff) as usize] & 0xff000000
+                    ^ ANUBIS_T5[((k0 >> 16) & 0xff) as usize] & 0xff0000
+                    ^ ANUBIS_T5[((k0 >> 8) & 0xff) as usize] & 0xff00
+                    ^ ANUBIS_T5[(k0 & 0xff) as usize] & 0xff;
+                k1 = ANUBIS_T4[((kappa[i] >> 16) & 0xff) as usize]
+                    ^ ANUBIS_T5[((k1 >> 24) & 0xff) as usize] & 0xff000000
+                    ^ ANUBIS_T5[((k1 >> 16) & 0xff) as usize] & 0xff0000
+                    ^ ANUBIS_T5[((k1 >> 8) & 0xff) as usize] & 0xff00
+                    ^ ANUBIS_T5[(k1 & 0xff) as usize] & 0xff;
+                k2 = ANUBIS_T4[((kappa[i] >> 8) & 0xff) as usize]
+                    ^ ANUBIS_T5[((k2 >> 24) & 0xff) as usize] & 0xff000000
+                    ^ ANUBIS_T5[((k2 >> 16) & 0xff) as usize] & 0xff0000
+                    ^ ANUBIS_T5[((k2 >> 8) & 0xff) as usize] & 0xff00
+                    ^ ANUBIS_T5[(k2 & 0xff) as usize] & 0xff;
+                k3 = ANUBIS_T4[(kappa[i] & 0xff) as usize]
+                    ^ ANUBIS_T5[((k3 >> 24) & 0xff) as usize] & 0xff000000
+                    ^ ANUBIS_T5[((k3 >> 16) & 0xff) as usize] & 0xff0000
+                    ^ ANUBIS_T5[((k3 >> 8) & 0xff) as usize] & 0xff00
+                    ^ ANUBIS_T5[(k3 & 0xff) as usize] & 0xff;
+            }
+            self.enc[r][0] = k0;
+            self.enc[r][1] = k1;
+            self.enc[r][2] = k2;
+            self.enc[r][3] = k3;
+            if r == round {
                 break;
             }
-            i = 0;
-            while i < n {
-                let mut j = i;
+            for i in 0..n {
+                let mut j = i as i32;
                 let fresh0 = j;
                 j -= 1;
-                inter[i as usize] =
-                    ANUBIS_T0[((kappa[fresh0 as usize] >> 24) & 0xff_i32 as u32) as usize];
+                inter[i] = ANUBIS_T0[((kappa[fresh0 as usize] >> 24) & 0xff) as usize];
                 if j < 0 {
-                    j = n - 1;
+                    j = n as i32 - 1;
                 }
                 let fresh1 = j;
                 j -= 1;
-                inter[i as usize] ^=
-                    ANUBIS_T1[((kappa[fresh1 as usize] >> 16_i32) & 0xff_i32 as u32) as usize];
+                inter[i] ^= ANUBIS_T1[((kappa[fresh1 as usize] >> 16) & 0xff) as usize];
                 if j < 0 {
-                    j = n - 1;
+                    j = n as i32 - 1;
                 }
                 let fresh2 = j;
                 j -= 1;
-                inter[i as usize] ^=
-                    ANUBIS_T2[((kappa[fresh2 as usize] >> 8) & 0xff_i32 as u32) as usize];
+                inter[i] ^= ANUBIS_T2[((kappa[fresh2 as usize] >> 8) & 0xff) as usize];
                 if j < 0 {
-                    j = n - 1;
+                    j = n as i32 - 1;
                 }
-                inter[i as usize] ^= ANUBIS_T3[(kappa[j as usize] & 0xff_i32 as u32) as usize];
-                i += 1;
+                inter[i] ^= ANUBIS_T3[(kappa[j as usize] & 0xff) as usize];
             }
-            kappa[0] = inter[0] ^ ANUBIS_RC[r as usize];
-            i = 1;
-            while i < n {
-                kappa[i as usize] = inter[i as usize];
-                i += 1;
-            }
-            r += 1;
+            kappa[0] = inter[0] ^ ANUBIS_RC[r];
+            kappa[1..n].copy_from_slice(&inter[1..n]);
         }
-        i = 0;
-        while i < 4 {
-            self.dec[0][i as usize] = self.enc[round][i as usize];
-            self.dec[round][i as usize] = self.enc[0][i as usize];
-            i += 1;
+        for i in 0..4usize {
+            self.dec[0][i] = self.enc[round][i];
+            self.dec[round][i] = self.enc[0][i];
         }
-        r = 1;
-        while r < round as _ {
-            i = 0;
-            while i < 4 {
-                v = self.enc[(round as i32 - r) as usize][i as usize];
-                self.dec[r as usize][i as usize] =
-                    ANUBIS_T0[(ANUBIS_T4[((v >> 24) & 0xff_i32 as u32) as usize] & 0xff_i32 as u32)
-                        as usize]
-                        ^ ANUBIS_T1[(ANUBIS_T4[((v >> 16_i32) & 0xff_i32 as u32) as usize]
-                            & 0xff_i32 as u32) as usize]
-                        ^ ANUBIS_T2[(ANUBIS_T4[((v >> 8) & 0xff_i32 as u32) as usize]
-                            & 0xff_i32 as u32) as usize]
-                        ^ ANUBIS_T3[(ANUBIS_T4[(v & 0xff_i32 as u32) as usize] & 0xff_i32 as u32)
-                            as usize];
-                i += 1;
+        for r in 1..round {
+            for i in 0..4usize {
+                let v = self.enc[round - r][i];
+                self.dec[r][i] = ANUBIS_T0
+                    [(ANUBIS_T4[((v >> 24) & 0xff) as usize] & 0xff) as usize]
+                    ^ ANUBIS_T1[(ANUBIS_T4[((v >> 16) & 0xff) as usize] & 0xff) as usize]
+                    ^ ANUBIS_T2[(ANUBIS_T4[((v >> 8) & 0xff) as usize] & 0xff) as usize]
+                    ^ ANUBIS_T3[(ANUBIS_T4[(v & 0xff) as usize] & 0xff) as usize];
             }
-            r += 1;
         }
         Ok(())
     }
 
-    fn anubis_crypt(inout: &mut [u8], round_key: &[[u32; 4]], rounds: usize) {
-        let mut i: i32;
-        let mut pos: i32;
-        let mut r: i32;
+    fn crypt_block(inout: &mut [u8], round_key: &[[u32; 4]], rounds: usize) {
         let mut state: [u32; 4] = [0; 4];
         let mut inter: [u32; 4] = [0; 4];
-        i = 0;
-        pos = 0;
-        while i < 4 {
-            state[i as usize] = ((inout[pos as usize] as u32) << 24)
-                ^ ((inout[(pos + 1) as usize] as u32) << 16_i32)
-                ^ ((inout[(pos + 2_i32) as usize] as u32) << 8)
-                ^ inout[(pos + 3_i32) as usize] as u32
-                ^ round_key[0][i as usize];
-            i += 1;
-            pos += 4;
+        {
+            let mut inout = &*inout;
+            for i in 0..4 {
+                state[i] = inout.get_u32() ^ round_key[0][i];
+            }
         }
-        r = 1;
-        while r < rounds as _ {
-            inter[0] = ANUBIS_T0[((state[0] >> 24) & 0xff_i32 as u32) as usize]
-                ^ ANUBIS_T1[((state[1_usize] >> 24) & 0xff_i32 as u32) as usize]
-                ^ ANUBIS_T2[((state[2_i32 as usize] >> 24) & 0xff_i32 as u32) as usize]
-                ^ ANUBIS_T3[((state[3_i32 as usize] >> 24) & 0xff_i32 as u32) as usize]
-                ^ round_key[r as usize][0];
-            inter[1_usize] = ANUBIS_T0[((state[0] >> 16_i32) & 0xff_i32 as u32) as usize]
-                ^ ANUBIS_T1[((state[1_usize] >> 16_i32) & 0xff_i32 as u32) as usize]
-                ^ ANUBIS_T2[((state[2_i32 as usize] >> 16_i32) & 0xff_i32 as u32) as usize]
-                ^ ANUBIS_T3[((state[3_i32 as usize] >> 16_i32) & 0xff_i32 as u32) as usize]
-                ^ round_key[r as usize][1_usize];
-            inter[2_i32 as usize] = ANUBIS_T0[((state[0] >> 8) & 0xff_i32 as u32) as usize]
-                ^ ANUBIS_T1[((state[1_usize] >> 8) & 0xff_i32 as u32) as usize]
-                ^ ANUBIS_T2[((state[2_i32 as usize] >> 8) & 0xff_i32 as u32) as usize]
-                ^ ANUBIS_T3[((state[3_i32 as usize] >> 8) & 0xff_i32 as u32) as usize]
-                ^ round_key[r as usize][2_i32 as usize];
-            inter[3_i32 as usize] = ANUBIS_T0[(state[0] & 0xff_i32 as u32) as usize]
-                ^ ANUBIS_T1[(state[1_usize] & 0xff_i32 as u32) as usize]
-                ^ ANUBIS_T2[(state[2_i32 as usize] & 0xff_i32 as u32) as usize]
-                ^ ANUBIS_T3[(state[3_i32 as usize] & 0xff_i32 as u32) as usize]
-                ^ round_key[r as usize][3_i32 as usize];
-            state[0] = inter[0];
-            state[1_usize] = inter[1_usize];
-            state[2_i32 as usize] = inter[2_i32 as usize];
-            state[3_i32 as usize] = inter[3_i32 as usize];
-            r += 1;
+
+        for r in 1..rounds {
+            inter[0] = ANUBIS_T0[((state[0] >> 24) & 0xff) as usize]
+                ^ ANUBIS_T1[((state[1] >> 24) & 0xff) as usize]
+                ^ ANUBIS_T2[((state[2] >> 24) & 0xff) as usize]
+                ^ ANUBIS_T3[((state[3] >> 24) & 0xff) as usize]
+                ^ round_key[r][0];
+            inter[1] = ANUBIS_T0[((state[0] >> 16) & 0xff) as usize]
+                ^ ANUBIS_T1[((state[1] >> 16) & 0xff) as usize]
+                ^ ANUBIS_T2[((state[2] >> 16) & 0xff) as usize]
+                ^ ANUBIS_T3[((state[3] >> 16) & 0xff) as usize]
+                ^ round_key[r][1];
+            inter[2] = ANUBIS_T0[((state[0] >> 8) & 0xff) as usize]
+                ^ ANUBIS_T1[((state[1] >> 8) & 0xff) as usize]
+                ^ ANUBIS_T2[((state[2] >> 8) & 0xff) as usize]
+                ^ ANUBIS_T3[((state[3] >> 8) & 0xff) as usize]
+                ^ round_key[r][2];
+            inter[3] = ANUBIS_T0[(state[0] & 0xff) as usize]
+                ^ ANUBIS_T1[(state[1] & 0xff) as usize]
+                ^ ANUBIS_T2[(state[2] & 0xff) as usize]
+                ^ ANUBIS_T3[(state[3] & 0xff) as usize]
+                ^ round_key[r][3];
+            state.copy_from_slice(&inter);
         }
-        inter[0] = ANUBIS_T0[((state[0] >> 24) & 0xff_i32 as u32) as usize] & 0xff000000_u32
-            ^ ANUBIS_T1[((state[1_usize] >> 24) & 0xff_i32 as u32) as usize] & 0xff0000_u32
-            ^ ANUBIS_T2[((state[2_i32 as usize] >> 24) & 0xff_i32 as u32) as usize] & 0xff00_u32
-            ^ ANUBIS_T3[((state[3_i32 as usize] >> 24) & 0xff_i32 as u32) as usize] & 0xff_u32
+        inter[0] = ANUBIS_T0[((state[0] >> 24) & 0xff) as usize] & 0xff000000
+            ^ ANUBIS_T1[((state[1] >> 24) & 0xff) as usize] & 0xff0000
+            ^ ANUBIS_T2[((state[2] >> 24) & 0xff) as usize] & 0xff00
+            ^ ANUBIS_T3[((state[3] >> 24) & 0xff) as usize] & 0xff
             ^ round_key[rounds][0];
-        inter[1_usize] = ANUBIS_T0[((state[0] >> 16_i32) & 0xff_i32 as u32) as usize]
-            & 0xff000000_u32
-            ^ ANUBIS_T1[((state[1_usize] >> 16_i32) & 0xff_i32 as u32) as usize] & 0xff0000_u32
-            ^ ANUBIS_T2[((state[2_i32 as usize] >> 16_i32) & 0xff_i32 as u32) as usize]
-                & 0xff00_u32
-            ^ ANUBIS_T3[((state[3_i32 as usize] >> 16_i32) & 0xff_i32 as u32) as usize] & 0xff_u32
-            ^ round_key[rounds][1_usize];
-        inter[2_i32 as usize] = ANUBIS_T0[((state[0] >> 8) & 0xff_i32 as u32) as usize]
-            & 0xff000000_u32
-            ^ ANUBIS_T1[((state[1_usize] >> 8) & 0xff_i32 as u32) as usize] & 0xff0000_u32
-            ^ ANUBIS_T2[((state[2_i32 as usize] >> 8) & 0xff_i32 as u32) as usize] & 0xff00_u32
-            ^ ANUBIS_T3[((state[3_i32 as usize] >> 8) & 0xff_i32 as u32) as usize] & 0xff_u32
-            ^ round_key[rounds][2_i32 as usize];
-        inter[3_i32 as usize] = ANUBIS_T0[(state[0] & 0xff_i32 as u32) as usize] & 0xff000000_u32
-            ^ ANUBIS_T1[(state[1_usize] & 0xff_i32 as u32) as usize] & 0xff0000_u32
-            ^ ANUBIS_T2[(state[2_i32 as usize] & 0xff_i32 as u32) as usize] & 0xff00_u32
-            ^ ANUBIS_T3[(state[3_i32 as usize] & 0xff_i32 as u32) as usize] & 0xff_u32
-            ^ round_key[rounds][3_i32 as usize];
-        i = 0;
-        pos = 0;
-        while i < 4 {
-            let w = inter[i as usize];
-            inout[pos as usize] = (w >> 24) as u8;
-            inout[(pos + 1) as usize] = (w >> 16_i32) as u8;
-            inout[(pos + 2_i32) as usize] = (w >> 8) as u8;
-            inout[(pos + 3_i32) as usize] = w as u8;
-            i += 1;
-            pos += 4;
-        }
-    }
+        inter[1] = ANUBIS_T0[((state[0] >> 16) & 0xff) as usize] & 0xff000000
+            ^ ANUBIS_T1[((state[1] >> 16) & 0xff) as usize] & 0xff0000
+            ^ ANUBIS_T2[((state[2] >> 16) & 0xff) as usize] & 0xff00
+            ^ ANUBIS_T3[((state[3] >> 16) & 0xff) as usize] & 0xff
+            ^ round_key[rounds][1];
+        inter[2] = ANUBIS_T0[((state[0] >> 8) & 0xff) as usize] & 0xff000000
+            ^ ANUBIS_T1[((state[1] >> 8) & 0xff) as usize] & 0xff0000
+            ^ ANUBIS_T2[((state[2] >> 8) & 0xff) as usize] & 0xff00
+            ^ ANUBIS_T3[((state[3] >> 8) & 0xff) as usize] & 0xff
+            ^ round_key[rounds][2];
+        inter[3] = ANUBIS_T0[(state[0] & 0xff) as usize] & 0xff000000
+            ^ ANUBIS_T1[(state[1] & 0xff) as usize] & 0xff0000
+            ^ ANUBIS_T2[(state[2] & 0xff) as usize] & 0xff00
+            ^ ANUBIS_T3[(state[3] & 0xff) as usize] & 0xff
+            ^ round_key[rounds][3];
 
-    pub fn anubis_ecb_encrypt(&self, inout: &mut [u8]) {
-        Self::anubis_crypt(inout, &self.enc, self.rounds);
-    }
-
-    pub fn anubis_ecb_decrypt(&self, inout: &mut [u8]) {
-        Self::anubis_crypt(inout, &self.dec, self.rounds);
+        let mut inout = inout;
+        inout.put_u32(inter[0]);
+        inout.put_u32(inter[1]);
+        inout.put_u32(inter[2]);
+        inout.put_u32(inter[3]);
     }
 }
