@@ -22,20 +22,20 @@ fn bench_chacha20poly1305(c: &mut Criterion) {
 
         group.bench_function(format!("crown_{size}",), |b| {
             let cipher = crown::aead::chacha20poly1305::ChaCha20Poly1305::new(&key).unwrap();
+            let mut dst = data.clone();
             b.iter(|| {
-                let mut dst = data.clone();
-                cipher
-                    .seal_in_place_append_tag(&mut dst, &nonce, &data)
+                let _ = cipher
+                    .seal_in_place_separate_tag(&mut dst, &nonce, &data)
                     .unwrap();
             })
         });
 
         group.bench_function(format!("rustcrypto_{size}",), |b| {
             let mut cipher = chacha20poly1305::ChaCha20Poly1305::new_from_slice(&key).unwrap();
+            let mut dst = data.clone();
             b.iter(|| {
-                let mut dst = data.clone();
-                cipher
-                    .encrypt_in_place(&nonce.into(), &[], &mut dst)
+                let _ = cipher
+                    .encrypt_in_place_detached(&nonce.into(), &[], &mut dst)
                     .unwrap();
             })
         });
@@ -45,10 +45,10 @@ fn bench_chacha20poly1305(c: &mut Criterion) {
                 UnboundKey::new(&ring::aead::CHACHA20_POLY1305, &key).unwrap(),
             );
 
+            let mut dst = data.clone();
             b.iter(|| {
-                let mut dst = data.clone();
-                cipher
-                    .seal_in_place_append_tag(
+                let _ = cipher
+                    .seal_in_place_separate_tag(
                         ring::aead::Nonce::assume_unique_for_key(nonce),
                         ring::aead::Aad::from(&[]),
                         &mut dst,
