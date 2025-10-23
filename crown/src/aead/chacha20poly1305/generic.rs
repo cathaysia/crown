@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use super::ChaCha20Poly1305;
 use crate::{
     error::{CryptoError, CryptoResult},
