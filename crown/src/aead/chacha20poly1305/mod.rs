@@ -4,6 +4,9 @@
 
 mod generic;
 
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+mod asm;
+
 mod xchacha20poly1305;
 pub use xchacha20poly1305::*;
 
@@ -45,7 +48,14 @@ impl ChaCha20Poly1305 {
         nonce: &[u8],
         additional_data: &[u8],
     ) -> CryptoResult<[u8; 16]> {
-        self.seal_generic(inout, nonce, additional_data)
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        {
+            self.seal_asm(inout, nonce, additional_data)
+        }
+        #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
+        {
+            self.seal_generic(inout, nonce, additional_data)
+        }
     }
 
     fn open_impl(
@@ -55,7 +65,14 @@ impl ChaCha20Poly1305 {
         nonce: &[u8],
         additional_data: &[u8],
     ) -> CryptoResult<()> {
-        self.open_generic(inout, tag, nonce, additional_data)
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        {
+            self.open_asm(inout, tag, nonce, additional_data)
+        }
+        #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
+        {
+            self.open_generic(inout, tag, nonce, additional_data)
+        }
     }
 }
 
