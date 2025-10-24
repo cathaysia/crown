@@ -19,3 +19,4 @@ strip = false
 paste = "1.0.15"
 crown = { path = "./crown", version = "0.9.1" }
 crown-derive = { path = "./crown-derive", version = "0.9.1" }
+anyhow = "1.0.52"

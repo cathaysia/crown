@@ -19,3 +19,4 @@ serde_json = "1.0"
 darling = "0.21.3"
 proc-macro2 = "1.0.101"
 boa_engine = "0.20.0"
+anyhow.workspace = true
