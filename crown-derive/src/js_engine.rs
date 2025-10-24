@@ -149,7 +149,10 @@ pub fn jsasm_file(input: TokenStream) -> TokenStream {
         }
     };
 
-    match execute_js_with_json_context(&code_content, &context) {
+    let mut extended_context = context;
+    extended_context.insert("__file_path__".to_string(), Value::String(path));
+
+    match execute_js_with_json_context(&code_content, &extended_context) {
         Ok(result) => {
             let expr = LitStr::new(&result, Span::call_site().into());
             quote! { #expr }.into()
