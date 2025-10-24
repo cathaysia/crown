@@ -736,6 +736,7 @@ dependencies = [
 name = "crown-derive"
 version = "0.9.1"
 dependencies = [
+ "anyhow",
  "boa_engine",
  "darling",
  "proc-macro2",
