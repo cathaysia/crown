@@ -1,5 +1,8 @@
+mod compute;
+
 use std::collections::HashMap;
 
+use anyhow::anyhow;
 use boa_engine::{Context, Source};
 use proc_macro::{Span, TokenStream};
 use quote::quote;
@@ -95,23 +98,23 @@ fn expr_to_json_value(expr: &Expr) -> syn::Result<Value> {
 
 fn execute_js_with_json_context(
     js_code: &str,
-    context: &HashMap<String, Value>,
-) -> Result<String, String> {
-    let mut js_context = Context::default();
+    globals: &HashMap<String, Value>,
+) -> anyhow::Result<String> {
+    let mut ctx = Context::default();
 
-    if !context.is_empty() {
-        let context_json = serde_json::to_string(context)
-            .map_err(|e| format!("Failed to serialize context: {}", e))?;
+    if !globals.is_empty() {
+        let context_json = serde_json::to_string(globals)
+            .map_err(|e| anyhow!("Failed to serialize context: {}", e))?;
         let context_js_code = format!("const CONTEXT = {};", context_json);
-        if let Err(e) = js_context.eval(Source::from_bytes(&context_js_code)) {
-            return Err(format!("Failed to evaluate context: {}", e));
+        if let Err(e) = ctx.eval(Source::from_bytes(&context_js_code)) {
+            return Err(anyhow!("Failed to evaluate context: {}", e));
         }
     }
 
-    let result = match js_context.eval(Source::from_bytes(js_code)) {
+    let result = match ctx.eval(Source::from_bytes(js_code)) {
         Ok(result) => result,
         Err(e) => {
-            return Err(format!("Failed to evaluate JavaScript code: {}", e));
+            return Err(anyhow!("Failed to evaluate JavaScript code: {}", e));
         }
     };
     let result = result.display().to_string();
@@ -149,10 +152,7 @@ pub fn jsasm_file(input: TokenStream) -> TokenStream {
         }
     };
 
-    let mut extended_context = context;
-    extended_context.insert("__file_path__".to_string(), Value::String(path));
-
-    match execute_js_with_json_context(&code_content, &extended_context) {
+    match execute_js_with_json_context(&code_content, &context) {
         Ok(result) => {
             let expr = LitStr::new(&result, Span::call_site().into());
             quote! { #expr }.into()
