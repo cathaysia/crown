@@ -61,6 +61,14 @@ mod tests {
         assert_eq!(parse_size("1K").unwrap(), 1024);
         assert_eq!(parse_size("2m").unwrap(), 2 * 1024 * 1024);
         assert_eq!(parse_size("1g").unwrap(), 1024 * 1024 * 1024);
+        assert_eq!(parse_size("1kb").unwrap(), 1024);
+        assert_eq!(parse_size("1Kb").unwrap(), 1024);
+        assert_eq!(parse_size("2mb").unwrap(), 2 * 1024 * 1024);
+        assert_eq!(parse_size("1gb").unwrap(), 1024 * 1024 * 1024);
+        assert_eq!(parse_size("1KB").unwrap(), 1024);
+        assert_eq!(parse_size("1KB").unwrap(), 1024);
+        assert_eq!(parse_size("2MB").unwrap(), 2 * 1024 * 1024);
+        assert_eq!(parse_size("1GB").unwrap(), 1024 * 1024 * 1024);
         assert_eq!(parse_size("1.5k").unwrap(), 1536);
         assert_eq!(parse_size(" 512 ").unwrap(), 512);
 

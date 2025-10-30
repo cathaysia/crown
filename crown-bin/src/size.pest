@@ -1,7 +1,7 @@
 WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
 
 number = { ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? }
-unit   = { ^"k" | ^"m" | ^"g" | ^"kb" | ^"mb" | ^"gb" }
+unit   = { ^"kb" | ^"mb" | ^"gb" | ^"k" | ^"m" | ^"g" }
 size   = { number ~ unit? }
 
 size_expr = { SOI ~ size ~ EOI }
