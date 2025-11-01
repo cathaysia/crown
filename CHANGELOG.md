@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.9.1](https://github.com/cathaysia/crown/compare/v0.9.0...v0.9.1) (2025-11-01)
+
+
+### Bug Fixes
+
+* **build:** add Cargo.lock ([a83d972](https://github.com/cathaysia/crown/commit/a83d9727721d1d87ea0e43ba86b957bc89a4ec0f))
+* **crown-bin:** fix size parser ([9f710d5](https://github.com/cathaysia/crown/commit/9f710d53b0e960a5881de92e6f6127d47e163642))
+* **jsasm:** fix jsasm ([f842a96](https://github.com/cathaysia/crown/commit/f842a963a57612c73d39545827c4c94040ddbc4c))
+* **wasm:** fix build for wasm ([a3563a6](https://github.com/cathaysia/crown/commit/a3563a6a78c73c62fd62dd3dd869ee8538c39bea))
+
 ## [0.9.0](https://github.com/cathaysia/crown/compare/v0.8.0...v0.9.0) (2025-10-18)
 
 
