@@ -29,3 +29,13 @@ jobs:
           cargo test --no-default-features
           cargo test --no-default-features -F alloc
           cargo test --no-default-features -F std
+      - name: check cargo.lock changes
+        run: |
+          if git diff --exit-code Cargo.lock; then
+            echo "✅ Cargo.lock has no changes."
+          else
+            echo "❌ Cargo.lock has changed!"
+            echo "change content:"
+            git diff Cargo.lock
+            exit 1
+          fi
