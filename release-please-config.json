@@ -21,6 +21,31 @@
           "path": "Cargo.toml",
           "type": "toml",
           "jsonpath": "$.workspace.dependencies.crown-derive.version"
+        },
+        {
+          "path": "Cargo.lock",
+          "type": "toml",
+          "jsonpath": "$.package[?(@.name.value=='crown')].version"
+        },
+        {
+          "path": "Cargo.lock",
+          "type": "toml",
+          "jsonpath": "$.package[?(@.name.value=='crown-bin')].version"
+        },
+        {
+          "path": "Cargo.lock",
+          "type": "toml",
+          "jsonpath": "$.package[?(@.name.value=='crown-derive')].version"
+        },
+        {
+          "path": "Cargo.lock",
+          "type": "toml",
+          "jsonpath": "$.package[?(@.name.value=='crown-wasm')].version"
+        },
+        {
+          "path": "Cargo.lock",
+          "type": "toml",
+          "jsonpath": "$.package[?(@.name.value=='crown-cabi')].version"
         }
       ]
     }
