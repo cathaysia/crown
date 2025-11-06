@@ -737,12 +737,20 @@ name = "crown-derive"
 version = "0.9.1"
 dependencies = [
  "anyhow",
- "boa_engine",
+ "crown-jsasm",
  "darling",
  "proc-macro2",
  "quote",
  "serde_json",
  "syn",
+]
+
+[[package]]
+name = "crown-jsasm"
+version = "0.9.1"
+dependencies = [
+ "anyhow",
+ "boa_engine",
 ]
 
 [[package]]

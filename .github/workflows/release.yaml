@@ -21,6 +21,13 @@ jobs:
         uses: dtolnay/rust-toolchain@1.85.0
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.9
+      - name: publish crown-jsasm crate
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: "sccache"
+        run: |
+          cargo publish -p crown-jsasm --allow-dirty
       - name: publish crown-derive crate
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
