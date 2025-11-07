@@ -10,7 +10,7 @@ categories.workspace = true
 repository.workspace = true
 
 [features]
-default = ["asm"]
+default = []
 asm = ["crown/asm"]
 cuda = ["crown/cuda"]
 
@@ -35,3 +35,7 @@ libc = "0.2"
 pest = "2.8.2"
 pest_derive = "2.8.2"
 nix = "0.30.1"
+
+[build-dependencies]
+crown-jsasm = { workspace = true }
+serde_json = "1"
