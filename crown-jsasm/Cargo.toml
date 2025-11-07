@@ -12,3 +12,17 @@ repository.workspace = true
 [dependencies]
 anyhow.workspace = true
 boa_engine = "0.20.0"
+boa_runtime = "0.20.0"
+swc = "=45.0.0"
+swc_common = { version = "=17.0.0", features = ["tty-emitter"] }
+swc_ecma_ast = "=18.0.0"
+swc_bundler = "=35.0.0"
+serde.workspace = true
+swc_ecma_parser = "=27.0.2"
+swc_ecma_loader = "=17.0.0"
+swc_atoms = "=9.0.0"
+swc_compiler_base = "=39.0.0"
+swc_ecma_transforms="=38.0.0"
+swc_ecma_visit="17.0.0"
+swc_ecma_transforms_base="30.0.0"
+swc_ecma_codegen="20.0.0"

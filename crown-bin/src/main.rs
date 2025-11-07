@@ -46,8 +46,11 @@ fn main() -> anyhow::Result<()> {
 fn main_mock(prog: &str) -> anyhow::Result<()> {
     debug!("mock as {prog}");
     if prog == "jsasm" {
+        if std::env::var("JSASM_VAR").is_err() {
+            std::env::set_var("JSASM_VAR", env!("JSASM_VAR"));
+        }
         let arg = args::Jsasm::parse();
-        let result = crown_jsasm::execute_js_with_json_context(String::new(), Some(arg.file))?;
+        let result = crown_jsasm::execute_js_with_json_context(arg.file)?;
         println!("{}", result);
         return Ok(());
     }

@@ -1,12 +1,13 @@
 /**
- * @file MD5 x86_64 Assembly Code Generator
- * @description Generates optimized x86_64 assembly code for MD5 hash computation.
- * This is a JavaScript port of the original Perl script that generates
+ * MD5 x86_64 Assembly Code Generator
+ *
+ * Generates optimized x86_64 assembly code for MD5 hash computation.
+ * This is a TypeScript port of the original Perl script that generates
  * high-performance assembly implementation of the MD5 algorithm.
  *
- * @author Converted from Perl script by Marc Bevand <bevand_m (at) epita.fr>
- * @copyright 2005-2025 The OpenSSL Project Authors. All Rights Reserved.
- * @license Apache License 2.0
+ * Based on work by Marc Bevand <bevand_m (at) epita.fr>
+ * Copyright 2005-2025 The OpenSSL Project Authors. All Rights Reserved.
+ * Licensed under Apache License 2.0
  *
  * The generated assembly implements the four rounds of MD5:
  * - Round 1: F(x,y,z) = (x & y) | ((~x) & z)
@@ -21,17 +22,17 @@
 /**
  * Generates assembly code for MD5 round 1 step
  * Implements: dst = x + ((dst + F(x,y,z) + X[k] + T_i) <<< s)
- * @param {number} pos - Position indicator (-1 for first step, 0 for middle steps, 1 for last step)
- * @param {string} dst - Destination register (e.g., '%eax')
- * @param {string} x - X register (e.g., '%ebx')
- * @param {string} y - Y register (e.g., '%ecx')
- * @param {string} z - Z register (e.g., '%edx')
- * @param {number} k_next - Index for next X[k_next] value (0-15)
- * @param {string} T_i - MD5 constant value in hex format (e.g., '0xd76aa478')
- * @param {number} s - Left rotate shift amount
- * @returns {string} Generated assembly code for the round 1 step
  */
-function round1_step(pos, dst, x, y, z, k_next, T_i, s) {
+function round1_step(
+  pos: number, // Position indicator (-1 for first step, 0 for middle steps, 1 for last step)
+  dst: string, // Destination register (e.g., '%eax')
+  x: string, // X register (e.g., '%ebx')
+  y: string, // Y register (e.g., '%ecx')
+  z: string, // Z register (e.g., '%edx')
+  k_next: number, // Index for next X[k_next] value (0-15)
+  T_i: number, // MD5 constant value (e.g., 0xd76aa478)
+  s: number, // Left rotate shift amount
+): string {
   let result = '';
   if (pos === -1) {
     result += `	mov	0(%rsi),%r10d\n`;
@@ -53,17 +54,17 @@ function round1_step(pos, dst, x, y, z, k_next, T_i, s) {
 /**
  * Generates assembly code for MD5 round 2 step
  * Implements: dst = x + ((dst + G(x,y,z) + X[k] + T_i) <<< s)
- * @param {number} pos - Position indicator (-1 for first step, 0 for middle steps, 1 for last step)
- * @param {string} dst - Destination register (e.g., '%eax')
- * @param {string} x - X register (e.g., '%ebx')
- * @param {string} y - Y register (e.g., '%ecx')
- * @param {string} z - Z register (e.g., '%edx')
- * @param {number} k_next - Index for next X[k_next] value (0-15)
- * @param {string} T_i - MD5 constant value in hex format (e.g., '0xf61e2562')
- * @param {number} s - Left rotate shift amount
- * @returns {string} Generated assembly code for the round 2 step
  */
-function round2_step(pos, dst, x, y, z, k_next, T_i, s) {
+function round2_step(
+  pos: number, // Position indicator (-1 for first step, 0 for middle steps, 1 for last step)
+  dst: string, // Destination register (e.g., '%eax')
+  x: string, // X register (e.g., '%ebx')
+  y: string, // Y register (e.g., '%ecx')
+  z: string, // Z register (e.g., '%edx')
+  k_next: number, // Index for next X[k_next] value (0-15)
+  T_i: number, // MD5 constant value (e.g., 0xf61e2562)
+  s: number, // Left rotate shift amount
+): string {
   let result = '';
   if (pos === -1) {
     result += `	mov	%edx,%r11d\n`;
@@ -84,23 +85,23 @@ function round2_step(pos, dst, x, y, z, k_next, T_i, s) {
   return result;
 }
 
-/** @type {number} Alternating flag for round 3 instruction ordering optimization */
-let round3_alter = 0;
+/** Alternating flag for round 3 instruction ordering optimization */
+let round3_alter: number = 0;
 
 /**
  * Generates assembly code for MD5 round 3 step
  * Implements: dst = x + ((dst + H(x,y,z) + X[k] + T_i) <<< s)
- * @param {number} pos - Position indicator (-1 for first step, 0 for middle steps, 1 for last step)
- * @param {string} dst - Destination register (e.g., '%eax')
- * @param {string} x - X register (e.g., '%ebx')
- * @param {string} y - Y register (e.g., '%ecx')
- * @param {string} z - Z register (e.g., '%edx')
- * @param {number} k_next - Index for next X[k_next] value (0-15)
- * @param {string} T_i - MD5 constant value in hex format (e.g., '0xfffa3942')
- * @param {number} s - Left rotate shift amount
- * @returns {string} Generated assembly code for the round 3 step
  */
-function round3_step(pos, dst, x, y, z, k_next, T_i, s) {
+function round3_step(
+  pos: number, // Position indicator (-1 for first step, 0 for middle steps, 1 for last step)
+  dst: string, // Destination register (e.g., '%eax')
+  x: string, // X register (e.g., '%ebx')
+  y: string, // Y register (e.g., '%ecx')
+  z: string, // Z register (e.g., '%edx')
+  k_next: number, // Index for next X[k_next] value (0-15)
+  T_i: number, // MD5 constant value (e.g., 0xfffa3942)
+  s: number, // Left rotate shift amount
+): string {
   let result = '';
   if (pos === -1) {
     result += `	mov	%ecx,%r11d\n`;
@@ -129,17 +130,17 @@ function round3_step(pos, dst, x, y, z, k_next, T_i, s) {
 /**
  * Generates assembly code for MD5 round 4 step
  * Implements: dst = x + ((dst + I(x,y,z) + X[k] + T_i) <<< s)
- * @param {number} pos - Position indicator (-1 for first step, 0 for middle steps, 1 for last step)
- * @param {string} dst - Destination register (e.g., '%eax')
- * @param {string} x - X register (e.g., '%ebx')
- * @param {string} y - Y register (e.g., '%ecx')
- * @param {string} z - Z register (e.g., '%edx')
- * @param {number} k_next - Index for next X[k_next] value (0-15)
- * @param {string} T_i - MD5 constant value in hex format (e.g., '0xf4292244')
- * @param {number} s - Left rotate shift amount
- * @returns {string} Generated assembly code for the round 4 step
  */
-function round4_step(pos, dst, x, y, z, k_next, T_i, s) {
+function round4_step(
+  pos: number, // Position indicator (-1 for first step, 0 for middle steps, 1 for last step)
+  dst: string, // Destination register (e.g., '%eax')
+  x: string, // X register (e.g., '%ebx')
+  y: string, // Y register (e.g., '%ecx')
+  z: string, // Z register (e.g., '%edx')
+  k_next: number, // Index for next X[k_next] value (0-15)
+  T_i: number, // MD5 constant value (e.g., 0xf4292244)
+  s: number, // Left rotate shift amount
+): string {
   let result = '';
   if (pos === -1) {
     result += `	mov	$0xffffffff,%r11d\n`;
@@ -158,8 +159,8 @@ function round4_step(pos, dst, x, y, z, k_next, T_i, s) {
   return result;
 }
 
-/** @type {string} Generated assembly code buffer */
-let code = '';
+/** Generated assembly code buffer */
+let code: string = '';
 
 code += `.text
 .align	16
@@ -334,4 +335,4 @@ code += `
 4:
 `;
 
-code;
+export default code;

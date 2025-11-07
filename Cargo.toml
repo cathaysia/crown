@@ -28,3 +28,4 @@ crown = { path = "./crown", version = "0.9.1" }
 crown-derive = { path = "./crown-derive", version = "0.9.1" }
 crown-jsasm = { path = "./crown-jsasm", version = "0.9.1" }
 anyhow = "1.0.52"
+serde = "1"
