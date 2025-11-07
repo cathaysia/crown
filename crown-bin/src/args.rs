@@ -7,6 +7,9 @@ pub use enc::*;
 mod kdf;
 pub use kdf::*;
 
+mod jsasm;
+pub use jsasm::*;
+
 use clap::Parser;
 
 #[derive(Debug, Parser)]
