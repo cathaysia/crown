@@ -24,6 +24,7 @@ base64 = "0.22.1"
 clap = { version = "4.5.45", features = ["derive"] }
 hex = "0.4.3"
 crown = { workspace = true, features = ["unstable"] }
+crown-jsasm = { workspace = true }
 paste = "1.0.15"
 rayon = "1.11.0"
 tracing = "0.1"

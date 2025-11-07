@@ -45,6 +45,12 @@ fn main() -> anyhow::Result<()> {
 
 fn main_mock(prog: &str) -> anyhow::Result<()> {
     debug!("mock as {prog}");
+    if prog == "jsasm" {
+        let arg = args::Jsasm::parse();
+        let result = crown_jsasm::execute_js_with_json_context(String::new(), Some(arg.file))?;
+        println!("{}", result);
+        return Ok(());
+    }
     let arg = args::Md5::parse();
     calc_and_output_hash(prog.parse()?, arg.files, false, None, None);
 

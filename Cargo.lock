@@ -719,6 +719,7 @@ dependencies = [
  "base64",
  "clap",
  "crown",
+ "crown-jsasm",
  "hex",
  "libc",
  "nix",
