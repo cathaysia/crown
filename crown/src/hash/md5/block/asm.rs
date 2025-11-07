@@ -4,7 +4,7 @@ use super::Md5;
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 core::arch::global_asm!(
-    crown_derive::jsasm_file!("crown/src/hash/md5/block/x86_64.js"),
+    crown_derive::jsasm_file!("crown/src/hash/md5/block/x86_64.ts"),
     options(att_syntax)
 );
 

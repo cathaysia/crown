@@ -9,11 +9,6 @@ pub fn marshal(input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro]
-pub fn jsasm(input: TokenStream) -> TokenStream {
-    js_engine::jsasm(input)
-}
-
-#[proc_macro]
 pub fn jsasm_file(input: TokenStream) -> TokenStream {
     js_engine::jsasm_file(input)
 }
