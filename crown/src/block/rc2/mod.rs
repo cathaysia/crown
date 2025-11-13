@@ -333,7 +333,7 @@ fn expand_key(key: &[u8], t1: usize) -> [u16; 64] {
     l[..key.len()].copy_from_slice(key);
 
     let t = key.len();
-    let t8 = (t1 + 7) / 8;
+    let t8 = t1.div_ceil(8);
     let tm = (255 % (1u32 << (8 + t1 - 8 * t8))) as u8;
 
     for i in key.len()..128 {

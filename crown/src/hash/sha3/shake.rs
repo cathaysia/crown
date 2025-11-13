@@ -38,7 +38,7 @@ fn left_encode(x: u64) -> Vec<u8> {
     let n = if x == 0 {
         1
     } else {
-        (64 - x.leading_zeros() + 7) / 8
+        (64 - x.leading_zeros()).div_ceil(8)
     } as usize;
 
     // Return n || x with n as a byte and x an n bytes in big-endian order.

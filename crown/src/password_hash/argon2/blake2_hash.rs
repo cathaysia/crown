@@ -52,7 +52,7 @@ pub fn blake2b_hash(mut out: &mut [u8], input: &[u8]) -> CryptoResult<()> {
 
     // Handle final partial block if needed
     if out_len % BLAKE2B_SIZE > 0 {
-        let r = ((out_len + 31) / 32) - 2; // ⌈τ /32⌉-2
+        let r = out_len.div_ceil(32) - 2; // ⌈τ /32⌉-2
         let final_size = out_len - 32 * r;
         hasher = Blake2bVariable::new(None, final_size)?;
     }

@@ -34,7 +34,4 @@ pub(super) fn block(d: &mut Md5, p: &[u8]) {
     unsafe {
         ossl_md5_block_asm_data_order(d.s.as_mut_ptr(), p.as_ptr(), num_blocks as u32);
     }
-
-    // If there are remaining bytes, they should be handled by the caller
-    // as partial blocks are handled in the main MD5 implementation
 }
