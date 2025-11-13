@@ -5,8 +5,6 @@
     target_os = "solaris"
 ))]
 
-use std::io::ErrorKind;
-
 use nix::errno::Errno;
 
 use super::urandom::urandom_read;
@@ -49,12 +47,7 @@ pub fn read(mut b: &mut [u8]) -> std::io::Result<()> {
             Errno::EINTR => {
                 continue;
             }
-            errno => {
-                return Err(std::io::Error::new(
-                    ErrorKind::Other,
-                    format!("errno: {errno}"),
-                ))
-            }
+            errno => return Err(std::io::Error::other(format!("errno: {errno}"))),
         }
     }
 

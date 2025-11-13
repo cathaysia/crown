@@ -22,13 +22,11 @@ pub trait CoreWrite {
 #[cfg(feature = "std")]
 impl std::io::Write for dyn CoreWrite {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.write(buf)
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))
+        self.write(buf).map_err(std::io::Error::other)
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        self.flush()
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))
+        self.flush().map_err(std::io::Error::other)
     }
 }
 
@@ -39,7 +37,6 @@ pub trait CoreRead {
 #[cfg(feature = "std")]
 impl std::io::Read for dyn CoreRead {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.read(buf)
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))
+        self.read(buf).map_err(std::io::Error::other)
     }
 }
