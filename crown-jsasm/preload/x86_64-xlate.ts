@@ -89,6 +89,46 @@ export function initConfig(flavour?: Flavour): Config {
     gnuas,
   };
 }
+// Generate CET property for ELF outputs
+function generateCetProperty(flavour: Flavour, gnuas: boolean): string {
+  if (!flavour.toString().includes('elf')) {
+    return '';
+  }
+
+  // Always generate .note.gnu.property section for ELF outputs to
+  // mark Intel CET support since all input files must be marked
+  // with Intel CET support in order for linker to mark output with
+  // Intel CET support.
+  const p2align = flavour === Flavour.Elf ? 3 : 2; // elf32 uses 2
+  const section = gnuas
+    ? '".note.gnu.property", "a"'
+    : '.note.gnu.property, #alloc';
+
+  return `
+\t.section ${section}
+\t.p2align ${p2align}
+\t.long 1f - 0f
+\t.long 4f - 1f
+\t.long 5
+0:
+\t# "GNU" encoded with .byte, since .asciz isn't supported
+\t# on Solaris.
+\t.byte 0x47
+\t.byte 0x4e
+\t.byte 0x55
+\t.byte 0
+1:
+\t.p2align ${p2align}
+\t.long 0xc0000002
+\t.long 3f - 2f
+2:
+\t.long 3
+3:
+\t.p2align ${p2align}
+4:
+`;
+}
+
 
 // Global state
 let config: Config = initConfig();
@@ -764,7 +804,7 @@ class CfiDirective {
   }
 }
 
-// Directive class - simplified version
+// Directive class - complete implementation
 class Directive {
   value?: string;
 
@@ -777,19 +817,431 @@ class Directive {
     if (!match) return null;
 
     const self = new Directive();
-    const dir = match[1];
+    let dir = match[1];
     line.value = line.value.substring(match[0].length).trimStart();
 
-    // Handle different directives based on gas/masm/nasm
+    // Handle directives based on gas/masm/nasm
     if (config.gas) {
       self.value = dir + '\t' + line.value;
+
+      // .global/.globl/.extern directive
+      if (dir.match(/\.global|\.globl|\.extern/)) {
+        globals[line.value] = config.prefix + line.value;
+        if (config.prefix) {
+          line.value = globals[line.value];
+        }
+        if (dir.match(/\.extern/)) {
+          self.value = ''; // swallow extern
+        } else {
+          self.value = dir + '\t' + line.value;
+        }
+      }
+      // .type directive
+      else if (dir.match(/\.type/)) {
+        const parts = line.value.split(',');
+        const sym = parts[0];
+        const type = parts[1];
+        const narg = parts[2] ? parseInt(parts[2]) : undefined;
+        
+        if (type === '@function') {
+          currentFunction = {
+            name: sym,
+            abi: 'svr4',
+            narg: narg,
+            scope: globals[sym] !== undefined ? 'PUBLIC' : 'PRIVATE'
+          };
+        } else if (type === '@abi-omnipotent') {
+          currentFunction = {
+            name: sym,
+            scope: globals[sym] !== undefined ? 'PUBLIC' : 'PRIVATE'
+          };
+        }
+        
+        line.value = line.value.replace(/@abi-omnipotent/, '@function');
+        line.value = line.value.replace(/@function.*/, '@function');
+        self.value = dir + '\t' + line.value;
+        
+        if (!config.elf) {
+          self.value = '';
+          const match = line.value.match(/([^,]+),@function/);
+          if (config.win64 && match) {
+            const symbol = match[1];
+            const isDefined = globals[symbol] !== undefined;
+            self.value = `.def\t${globals[symbol] || symbol};\t`;
+            self.value += isDefined ? '.scl 2;' : '.scl 3;';
+            self.value += '\t.type 32;\t.endef';
+          }
+        }
+      }
+      // .asciz directive
+      else if (dir.match(/\.asciz/)) {
+        const match = line.value.match(/^"(.*)"$/);
+        if (match) {
+          dir = '.byte';
+          const bytes = Array.from(match[1]).map(c => c.charCodeAt(0));
+          bytes.push(0);
+          line.value = bytes.join(',');
+          self.value = dir + '\t' + line.value;
+        }
+      }
+      // .rva/.long/.quad/.byte directive
+      else if (dir.match(/\.rva|\.long|\.quad|\.byte/)) {
+        line.value = line.value.replace(
+          /([_a-z][_a-z0-9]*)/gi,
+          m => globals[m] || m
+        );
+        line.value = line.value.replace(/\.L/g, config.decor);
+        self.value = dir + '\t' + line.value;
+      }
+      // .type directive
+      else if (!config.elf && dir.match(/\.type/)) {
+        self.value = '';
+        const parts = line.value.match(/([^,]+),\@function/);
+        if (config.win64 && parts) {
+          const sym = parts[1];
+          const isDefined = globals[sym] !== undefined;
+          self.value = `.def\t${globals[sym] || sym};\t`;
+          self.value += isDefined ? '.scl 2;' : '.scl 3;';
+          self.value += '\t.type 32;\t.endef';
+        }
+      }
+      // .size directive
+      else if (!config.elf && dir.match(/\.size/)) {
+        self.value = '';
+        if (currentFunction.name) {
+          if (config.win64 && currentFunction.abi === 'svr4') {
+            self.value += `${config.decor}SEH_end_${currentFunction.name}:`;
+          }
+          currentFunction = {};
+        }
+      }
+      // .align directive
+      else if (!config.elf && dir.match(/\.align/)) {
+        const align = parseInt(line.value);
+        self.value = `.p2align\t${Math.log2(align)}`;
+      }
+      // .section directive
+      else if (dir === '.section') {
+        // Remove align option (not supported by gcc)
+        self.value = self.value.replace(/(.+)\s+align\s*=.*$/, '$1');
+        
+        const prevSegment = segmentStack.pop();
+        if (!prevSegment) {
+          // If no previous section, assume .text
+          segmentStack.push('.text');
+        }
+        
+        currentSegment = line.value.replace(/([^\s]+).*$/, '$1');
+        segmentStack.push(currentSegment);
+        
+        if (!config.elf && currentSegment === '.rodata') {
+          if (config.flavour === Flavour.Macosx) {
+            self.value = '.section\t__DATA,__const';
+          } else if (config.flavour === Flavour.Mingw64) {
+            self.value = '.section\t.rodata';
+          }
+        }
+        if (!config.elf && currentSegment === '.init') {
+          if (config.flavour === Flavour.Macosx) {
+            self.value = '.mod_init_func';
+          } else if (config.flavour === Flavour.Mingw64) {
+            self.value = '.section\t.ctors';
+          }
+        }
+      }
+      // .text or .data directive
+      else if (dir.match(/\.(text|data)/)) {
+        const prevSegment = segmentStack.pop();
+        if (!prevSegment) {
+          segmentStack.push('.text');
+        }
+        currentSegment = '.' + dir.match(/\.(text|data)/)![1];
+        segmentStack.push(currentSegment);
+      }
+      // .hidden directive
+      else if (dir.match(/\.hidden/)) {
+        if (config.flavour === Flavour.Macosx) {
+          self.value = `.private_extern\t${config.prefix}${line.value}`;
+        } else if (config.flavour === Flavour.Mingw64) {
+          self.value = '';
+        }
+      }
+      // .comm directive
+      else if (dir.match(/\.comm/)) {
+        self.value = `${dir}\t${config.prefix}${line.value}`;
+        if (config.flavour === Flavour.Macosx) {
+          self.value = self.value.replace(
+            /,([0-9]+),([0-9]+)$/,
+            (_, size, align) => `,${size},${Math.log2(parseInt(align))}`
+          );
+        }
+      }
+      // .previous directive
+      else if (dir.match(/\.previous/)) {
+        segmentStack.pop(); // pop ourselves
+        currentSegment = segmentStack[0] || '';
+        if (!currentSegment) {
+          currentSegment = '.text';
+          segmentStack.push(currentSegment);
+        }
+        if (config.flavour === Flavour.Mingw64 || config.flavour === Flavour.Macosx) {
+          self.value = currentSegment;
+        }
+      }
+
       line.value = '';
-    } else {
-      // MASM/NASM handling would go here
-      self.value = dir + '\t' + line.value;
-      line.value = '';
+      return self;
     }
 
+    // Non-gas case (MASM/NASM)
+    switch (dir) {
+      case '.text': {
+        let v = '';
+        if (config.nasm) {
+          const prevSegment = segmentStack.pop();
+          if (!prevSegment) {
+            segmentStack.push('.text');
+          }
+          v = 'section\t.text code align=64\n';
+          currentSegment = '.text';
+          segmentStack.push(currentSegment);
+        } else {
+          const prevSegment = segmentStack.pop();
+          if (!prevSegment) {
+            segmentStack.push('.text$');
+          }
+          if (prevSegment) {
+            v = `${prevSegment}\tENDS\n`;
+          }
+          currentSegment = '.text$';
+          segmentStack.push(currentSegment);
+          v += `${currentSegment}\tSEGMENT `;
+          v += config.masm >= 8 + 50727 * Math.pow(2, -32) ? 'ALIGN(256)' : 'PAGE';
+          v += " 'CODE'";
+        }
+        self.value = v;
+        break;
+      }
+
+      case '.data': {
+        let v = '';
+        if (config.nasm) {
+          v = 'section\t.data data align=8\n';
+        } else {
+          const prevSegment = segmentStack.pop();
+          if (prevSegment) {
+            v = `${prevSegment}\tENDS\n`;
+          }
+          currentSegment = '_DATA';
+          segmentStack.push(currentSegment);
+          v += `${currentSegment}\tSEGMENT`;
+        }
+        self.value = v;
+        break;
+      }
+
+      case '.section': {
+        let v = '';
+        let align = line.value.match(/(align\s*=\s*\d+$)/)?.[0] || '';
+        line.value = line.value.replace(/(\s+align\s*=\s*\d+$)/, '');
+        line.value = line.value.replace(/,.*/, '');
+        line.value = line.value === '.init' ? '.CRT$XCU' : line.value;
+        line.value = line.value === '.rodata' ? '.rdata' : line.value;
+
+        if (config.nasm) {
+          const prevSegment = segmentStack.pop();
+          if (!prevSegment) {
+            // Hack for ecp_nistz256-x86_64.pl
+            segmentStack.push('.text');
+          }
+          v = `section\t${line.value}`;
+          if (line.value.match(/\.([prx])data/)) {
+            const alignMatch = align.match(/align\s*=\s*(\d+)/);
+            if (alignMatch) {
+              v += ` rdata align=${alignMatch[1]}`;
+            } else {
+              const type = line.value.match(/\.([prx])data/)![1];
+              v += ` rdata align=${type === 'p' ? 4 : 8}`;
+            }
+          } else if (line.value.match(/\.CRT\$/i)) {
+            v += ' rdata align=8';
+          }
+        } else {
+          const prevSegment = segmentStack.pop();
+          if (!prevSegment) {
+            // Hack for ecp_nistz256-x86_64.pl (masm)
+            segmentStack.push('.text$');
+          }
+          if (prevSegment) {
+            v = `${prevSegment}\tENDS\n`;
+          }
+          v += `${line.value}\tSEGMENT`;
+          if (line.value.match(/\.([prx])data/)) {
+            v += ' READONLY';
+            const alignMatch = align.match(/align\s*=\s*(\d+)$/);
+            if (alignMatch) {
+              if (config.masm >= 8 + 50727 * Math.pow(2, -32)) {
+                v += ` ALIGN(${alignMatch[1]})`;
+              }
+            } else {
+              const type = line.value.match(/\.([prx])data/)![1];
+              if (config.masm >= 8 + 50727 * Math.pow(2, -32)) {
+                v += ` ALIGN(${type === 'p' ? 4 : 8})`;
+              }
+            }
+          } else if (line.value.match(/\.CRT\$/i)) {
+            v += ' READONLY ';
+            v += config.masm >= 8 + 50727 * Math.pow(2, -32) ? 'ALIGN(8)' : 'DWORD';
+          }
+        }
+        currentSegment = line.value;
+        segmentStack.push(line.value);
+        self.value = v;
+        break;
+      }
+
+      case '.extern': {
+        self.value = `EXTERN\t${line.value}`;
+        if (config.masm) {
+          self.value += ':NEAR';
+        }
+        break;
+      }
+
+      case '.globl':
+      case '.global': {
+        self.value = config.masm ? 'PUBLIC' : 'global';
+        self.value += `\t${line.value}`;
+        break;
+      }
+
+      case '.size': {
+        if (currentFunction.name) {
+          self.value = '';
+          if (currentFunction.abi === 'svr4') {
+            self.value = `${config.decor}SEH_end_${currentFunction.name}:`;
+            if (config.masm) {
+              self.value += ':';
+            }
+            self.value += '\n';
+          }
+          if (config.masm && currentFunction.name) {
+            self.value += `${currentFunction.name}\tENDP`;
+          }
+          currentFunction = {};
+        }
+        break;
+      }
+
+      case '.align': {
+        const max = config.masm && config.masm >= 8 + 50727 * Math.pow(2, -32) ? 256 : 4096;
+        const align = parseInt(line.value);
+        self.value = `ALIGN\t${align > max ? max : align}`;
+        break;
+      }
+
+      case '.value':
+      case '.long':
+      case '.rva':
+      case '.quad': {
+        const sz = dir.charAt(1).toUpperCase();
+        const arr = line.value.split(/,\s*/);
+        const last = arr.pop()!;
+        
+        const conv = (v: string): string => {
+          v = v.replace(/^(0b[0-1]+)/g, m => String(parseInt(m.substring(2), 2)));
+          if (config.masm) {
+            v = v.replace(/^0x([0-9a-f]+)/gi, '0$1h');
+          }
+          if (sz === 'D' && (currentSegment.match(/\.[px]data/) || dir === '.rva')) {
+            v = v.replace(
+              /^([_a-z\$\@][_a-z0-9\$\@]*)/gi,
+              m => config.nasm ? `${m} wrt ..imagebase` : `imagerel ${m}`
+            );
+          }
+          return v;
+        };
+
+        const szMap: Record<string, string> = {
+          v: 'W', l: 'D', r: 'D', q: 'Q'
+        };
+        const szCode = szMap[sz.toLowerCase()] || sz;
+        self.value = `\tD${szCode}\t`;
+        for (const item of arr) {
+          self.value += conv(item) + ',';
+        }
+        self.value += conv(last);
+        break;
+      }
+
+      case '.byte': {
+        const strs = line.value.split(/,\s*/);
+        strs.forEach((s, i) => {
+          strs[i] = s.replace(/(0b[0-1]+)/g, m =>
+            String(parseInt(m.substring(2), 2))
+          );
+        });
+        if (config.masm) {
+          strs.forEach((s, i) => {
+            strs[i] = s.replace(/0x([0-9a-f]+)/gi, '0$1h');
+          });
+        }
+        let result = '';
+        while (strs.length > 16) {
+          result += 'DB\t' + strs.splice(0, 16).join(',') + '\n';
+        }
+        if (strs.length > 0) {
+          result += 'DB\t' + strs.join(',');
+        }
+        self.value = result;
+        break;
+      }
+
+      case '.comm': {
+        const parts = line.value.split(/,\s*/);
+        let v = '';
+        if (config.nasm) {
+          v = `common\t${config.prefix}${parts[0]} ${parts[1]}`;
+        } else {
+          const prevSegment = segmentStack.pop();
+          if (prevSegment) {
+            v = `${prevSegment}\tENDS\n`;
+          }
+          currentSegment = '_DATA';
+          segmentStack.push(currentSegment);
+          v += `${currentSegment}\tSEGMENT\n`;
+          v += `COMM\t${parts[0]}:DWORD:${parseInt(parts[1]) / 4}`;
+        }
+        self.value = v;
+        break;
+      }
+
+      case '.previous': {
+        let v = '';
+        if (config.nasm) {
+          segmentStack.pop(); // pop ourselves
+          currentSegment = segmentStack.pop() || '';
+          v = `section ${currentSegment}`;
+          segmentStack.push(currentSegment);
+        } else {
+          let segment = segmentStack.pop();
+          if (segment) {
+            v = `${segment}\tENDS\n`;
+          }
+          currentSegment = segmentStack.pop() || '';
+          if (currentSegment.match(/\.text\$/)) {
+            v += `${currentSegment}\tSEGMENT `;
+            v += config.masm >= 8 + 50727 * Math.pow(2, -32) ? 'ALIGN(256)' : 'PAGE';
+            v += " 'CODE'";
+            segmentStack.push(currentSegment);
+          }
+        }
+        self.value = v;
+        break;
+      }
+    }
+
+    line.value = '';
     return self;
   }
 
@@ -797,6 +1249,274 @@ class Directive {
     return this.value;
   }
 }
+
+// Hard-coded instructions support
+// Upon initial x86_64 introduction SSE>2 extensions were not introduced
+// yet. In order not to be bothered by tracing exact assembler versions,
+// but at the same time to provide a bare security minimum of AES-NI, we
+// hard-code some instructions. Extensions past AES-NI on the other hand
+// are traced by examining assembler version in individual perlasm
+// modules...
+
+const regrm: Record<string, number> = {
+  '%eax': 0,
+  '%ecx': 1,
+  '%edx': 2,
+  '%ebx': 3,
+  '%esp': 4,
+  '%ebp': 5,
+  '%esi': 6,
+  '%edi': 7,
+};
+
+function rex(
+  opcode: number[],
+  dst: number,
+  src: number,
+  rexBase: number = 0,
+): void {
+  let rexVal = rexBase;
+  if (dst >= 8) rexVal |= 0x04;
+  if (src >= 8) rexVal |= 0x01;
+  if (rexVal) opcode.push(rexVal | 0x40);
+}
+
+// Elderly gas can't handle inter-register movq
+function movq(arg: string): number[] {
+  const match1 = arg.match(/%xmm([0-9]+),\s*%r(\w+)/);
+  if (match1) {
+    const src = parseInt(match1[1]);
+    let dst: number;
+    if (match1[2].match(/[0-9]+/)) {
+      dst = parseInt(match1[2]);
+    } else {
+      dst = regrm[`%e${match1[2]}`];
+    }
+    const opcode: number[] = [0x66];
+    rex(opcode, src, dst, 0x8);
+    opcode.push(0x0f, 0x7e);
+    opcode.push(0xc0 | ((src & 7) << 3) | (dst & 7)); // ModR/M
+    return opcode;
+  }
+
+  const match2 = arg.match(/%r(\w+),\s*%xmm([0-9]+)/);
+  if (match2) {
+    const src = parseInt(match2[2]);
+    let dst: number;
+    if (match2[1].match(/[0-9]+/)) {
+      dst = parseInt(match2[1]);
+    } else {
+      dst = regrm[`%e${match2[1]}`];
+    }
+    const opcode: number[] = [0x66];
+    rex(opcode, src, dst, 0x8);
+    opcode.push(0x0f, 0x6e);
+    opcode.push(0xc0 | ((src & 7) << 3) | (dst & 7)); // ModR/M
+    return opcode;
+  }
+
+  return [];
+}
+
+function pextrd(arg: string): number[] {
+  const match = arg.match(/\$([0-9]+),\s*%xmm([0-9]+),\s*(%\w+)/);
+  if (!match) return [];
+
+  const imm = parseInt(match[1]);
+  const src = parseInt(match[2]);
+  let dst: number;
+
+  if (match[3].match(/%r([0-9]+)d/)) {
+    dst = parseInt(match[3].match(/%r([0-9]+)d/)![1]);
+  } else if (match[3].match(/%e/)) {
+    dst = regrm[match[3]];
+  } else {
+    return [];
+  }
+
+  const opcode: number[] = [0x66];
+  rex(opcode, src, dst);
+  opcode.push(0x0f, 0x3a, 0x16);
+  opcode.push(0xc0 | ((src & 7) << 3) | (dst & 7)); // ModR/M
+  opcode.push(imm);
+  return opcode;
+}
+
+function pinsrd(arg: string): number[] {
+  const match = arg.match(/\$([0-9]+),\s*(%\w+),\s*%xmm([0-9]+)/);
+  if (!match) return [];
+
+  const imm = parseInt(match[1]);
+  const dst = parseInt(match[3]);
+  let src: number;
+
+  if (match[2].match(/%r([0-9]+)/)) {
+    src = parseInt(match[2].match(/%r([0-9]+)/)![1]);
+  } else if (match[2].match(/%e/)) {
+    src = regrm[match[2]];
+  } else {
+    return [];
+  }
+
+  const opcode: number[] = [0x66];
+  rex(opcode, dst, src);
+  opcode.push(0x0f, 0x3a, 0x22);
+  opcode.push(0xc0 | ((dst & 7) << 3) | (src & 7)); // ModR/M
+  opcode.push(imm);
+  return opcode;
+}
+
+function pshufb(arg: string): number[] {
+  const match = arg.match(/%xmm([0-9]+),\s*%xmm([0-9]+)/);
+  if (!match) return [];
+
+  const src = parseInt(match[1]);
+  const dst = parseInt(match[2]);
+  const opcode: number[] = [0x66];
+  rex(opcode, dst, src);
+  opcode.push(0x0f, 0x38, 0x00);
+  opcode.push(0xc0 | (src & 7) | ((dst & 7) << 3)); // ModR/M
+  return opcode;
+}
+
+function palignr(arg: string): number[] {
+  const match = arg.match(/\$([0-9]+),\s*%xmm([0-9]+),\s*%xmm([0-9]+)/);
+  if (!match) return [];
+
+  const imm = parseInt(match[1]);
+  const src = parseInt(match[2]);
+  const dst = parseInt(match[3]);
+  const opcode: number[] = [0x66];
+  rex(opcode, dst, src);
+  opcode.push(0x0f, 0x3a, 0x0f);
+  opcode.push(0xc0 | (src & 7) | ((dst & 7) << 3)); // ModR/M
+  opcode.push(imm);
+  return opcode;
+}
+
+function pclmulqdq(arg: string): number[] {
+  const match = arg.match(/\$([x0-9a-f]+),\s*%xmm([0-9]+),\s*%xmm([0-9]+)/);
+  if (!match) return [];
+
+  const src = parseInt(match[2]);
+  const dst = parseInt(match[3]);
+  const opcode: number[] = [0x66];
+  rex(opcode, dst, src);
+  opcode.push(0x0f, 0x3a, 0x44);
+  opcode.push(0xc0 | (src & 7) | ((dst & 7) << 3)); // ModR/M
+
+  const c = match[1];
+  const imm = c.startsWith('0') ? parseInt(c, 8) : parseInt(c);
+  opcode.push(imm);
+  return opcode;
+}
+
+function rdrand(arg: string): number[] {
+  const match = arg.match(/%[er](\w+)/);
+  if (!match) return [];
+
+  let dst: number;
+  if (match[1].match(/[0-9]+/)) {
+    dst = parseInt(match[1]);
+  } else {
+    dst = regrm[`%e${match[1]}`];
+  }
+
+  const opcode: number[] = [];
+  rex(opcode, 0, dst, 8);
+  opcode.push(0x0f, 0xc7, 0xf0 | (dst & 7));
+  return opcode;
+}
+
+function rdseed(arg: string): number[] {
+  const match = arg.match(/%[er](\w+)/);
+  if (!match) return [];
+
+  let dst: number;
+  if (match[1].match(/[0-9]+/)) {
+    dst = parseInt(match[1]);
+  } else {
+    dst = regrm[`%e${match[1]}`];
+  }
+
+  const opcode: number[] = [];
+  rex(opcode, 0, dst, 8);
+  opcode.push(0x0f, 0xc7, 0xf8 | (dst & 7));
+  return opcode;
+}
+
+// Not all AVX-capable assemblers recognize AMD XOP extension. Since we
+// are using only two instructions hand-code them in order to be excused
+// from chasing assembler versions...
+
+function rxb(
+  opcode: number[],
+  dst: number,
+  src1: number,
+  src2: number,
+  rxbBase: number = 0,
+): void {
+  let rxbVal = rxbBase | (0x7 << 5);
+  if (dst >= 8) rxbVal &= ~(0x04 << 5);
+  if (src1 >= 8) rxbVal &= ~(0x01 << 5);
+  if (src2 >= 8) rxbVal &= ~(0x02 << 5);
+  opcode.push(rxbVal);
+}
+
+function vprotd(arg: string): number[] {
+  const match = arg.match(/\$([x0-9a-f]+),\s*%xmm([0-9]+),\s*%xmm([0-9]+)/);
+  if (!match) return [];
+
+  const src = parseInt(match[2]);
+  const dst = parseInt(match[3]);
+  const opcode: number[] = [0x8f];
+  rxb(opcode, dst, src, -1, 0x08);
+  opcode.push(0x78, 0xc2);
+  opcode.push(0xc0 | (src & 7) | ((dst & 7) << 3)); // ModR/M
+
+  const c = match[1];
+  const imm = c.startsWith('0') ? parseInt(c, 8) : parseInt(c);
+  opcode.push(imm);
+  return opcode;
+}
+
+function vprotq(arg: string): number[] {
+  const match = arg.match(/\$([x0-9a-f]+),\s*%xmm([0-9]+),\s*%xmm([0-9]+)/);
+  if (!match) return [];
+
+  const src = parseInt(match[2]);
+  const dst = parseInt(match[3]);
+  const opcode: number[] = [0x8f];
+  rxb(opcode, dst, src, -1, 0x08);
+  opcode.push(0x78, 0xc3);
+  opcode.push(0xc0 | (src & 7) | ((dst & 7) << 3)); // ModR/M
+
+  const c = match[1];
+  const imm = c.startsWith('0') ? parseInt(c, 8) : parseInt(c);
+  opcode.push(imm);
+  return opcode;
+}
+
+// Intel Control-flow Enforcement Technology extension. All functions and
+// indirect branch targets will have to start with this instruction...
+function endbranch(): number[] {
+  return [0xf3, 0x0f, 0x1e, 0xfa];
+}
+
+// Instruction handler map
+const hardcodedInstructions: Record<string, (arg: string) => number[]> = {
+  movq,
+  pextrd,
+  pinsrd,
+  pshufb,
+  palignr,
+  pclmulqdq,
+  rdrand,
+  rdseed,
+  vprotd,
+  vprotq,
+  endbranch: () => endbranch(),
+};
 
 /**
  * Main translation function
@@ -814,6 +1534,10 @@ export function translateAssembly(input: string, flavour?: Flavour): string {
   cfaReg = '%rsp';
   cfaRsp = -8;
   cfaStack = [];
+
+  // Intel Control-flow Enforcement Technology extension. All functions and
+  // indirect branch targets will have to start with this instruction...
+  input = input.replaceAll('endbranch', '.byte   243,15,30,250');
 
   const lines = input.split('\n');
   const output: string[] = [];
@@ -865,6 +1589,20 @@ export function translateAssembly(input: string, flavour?: Flavour): string {
       // Try to parse opcode
       const opcode = Opcode.re(line);
       if (opcode) {
+        // Check for hard-coded instructions
+        const mnemonic = opcode.mnemonic();
+        const hardcodedHandler = hardcodedInstructions[mnemonic];
+        
+        if (hardcodedHandler) {
+          const bytes = hardcodedHandler(line.value);
+          if (bytes.length > 0) {
+            const byteStr = bytes.join(',');
+            result += config.gas ? `.byte\t${byteStr}` : `DB\t${byteStr}`;
+            output.push(result);
+            continue;
+          }
+        }
+
         const args: (Register | Const | EA | Expr)[] = [];
 
         // Parse arguments
@@ -886,7 +1624,7 @@ export function translateAssembly(input: string, flavour?: Flavour): string {
 
         // Generate output
         if (args.length > 0) {
-          const sz = opcode.size();
+          let sz = opcode.size();
 
           if (config.gas) {
             const lastArg = args[args.length - 1];
@@ -898,8 +1636,39 @@ export function translateAssembly(input: string, flavour?: Flavour): string {
             const argStrs = args.map(a => a.out(sz));
             result += `\t${insn}\t${argStrs.join(',')}`;
           } else {
-            const insn = opcode.out();
+            let insn = opcode.out();
             const reversedArgs = [...args].reverse();
+            
+            // Handle MASM/NASM register size suffix inference
+            for (const arg of reversedArgs) {
+              const argOut = arg.out();
+              if (argOut.match(/^xmm[0-9]+$/)) {
+                insn += sz || '';
+                sz = sz || 'x';
+                break;
+              }
+              if (argOut.match(/^ymm[0-9]+$/)) {
+                insn += sz || '';
+                sz = sz || 'y';
+                break;
+              }
+              if (argOut.match(/^zmm[0-9]+$/)) {
+                insn += sz || '';
+                sz = sz || 'z';
+                break;
+              }
+              if (argOut.match(/^mm[0-9]+$/)) {
+                insn += sz || '';
+                sz = sz || 'q';
+                break;
+              }
+            }
+            
+            // Don't add size for lea in NASM
+            if (config.nasm && opcode.mnemonic() === 'lea') {
+              sz = undefined;
+            }
+            
             const argStrs = reversedArgs.map(a => a.out(sz));
             result += `\t${insn}\t${argStrs.join(',')}`;
           }
@@ -913,6 +1682,11 @@ export function translateAssembly(input: string, flavour?: Flavour): string {
   }
 
   // Add footer
+  const cetProperty = generateCetProperty(config.flavour, config.gnuas);
+  if (cetProperty) {
+    output.push(cetProperty);
+  }
+  
   if (config.masm && currentSegment) {
     output.push(`\n${currentSegment}\tENDS`);
   }
@@ -922,3 +1696,233 @@ export function translateAssembly(input: string, flavour?: Flavour): string {
 
   return output.join('\n');
 }
+
+/*
+#################################################
+# Cross-reference x86_64 ABI "card"
+#
+# 		Unix		Win64
+# %rax		*		*
+# %rbx		-		-
+# %rcx		#4		#1
+# %rdx		#3		#2
+# %rsi		#2		-
+# %rdi		#1		-
+# %rbp		-		-
+# %rsp		-		-
+# %r8		#5		#3
+# %r9		#6		#4
+# %r10		*		*
+# %r11		*		*
+# %r12		-		-
+# %r13		-		-
+# %r14		-		-
+# %r15		-		-
+#
+# (*)	volatile register
+# (-)	preserved by callee
+# (#)	Nth argument, volatile
+#
+# In Unix terms top of stack is argument transfer area for arguments
+# which could not be accommodated in registers. Or in other words 7th
+# [integer] argument resides at 8(%rsp) upon function entry point.
+# 128 bytes above %rsp constitute a "red zone" which is not touched
+# by signal handlers and can be used as temporal storage without
+# allocating a frame.
+#
+# In Win64 terms N*8 bytes on top of stack is argument transfer area,
+# which belongs to/can be overwritten by callee. N is the number of
+# arguments passed to callee, *but* not less than 4! This means that
+# upon function entry point 5th argument resides at 40(%rsp), as well
+# as that 32 bytes from 8(%rsp) can always be used as temporal
+# storage [without allocating a frame]. One can actually argue that
+# one can assume a "red zone" above stack pointer under Win64 as well.
+# Point is that at apparently no occasion Windows kernel would alter
+# the area above user stack pointer in true asynchronous manner...
+#
+# All the above means that if assembler programmer adheres to Unix
+# register and stack layout, but disregards the "red zone" existence,
+# it's possible to use following prologue and epilogue to "gear" from
+# Unix to Win64 ABI in leaf functions with not more than 6 arguments.
+#
+# omnipotent_function:
+# ifdef WIN64
+#	movq	%rdi,8(%rsp)
+#	movq	%rsi,16(%rsp)
+#	movq	%rcx,%rdi	; if 1st argument is actually present
+#	movq	%rdx,%rsi	; if 2nd argument is actually ...
+#	movq	%r8,%rdx	; if 3rd argument is ...
+#	movq	%r9,%rcx	; if 4th argument ...
+#	movq	40(%rsp),%r8	; if 5th ...
+#	movq	48(%rsp),%r9	; if 6th ...
+# endif
+#	...
+# ifdef WIN64
+#	movq	8(%rsp),%rdi
+#	movq	16(%rsp),%rsi
+# endif
+#	ret
+#
+#################################################
+# Win64 SEH, Structured Exception Handling.
+#
+# Unlike on Unix systems(*) lack of Win64 stack unwinding information
+# has undesired side-effect at run-time: if an exception is raised in
+# assembler subroutine such as those in question (basically we're
+# referring to segmentation violations caused by malformed input
+# parameters), the application is briskly terminated without invoking
+# any exception handlers, most notably without generating memory dump
+# or any user notification whatsoever. This poses a problem. It's
+# possible to address it by registering custom language-specific
+# handler that would restore processor context to the state at
+# subroutine entry point and return "exception is not handled, keep
+# unwinding" code. Writing such handler can be a challenge... But it's
+# doable, though requires certain coding convention. Consider following
+# snippet:
+#
+# .type	function,@function
+# function:
+#	movq	%rsp,%rax	# copy rsp to volatile register
+#	pushq	%r15		# save non-volatile registers
+#	pushq	%rbx
+#	pushq	%rbp
+#	movq	%rsp,%r11
+#	subq	%rdi,%r11	# prepare [variable] stack frame
+#	andq	$-64,%r11
+#	movq	%rax,0(%r11)	# check for exceptions
+#	movq	%r11,%rsp	# allocate [variable] stack frame
+#	movq	%rax,0(%rsp)	# save original rsp value
+# magic_point:
+#	...
+#	movq	0(%rsp),%rcx	# pull original rsp value
+#	movq	-24(%rcx),%rbp	# restore non-volatile registers
+#	movq	-16(%rcx),%rbx
+#	movq	-8(%rcx),%r15
+#	movq	%rcx,%rsp	# restore original rsp
+# magic_epilogue:
+#	ret
+# .size function,.-function
+#
+# The key is that up to magic_point copy of original rsp value remains
+# in chosen volatile register and no non-volatile register, except for
+# rsp, is modified. While past magic_point rsp remains constant till
+# the very end of the function. In this case custom language-specific
+# exception handler would look like this:
+#
+# EXCEPTION_DISPOSITION handler (EXCEPTION_RECORD *rec,ULONG64 frame,
+#		CONTEXT *context,DISPATCHER_CONTEXT *disp)
+# {	ULONG64 *rsp = (ULONG64 *)context->Rax;
+#	ULONG64  rip = context->Rip;
+#
+#	if (rip >= magic_point)
+#	{   rsp = (ULONG64 *)context->Rsp;
+#	    if (rip < magic_epilogue)
+#	    {	rsp = (ULONG64 *)rsp[0];
+#		context->Rbp = rsp[-3];
+#		context->Rbx = rsp[-2];
+#		context->R15 = rsp[-1];
+#	    }
+#	}
+#	context->Rsp = (ULONG64)rsp;
+#	context->Rdi = rsp[1];
+#	context->Rsi = rsp[2];
+#
+#	memcpy (disp->ContextRecord,context,sizeof(CONTEXT));
+#	RtlVirtualUnwind(UNW_FLAG_NHANDLER,disp->ImageBase,
+#		dips->ControlPc,disp->FunctionEntry,disp->ContextRecord,
+#		&disp->HandlerData,&disp->EstablisherFrame,NULL);
+#	return ExceptionContinueSearch;
+# }
+#
+# It's appropriate to implement this handler in assembler, directly in
+# function's module. In order to do that one has to know members'
+# offsets in CONTEXT and DISPATCHER_CONTEXT structures and some constant
+# values. Here they are:
+#
+#	CONTEXT.Rax				120
+#	CONTEXT.Rcx				128
+#	CONTEXT.Rdx				136
+#	CONTEXT.Rbx				144
+#	CONTEXT.Rsp				152
+#	CONTEXT.Rbp				160
+#	CONTEXT.Rsi				168
+#	CONTEXT.Rdi				176
+#	CONTEXT.R8				184
+#	CONTEXT.R9				192
+#	CONTEXT.R10				200
+#	CONTEXT.R11				208
+#	CONTEXT.R12				216
+#	CONTEXT.R13				224
+#	CONTEXT.R14				232
+#	CONTEXT.R15				240
+#	CONTEXT.Rip				248
+#	CONTEXT.Xmm6				512
+#	sizeof(CONTEXT)				1232
+#	DISPATCHER_CONTEXT.ControlPc		0
+#	DISPATCHER_CONTEXT.ImageBase		8
+#	DISPATCHER_CONTEXT.FunctionEntry	16
+#	DISPATCHER_CONTEXT.EstablisherFrame	24
+#	DISPATCHER_CONTEXT.TargetIp		32
+#	DISPATCHER_CONTEXT.ContextRecord	40
+#	DISPATCHER_CONTEXT.LanguageHandler	48
+#	DISPATCHER_CONTEXT.HandlerData		56
+#	UNW_FLAG_NHANDLER			0
+#	ExceptionContinueSearch			1
+#
+# In order to tie the handler to the function one has to compose
+# couple of structures: one for .xdata segment and one for .pdata.
+#
+# UNWIND_INFO structure for .xdata segment would be
+#
+# function_unwind_info:
+#	.byte	9,0,0,0
+#	.rva	handler
+#
+# This structure designates exception handler for a function with
+# zero-length prologue, no stack frame or frame register.
+#
+# To facilitate composing of .pdata structures, auto-generated "gear"
+# prologue copies rsp value to rax and denotes next instruction with
+# .LSEH_begin_{function_name} label. This essentially defines the SEH
+# styling rule mentioned in the beginning. Position of this label is
+# chosen in such manner that possible exceptions raised in the "gear"
+# prologue would be accounted to caller and unwound from latter's frame.
+# End of function is marked with respective .LSEH_end_{function_name}
+# label. To summarize, .pdata segment would contain
+#
+#	.rva	.LSEH_begin_function
+#	.rva	.LSEH_end_function
+#	.rva	function_unwind_info
+#
+# Reference to function_unwind_info from .xdata segment is the anchor.
+# In case you wonder why references are 32-bit .rvas and not 64-bit
+# .quads. References put into these two segments are required to be
+# *relative* to the base address of the current binary module, a.k.a.
+# image base. No Win64 module, be it .exe or .dll, can be larger than
+# 2GB and thus such relative references can be and are accommodated in
+# 32 bits.
+#
+# Having reviewed the example function code, one can argue that "movq
+# %rsp,%rax" above is redundant. It is not! Keep in mind that on Unix
+# rax would contain an undefined value. If this "offends" you, use
+# another register and refrain from modifying rax till magic_point is
+# reached, i.e. as if it was a non-volatile register. If more registers
+# are required prior [variable] frame setup is completed, note that
+# nobody says that you can have only one "magic point." You can
+# "liberate" non-volatile registers by denoting last stack off-load
+# instruction and reflecting it in finer grade unwind logic in handler.
+# After all, isn't it why it's called *language-specific* handler...
+#
+# SE handlers are also involved in unwinding stack when executable is
+# profiled or debugged. Profiling implies additional limitations that
+# are too subtle to discuss here. For now it's sufficient to say that
+# in order to simplify handlers one should either a) offload original
+# %rsp to stack (like discussed above); or b) if you have a register to
+# spare for frame pointer, choose volatile one.
+#
+# (*)	Note that we're talking about run-time, not debug-time. Lack of
+#	unwind information makes debugging hard on both Windows and
+#	Unix. "Unlike" refers to the fact that on Unix signal handler
+#	will always be invoked, core dumped and appropriate exit code
+#	returned to parent (for user notification).
+*/

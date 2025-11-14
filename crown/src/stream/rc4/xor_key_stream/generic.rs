@@ -1,3 +1,5 @@
+#![cfg(all(not(feature = "asm"), not(target_arch = "x86_64")))]
+
 use crate::{
     error::CryptoResult,
     stream::{rc4::Rc4, StreamCipher},
