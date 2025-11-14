@@ -996,6 +996,7 @@ dependencies = [
  "anyhow",
  "boa_engine",
  "boa_runtime",
+ "rustc-hash",
  "serde",
  "swc",
  "swc_atoms 9.0.0",

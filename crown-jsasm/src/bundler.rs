@@ -6,6 +6,7 @@ use loader::Loader;
 mod hook;
 use hook::Hook;
 
+use rustc_hash::FxHashMap;
 use swc_bundler::Bundler;
 use swc_common::{sync::Lrc, FileName, SourceMap};
 use swc_ecma_codegen::{text_writer::JsWriter, Emitter};
@@ -18,14 +19,26 @@ pub(crate) fn bundle_module(code: Option<String>, file_path: String) -> anyhow::
     let globals = Box::leak(Box::default());
     let cm = Lrc::new(SourceMap::default());
 
+    let mut alias = FxHashMap::<String, String>::default();
+    {
+        let (p, m, t) = (["", "jsasm/"], ["", "x86_64-xlate"], ["", "ts"]);
+        for p in p {
+            for m in m {
+                for t in t {
+                    alias.insert(
+                        format!("{p}{m}{t}"),
+                        format!("{}/preload/{m}.ts", env!("CARGO_MANIFEST_DIR")),
+                    );
+                }
+            }
+        }
+    }
+
     let mut bundler = Bundler::new(
         globals,
         cm.clone(),
         Loader { cm: cm.clone() },
-        CachingResolver::new(
-            4096,
-            NodeModulesResolver::new(TargetEnv::Node, Default::default(), true),
-        ),
+        CachingResolver::new(4096, NodeModulesResolver::new(TargetEnv::Node, alias, true)),
         swc_bundler::Config {
             require: false,
             disable_inliner: false,
