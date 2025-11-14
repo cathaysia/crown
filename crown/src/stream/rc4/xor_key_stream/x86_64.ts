@@ -598,4 +598,6 @@ code = code.replace(/`([^`]*)`/g, (match, expr) => {
   }
 });
 
-export default code;
+import { translateAssembly } from 'jsasm/x86_64-xlate';
+
+export default translateAssembly(code);

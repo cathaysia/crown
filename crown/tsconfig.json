@@ -1,0 +1,15 @@
+{
+  "include": ["**/*.ts", "../crown-jsasm/preload/*"],
+  "compilerOptions": {
+    "target": "esnext",
+    "jsx": "preserve",
+    "jsxImportSource": "react",
+    "baseUrl": ".",
+    "paths": {
+      "jsasm/*": ["../crown-jsasm/preload/*"]
+    },
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "incremental": true
+  },
+  "exclude": ["node_modules"]
+}

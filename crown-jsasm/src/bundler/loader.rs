@@ -41,7 +41,8 @@ impl Load for Loader {
             Syntax::Typescript(Default::default()),
             Default::default(),
             None,
-        )?;
+        )
+        .unwrap();
         let unresolved_mark = Mark::new();
         let top_level_mark = Mark::new();
 
