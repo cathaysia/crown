@@ -69,7 +69,10 @@ export default function Page() {
   const [nonceError, setNonceError] = useState('');
   const [wasmReady, setWasmReady] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [aadFile, setAadFile] = useState<File | null>(null);
   const [mode, setMode] = useState<'text' | 'file'>('text');
+  const [aadMode, setAadMode] = useState<'text' | 'file'>('text');
+  const [plaintextMode, setPlaintextMode] = useState<'text' | 'file'>('text');
   const [encryptedFileData, setEncryptedFileData] = useState<{
     data: Uint8Array;
     tag: Uint8Array;
@@ -77,6 +80,7 @@ export default function Page() {
   } | null>(null);
   const [isEncrypting, setIsEncrypting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const aadInputRef = useRef<HTMLInputElement>(null);
 
   const createKeySchema = (expectedLength: number) =>
     z
@@ -141,6 +145,13 @@ export default function Page() {
     }
   };
 
+  const handleAadFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setAadFile(file);
+    }
+  };
+
   const clearFile = () => {
     setUploadedFile(null);
     setEncryptedFileData(null);
@@ -149,10 +160,44 @@ export default function Page() {
     }
   };
 
+  const clearAadFile = () => {
+    setAadFile(null);
+    if (aadInputRef.current) {
+      aadInputRef.current.value = '';
+    }
+  };
+
   const handleModeChange = (newMode: string) => {
     setMode(newMode as 'text' | 'file');
     setError('');
     setEncryptedFileData(null);
+    if (newMode === 'text') {
+      setUploadedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } else {
+      setPlaintext('');
+      setCiphertext('');
+      setTag('');
+      updateState({ plaintext: '', ciphertext: '', tag: '' });
+    }
+  };
+
+  const handleAadModeChange = (newMode: 'text' | 'file') => {
+    setAadMode(newMode);
+    if (newMode === 'text') {
+      setAadFile(null);
+      if (aadInputRef.current) {
+        aadInputRef.current.value = '';
+      }
+    } else {
+      pushQuery('aad', '');
+    }
+  };
+
+  const handlePlaintextModeChange = (newMode: 'text' | 'file') => {
+    setPlaintextMode(newMode);
     if (newMode === 'text') {
       setUploadedFile(null);
       if (fileInputRef.current) {
@@ -180,61 +225,91 @@ export default function Page() {
     try {
       setError('');
 
-      if (mode === 'file' && uploadedFile) {
-        const keyBytes = stringToUint8Array(key, 'hex');
-        const nonceBytes = stringToUint8Array(nonce, 'hex');
-        const aadBytes = stringToUint8Array(aad, inputFormat);
+      const keyBytes = stringToUint8Array(key, 'hex');
+      const nonceBytes = stringToUint8Array(nonce, 'hex');
 
-        const reader = new FileReader();
-        reader.onload = e => {
-          try {
-            const arrayBuffer = e.target?.result as ArrayBuffer;
-            const plaintextBytes = new Uint8Array(arrayBuffer);
+      const getAadBytes = async (): Promise<Uint8Array> => {
+        if (aadMode === 'file' && aadFile) {
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => {
+              const arrayBuffer = e.target?.result as ArrayBuffer;
+              resolve(new Uint8Array(arrayBuffer));
+            };
+            reader.onerror = () => reject(new Error('Failed to read AAD file'));
+            reader.readAsArrayBuffer(aadFile);
+          });
+        } else {
+          return stringToUint8Array(aad, inputFormat);
+        }
+      };
 
-            const cipher = createAeadCipher(
-              algorithm as AeadAlgorithm,
-              keyBytes,
-            );
+      const getPlaintextBytes = async (): Promise<Uint8Array | null> => {
+        if (plaintextMode === 'file' && uploadedFile) {
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => {
+              const arrayBuffer = e.target?.result as ArrayBuffer;
+              resolve(new Uint8Array(arrayBuffer));
+            };
+            reader.onerror = () =>
+              reject(new Error('Failed to read plaintext file'));
+            reader.readAsArrayBuffer(uploadedFile);
+          });
+        } else if (plaintextMode === 'text' && plaintext) {
+          return stringToUint8Array(plaintext, inputFormat);
+        } else {
+          return null;
+        }
+      };
 
-            try {
-              const data = new Uint8Array(plaintextBytes);
-              const tagBytes = cipher.seal_in_place_separate_tag(
-                data,
-                nonceBytes,
-                aadBytes,
-              );
+      const aadBytes = await getAadBytes();
+      const plaintextBytes = await getPlaintextBytes();
 
-              setEncryptedFileData({
-                data,
-                tag: tagBytes,
-                filename: uploadedFile.name,
-              });
-            } finally {
-              cipher.free();
-            }
-          } catch (err) {
-            setError(err instanceof Error ? err.message : 'Encryption failed');
-          } finally {
-            setIsEncrypting(false);
+      const cipher = createAeadCipher(algorithm as AeadAlgorithm, keyBytes);
+
+      try {
+        if (plaintextBytes && plaintextBytes.length > 0) {
+          const data = new Uint8Array(plaintextBytes);
+          const tagBytes = cipher.seal_in_place_separate_tag(
+            data,
+            nonceBytes,
+            aadBytes,
+          );
+
+          if (plaintextMode === 'file' && uploadedFile) {
+            setEncryptedFileData({
+              data,
+              tag: tagBytes,
+              filename: uploadedFile.name,
+            });
+          } else {
+            setCiphertext(uint8ArrayToString(data, outputFormat));
+            setTag(uint8ArrayToString(tagBytes, outputFormat));
+            updateState({
+              ciphertext: uint8ArrayToString(data, outputFormat),
+              tag: uint8ArrayToString(tagBytes, outputFormat),
+            });
           }
-        };
-        reader.readAsArrayBuffer(uploadedFile);
-      } else {
-        const result = encryptAead({
-          algorithm: algorithm as AeadAlgorithm,
-          key,
-          nonce,
-          aad,
-          plaintext,
-          inputFormat,
-          outputFormat,
-        });
-
-        setCiphertext(result.ciphertext);
-        setTag(result.tag);
-        updateState({ ciphertext: result.ciphertext, tag: result.tag });
-        setIsEncrypting(false);
+        } else {
+          const emptyData = new Uint8Array(0);
+          const tagBytes = cipher.seal_in_place_separate_tag(
+            emptyData,
+            nonceBytes,
+            aadBytes,
+          );
+          setCiphertext('');
+          setTag(uint8ArrayToString(tagBytes, outputFormat));
+          updateState({
+            ciphertext: '',
+            tag: uint8ArrayToString(tagBytes, outputFormat),
+          });
+        }
+      } finally {
+        cipher.free();
       }
+
+      setIsEncrypting(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Encryption failed');
       setIsEncrypting(false);
@@ -320,7 +395,7 @@ export default function Page() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="flex flex-col gap-4">
         <div>
           <Label className="block text-sm font-medium mb-2">
             Key (Hex) - {algorithmInfo.keySize} bytes
@@ -389,27 +464,106 @@ export default function Page() {
         </div>
       </div>
 
-      <div>
-        <Label className="block text-sm font-medium mb-2">
-          Additional Authenticated Data (AAD)
-        </Label>
-        <Input
-          value={aad}
-          onChange={e => {
-            pushQuery('aad', e.target.value);
-          }}
-          placeholder="Optional additional data"
-        />
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-medium">
+            Additional Authenticated Data (AAD)
+          </Label>
+          <Tabs
+            value={aadMode}
+            onValueChange={handleAadModeChange}
+            className="w-fit"
+          >
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="text" className="text-xs">
+                Text
+              </TabsTrigger>
+              <TabsTrigger value="file" className="text-xs">
+                File
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {aadMode === 'text' ? (
+          <Input
+            value={aad}
+            onChange={e => {
+              pushQuery('aad', e.target.value);
+            }}
+            placeholder="Optional additional data"
+          />
+        ) : (
+          <div className="space-y-3">
+            <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+              <input
+                ref={aadInputRef}
+                type="file"
+                onChange={handleAadFileUpload}
+                className="hidden"
+                id="aad-upload"
+              />
+              <Label
+                htmlFor="aad-upload"
+                className="cursor-pointer flex flex-col items-center space-y-2"
+              >
+                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                  <svg
+                    className="w-6 h-6 text-muted-foreground"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium">
+                    {aadFile ? aadFile.name : 'Click to upload AAD file'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {aadFile
+                      ? `${(aadFile.size / 1024).toFixed(2)} KB`
+                      : 'Optional authenticated data'}
+                  </p>
+                </div>
+              </Label>
+            </div>
+            {aadFile && (
+              <Button onClick={clearAadFile} variant="outline" size="sm">
+                Clear File
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
-      <Tabs value={mode} onValueChange={handleModeChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="text">Text Mode</TabsTrigger>
-          <TabsTrigger value="file">File Mode</TabsTrigger>
-        </TabsList>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-medium">Plaintext (Optional)</Label>
+          <Tabs
+            value={plaintextMode}
+            onValueChange={handlePlaintextModeChange}
+            className="w-fit"
+          >
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="text" className="text-xs">
+                Text
+              </TabsTrigger>
+              <TabsTrigger value="file" className="text-xs">
+                File
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
 
-        <TabsContent value="text" className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+        {plaintextMode === 'text' ? (
+          <div className="flex flex-col gap-4">
             <div>
               <div className="flex items-center justify-between mb-2">
                 <Label className="block text-sm font-medium">Plaintext</Label>
@@ -433,7 +587,7 @@ export default function Page() {
                   setPlaintext(e.target.value);
                   updateState({ plaintext: e.target.value });
                 }}
-                placeholder="Enter plaintext to encrypt"
+                placeholder="Enter plaintext to encrypt (optional)"
                 rows={4}
               />
             </div>
@@ -465,47 +619,56 @@ export default function Page() {
               />
             </div>
           </div>
-        </TabsContent>
-
-        <TabsContent value="file" className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="block text-sm font-medium mb-2">
-                File Upload
-              </Label>
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    id="file-upload"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex-1"
-                  >
-                    Upload File
-                  </Button>
-                  {uploadedFile && (
-                    <Button type="button" variant="outline" onClick={clearFile}>
-                      Clear
-                    </Button>
-                  )}
-                </div>
-
-                {uploadedFile && (
-                  <div className="p-3 border rounded-md bg-muted">
-                    <p className="text-sm font-medium">{uploadedFile.name}</p>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">File Upload</Label>
+              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  id="file-upload"
+                />
+                <Label
+                  htmlFor="file-upload"
+                  className="cursor-pointer flex flex-col items-center space-y-2"
+                >
+                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                    <svg
+                      className="w-6 h-6 text-muted-foreground"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">
+                      {uploadedFile
+                        ? uploadedFile.name
+                        : 'Click to upload file'}
+                    </p>
                     <p className="text-xs text-muted-foreground">
-                      {(uploadedFile.size / 1024).toFixed(2)} KB
+                      {uploadedFile
+                        ? `${(uploadedFile.size / 1024).toFixed(2)} KB`
+                        : 'Any file type supported'}
                     </p>
                   </div>
-                )}
+                </Label>
               </div>
+              {uploadedFile && (
+                <Button onClick={clearFile} variant="outline" size="sm">
+                  Clear File
+                </Button>
+              )}
             </div>
 
             <div>
@@ -530,8 +693,8 @@ export default function Page() {
               )}
             </div>
           </div>
-        </TabsContent>
-      </Tabs>
+        )}
+      </div>
 
       <div>
         <Label className="block text-sm font-medium mb-2">

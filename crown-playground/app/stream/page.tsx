@@ -326,7 +326,7 @@ export default function Page() {
         <div></div>
       </div>
 
-      <div className={needsIv ? 'grid grid-cols-2 gap-4' : ''}>
+      <div className={needsIv ? 'flex flex-col gap-4' : ''}>
         <div>
           <label className="block text-sm font-medium mb-2">
             Key (Hex) - {algorithmInfo.keySize} bytes (
@@ -385,13 +385,20 @@ export default function Page() {
       </div>
 
       <Tabs value={mode} onValueChange={handleModeChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="text">Text Mode</TabsTrigger>
-          <TabsTrigger value="file">File Mode</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-medium">Input Mode</label>
+          <TabsList className="grid w-fit grid-cols-2">
+            <TabsTrigger value="text" className="text-xs">
+              Text
+            </TabsTrigger>
+            <TabsTrigger value="file" className="text-xs">
+              File
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="text" className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-4">
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-sm font-medium">Plaintext</label>
@@ -450,44 +457,55 @@ export default function Page() {
         </TabsContent>
 
         <TabsContent value="file" className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                File Upload
-              </label>
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    id="file-upload"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex-1"
-                  >
-                    Upload File
-                  </Button>
-                  {uploadedFile && (
-                    <Button type="button" variant="outline" onClick={clearFile}>
-                      Clear
-                    </Button>
-                  )}
-                </div>
-
-                {uploadedFile && (
-                  <div className="p-3 border rounded-md bg-muted">
-                    <p className="text-sm font-medium">{uploadedFile.name}</p>
+          <div className="flex flex-col gap-4">
+            <div className="space-y-3">
+              <label className="text-sm font-medium">File Upload</label>
+              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  id="file-upload"
+                />
+                <label
+                  htmlFor="file-upload"
+                  className="cursor-pointer flex flex-col items-center space-y-2"
+                >
+                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                    <svg
+                      className="w-6 h-6 text-muted-foreground"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">
+                      {uploadedFile
+                        ? uploadedFile.name
+                        : 'Click to upload file'}
+                    </p>
                     <p className="text-xs text-muted-foreground">
-                      {(uploadedFile.size / 1024).toFixed(2)} KB
+                      {uploadedFile
+                        ? `${(uploadedFile.size / 1024).toFixed(2)} KB`
+                        : 'Any file type supported'}
                     </p>
                   </div>
-                )}
+                </label>
               </div>
+              {uploadedFile && (
+                <Button onClick={clearFile} variant="outline" size="sm">
+                  Clear File
+                </Button>
+              )}
             </div>
 
             <div>

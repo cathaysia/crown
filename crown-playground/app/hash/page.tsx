@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Format } from '@/lib/format';
 import {
   createHash,
@@ -25,7 +26,6 @@ import {
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/ui/radio-group';
 import { Switch } from '@/ui/switch';
 import { Textarea } from '@/ui/textarea';
 
@@ -291,27 +291,22 @@ export default function Page() {
           )}
         </div>
 
-        {/* Input Mode Selection */}
-        <div className="space-y-3">
+        <div className="flex items-center justify-between">
           <Label className="text-sm font-medium">Input Source</Label>
-          <RadioGroup
+          <Tabs
             value={inputMode}
             onValueChange={(value: 'text' | 'file') => setInputMode(value)}
-            className="flex gap-6"
+            className="w-fit"
           >
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="text" id="text-input" />
-              <Label htmlFor="text-input" className="text-sm cursor-pointer">
-                Text Input
-              </Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="file" id="file-input" />
-              <Label htmlFor="file-input" className="text-sm cursor-pointer">
-                File Upload
-              </Label>
-            </div>
-          </RadioGroup>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="text" className="text-xs">
+                Text
+              </TabsTrigger>
+              <TabsTrigger value="file" className="text-xs">
+                File
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
 
         {/* Text Input */}
