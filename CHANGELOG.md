@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/cathaysia/crown/compare/v0.9.1...v0.10.0) (2025-11-16)
+
+
+### Features
+
+* **playground:** fix for phone ([ea6687c](https://github.com/cathaysia/crown/commit/ea6687c40ecaaa81d93ec4cf1cb401888fd21d6f))
+
 ## [0.9.1](https://github.com/cathaysia/crown/compare/v0.9.0...v0.9.1) (2025-11-01)
 
 
