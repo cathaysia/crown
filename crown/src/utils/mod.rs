@@ -1,3 +1,4 @@
+pub mod cpuid;
 #[cfg(feature = "std")]
 pub mod rand;
 pub mod subtle;
