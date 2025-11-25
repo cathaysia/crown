@@ -8,7 +8,7 @@ members = [
   "crown-jsasm",
   "crown-wasm",
 ]
-package.version = "0.9.1"
+package.version = "0.10.0"
 package.edition = "2021"
 package.description = "A cryptographic library."
 package.license = "Apache-2.0"
@@ -24,8 +24,8 @@ strip = false
 
 [workspace.dependencies]
 paste = "1.0.15"
-crown = { path = "./crown", version = "0.9.1" }
-crown-derive = { path = "./crown-derive", version = "0.9.1" }
-crown-jsasm = { path = "./crown-jsasm", version = "0.9.1" }
+crown = { path = "./crown", version = "0.10.0" }
+crown-derive = { path = "./crown-derive", version = "0.10.0" }
+crown-jsasm = { path = "./crown-jsasm", version = "0.10.0" }
 anyhow = "1.0.52"
 serde = "1"

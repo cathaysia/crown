@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.10.0](https://github.com/cathaysia/crown/compare/v0.9.1...v0.10.0) (2025-11-25)
+
+
+### Features
+
+* add cpuid ([5750534](https://github.com/cathaysia/crown/commit/5750534a19074baba956a3f458a9d9887c9b5269))
+* add jsasm ([947e47c](https://github.com/cathaysia/crown/commit/947e47ce7016968da53acae414919c76d8c6e108))
+* allow import ([947e47c](https://github.com/cathaysia/crown/commit/947e47ce7016968da53acae414919c76d8c6e108))
+* **asm:** add rc4 x86_64 asm ([f706010](https://github.com/cathaysia/crown/commit/f7060104c912f4d07c80f28146854f7caeca3df6))
+* **crown-bin:** add jsasm ([2ce281d](https://github.com/cathaysia/crown/commit/2ce281d8cfba7d69e9f0549f9af648851f66f025))
+* **jsasm:** add typescript support ([7e9dd89](https://github.com/cathaysia/crown/commit/7e9dd89cff082cbe9ecba0852059117588405a2e))
+* **jsasm:** add x86_64-xlate ([3a4e18e](https://github.com/cathaysia/crown/commit/3a4e18ecad15ce4517d84142cd7708d69f3532d0))
+* **playground:** fix for phone ([ea6687c](https://github.com/cathaysia/crown/commit/ea6687c40ecaaa81d93ec4cf1cb401888fd21d6f))
+* **rc4:** add rc4 asm support ([14025d2](https://github.com/cathaysia/crown/commit/14025d2e4fc755932fd13ea113bdc9311da750a1))
+* **rust:** bumpd rust to 1.90.0 ([57ff012](https://github.com/cathaysia/crown/commit/57ff0128a389a75754e62f40daca7215bc478bcc))
+
+
+### Bug Fixes
+
+* comment out asm ([e2007f8](https://github.com/cathaysia/crown/commit/e2007f8489b78b31c4193553e2255bcb134b1f33))
+* rename crown_cabi to crown-cabi ([38c181d](https://github.com/cathaysia/crown/commit/38c181d5137087f0820da8169a711adafbe53297))
+
 ## [0.9.1](https://github.com/cathaysia/crown/compare/v0.9.0...v0.9.1) (2025-11-01)
 
 
