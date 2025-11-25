@@ -977,6 +977,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "crown-cabi"
+version = "0.9.1"
+dependencies = [
+ "cbindgen",
+ "crown",
+ "paste",
+ "toml 0.9.8",
+]
+
+[[package]]
 name = "crown-derive"
 version = "0.9.1"
 dependencies = [
@@ -1021,16 +1031,6 @@ dependencies = [
  "paste",
  "wasm-bindgen",
  "web-sys",
-]
-
-[[package]]
-name = "crown_cabi"
-version = "0.9.1"
-dependencies = [
- "cbindgen",
- "crown",
- "paste",
- "toml 0.9.8",
 ]
 
 [[package]]

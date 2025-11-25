@@ -1,5 +1,5 @@
 [package]
-name = "crown_cabi"
+name = "crown-cabi"
 version.workspace = true
 edition.workspace = true
 description.workspace = true
