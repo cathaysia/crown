@@ -17,8 +17,8 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install build-essential gcc cpp libclang-dev openssl libssl-dev -y
-      - name: install Rust 1.85.0
-        uses: dtolnay/rust-toolchain@1.85.0
+      - name: install Rust 1.89.0
+        uses: dtolnay/rust-toolchain@1.89.0
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.9
       - name: publish crown-jsasm crate
@@ -67,8 +67,8 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install build-essential gcc cpp libclang-dev openssl libssl-dev -y
-      - name: install Rust 1.85.0
-        uses: dtolnay/rust-toolchain@1.85.0
+      - name: install Rust 1.89.0
+        uses: dtolnay/rust-toolchain@1.89.0
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.9
       - name: install cross
