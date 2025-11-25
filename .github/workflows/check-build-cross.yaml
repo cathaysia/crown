@@ -48,8 +48,8 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install libclang-dev -y
-      - name: install Rust 1.85.0
-        uses: dtolnay/rust-toolchain@1.85.0
+      - name: install Rust 1.89.0
+        uses: dtolnay/rust-toolchain@1.89.0
       - name: Install Rust Nightly
         if: ${{ contains(matrix.target, 'mips') }}
         uses: dtolnay/rust-toolchain@nightly

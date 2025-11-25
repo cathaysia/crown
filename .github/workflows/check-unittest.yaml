@@ -18,8 +18,8 @@ jobs:
           sudo apt install build-essential gcc cpp libclang-dev openssl libssl-dev -y
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.9
-      - name: install Rust 1.85.0
-        uses: dtolnay/rust-toolchain@1.85.0
+      - name: install Rust 1.89.0
+        uses: dtolnay/rust-toolchain@1.89.0
       - name: run unit tests
         env:
           SCCACHE_GHA_ENABLED: "true"

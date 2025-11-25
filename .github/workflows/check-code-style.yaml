@@ -29,8 +29,8 @@ jobs:
           python-version: 3.x
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.9
-      - name: install Rust 1.85.0
-        uses: dtolnay/rust-toolchain@1.85.0
+      - name: install Rust 1.89.0
+        uses: dtolnay/rust-toolchain@1.89.0
         with:
           components: rustfmt,clippy
       - name: install taplo
@@ -51,9 +51,9 @@ jobs:
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: "sccache"
         run: |
-          pre-commit run -a
-          rustup component remove clippy
           rustup component add clippy
+          rustup component add rustfmt
+          pre-commit run -a
           cargo clippy -- -Dwarnings
           # don't check test
           # cargo clippy --tests -- -Dwarnings
