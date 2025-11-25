@@ -129,7 +129,6 @@ function generateCetProperty(flavour: Flavour, gnuas: boolean): string {
 `;
 }
 
-
 // Global state
 let config: Config = initConfig();
 let currentSegment: string = '';
@@ -842,25 +841,25 @@ class Directive {
         const sym = parts[0];
         const type = parts[1];
         const narg = parts[2] ? parseInt(parts[2]) : undefined;
-        
+
         if (type === '@function') {
           currentFunction = {
             name: sym,
             abi: 'svr4',
             narg: narg,
-            scope: globals[sym] !== undefined ? 'PUBLIC' : 'PRIVATE'
+            scope: globals[sym] !== undefined ? 'PUBLIC' : 'PRIVATE',
           };
         } else if (type === '@abi-omnipotent') {
           currentFunction = {
             name: sym,
-            scope: globals[sym] !== undefined ? 'PUBLIC' : 'PRIVATE'
+            scope: globals[sym] !== undefined ? 'PUBLIC' : 'PRIVATE',
           };
         }
-        
+
         line.value = line.value.replace(/@abi-omnipotent/, '@function');
         line.value = line.value.replace(/@function.*/, '@function');
         self.value = dir + '\t' + line.value;
-        
+
         if (!config.elf) {
           self.value = '';
           const match = line.value.match(/([^,]+),@function/);
@@ -888,7 +887,7 @@ class Directive {
       else if (dir.match(/\.rva|\.long|\.quad|\.byte/)) {
         line.value = line.value.replace(
           /([_a-z][_a-z0-9]*)/gi,
-          m => globals[m] || m
+          m => globals[m] || m,
         );
         line.value = line.value.replace(/\.L/g, config.decor);
         self.value = dir + '\t' + line.value;
@@ -924,16 +923,16 @@ class Directive {
       else if (dir === '.section') {
         // Remove align option (not supported by gcc)
         self.value = self.value.replace(/(.+)\s+align\s*=.*$/, '$1');
-        
+
         const prevSegment = segmentStack.pop();
         if (!prevSegment) {
           // If no previous section, assume .text
           segmentStack.push('.text');
         }
-        
+
         currentSegment = line.value.replace(/([^\s]+).*$/, '$1');
         segmentStack.push(currentSegment);
-        
+
         if (!config.elf && currentSegment === '.rodata') {
           if (config.flavour === Flavour.Macosx) {
             self.value = '.section\t__DATA,__const';
@@ -972,7 +971,7 @@ class Directive {
         if (config.flavour === Flavour.Macosx) {
           self.value = self.value.replace(
             /,([0-9]+),([0-9]+)$/,
-            (_, size, align) => `,${size},${Math.log2(parseInt(align))}`
+            (_, size, align) => `,${size},${Math.log2(parseInt(align))}`,
           );
         }
       }
@@ -984,7 +983,10 @@ class Directive {
           currentSegment = '.text';
           segmentStack.push(currentSegment);
         }
-        if (config.flavour === Flavour.Mingw64 || config.flavour === Flavour.Macosx) {
+        if (
+          config.flavour === Flavour.Mingw64 ||
+          config.flavour === Flavour.Macosx
+        ) {
           self.value = currentSegment;
         }
       }
@@ -1016,7 +1018,8 @@ class Directive {
           currentSegment = '.text$';
           segmentStack.push(currentSegment);
           v += `${currentSegment}\tSEGMENT `;
-          v += config.masm >= 8 + 50727 * Math.pow(2, -32) ? 'ALIGN(256)' : 'PAGE';
+          v +=
+            config.masm >= 8 + 50727 * Math.pow(2, -32) ? 'ALIGN(256)' : 'PAGE';
           v += " 'CODE'";
         }
         self.value = v;
@@ -1091,7 +1094,10 @@ class Directive {
             }
           } else if (line.value.match(/\.CRT\$/i)) {
             v += ' READONLY ';
-            v += config.masm >= 8 + 50727 * Math.pow(2, -32) ? 'ALIGN(8)' : 'DWORD';
+            v +=
+              config.masm >= 8 + 50727 * Math.pow(2, -32)
+                ? 'ALIGN(8)'
+                : 'DWORD';
           }
         }
         currentSegment = line.value;
@@ -1134,7 +1140,10 @@ class Directive {
       }
 
       case '.align': {
-        const max = config.masm && config.masm >= 8 + 50727 * Math.pow(2, -32) ? 256 : 4096;
+        const max =
+          config.masm && config.masm >= 8 + 50727 * Math.pow(2, -32)
+            ? 256
+            : 4096;
         const align = parseInt(line.value);
         self.value = `ALIGN\t${align > max ? max : align}`;
         break;
@@ -1147,23 +1156,30 @@ class Directive {
         const sz = dir.charAt(1).toUpperCase();
         const arr = line.value.split(/,\s*/);
         const last = arr.pop()!;
-        
+
         const conv = (v: string): string => {
-          v = v.replace(/^(0b[0-1]+)/g, m => String(parseInt(m.substring(2), 2)));
+          v = v.replace(/^(0b[0-1]+)/g, m =>
+            String(parseInt(m.substring(2), 2)),
+          );
           if (config.masm) {
             v = v.replace(/^0x([0-9a-f]+)/gi, '0$1h');
           }
-          if (sz === 'D' && (currentSegment.match(/\.[px]data/) || dir === '.rva')) {
-            v = v.replace(
-              /^([_a-z\$\@][_a-z0-9\$\@]*)/gi,
-              m => config.nasm ? `${m} wrt ..imagebase` : `imagerel ${m}`
+          if (
+            sz === 'D' &&
+            (currentSegment.match(/\.[px]data/) || dir === '.rva')
+          ) {
+            v = v.replace(/^([_a-z\$\@][_a-z0-9\$\@]*)/gi, m =>
+              config.nasm ? `${m} wrt ..imagebase` : `imagerel ${m}`,
             );
           }
           return v;
         };
 
         const szMap: Record<string, string> = {
-          v: 'W', l: 'D', r: 'D', q: 'Q'
+          v: 'W',
+          l: 'D',
+          r: 'D',
+          q: 'Q',
         };
         const szCode = szMap[sz.toLowerCase()] || sz;
         self.value = `\tD${szCode}\t`;
@@ -1178,7 +1194,7 @@ class Directive {
         const strs = line.value.split(/,\s*/);
         strs.forEach((s, i) => {
           strs[i] = s.replace(/(0b[0-1]+)/g, m =>
-            String(parseInt(m.substring(2), 2))
+            String(parseInt(m.substring(2), 2)),
           );
         });
         if (config.masm) {
@@ -1231,7 +1247,10 @@ class Directive {
           currentSegment = segmentStack.pop() || '';
           if (currentSegment.match(/\.text\$/)) {
             v += `${currentSegment}\tSEGMENT `;
-            v += config.masm >= 8 + 50727 * Math.pow(2, -32) ? 'ALIGN(256)' : 'PAGE';
+            v +=
+              config.masm >= 8 + 50727 * Math.pow(2, -32)
+                ? 'ALIGN(256)'
+                : 'PAGE';
             v += " 'CODE'";
             segmentStack.push(currentSegment);
           }
@@ -1592,7 +1611,7 @@ export function translateAssembly(input: string, flavour?: Flavour): string {
         // Check for hard-coded instructions
         const mnemonic = opcode.mnemonic();
         const hardcodedHandler = hardcodedInstructions[mnemonic];
-        
+
         if (hardcodedHandler) {
           const bytes = hardcodedHandler(line.value);
           if (bytes.length > 0) {
@@ -1638,7 +1657,7 @@ export function translateAssembly(input: string, flavour?: Flavour): string {
           } else {
             let insn = opcode.out();
             const reversedArgs = [...args].reverse();
-            
+
             // Handle MASM/NASM register size suffix inference
             for (const arg of reversedArgs) {
               const argOut = arg.out();
@@ -1663,12 +1682,12 @@ export function translateAssembly(input: string, flavour?: Flavour): string {
                 break;
               }
             }
-            
+
             // Don't add size for lea in NASM
             if (config.nasm && opcode.mnemonic() === 'lea') {
               sz = undefined;
             }
-            
+
             const argStrs = reversedArgs.map(a => a.out(sz));
             result += `\t${insn}\t${argStrs.join(',')}`;
           }
@@ -1686,7 +1705,7 @@ export function translateAssembly(input: string, flavour?: Flavour): string {
   if (cetProperty) {
     output.push(cetProperty);
   }
-  
+
   if (config.masm && currentSegment) {
     output.push(`\n${currentSegment}\tENDS`);
   }

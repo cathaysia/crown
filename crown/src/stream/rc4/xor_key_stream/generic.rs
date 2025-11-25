@@ -1,4 +1,4 @@
-#![cfg(all(not(feature = "asm"), not(target_arch = "x86_64")))]
+// #![cfg(not(all(feature = "asm", target_arch = "x86_64")))]
 
 use crate::{
     error::CryptoResult,
