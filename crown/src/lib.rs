@@ -90,6 +90,3 @@ pub mod utils;
 
 #[cfg(feature = "unstable")]
 mod simd;
-
-#[cfg(all(feature = "std", feature = "unstable"))]
-pub use utils::rand;

@@ -166,7 +166,7 @@ fn new_from_password(password: &[u8], cost: u32) -> Result<Hashed, CryptoError> 
     p.cost = cost;
 
     let mut unencoded_salt = vec![0u8; MAX_SALT_SIZE];
-    crate::utils::rand::fill(unencoded_salt.as_mut_slice());
+    rand::fill(unencoded_salt.as_mut_slice());
 
     p.salt = base64_encode(&unencoded_salt);
     let hash = bcrypt(password, p.cost, &p.salt)?;

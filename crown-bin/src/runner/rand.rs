@@ -18,7 +18,7 @@ pub fn run_rand(args_hash: ArgsRand) -> anyhow::Result<()> {
         {
             let mut file = crate::utils::write_file(&out, size)?;
             let buffer = file.as_mut();
-            crown::rand::fill(buffer);
+            rand::fill(buffer);
             return Ok(());
         }
         #[cfg(not(unix))]
@@ -35,7 +35,7 @@ pub fn run_rand(args_hash: ArgsRand) -> anyhow::Result<()> {
     };
 
     let mut buf = vec![0u8; size];
-    crown::rand::fill(buf.as_mut_slice());
+    rand::fill(buf.as_mut_slice());
     if hex {
         write!(out, "{}", hex::encode(&buf)).unwrap();
     } else if base64 {
