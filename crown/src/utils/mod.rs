@@ -1,16 +1,5 @@
 // pub mod cpuid;
-#[cfg(feature = "std")]
-pub mod rand;
 pub mod subtle;
-
-#[cfg(feature = "std")]
-pub(crate) mod drbg;
-#[cfg(feature = "std")]
-pub(crate) mod entropy;
-#[cfg(feature = "std")]
-pub(crate) mod randutil;
-#[cfg(feature = "std")]
-pub(crate) mod sysrand;
 
 pub(crate) fn copy(dst: &mut [u8], src: &[u8]) -> usize {
     let len = dst.len().min(src.len());
