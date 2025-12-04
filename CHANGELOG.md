@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/cathaysia/crown/compare/v0.11.0...v0.11.1) (2025-12-04)
+
+
+### Bug Fixes
+
+* fix cross compile ([431686f](https://github.com/cathaysia/crown/commit/431686f4afcec02d57cebc2db3e742865aa881a2))
+
 ## [0.11.0](https://github.com/cathaysia/crown/compare/v0.10.0...v0.11.0) (2025-12-04)
 
 
