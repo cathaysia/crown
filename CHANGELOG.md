@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/cathaysia/crown/compare/v0.10.0...v0.11.0) (2025-12-04)
+
+
+### Features
+
+* remove rand ([e62c49d](https://github.com/cathaysia/crown/commit/e62c49d0e4b183bf9f2c9154868386799b2e9fee))
+
 ## [0.10.0](https://github.com/cathaysia/crown/compare/v0.9.1...v0.10.0) (2025-11-25)
 
 
