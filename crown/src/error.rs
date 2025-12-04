@@ -46,8 +46,6 @@ pub enum CryptoError {
     CounterOverflow,
     #[error("invalid input size")]
     InvalidLength,
-    #[error("invalid buffer overlap")]
-    InvalidBufferOverlap,
     #[error("invalid tag")]
     AuthenticationFailed,
     #[error("invalid hash state")]

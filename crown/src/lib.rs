@@ -1,9 +1,9 @@
-//! # KittyTLS Cryptographic Library
+//! # Crown Cryptographic Library
 //!
 //! A comprehensive cryptographic library designed to provide first-class documentation,
 //! easy-to-use APIs, and wide deployment compatibility across different environments.
 //!
-//! ## 🚀 Quick Start
+//! ## Quick Start
 //!
 //! For most use cases, we recommend using the high-level [`envelope`] module, which provides
 //! unified interfaces for common cryptographic operations:
@@ -26,7 +26,7 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
-//! ## 📚 Library Structure
+//! ## Library Structure
 //!
 //! - **[`envelope`]** - High-level unified interfaces (recommended for most users)
 //! - **[`aead`]** - Authenticated encryption with associated data implementations
@@ -39,7 +39,7 @@
 //! - **[`kdf`]** - Key derivation functions
 //! - **[`password_hash`]** - Specialized password hashing functions
 //!
-//! ## 🔒 Security Recommendations
+//! ## Security Recommendations
 //!
 //! Users should understand which algorithms are secure and which are not. For beginners,
 //! we recommend the following modern, secure algorithms:
@@ -79,14 +79,12 @@ pub mod stream;
 
 pub mod core;
 
+#[cfg(feature = "cuda")]
 pub mod cuda;
 
 pub mod error;
 
-#[cfg(not(feature = "unstable"))]
 mod utils;
-#[cfg(feature = "unstable")]
-pub mod utils;
 
 #[cfg(feature = "unstable")]
 mod simd;

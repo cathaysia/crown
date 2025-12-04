@@ -1,5 +1,3 @@
-#![cfg(feature = "cuda")]
-
 use crate::cuda::error::{CudaError, CudaResult};
 
 pub mod mem;

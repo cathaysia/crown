@@ -107,11 +107,6 @@ harness = false
 name = "des"
 harness = false
 
-
-[[bench]]
-name = "xor"
-harness = false
-
 [[bench]]
 name = "chacha20"
 harness = false

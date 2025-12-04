@@ -8,7 +8,7 @@ use crate::aead::{Aead, AeadUser};
 use crate::block::aes::Aes;
 use crate::block::BlockCipher;
 use crate::error::{CryptoError, CryptoResult};
-use crate::utils::{any_overlap, copy};
+use crate::utils::copy;
 
 // GCM represents a Galois Counter Mode with a specific key.
 pub struct Gcm<const NONCE_SIZE: usize = 12, const TAG_SIZE: usize = 16> {
@@ -55,10 +55,6 @@ impl<const NONCE_SIZE: usize, const TAG_SIZE: usize> Gcm<NONCE_SIZE, TAG_SIZE> {
             return Err(CryptoError::MessageTooLarge);
         }
 
-        if any_overlap(inout, aad) {
-            return Err(CryptoError::InvalidBufferOverlap);
-        }
-
         // Call the seal implementation
         Ok(seal(inout, self, nonce, aad))
     }
@@ -103,10 +99,6 @@ impl<const NONCE_SIZE: usize, const TAG_SIZE: usize> Aead<TAG_SIZE> for Gcm<NONC
 
         if inout.len() as u64 > (1u64 << 32) - 2 * GCM_BLOCK_SIZE as u64 + TAG_SIZE as u64 {
             return Err(CryptoError::AuthenticationFailed);
-        }
-
-        if any_overlap(inout, aad) {
-            return Err(CryptoError::InvalidBufferOverlap);
         }
 
         match open::<NONCE_SIZE, TAG_SIZE>(inout, self, nonce, aad, tag) {
