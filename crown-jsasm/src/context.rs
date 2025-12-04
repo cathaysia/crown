@@ -30,7 +30,7 @@ impl JsasmContext {
             .parse()
             .unwrap();
         let target_endian = std::env::var("CARGO_CFG_TARGET_ENDIAN")?;
-        let target_feature = std::env::var("CARGO_CFG_TARGET_FEATURE")?;
+        let target_feature = std::env::var("CARGO_CFG_TARGET_FEATURE").unwrap_or_default();
         Ok(Self {
             feature,
             unix,

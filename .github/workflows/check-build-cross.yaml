@@ -3,6 +3,7 @@ on:
   schedule:
     - cron: "0 0 * * *"
   workflow_dispatch:
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -24,7 +25,8 @@ jobs:
           ## linux musl
           - i686-unknown-linux-musl
           - arm-unknown-linux-musleabi
-          - armv7-unknown-linux-musl
+          - armv7-unknown-linux-musleabi
+          - armv7-unknown-linux-musleabihf
           - aarch64-unknown-linux-musl
           - loongarch64-unknown-linux-musl
           # - mips-unknown-linux-musl
@@ -33,49 +35,65 @@ jobs:
           - x86_64-pc-windows-gnu
           - i686-pc-windows-gnu
           - x86_64-pc-windows-msvc
-          - aarch64-pc-windows-gnullvm
+          # - aarch64-pc-windows-gnullvm
           ## android
           - x86_64-linux-android
           - aarch64-linux-android
           # - aarch64-apple-darwin
+
     env:
       CROSS_NO_WARNINGS: 0
+
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
+
       - name: setup env
         run: |
           sudo apt update -y
           sudo apt install libclang-dev -y
+
       - name: install Rust 1.89.0
         uses: dtolnay/rust-toolchain@1.89.0
+
       - name: Install Rust Nightly
         if: ${{ contains(matrix.target, 'mips') }}
         uses: dtolnay/rust-toolchain@nightly
+
       - name: Install xwin
         if: ${{ contains(matrix.target, 'msvc') }}
         uses: baptiste0928/cargo-install@v3
         with:
           crate: cargo-xwin
-          version: '0.19.2'
+          version: "0.19.2"
+
       - name: Install cross
         uses: baptiste0928/cargo-install@v3
         with:
           crate: cross
           git: https://github.com/cross-rs/cross
-      - name: build package for ${{ matrix.target }}
+
+      - name: Install rust target
+        run: |
+          rustup target add ${{ matrix.target }}
+
+      - name: build package for msvc
         if: ${{ contains(matrix.target, 'msvc') }}
         env:
           XWIN_CROSS_COMPILER: clang
         run: |
-          cargo xwin build
+          cargo xwin build --target=${{ matrix.target }} -p crown
+          cargo xwin build --target=${{ matrix.target }} -p crown -F std
+
       - name: build package for ${{ matrix.target }}
         if: ${{ !contains(matrix.target, 'mips') && !contains(matrix.target, 'msvc') }}
         run: |
-          cross build
-      - name: build package for ${{ matrix.target }}
+          cross build --target=${{ matrix.target }} -p crown
+          cross build --target=${{ matrix.target }} -p crown -F std
+
+      - name: build package for mips
         if: ${{ contains(matrix.target, 'mips') }}
         run: |
           rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
-          RUSTFLAGS="-Zpanic_abort_tests" cross +nightly build --target=mips-unknown-linux-musl -Z build-std=std,panic_abort
+          RUSTFLAGS="-Zpanic_abort_tests" cross +nightly build --target=${{ matrix.target }} -Z build-std=std,panic_abort
