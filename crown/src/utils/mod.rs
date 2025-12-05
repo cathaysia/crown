@@ -1,4 +1,6 @@
-// pub mod cpuid;
+#[cfg(target_arch = "x86_64")]
+pub mod cpuid;
+
 pub mod subtle;
 
 #[inline(always)]
