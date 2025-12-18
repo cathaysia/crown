@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/cathaysia/crown/compare/v0.11.1...v0.12.0) (2025-12-18)
+
+
+### Features
+
+* **crown:** make crown-jsasm as a optional dep ([75c1ded](https://github.com/cathaysia/crown/commit/75c1ded66e4437d03b5e98f0d8d904f013f8a072))
+
 ## [0.11.1](https://github.com/cathaysia/crown/compare/v0.11.0...v0.11.1) (2025-12-04)
 
 
