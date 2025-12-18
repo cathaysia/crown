@@ -1,9 +1,12 @@
 fn main() {
     println!("cargo::rerun-if-changed=**/*.cu");
 
-    let ctx = crown_jsasm::JsasmContext::new().unwrap();
-    let s = serde_json::to_string(&ctx).unwrap();
-    println!("cargo:rustc-env=JSASM_VAR={}", s);
+    #[cfg(feature = "asm")]
+    {
+        let ctx = crown_jsasm::JsasmContext::new().unwrap();
+        let s = serde_json::to_string(&ctx).unwrap();
+        println!("cargo:rustc-env=JSASM_VAR={}", s);
+    }
 
     #[cfg(feature = "cuda")]
     build_cuda();
