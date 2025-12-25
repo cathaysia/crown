@@ -1,0 +1,56 @@
+name: check-unittest-cross
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - [i686-unknown-linux-gnu]
+          - [aarch64-unknown-linux-musl]
+          - [armv7-unknown-linux-gnueabi]
+          - [arm-unknown-linux-gnueabihf]
+          - [arm-unknown-linux-musleabi]
+          # - [mips-unknown-linux-musl]
+          # - [mipsel-unknown-linux-musl]
+          # - [mips64-unknown-linux-muslabi64]
+          # - [mips64el-unknown-linux-muslabi64]
+          - [x86_64-linux-android]
+          - [aarch64-linux-android]
+    env:
+      CROSS_NO_WARNINGS: 0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: setup env
+        run: |
+          sudo apt update -y
+          sudo apt upgrade -y
+          sudo apt install build-essential gcc cpp wireshark-dev libclang-dev -y
+
+      - name: install Rust 1.89.0
+        uses: dtolnay/rust-toolchain@1.89.0
+
+      - name: Install Rust Nightly
+        if: ${{ contains(matrix.target[0], 'mips') }}
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: run unit tests for ${{ matrix.target[0] }}
+        if: ${{ !contains(matrix.target[0], 'mips') }}
+        run: |
+          cross test --target=${{ matrix.target[0] }}
+
+      - name: run unit tests for ${{ matrix.target[0] }}
+        if: ${{ contains(matrix.target[0], 'mips') }}
+        run: |
+          RUSTFLAGS="-Zpanic_abort_tests" cross +nightly test --target=${{ matrix.target[0] }} -Z build-std=std,panic_abort
