@@ -12,40 +12,45 @@ jobs:
       matrix:
         target:
           ## linux gnu
-          - x86_64-unknown-linux-gnu
           - i686-unknown-linux-gnu
-          - arm-unknown-linux-gnueabihf
-          - armv7-unknown-linux-gnueabi
-          - aarch64-unknown-linux-gnu
-          - loongarch64-unknown-linux-gnu
-          - x86_64-unknown-freebsd
-          - powerpc64le-unknown-linux-gnu
-          - s390x-unknown-linux-gnu
-          - sparcv9-sun-solaris
-          ## linux musl
           - i686-unknown-linux-musl
+          - i686-pc-windows-gnu
+
+          - x86_64-unknown-linux-gnu
+          - x86_64-unknown-freebsd
+          - x86_64-pc-windows-gnu
+          - x86_64-pc-windows-msvc
+          - x86_64-linux-android
+
+          - arm-unknown-linux-gnueabihf
           - arm-unknown-linux-musleabi
+
+          - armv7-unknown-linux-gnueabi
           - armv7-unknown-linux-musleabi
           - armv7-unknown-linux-musleabihf
           - armv7-unknown-linux-ohos
-          - aarch64-unknown-linux-musl
-          - aarch64-unknown-linux-ohos
-          - loongarch64-unknown-linux-musl
-          # - mips-unknown-linux-musl
-          - riscv64gc-unknown-linux-musl
-          ## windows
-          - x86_64-pc-windows-gnu
-          - i686-pc-windows-gnu
-          - x86_64-pc-windows-msvc
+          - armv7-unknown-linux-ohos
+
+          - aarch64-unknown-linux-gnu
           - aarch64-pc-windows-msvc
           - aarch64-pc-windows-gnullvm
-          ## android
-          - x86_64-linux-android
           - aarch64-linux-android
           - aarch64-apple-darwin
-          ## pwoerpc
-          - armv7-unknown-linux-ohos
+          - aarch64-unknown-linux-musl
+          - aarch64-unknown-linux-ohos
+
+          - loongarch64-unknown-linux-gnu
+
+          - s390x-unknown-linux-gnu
+
+          - sparcv9-sun-solaris
+
+          - loongarch64-unknown-linux-musl
+
+          - riscv64gc-unknown-linux-musl
+
           - powerpc64-unknown-linux-gnu
+          - powerpc64le-unknown-linux-gnu
           - powerpc64le-unknown-linux-gnu
           - powerpc64le-unknown-linux-musl
 

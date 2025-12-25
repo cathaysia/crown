@@ -13,15 +13,14 @@ jobs:
       matrix:
         target:
           - [i686-unknown-linux-gnu]
-          - [aarch64-unknown-linux-musl]
-          - [armv7-unknown-linux-gnueabi]
+          - [x86_64-linux-android]
+
           - [arm-unknown-linux-gnueabihf]
           - [arm-unknown-linux-musleabi]
-          # - [mips-unknown-linux-musl]
-          # - [mipsel-unknown-linux-musl]
-          # - [mips64-unknown-linux-muslabi64]
-          # - [mips64el-unknown-linux-muslabi64]
-          - [x86_64-linux-android]
+
+          - [armv7-unknown-linux-gnueabi]
+
+          - [aarch64-unknown-linux-musl]
           - [aarch64-linux-android]
     env:
       CROSS_NO_WARNINGS: 0
