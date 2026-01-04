@@ -96,6 +96,7 @@ jobs:
         with:
           crate: cross
           git: https://github.com/cross-rs/cross
+          tag: v0.2.4
 
       - name: Install rust target
         if: ${{ !contains(matrix.target, 'mips') }}
