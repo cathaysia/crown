@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useDebounce } from 'use-debounce';
 import {
   Select,
   SelectContent,
@@ -70,22 +71,8 @@ export default function Page() {
     initWasm().then(() => setWasmReady(true));
   }, []);
 
-  // Debounce hook
-  const useDebounce = (value: any, delay: number) => {
-    const [debouncedValue, setDebouncedValue] = useState(value);
-
-    useEffect(() => {
-      const handler = setTimeout(() => {
-        setDebouncedValue(value);
-      }, delay);
-
-      return () => {
-        clearTimeout(handler);
-      };
-    }, [value, delay]);
-
-    return debouncedValue;
-  };
+  const [input, setInput] = useState(message);
+  const [debouncedInput] = useDebounce(input, 500);
 
   // Create a dependency object for debouncing
   const hashDependencies = useMemo(
@@ -103,7 +90,7 @@ export default function Page() {
     }),
     [
       algorithm,
-      message,
+      debouncedInput,
       messageFormat,
       outputFormat,
       hmacKey,
@@ -332,8 +319,9 @@ export default function Page() {
             </div>
 
             <Textarea
-              value={message}
+              value={input}
               onChange={e => {
+                setInput(e.target.value);
                 pushQuery('message', e.target.value);
               }}
               placeholder="Enter message to hash"

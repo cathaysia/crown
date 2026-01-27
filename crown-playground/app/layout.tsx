@@ -30,6 +30,7 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <title>Crown Playground</title>
+        <meta name="color-scheme" content="light dark" />
       </head>
       <body>
         <SidebarProvider defaultOpen={true}>
