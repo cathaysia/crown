@@ -39,26 +39,26 @@ export default function Page() {
 
   const pushQuery = useCallback(
     (name: string, value: string) => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(searchParams?.toString());
       params.set(name, value);
       router.push(`${pathname}?${params.toString()}`);
     },
     [searchParams, pathname],
   );
 
-  const algorithm = (searchParams.get('algorithm') ||
+  const algorithm = (searchParams?.get('algorithm') ||
     'sha256') as HashAlgorithm;
-  const message = searchParams.get('message') || '';
+  const message = searchParams?.get('message') || '';
   const messageFormat = Format.fromString(
-    searchParams.get('messageFormat'),
+    searchParams?.get('messageFormat'),
     'utf8',
   );
   const outputFormat = Format.fromString(
-    searchParams.get('outputFormat'),
+    searchParams?.get('outputFormat'),
     'hex',
   );
-  const hmacKey = searchParams.get('hmacKey');
-  const useHmac = searchParams.get('useHmac') === 'true';
+  const hmacKey = searchParams?.get('hmacKey');
+  const useHmac = searchParams?.get('useHmac') === 'true';
 
   const [hash, setHash] = useState('');
   const [error, setError] = useState('');
@@ -86,7 +86,9 @@ export default function Page() {
       wasmReady,
       inputMode,
       selectedFile:
-        selectedFile?.name + selectedFile?.size + selectedFile?.lastModified,
+        (selectedFile?.name || '') +
+        selectedFile?.size +
+        selectedFile?.lastModified,
     }),
     [
       algorithm,
