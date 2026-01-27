@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.13.0](https://github.com/cathaysia/crown/compare/v0.12.0...v0.13.0) (2026-01-27)
+
+
+### Features
+
+* **build-cross:** add more targets ([7426394](https://github.com/cathaysia/crown/commit/7426394f31b455fc56935f6586900e8dc9cb2ccb))
+* **playground:** using debouce when calc hash ([0c33f9f](https://github.com/cathaysia/crown/commit/0c33f9f8a09f56aaa76628dd93a622fba3c6923f))
+
+
+### Bug Fixes
+
+* **playground:** fix build problem ([845adaa](https://github.com/cathaysia/crown/commit/845adaa5d3f58c6666b54801fad952671f73ecdc))
+
 ## [0.12.0](https://github.com/cathaysia/crown/compare/v0.11.1...v0.12.0) (2025-12-18)
 
 
