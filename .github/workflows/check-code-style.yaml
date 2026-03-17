@@ -16,7 +16,7 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install build-essential gcc cpp libclang-dev openssl libssl-dev -y
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: 3.x
       - name: precommit cache
@@ -24,7 +24,7 @@ jobs:
         with:
           path: ~/.cache/pre-commit
           key: ${{ runner.os }}-precommit
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: 3.x
       - name: Run sccache-cache
