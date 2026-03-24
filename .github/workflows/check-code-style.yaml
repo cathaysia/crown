@@ -30,7 +30,7 @@ jobs:
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.9
       - name: install Rust 1.89.0
-        uses: dtolnay/rust-toolchain@1.89.0
+        uses: dtolnay/rust-toolchain@1.100.0
         with:
           components: rustfmt,clippy
       - name: install taplo

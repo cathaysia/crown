@@ -78,7 +78,7 @@ jobs:
 
       - name: install Rust 1.89.0
         if: ${{ !contains(matrix.target, 'mips') }}
-        uses: dtolnay/rust-toolchain@1.89.0
+        uses: dtolnay/rust-toolchain@1.100.0
 
       - name: Install Rust Nightly
         if: ${{ contains(matrix.target, 'mips') }}
