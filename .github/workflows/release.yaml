@@ -118,7 +118,7 @@ jobs:
         run: |
           tar -cJf ${{ matrix.target }}.tar.xz -C sysroot .
       - name: upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.target }}
           path: ${{ matrix.target }}.tar.xz
