@@ -74,6 +74,7 @@ pub mod kdf;
 pub mod mac;
 pub mod modes;
 pub mod padding;
+#[cfg(feature = "password")]
 pub mod password_hash;
 pub mod stream;
 
