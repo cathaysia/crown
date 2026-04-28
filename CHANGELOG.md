@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/cathaysia/crown/compare/v0.13.0...v0.14.0) (2026-04-28)
+
+
+### Features
+
+* **crown:** add password feature ([ae6df55](https://github.com/cathaysia/crown/commit/ae6df559ad67175eca519836f7b751fc88962171))
+
 ## [0.13.0](https://github.com/cathaysia/crown/compare/v0.12.0...v0.13.0) (2026-03-17)
 
 
