@@ -76,13 +76,17 @@ jobs:
           sudo apt update -y
           sudo apt install libclang-dev -y
 
-      - name: install Rust 1.89.0
+      - name: Install Rust toolchain
         if: ${{ !contains(matrix.target, 'mips') }}
-        uses: dtolnay/rust-toolchain@1.89.0
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.89.0
 
       - name: Install Rust Nightly
         if: ${{ contains(matrix.target, 'mips') }}
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
 
       - name: Install xwin
         if: ${{ contains(matrix.target, 'msvc') }}

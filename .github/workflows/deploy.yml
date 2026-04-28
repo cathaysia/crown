@@ -2,7 +2,7 @@ name: deploy-github-pages
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -19,51 +19,52 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v6
 
-    - name: Setup Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        targets: wasm32-unknown-unknown
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
 
-    - name: Install wasm-pack
-      run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v6
-      with:
-        package_json_file: crown-playground/package.json
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: crown-playground/package.json
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v6
-      with:
-        node-version: '20'
-        cache: 'pnpm'
-        cache-dependency-path: crown-playground/pnpm-lock.yaml
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: crown-playground/pnpm-lock.yaml
 
-    - name: Build WASM module
-      run: |
-        cd crown-wasm
-        wasm-pack build --target web --out-dir pkg
+      - name: Build WASM module
+        run: |
+          cd crown-wasm
+          wasm-pack build --target web --out-dir pkg
 
-    - name: Install dependencies
-      run: |
-        cd crown-playground
-        pnpm install
+      - name: Install dependencies
+        run: |
+          cd crown-playground
+          pnpm install
 
-    - name: Build Next.js app
-      run: |
-        cd crown-playground
-        NODE_ENV=production pnpm run build
+      - name: Build Next.js app
+        run: |
+          cd crown-playground
+          NODE_ENV=production pnpm run build
 
-    - name: Setup Pages
-      uses: actions/configure-pages@v6
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
 
-    - name: Upload artifact
-      uses: actions/upload-pages-artifact@v5
-      with:
-        path: crown-playground/out
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: crown-playground/out
 
   deploy:
     environment:
