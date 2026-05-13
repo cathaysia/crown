@@ -16,6 +16,7 @@ mod block;
 mod tests;
 
 use bytes::BufMut;
+#[cfg(feature = "marshal")]
 use crown_derive::Marshal;
 
 use crate::{
@@ -31,7 +32,9 @@ const INIT1: u32 = 0xEFCDAB89;
 const INIT2: u32 = 0x98BADCFE;
 const INIT3: u32 = 0x10325476;
 
-#[derive(Clone, Marshal)]
+#[derive(Clone)]
+#[cfg_attr(feature = "marshal", derive(Marshal))]
+#[cfg_attr(feature = "marshal", marshal(magic = b"md4"))]
 pub struct Md4 {
     s: [u32; 4],
     x: [u8; CHUNK],

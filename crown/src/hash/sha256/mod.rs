@@ -62,8 +62,11 @@ pub struct Sha256<const N: usize, const IS_224: bool> {
     len: u64,
 }
 
+#[cfg(feature = "marshal")]
 const MAGIC224: &[u8] = b"sha\x02";
+#[cfg(feature = "marshal")]
 const MAGIC256: &[u8] = b"sha\x03";
+#[cfg(feature = "marshal")]
 const MARSHALED_SIZE: usize = 4 + 8 * 4 + CHUNK + 8;
 
 impl<const N: usize, const IS_224: bool> Sha256<N, IS_224> {
@@ -107,6 +110,7 @@ impl<const N: usize, const IS_224: bool> Sha256<N, IS_224> {
     }
 }
 
+#[cfg(feature = "marshal")]
 impl<const N: usize, const IS_224: bool> Marshalable for Sha256<N, IS_224> {
     fn marshal_size(&self) -> usize {
         MARSHALED_SIZE

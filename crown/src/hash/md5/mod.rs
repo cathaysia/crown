@@ -18,6 +18,7 @@ use block::block;
 pub mod cuda;
 
 use bytes::BufMut;
+#[cfg(feature = "marshal")]
 use crown_derive::Marshal;
 
 use crate::{
@@ -35,10 +36,12 @@ const INIT1: u32 = 0xEFCDAB89;
 const INIT2: u32 = 0x98BADCFE;
 const INIT3: u32 = 0x10325476;
 
-#[derive(Clone, Marshal)]
+#[derive(Clone)]
+#[cfg_attr(feature = "marshal", derive(Marshal))]
+#[cfg_attr(feature = "marshal", marshal(magic = b"md5"))]
 pub struct Md5 {
     s: [u32; 4],
-    x: [u8; Md5::BLOCK_SIZE],
+    x: [u8; 64],
     nx: usize,
     len: u64,
 }

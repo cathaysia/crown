@@ -28,3 +28,15 @@ pub trait Marshalable {
         Ok(out)
     }
 }
+
+/// Helper trait to conditionally require [Marshalable] based on the `marshal` feature.
+#[cfg(feature = "marshal")]
+pub trait MaybeMarshalable: Marshalable {}
+#[cfg(feature = "marshal")]
+impl<T: Marshalable> MaybeMarshalable for T {}
+
+/// Helper trait to conditionally require [Marshalable] based on the `marshal` feature.
+#[cfg(not(feature = "marshal"))]
+pub trait MaybeMarshalable {}
+#[cfg(not(feature = "marshal"))]
+impl<T> MaybeMarshalable for T {}

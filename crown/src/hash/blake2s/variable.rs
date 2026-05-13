@@ -1,12 +1,14 @@
 use bytes::BufMut;
+#[cfg(feature = "marshal")]
 use crown_derive::Marshal;
 
 use crate::core::CoreRead;
 
 use super::*;
 
-#[derive(Marshal)]
-#[marshal(magic = b"b2s")]
+#[derive(Clone)]
+#[cfg_attr(feature = "marshal", derive(Marshal))]
+#[cfg_attr(feature = "marshal", marshal(magic = b"b2s"))]
 pub struct Blake2sVariable {
     h: [u32; 8],
     c: [u32; 2],

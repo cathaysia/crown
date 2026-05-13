@@ -11,7 +11,7 @@ repository.workspace = true
 exclude = ["tests"]
 
 [features]
-default = ["std", "password"]
+default = ["std", "password", "marshal"]
 ## Enable std
 std = ["alloc", "dep:rand"]
 ## Enable alloc
@@ -22,14 +22,21 @@ password = ["alloc", "dep:base64"]
 cuda = ["dep:cc"]
 ## regenerate cuda sys.rs
 bindgen = ["dep:bindgen"]
+## Enable marshal support.
+marshal = ["dep:crown-derive"]
 ## Enable asm support. (Experimental)
-asm = ["dep:crown-jsasm", "dep:serde_json", "crown-derive/jsasm"]
+asm = [
+  "dep:crown-jsasm",
+  "dep:serde_json",
+  "dep:crown-derive",
+  "crown-derive/jsasm",
+]
 ## Enable experimental features
 unstable = []
 
 [dependencies]
 paste = { workspace = true }
-crown-derive = { workspace = true }
+crown-derive = { workspace = true, optional = true }
 thiserror = "2.0.12"
 bytes = "1.10.1"
 base64 = { version = "0.22.1", optional = true }

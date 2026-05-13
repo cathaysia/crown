@@ -76,6 +76,7 @@ pub(crate) fn new_cshake<const N: usize>(n: &[u8], s: &[u8], rate: usize, dsbyte
     c
 }
 
+#[cfg(feature = "marshal")]
 impl<const N: usize> Marshalable for Shake<N> {
     fn marshal_size(&self) -> usize {
         207 + self.init_block.len()
@@ -87,7 +88,7 @@ impl<const N: usize> Marshalable for Shake<N> {
             return Err(CryptoError::BufferTooSmall);
         }
         let consume = self.d.marshal_into(b)?;
-        b = &mut b[..consume];
+        b = &mut b[consume..];
         b.put_slice(&self.init_block);
         Ok(len - b.len())
     }
