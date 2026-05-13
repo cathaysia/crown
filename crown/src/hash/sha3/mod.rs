@@ -19,6 +19,8 @@ pub use shake::*;
 
 mod noasm;
 use crate::core::CoreWrite;
+use crate::hash::HashUser;
+use digest::SpongeDirection;
 
 use noasm::*;
 
@@ -48,17 +50,34 @@ macro_rules! impl_new_for {
         paste::paste! {
             #[doc =
                 "Create a new [Hash] computing the " $kind " checksum.\n\n"
-                "The Hash also implements [Marshalable](crate::mac::hmac::Marshalable)"
-                "to marshal and unmarshal the internal state of the hash."
-            ]
-            pub fn $name() -> Sha3<$output_len> {
-                Sha3 {
-                    a: [0; 200],
+                "The Hash also implements [Marshalable](crate::mac::hmac::Marshalable) "
+                "to marshal and unmarshal the internal state of the hash."]
+            #[cfg(feature = "marshal")]
+            pub fn [<$name:lower>]() -> Sha3<$output_len> {
+                let mut d = Sha3 {
+                    a: [0; 1600 / 8],
                     n: 0,
-                    rate: [<RATE_K $rate_len>],
+                    rate: $rate_len,
                     dsbyte: DSBYTE_SHA3,
-                    state: digest::SpongeDirection::Absorbing,
-                }
+                    state: SpongeDirection::Absorbing,
+                };
+                d.reset();
+                d
+            }
+
+            #[doc =
+                "Create a new [Hash] computing the " $kind " checksum."]
+            #[cfg(not(feature = "marshal"))]
+            pub fn [<$name:lower>]() -> Sha3<$output_len> {
+                let mut d = Sha3 {
+                    a: [0; 1600 / 8],
+                    n: 0,
+                    rate: $rate_len,
+                    dsbyte: DSBYTE_SHA3,
+                    state: SpongeDirection::Absorbing,
+                };
+                d.reset();
+                d
             }
 
             #[doc="Compute the SHA-" $output_len " checksum of the input."]

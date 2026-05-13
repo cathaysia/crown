@@ -9,6 +9,7 @@
 //! legacy purposes only.
 
 use bytes::BufMut;
+#[cfg(feature = "marshal")]
 use crown_derive::Marshal;
 
 use crate::{
@@ -40,7 +41,9 @@ static S: [u8; 256] = [
     0x31, 0x44, 0x50, 0xB4, 0x8F, 0xED, 0x1F, 0x1A, 0xDB, 0x99, 0x8D, 0x33, 0x9F, 0x11, 0x83, 0x14,
 ];
 
-#[derive(Clone, Marshal)]
+#[derive(Clone)]
+#[cfg_attr(feature = "marshal", derive(Marshal))]
+#[cfg_attr(feature = "marshal", marshal(magic = b"md2"))]
 pub struct Md2 {
     state: [u8; Self::BLOCK_SIZE],
     cksm: [u8; Self::BLOCK_SIZE],

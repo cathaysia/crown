@@ -10,6 +10,7 @@ mod block;
 
 mod generic;
 use bytes::BufMut;
+#[cfg(feature = "marshal")]
 use crown_derive::Marshal;
 use generic::*;
 
@@ -30,7 +31,9 @@ const INIT3: u32 = 0x10325476;
 const INIT4: u32 = 0xC3D2E1F0;
 
 /// [Sha1] is a SHA-1 hash implementation.
-#[derive(Clone, Marshal)]
+#[derive(Clone)]
+#[cfg_attr(feature = "marshal", derive(Marshal))]
+#[cfg_attr(feature = "marshal", marshal(magic = b"sha\x01"))]
 pub struct Sha1 {
     h: [u32; 5],
     x: [u8; CHUNK],

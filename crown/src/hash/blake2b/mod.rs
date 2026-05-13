@@ -36,6 +36,7 @@ impl<const N: usize> Blake2b<N> {
     }
 }
 
+#[cfg(feature = "marshal")]
 impl<const N: usize> crate::mac::hmac::Marshalable for Blake2b<N> {
     fn marshal_size(&self) -> usize {
         self.0.marshal_size()

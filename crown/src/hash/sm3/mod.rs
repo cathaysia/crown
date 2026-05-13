@@ -4,6 +4,7 @@ use crate::{
     hash::{Hash, HashUser},
 };
 use bytes::{Buf, BufMut};
+#[cfg(feature = "marshal")]
 use crown_derive::Marshal;
 
 #[cfg(test)]
@@ -18,7 +19,9 @@ const SM3_F: u32 = 0x163138aa;
 const SM3_G: u32 = 0xe38dee4d;
 const SM3_H: u32 = 0xb0fb0e4e;
 
-#[derive(Clone, Marshal)]
+#[derive(Clone)]
+#[cfg_attr(feature = "marshal", derive(Marshal))]
+#[cfg_attr(feature = "marshal", marshal(magic = b"sm3"))]
 pub struct Sm3 {
     a: u32,
     b: u32,

@@ -115,82 +115,6 @@ impl<const N: usize> Sha3<N> {
     }
 }
 
-impl<const N: usize> Marshalable for Sha3<N> {
-    fn marshal_size(&self) -> usize {
-        MARSHALED_SIZE
-    }
-
-    fn marshal_into(&self, mut b: &mut [u8]) -> CryptoResult<usize> {
-        let len = b.len();
-        if len < MARSHALED_SIZE {
-            return Err(CryptoError::BufferTooSmall);
-        }
-        match self.dsbyte {
-            DSBYTE_SHA3 => b.put_slice(MAGIC_SHA3.as_bytes()),
-            DSBYTE_SHAKE => b.put_slice(MAGIC_SHAKE.as_bytes()),
-            DSBYTE_CSHAKE => b.put_slice(MAGIC_CSHAKE.as_bytes()),
-            DSBYTE_KECCAK => b.put_slice(MAGIC_KECCAK.as_bytes()),
-            _ => panic!("unknown dsbyte"),
-        }
-        // rate is at most 168, and n is at most rate.
-        b.put_u8(self.rate as u8);
-        b.put_slice(&self.a);
-        b.put_u8(self.n as u8);
-        b.put_u8(self.state as u8);
-        Ok(len - b.len())
-    }
-
-    fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
-        use crate::error::CryptoError;
-
-        if b.len() != MARSHALED_SIZE {
-            return Err(CryptoError::InvalidHashState);
-        }
-
-        let magic = core::str::from_utf8(&b[..MAGIC_SHA3.len()])?;
-        let b = &b[MAGIC_SHA3.len()..];
-
-        let valid = match magic {
-            MAGIC_SHA3 => self.dsbyte == DSBYTE_SHA3,
-            MAGIC_SHAKE => self.dsbyte == DSBYTE_SHAKE,
-            MAGIC_CSHAKE => self.dsbyte == DSBYTE_CSHAKE,
-            MAGIC_KECCAK => self.dsbyte == DSBYTE_KECCAK,
-            _ => false,
-        };
-
-        if !valid {
-            return Err(CryptoError::InvalidHashIdentifier);
-        }
-
-        let rate = b[0] as usize;
-        let b = &b[1..];
-        if rate != self.rate {
-            return Err(CryptoError::InvalidHashState);
-        }
-
-        {
-            let len = self.a.len();
-            self.a.copy_from_slice(&b[..len]);
-        }
-        let b = &b[self.a.len()..];
-
-        let n = b[0] as usize;
-        let state = match b[1] {
-            0 => SpongeDirection::Absorbing,
-            1 => SpongeDirection::Squeezing,
-            _ => Err(CryptoError::InvalidHashState)?,
-        };
-
-        if n > self.rate {
-            return Err(CryptoError::InvalidHashState);
-        }
-        self.n = n;
-        self.state = state;
-
-        Ok(())
-    }
-}
-
 impl<const N: usize> CoreWrite for Sha3<N> {
     fn write(&mut self, p: &[u8]) -> CryptoResult<usize> {
         if self.state != SpongeDirection::Absorbing {
@@ -250,9 +174,81 @@ impl<const N: usize> crate::hash::Hash<N> for Sha3<N> {
 }
 
 // Constants for marshaling
+#[cfg(feature = "marshal")]
 const MAGIC_SHA3: &str = "sha\x08";
+#[cfg(feature = "marshal")]
 const MAGIC_SHAKE: &str = "sha\x09";
+#[cfg(feature = "marshal")]
 const MAGIC_CSHAKE: &str = "sha\x0a";
+#[cfg(feature = "marshal")]
 const MAGIC_KECCAK: &str = "sha\x0b";
 // magic || rate || main state || n || sponge direction
+#[cfg(feature = "marshal")]
 pub(crate) const MARSHALED_SIZE: usize = 4 + 1 + 200 + 1 + 1;
+
+#[cfg(feature = "marshal")]
+impl<const N: usize> Marshalable for Sha3<N> {
+    fn marshal_size(&self) -> usize {
+        MARSHALED_SIZE
+    }
+
+    fn marshal_into(&self, mut b: &mut [u8]) -> CryptoResult<usize> {
+        let len = b.len();
+        if len < MARSHALED_SIZE {
+            return Err(CryptoError::BufferTooSmall);
+        }
+        match self.dsbyte {
+            DSBYTE_SHA3 => b.put_slice(MAGIC_SHA3.as_bytes()),
+            DSBYTE_SHAKE => b.put_slice(MAGIC_SHAKE.as_bytes()),
+            DSBYTE_CSHAKE => b.put_slice(MAGIC_CSHAKE.as_bytes()),
+            DSBYTE_KECCAK => b.put_slice(MAGIC_KECCAK.as_bytes()),
+            _ => panic!("unknown dsbyte"),
+        }
+        // rate is at most 168, and n is at most rate.
+        b.put_u8(self.rate as u8);
+        b.put_slice(&self.a);
+        b.put_u8(self.n as u8);
+        b.put_u8(self.state as u8);
+        Ok(len - b.len())
+    }
+
+    fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
+        use crate::error::CryptoError;
+
+        if b.len() != MARSHALED_SIZE {
+            return Err(CryptoError::InvalidHashState);
+        }
+
+        let magic = core::str::from_utf8(&b[..MAGIC_SHA3.len()])?;
+        let b = &b[MAGIC_SHA3.len()..];
+
+        let valid = match magic {
+            MAGIC_SHA3 => self.dsbyte == DSBYTE_SHA3,
+            MAGIC_SHAKE => self.dsbyte == DSBYTE_SHAKE,
+            MAGIC_CSHAKE => self.dsbyte == DSBYTE_CSHAKE,
+            MAGIC_KECCAK => self.dsbyte == DSBYTE_KECCAK,
+            _ => false,
+        };
+
+        if !valid {
+            return Err(CryptoError::InvalidHashIdentifier);
+        }
+
+        let rate = b[0] as usize;
+        let b = &b[1..];
+        if rate != self.rate {
+            return Err(CryptoError::InvalidHashState);
+        }
+
+        self.a.copy_from_slice(&b[..1600 / 8]);
+        let b = &b[1600 / 8..];
+        self.n = b[0] as usize;
+        let b = &b[1..];
+        self.state = match b[0] {
+            0 => SpongeDirection::Absorbing,
+            1 => SpongeDirection::Squeezing,
+            _ => return Err(CryptoError::InvalidHashState),
+        };
+        Ok(())
+    }
+}

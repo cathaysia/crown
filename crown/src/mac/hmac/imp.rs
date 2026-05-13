@@ -7,7 +7,7 @@ use crate::{
     utils::subtle::constant_time_eq,
 };
 
-use super::Marshalable;
+use super::{Marshalable, MaybeMarshalable};
 
 /// TODO:
 /// - add SmallVec with push and etc.
@@ -20,7 +20,7 @@ const MAX_MARSHAL_SIZE: usize = 1024;
 /// - ipad = 0x36 byte repeated for key length
 /// - opad = 0x5c byte repeated for key length
 /// - hmac = H([key ^ opad] H([key ^ ipad] text))
-pub struct HMAC<const N: usize, H: Hash<N> + Marshalable> {
+pub struct HMAC<const N: usize, H: Hash<N> + MaybeMarshalable> {
     /// Outer padding (key XOR 0x5c)
     opad: ArrayVec<[u8; MAX_MARSHAL_SIZE]>,
     /// Inner padding (key XOR 0x36)
@@ -30,6 +30,7 @@ pub struct HMAC<const N: usize, H: Hash<N> + Marshalable> {
     /// Inner hash instance
     inner: H,
     /// If true, opad and ipad contain marshaled state instead of padded key
+    #[cfg(feature = "marshal")]
     marshaled: bool,
 }
 
@@ -37,7 +38,7 @@ pub fn equal(mac1: &[u8], mac2: &[u8]) -> bool {
     constant_time_eq(mac1, mac2)
 }
 
-impl<const N: usize, H: Hash<N> + Marshalable> HMAC<N, H> {
+impl<const N: usize, H: Hash<N> + MaybeMarshalable> HMAC<N, H> {
     /// Create a new HMAC instance with the given hash function and key.
     pub fn new<F>(hash_fn: F, key: &[u8]) -> Self
     where
@@ -84,12 +85,13 @@ impl<const N: usize, H: Hash<N> + Marshalable> HMAC<N, H> {
             ipad,
             outer,
             inner,
+            #[cfg(feature = "marshal")]
             marshaled: false,
         }
     }
 }
 
-impl<const N: usize, H: Hash<N> + Marshalable> CoreWrite for HMAC<N, H> {
+impl<const N: usize, H: Hash<N> + MaybeMarshalable> CoreWrite for HMAC<N, H> {
     fn write(&mut self, buf: &[u8]) -> CryptoResult<usize> {
         self.inner.write(buf)
     }
@@ -99,9 +101,10 @@ impl<const N: usize, H: Hash<N> + Marshalable> CoreWrite for HMAC<N, H> {
     }
 }
 
-impl<const N: usize, H: Hash<N> + Marshalable> HashUser for HMAC<N, H> {
+impl<const N: usize, H: Hash<N> + MaybeMarshalable> HashUser for HMAC<N, H> {
     /// Reset the HMAC to its initial state.
     fn reset(&mut self) {
+        #[cfg(feature = "marshal")]
         if self.marshaled {
             self.inner.unmarshal_binary(&self.ipad).unwrap();
             return;
@@ -113,25 +116,28 @@ impl<const N: usize, H: Hash<N> + Marshalable> HashUser for HMAC<N, H> {
             .write_all(&self.ipad)
             .expect("Hash write should not fail");
 
-        let mut imarshal: ArrayVec<[u8; MAX_MARSHAL_SIZE]> = ArrayVec::new();
-        imarshal.resize(self.inner.marshal_size(), 0);
-        let Ok(_) = self.inner.marshal_into(&mut imarshal) else {
-            return;
-        };
+        #[cfg(feature = "marshal")]
+        {
+            let mut imarshal: ArrayVec<[u8; MAX_MARSHAL_SIZE]> = ArrayVec::new();
+            imarshal.resize(self.inner.marshal_size(), 0);
+            let Ok(_) = self.inner.marshal_into(&mut imarshal) else {
+                return;
+            };
 
-        self.outer.reset();
-        self.outer
-            .write_all(&self.opad)
-            .expect("Hash write should not fail");
-        let mut omarshal: ArrayVec<[u8; MAX_MARSHAL_SIZE]> = ArrayVec::new();
-        omarshal.resize(self.inner.marshal_size(), 0);
-        let Ok(_) = self.outer.marshal_into(&mut omarshal) else {
-            return;
-        };
+            self.outer.reset();
+            self.outer
+                .write_all(&self.opad)
+                .expect("Hash write should not fail");
+            let mut omarshal: ArrayVec<[u8; MAX_MARSHAL_SIZE]> = ArrayVec::new();
+            omarshal.resize(self.inner.marshal_size(), 0);
+            let Ok(_) = self.outer.marshal_into(&mut omarshal) else {
+                return;
+            };
 
-        self.ipad = imarshal;
-        self.opad = omarshal;
-        self.marshaled = true;
+            self.ipad = imarshal;
+            self.opad = omarshal;
+            self.marshaled = true;
+        }
     }
 
     /// Get the output size of the HMAC (same as underlying hash).
@@ -145,14 +151,24 @@ impl<const N: usize, H: Hash<N> + Marshalable> HashUser for HMAC<N, H> {
     }
 }
 
-impl<const N: usize, H: Hash<N> + Marshalable> Hash<N> for HMAC<N, H> {
+impl<const N: usize, H: Hash<N> + MaybeMarshalable> Hash<N> for HMAC<N, H> {
     /// Compute the HMAC of the current state and return it.
     fn sum(&mut self) -> [u8; N] {
         // Prepare outer hash
+        #[cfg(feature = "marshal")]
         if self.marshaled {
             // If we have marshaled state, restore it
             self.outer.unmarshal_binary(&self.opad).unwrap();
         } else {
+            // Reset outer hash and write opad
+            self.outer.reset();
+            self.outer
+                .write_all(&self.opad)
+                .expect("Hash write should not fail");
+        }
+
+        #[cfg(not(feature = "marshal"))]
+        {
             // Reset outer hash and write opad
             self.outer.reset();
             self.outer
@@ -173,7 +189,7 @@ impl<const N: usize, H: Hash<N> + Marshalable> Hash<N> for HMAC<N, H> {
 /// This is equivalent to HMAC::new but matches the Go API style.
 pub fn new<const N: usize, H, F>(hash_fn: F, key: &[u8]) -> HMAC<N, H>
 where
-    H: Hash<N> + Marshalable,
+    H: Hash<N> + MaybeMarshalable,
     F: Fn() -> H,
 {
     HMAC::new(hash_fn, key)

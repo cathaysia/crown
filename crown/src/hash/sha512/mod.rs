@@ -69,10 +69,15 @@ const INIT_384: [u64; 8] = [
 ];
 
 // Magic constants for marshaling
+#[cfg(feature = "marshal")]
 const MAGIC_384: &[u8] = b"sha\x04";
+#[cfg(feature = "marshal")]
 const MAGIC_512_224: &[u8] = b"sha\x05";
+#[cfg(feature = "marshal")]
 const MAGIC_512_256: &[u8] = b"sha\x06";
+#[cfg(feature = "marshal")]
 const MAGIC_512: &[u8] = b"sha\x07";
+#[cfg(feature = "marshal")]
 const MARSHALED_SIZE: usize = 4 + 8 * 8 + CHUNK + 8;
 
 /// [Sha512] is a SHA-384, SHA-512, SHA-512/224, or SHA-512/256 hash implementation
@@ -127,6 +132,7 @@ impl<const N: usize> Sha512<N> {
     }
 }
 
+#[cfg(feature = "marshal")]
 impl<const N: usize> Marshalable for Sha512<N> {
     fn marshal_size(&self) -> usize {
         MARSHALED_SIZE

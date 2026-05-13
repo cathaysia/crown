@@ -1,4 +1,5 @@
 use bytes::BufMut;
+#[cfg(feature = "marshal")]
 use crown_derive::Marshal;
 
 use crate::{core::CoreRead, hash::HashVariable, utils::copy};
@@ -10,8 +11,9 @@ use super::*;
 /// This struct provides a BLAKE2b hasher that can generate checksums of
 /// variable length between 1 and 64 bytes. It implements the [HashVariable]
 /// trait and supports keying for MAC (Message Authentication Code) generation.
-#[derive(Marshal)]
-#[marshal(magic = b"b2b")]
+#[derive(Clone)]
+#[cfg_attr(feature = "marshal", derive(Marshal))]
+#[cfg_attr(feature = "marshal", marshal(magic = b"b2b"))]
 pub struct Blake2bVariable {
     h: [u64; 8],
     c: [u64; 2],
