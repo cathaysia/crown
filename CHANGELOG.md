@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.15.0](https://github.com/cathaysia/crown/compare/v0.14.0...v0.15.0) (2026-05-13)
+
+
+### Features
+
+* **core:** make crown-derive optional by introducing marshal feature ([d928ee0](https://github.com/cathaysia/crown/commit/d928ee04a37e39d069d3d30748564dc7a2004ad5))
+* **depbot:** add npm auto-upgrade ([fee51fc](https://github.com/cathaysia/crown/commit/fee51fce53a17821989b556f89d8d82aace6117f))
+
+
+### Bug Fixes
+
+* **core:** fix regression in sha3 macro and clean up warnings ([9ab04ba](https://github.com/cathaysia/crown/commit/9ab04ba5d20efbd681ddb46a485e010cc819fde1))
+
 ## [0.14.0](https://github.com/cathaysia/crown/compare/v0.13.0...v0.14.0) (2026-04-28)
 
 
