@@ -1,12 +1,11 @@
 use bytes::BufMut;
 
-use crate::{
-    core::CoreWrite,
-    error::{CryptoError, CryptoResult},
-    hash::HashUser,
-    mac::hmac::Marshalable,
-    utils::subtle::xor::xor_bytes,
-};
+use crate::{core::CoreWrite, error::CryptoResult, hash::HashUser, utils::subtle::xor::xor_bytes};
+
+#[cfg(feature = "marshal")]
+use crate::error::CryptoError;
+#[cfg(feature = "marshal")]
+use crate::mac::hmac::Marshalable;
 
 use super::*;
 

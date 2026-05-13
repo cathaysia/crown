@@ -4,11 +4,12 @@
 //! [SHA-256](crate::hash::sha256) and [SHA-512](crate::hash::sha512) belongs to the
 //! [SHA-2](https://en.wikipedia.org/wiki/SHA-2) family of hash functions.
 
+#[cfg(feature = "marshal")]
+use crate::mac::hmac::Marshalable;
 use crate::{
     core::CoreWrite,
     error::CryptoResult,
     hash::{Hash, HashUser},
-    mac::hmac::Marshalable,
     utils::erase_ownership,
 };
 
