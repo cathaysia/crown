@@ -7,7 +7,7 @@ use crate::{
     utils::subtle::constant_time_eq,
 };
 
-use super::{Marshalable, MaybeMarshalable};
+use super::MaybeMarshalable;
 
 /// TODO:
 /// - add SmallVec with push and etc.

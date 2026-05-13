@@ -7,7 +7,9 @@
 use bytes::BufMut;
 
 use crate::core::CoreWrite;
+#[cfg(feature = "marshal")]
 use crate::error::CryptoError;
+#[cfg(feature = "marshal")]
 use crate::mac::hmac::Marshalable;
 use crate::{
     error::CryptoResult,
