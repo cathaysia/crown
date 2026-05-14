@@ -271,7 +271,7 @@ impl Safer {
                 actual: key.len(),
             });
         }
-        if rounds != 0 && (rounds < 6 || rounds > Self::MAX_NOF_ROUNDS) {
+        if rounds != 0 && !(6..=Self::MAX_NOF_ROUNDS).contains(&rounds) {
             return Err(CryptoError::InvalidRound(rounds as usize));
         }
         let rounds = if rounds == 0 { 6 } else { rounds };
@@ -289,7 +289,7 @@ impl Safer {
                 actual: key.len(),
             });
         }
-        if rounds != 0 && (rounds < 6 || rounds > Self::MAX_NOF_ROUNDS) {
+        if rounds != 0 && !(6..=Self::MAX_NOF_ROUNDS).contains(&rounds) {
             return Err(CryptoError::InvalidRound(rounds as usize));
         }
         let rounds = if rounds == 0 { 6 } else { rounds };
@@ -307,7 +307,7 @@ impl Safer {
                 actual: key.len(),
             });
         }
-        if rounds != 0 && (rounds < 6 || rounds > Self::MAX_NOF_ROUNDS) {
+        if rounds != 0 && !(6..=Self::MAX_NOF_ROUNDS).contains(&rounds) {
             return Err(CryptoError::InvalidRound(rounds as usize));
         }
         let rounds = if rounds == 0 { 10 } else { rounds };
@@ -325,7 +325,7 @@ impl Safer {
                 actual: key.len(),
             });
         }
-        if rounds != 0 && (rounds < 6 || rounds > Self::MAX_NOF_ROUNDS) {
+        if rounds != 0 && !(6..=Self::MAX_NOF_ROUNDS).contains(&rounds) {
             return Err(CryptoError::InvalidRound(rounds as usize));
         }
         let rounds = if rounds == 0 { 10 } else { rounds };

@@ -139,11 +139,11 @@ impl Rabbit {
         self.work_ctx.c[2] = self.master_ctx.c[2] ^ i2;
         self.work_ctx.c[3] = self.master_ctx.c[3] ^ i3;
         self.work_ctx.c[4] = self.master_ctx.c[4] ^ i0;
-        self.work_ctx.c[5] = self.work_ctx.c[5] ^ i1; // Wait, LibTomCrypt says master_ctx.c[5] ^ i1?
-                                                      // Let me check LibTomCrypt source again for c[4..7].
-                                                      // "st->work_ctx.c[4] = st->master_ctx.c[4] ^ i0;"
-                                                      // "st->work_ctx.c[5] = st->master_ctx.c[5] ^ i1;"
-                                                      // Yes, it uses master_ctx.c as base.
+        self.work_ctx.c[5] ^= i1; // Wait, LibTomCrypt says master_ctx.c[5] ^ i1?
+                                  // Let me check LibTomCrypt source again for c[4..7].
+                                  // "st->work_ctx.c[4] = st->master_ctx.c[4] ^ i0;"
+                                  // "st->work_ctx.c[5] = st->master_ctx.c[5] ^ i1;"
+                                  // Yes, it uses master_ctx.c as base.
         self.work_ctx.c[4] = self.master_ctx.c[4] ^ i0;
         self.work_ctx.c[5] = self.master_ctx.c[5] ^ i1;
         self.work_ctx.c[6] = self.master_ctx.c[6] ^ i2;
