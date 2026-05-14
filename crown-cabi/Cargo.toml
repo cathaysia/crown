@@ -10,7 +10,7 @@ categories.workspace = true
 repository.workspace = true
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["staticlib"]
 name = "crown"
 
 [features]
