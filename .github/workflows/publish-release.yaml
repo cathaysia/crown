@@ -1,4 +1,4 @@
-name: release
+name: publish-release
 on:
   push:
     tags:
@@ -124,12 +124,12 @@ jobs:
           fi
       - name: create archive
         run: |
-          tar -cJf ${{ matrix.target }}.tar.xz -C sysroot .
+          tar -czf ${{ matrix.target }}.tar.gz -C sysroot .
       - name: upload artifacts
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.target }}
-          path: ${{ matrix.target }}.tar.xz
+          path: ${{ matrix.target }}.tar.gz
   create-release:
     needs: [publish-crate, build-cross]
     permissions:
@@ -150,7 +150,7 @@ jobs:
       - name: create release
         uses: softprops/action-gh-release@v3
         with:
-          files: artifacts/*/*.tar.xz
+          files: artifacts/*/*.tar.gz
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
