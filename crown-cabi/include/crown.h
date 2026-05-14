@@ -91,6 +91,55 @@ struct AeadCipher *aead_cipher_new_skipjack_ocb3(const uint8_t *key,
                                                  uintptr_t tag_size,
                                                  uintptr_t nonce_size);
 
+struct AeadCipher *aead_cipher_new_kasumi_gcm(const uint8_t *key, uintptr_t key_len);
+
+struct AeadCipher *aead_cipher_new_kasumi_ocb3(const uint8_t *key,
+                                               uintptr_t key_len,
+                                               uintptr_t tag_size,
+                                               uintptr_t nonce_size);
+
+struct AeadCipher *aead_cipher_new_kseed_gcm(const uint8_t *key, uintptr_t key_len);
+
+struct AeadCipher *aead_cipher_new_kseed_ocb3(const uint8_t *key,
+                                              uintptr_t key_len,
+                                              uintptr_t tag_size,
+                                              uintptr_t nonce_size);
+
+struct AeadCipher *aead_cipher_new_anubis_gcm(const uint8_t *key, uintptr_t key_len);
+
+struct AeadCipher *aead_cipher_new_anubis_ocb3(const uint8_t *key,
+                                               uintptr_t key_len,
+                                               uintptr_t tag_size,
+                                               uintptr_t nonce_size);
+
+struct AeadCipher *aead_cipher_new_noekeon_gcm(const uint8_t *key, uintptr_t key_len);
+
+struct AeadCipher *aead_cipher_new_noekeon_ocb3(const uint8_t *key,
+                                                uintptr_t key_len,
+                                                uintptr_t tag_size,
+                                                uintptr_t nonce_size);
+
+struct AeadCipher *aead_cipher_new_khazad_gcm(const uint8_t *key, uintptr_t key_len);
+
+struct AeadCipher *aead_cipher_new_khazad_ocb3(const uint8_t *key,
+                                               uintptr_t key_len,
+                                               uintptr_t tag_size,
+                                               uintptr_t nonce_size);
+
+struct AeadCipher *aead_cipher_new_serpent_gcm(const uint8_t *key, uintptr_t key_len);
+
+struct AeadCipher *aead_cipher_new_serpent_ocb3(const uint8_t *key,
+                                                uintptr_t key_len,
+                                                uintptr_t tag_size,
+                                                uintptr_t nonce_size);
+
+struct AeadCipher *aead_cipher_new_idea_gcm(const uint8_t *key, uintptr_t key_len);
+
+struct AeadCipher *aead_cipher_new_idea_ocb3(const uint8_t *key,
+                                             uintptr_t key_len,
+                                             uintptr_t tag_size,
+                                             uintptr_t nonce_size);
+
 struct AeadCipher *aead_cipher_new_rc2_gcm(const uint8_t *key,
                                            uintptr_t key_len,
                                            const uintptr_t *rounds);
@@ -102,6 +151,10 @@ struct AeadCipher *aead_cipher_new_rc5_gcm(const uint8_t *key,
 struct AeadCipher *aead_cipher_new_camellia_gcm(const uint8_t *key,
                                                 uintptr_t key_len,
                                                 const uintptr_t *rounds);
+
+struct AeadCipher *aead_cipher_new_multi2_gcm(const uint8_t *key,
+                                              uintptr_t key_len,
+                                              const uintptr_t *rounds);
 
 struct AeadCipher *aead_cipher_new_chacha20_poly1305(const uint8_t *key, uintptr_t key_len);
 
@@ -492,6 +545,96 @@ struct StreamCipher *stream_cipher_new_skipjack_ofb(const uint8_t *key,
                                                     const uint8_t *iv,
                                                     uintptr_t iv_len);
 
+struct StreamCipher *stream_cipher_new_kasumi_cfb(const uint8_t *key,
+                                                  uintptr_t key_len,
+                                                  const uint8_t *iv,
+                                                  uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_kasumi_ctr(const uint8_t *key,
+                                                  uintptr_t key_len,
+                                                  const uint8_t *iv,
+                                                  uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_kasumi_ofb(const uint8_t *key,
+                                                  uintptr_t key_len,
+                                                  const uint8_t *iv,
+                                                  uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_kseed_cfb(const uint8_t *key,
+                                                 uintptr_t key_len,
+                                                 const uint8_t *iv,
+                                                 uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_kseed_ctr(const uint8_t *key,
+                                                 uintptr_t key_len,
+                                                 const uint8_t *iv,
+                                                 uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_kseed_ofb(const uint8_t *key,
+                                                 uintptr_t key_len,
+                                                 const uint8_t *iv,
+                                                 uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_anubis_cfb(const uint8_t *key,
+                                                  uintptr_t key_len,
+                                                  const uint8_t *iv,
+                                                  uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_anubis_ctr(const uint8_t *key,
+                                                  uintptr_t key_len,
+                                                  const uint8_t *iv,
+                                                  uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_anubis_ofb(const uint8_t *key,
+                                                  uintptr_t key_len,
+                                                  const uint8_t *iv,
+                                                  uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_noekeon_cfb(const uint8_t *key,
+                                                   uintptr_t key_len,
+                                                   const uint8_t *iv,
+                                                   uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_noekeon_ctr(const uint8_t *key,
+                                                   uintptr_t key_len,
+                                                   const uint8_t *iv,
+                                                   uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_noekeon_ofb(const uint8_t *key,
+                                                   uintptr_t key_len,
+                                                   const uint8_t *iv,
+                                                   uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_khazad_cfb(const uint8_t *key,
+                                                  uintptr_t key_len,
+                                                  const uint8_t *iv,
+                                                  uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_khazad_ctr(const uint8_t *key,
+                                                  uintptr_t key_len,
+                                                  const uint8_t *iv,
+                                                  uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_khazad_ofb(const uint8_t *key,
+                                                  uintptr_t key_len,
+                                                  const uint8_t *iv,
+                                                  uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_serpent_cfb(const uint8_t *key,
+                                                   uintptr_t key_len,
+                                                   const uint8_t *iv,
+                                                   uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_serpent_ctr(const uint8_t *key,
+                                                   uintptr_t key_len,
+                                                   const uint8_t *iv,
+                                                   uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_serpent_ofb(const uint8_t *key,
+                                                   uintptr_t key_len,
+                                                   const uint8_t *iv,
+                                                   uintptr_t iv_len);
+
 struct StreamCipher *stream_cipher_new_rc2_cfb(const uint8_t *key,
                                                uintptr_t key_len,
                                                const uint8_t *iv,
@@ -546,6 +689,24 @@ struct StreamCipher *stream_cipher_new_camellia_ofb(const uint8_t *key,
                                                     uintptr_t iv_len,
                                                     const uintptr_t *rounds);
 
+struct StreamCipher *stream_cipher_new_multi2_cfb(const uint8_t *key,
+                                                  uintptr_t key_len,
+                                                  const uint8_t *iv,
+                                                  uintptr_t iv_len,
+                                                  const uintptr_t *rounds);
+
+struct StreamCipher *stream_cipher_new_multi2_ctr(const uint8_t *key,
+                                                  uintptr_t key_len,
+                                                  const uint8_t *iv,
+                                                  uintptr_t iv_len,
+                                                  const uintptr_t *rounds);
+
+struct StreamCipher *stream_cipher_new_multi2_ofb(const uint8_t *key,
+                                                  uintptr_t key_len,
+                                                  const uint8_t *iv,
+                                                  uintptr_t iv_len,
+                                                  const uintptr_t *rounds);
+
 struct StreamCipher *stream_cipher_new_rc4(const uint8_t *key, uintptr_t key_len);
 
 struct StreamCipher *stream_cipher_new_salsa20(const uint8_t *key,
@@ -554,6 +715,21 @@ struct StreamCipher *stream_cipher_new_salsa20(const uint8_t *key,
                                                uintptr_t iv_len);
 
 struct StreamCipher *stream_cipher_new_chacha20(const uint8_t *key,
+                                                uintptr_t key_len,
+                                                const uint8_t *iv,
+                                                uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_rabbit(const uint8_t *key,
+                                              uintptr_t key_len,
+                                              const uint8_t *iv,
+                                              uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_sosemanuk(const uint8_t *key,
+                                                 uintptr_t key_len,
+                                                 const uint8_t *iv,
+                                                 uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_sober128(const uint8_t *key,
                                                 uintptr_t key_len,
                                                 const uint8_t *iv,
                                                 uintptr_t iv_len);

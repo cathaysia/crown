@@ -2,4 +2,4 @@ language = "C"
 include_guard = "crown_H"
 
 [parse.expand]
-crates = ["crown_c"]
+crates = ["crown-cabi"]
