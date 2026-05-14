@@ -305,6 +305,73 @@ export function getAvailableAlgorithms(): AeadAlgorithmInfo[] {
     { value: 'rc5_gcm', label: 'RC5-GCM', keySize: 16 },
     { value: 'camellia_gcm', label: 'Camellia-GCM', keySize: 32 },
 
+    { value: 'anubis_gcm', label: 'Anubis-GCM', keySize: 32 },
+    {
+      value: 'anubis_ocb3',
+      label: 'Anubis-OCB3',
+      keySize: 32,
+      requiresParams: true,
+      defaultTagSize: 16,
+      defaultNonceSize: 12,
+    },
+
+    { value: 'kasumi_gcm', label: 'Kasumi-GCM', keySize: 16 },
+    {
+      value: 'kasumi_ocb3',
+      label: 'Kasumi-OCB3',
+      keySize: 16,
+      requiresParams: true,
+      defaultTagSize: 8,
+      defaultNonceSize: 7,
+    },
+
+    { value: 'khazad_gcm', label: 'Khazad-GCM', keySize: 16 },
+    {
+      value: 'khazad_ocb3',
+      label: 'Khazad-OCB3',
+      keySize: 16,
+      requiresParams: true,
+      defaultTagSize: 8,
+      defaultNonceSize: 7,
+    },
+
+    { value: 'kseed_gcm', label: 'Kseed-GCM', keySize: 16 },
+    {
+      value: 'kseed_ocb3',
+      label: 'Kseed-OCB3',
+      keySize: 16,
+      requiresParams: true,
+      defaultTagSize: 16,
+      defaultNonceSize: 12,
+    },
+
+    { value: 'noekeon_gcm', label: 'Noekeon-GCM', keySize: 16 },
+    {
+      value: 'noekeon_ocb3',
+      label: 'Noekeon-OCB3',
+      keySize: 16,
+      requiresParams: true,
+      defaultTagSize: 16,
+      defaultNonceSize: 12,
+    },
+
+    { value: 'serpent_gcm', label: 'Serpent-GCM', keySize: 32 },
+    {
+      value: 'serpent_ocb3',
+      label: 'Serpent-OCB3',
+      keySize: 32,
+      requiresParams: true,
+      defaultTagSize: 16,
+      defaultNonceSize: 12,
+    },
+
+    {
+      value: 'multi2_gcm',
+      label: 'Multi2-GCM',
+      keySize: 40,
+      requiresParams: true,
+    },
+
     { value: 'chacha20_poly1305', label: 'ChaCha20-Poly1305', keySize: 32 },
     { value: 'xchacha20_poly1305', label: 'XChaCha20-Poly1305', keySize: 32 },
   ];
