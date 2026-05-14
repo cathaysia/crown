@@ -89,6 +89,7 @@ pub fn create_hasher(
             (Sha3512, new_sha3_512),
             (Shake128, new_shake128),
             (Shake256, new_shake256),
+            (Sm3, new_sm3),
         ],
         blake_fixed: [
             (Blake2b256, new_blake2b, 32),
