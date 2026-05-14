@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
   pull_request:
 jobs:
-  unittest:
+  check-unittest:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

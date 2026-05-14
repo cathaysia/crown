@@ -1,4 +1,4 @@
-name: deploy-github-pages
+name: deploy-pages
 
 on:
   push:
@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  build-pages:
     runs-on: ubuntu-latest
 
     steps:
@@ -66,12 +66,12 @@ jobs:
         with:
           path: crown-playground/out
 
-  deploy:
+  deploy-pages:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    needs: build
+    needs: build-pages
     steps:
       - name: Deploy to GitHub Pages
         id: deployment

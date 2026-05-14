@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
+  check-build-cross:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
