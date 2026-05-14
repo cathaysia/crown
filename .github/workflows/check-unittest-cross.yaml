@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
+  check-unitest-cross:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
