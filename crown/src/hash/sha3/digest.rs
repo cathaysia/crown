@@ -1,5 +1,3 @@
-use bytes::BufMut;
-
 use crate::{core::CoreWrite, error::CryptoResult, hash::HashUser, utils::subtle::xor::xor_bytes};
 
 #[cfg(feature = "marshal")]
@@ -192,6 +190,8 @@ impl<const N: usize> Marshalable for Sha3<N> {
     }
 
     fn marshal_into(&self, mut b: &mut [u8]) -> CryptoResult<usize> {
+        use bytes::BufMut;
+
         let len = b.len();
         if len < MARSHALED_SIZE {
             return Err(CryptoError::BufferTooSmall);
