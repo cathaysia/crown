@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.16.0](https://github.com/cathaysia/crown/compare/v0.15.0...v0.16.0) (2026-05-14)
+
+
+### Features
+
+* **crown:** impl Marshalable for blake2s ([22f8b60](https://github.com/cathaysia/crown/commit/22f8b603cdaeb22bc43aecdfc90290be39b680f1))
+* remove thiserror dependency and manually implement error traits ([da5b816](https://github.com/cathaysia/crown/commit/da5b816c167af9c3647ced9f5048d7d9e85a5990))
+* update block-padding to 0.4.2 ([0b584e4](https://github.com/cathaysia/crown/commit/0b584e4bd4d1c84273ace339f5d592998fad8881))
+
 ## [0.15.0](https://github.com/cathaysia/crown/compare/v0.14.0...v0.15.0) (2026-05-13)
 
 
