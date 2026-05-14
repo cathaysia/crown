@@ -9,6 +9,7 @@ use crate::block::kasumi::Kasumi;
 use crate::block::kseed::Kseed;
 use crate::block::multi2::Multi2;
 use crate::block::noekeon::Noekeon;
+use crate::block::safer::Safer;
 use crate::block::skipjack::Skipjack;
 use crate::block::sm4::Sm4;
 use crate::block::BlockCipher;
@@ -66,6 +67,42 @@ impl EvpBlockCipher {
         basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack, Kasumi, Kseed, Anubis, Noekeon],
         rounds: [Rc2, Rc5, Camellia, Multi2]
     );
+
+    pub fn new_safer_k64_cbc(key: &[u8], iv: &[u8], rounds: u8) -> CryptoResult<Self> {
+        Ok(Self::new_impl(
+            Safer::new_k64(key, rounds)?,
+            Safer::new_k64(key, rounds)?,
+            iv,
+            Box::new(Pkcs7),
+        ))
+    }
+
+    pub fn new_safer_sk64_cbc(key: &[u8], iv: &[u8], rounds: u8) -> CryptoResult<Self> {
+        Ok(Self::new_impl(
+            Safer::new_sk64(key, rounds)?,
+            Safer::new_sk64(key, rounds)?,
+            iv,
+            Box::new(Pkcs7),
+        ))
+    }
+
+    pub fn new_safer_k128_cbc(key: &[u8], iv: &[u8], rounds: u8) -> CryptoResult<Self> {
+        Ok(Self::new_impl(
+            Safer::new_k128(key, rounds)?,
+            Safer::new_k128(key, rounds)?,
+            iv,
+            Box::new(Pkcs7),
+        ))
+    }
+
+    pub fn new_safer_sk128_cbc(key: &[u8], iv: &[u8], rounds: u8) -> CryptoResult<Self> {
+        Ok(Self::new_impl(
+            Safer::new_sk128(key, rounds)?,
+            Safer::new_sk128(key, rounds)?,
+            iv,
+            Box::new(Pkcs7),
+        ))
+    }
 
     fn new_impl<D: BlockCipher>(
         enc: impl CbcEncryptor<D> + 'static,
