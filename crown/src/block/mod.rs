@@ -16,6 +16,7 @@ pub mod des;
 pub mod idea;
 pub mod kasumi;
 pub mod kseed;
+pub mod noekeon;
 pub mod rc2;
 pub mod rc5;
 pub mod rc6;
