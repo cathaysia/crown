@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.19.0](https://github.com/cathaysia/crown/compare/v0.18.0...v0.19.0) (2026-05-14)
+
+
+### Features
+
+* **bin:** synchronize crown-bin with newly added algorithms from crown ([692969f](https://github.com/cathaysia/crown/commit/692969f4c160b890f435b19d60900b0d582cf99d))
+* **block:** impl Khazad block crypto ([8fc4cb4](https://github.com/cathaysia/crown/commit/8fc4cb4d8cf347bff3d28552a83c765e8851e89f))
+* **block:** implement SAFER block cipher ([f47cb41](https://github.com/cathaysia/crown/commit/f47cb41243e52d358ce534560c8d7f66a9723841))
+* **block:** implement Serpent block cipher ([759525c](https://github.com/cathaysia/crown/commit/759525c61d452cd2fbffe4995e4ecdd223a43059))
+* **cabi:** synchronize C ABI with newly added algorithms and EVP changes ([6aeac5e](https://github.com/cathaysia/crown/commit/6aeac5ec2fc65402c86ff60804887b9583e5d42d))
+* **envelope:** add SAFER to EvpBlockCipher ([af3653a](https://github.com/cathaysia/crown/commit/af3653a427d50ade93770f52617646d162e2e4c0))
+* **envelope:** integrate Khazad and Serpent into EvpBlockCipher ([f985de5](https://github.com/cathaysia/crown/commit/f985de5e8f1ad9adf9b3beb7c78dfe559aafb3c8))
+* **playground:** synchronize playground UI with newly added algorithms ([b0b6ed1](https://github.com/cathaysia/crown/commit/b0b6ed10d34e4ca88dd06c255d0aed06db0d07d0))
+* **stream:** implement Rabbit stream cipher ([06c79d7](https://github.com/cathaysia/crown/commit/06c79d70bb37e280a9416d78302656ae5a6aac8b))
+* **stream:** implement SOBER-128 stream cipher and integrate into EVP ([291097a](https://github.com/cathaysia/crown/commit/291097acb2fa8e15f3d3dfb716b7a5640490543a))
+* **stream:** implement SOSEMANUK stream cipher ([5ea460d](https://github.com/cathaysia/crown/commit/5ea460d731a127acad1364c17790eb1465c2d139))
+* **wasm:** synchronize WASM interface with newly added algorithms and fix SAFER no-std build ([d992de5](https://github.com/cathaysia/crown/commit/d992de5ed798e2bc70b9ceacf0b736640065ae89))
+
 ## [0.18.0](https://github.com/cathaysia/crown/compare/v0.17.0...v0.18.0) (2026-05-14)
 
 
