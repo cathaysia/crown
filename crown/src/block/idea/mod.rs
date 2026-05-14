@@ -4,6 +4,7 @@ mod tests;
 use bytes::{Buf, BufMut};
 
 use crate::{
+    aead::ocb3::Ocb3Marker,
     block::{BlockCipher, BlockCipherMarker},
     error::{CryptoError, CryptoResult},
 };
@@ -41,6 +42,7 @@ pub struct Idea {
 }
 
 impl BlockCipherMarker for Idea {}
+impl Ocb3Marker for Idea {}
 
 fn s_mul_inv(x: u16) -> u16 {
     let mut y = x;

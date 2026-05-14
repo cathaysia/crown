@@ -67,6 +67,7 @@ pub enum HashAlgorithm {
     Blake2s,
     Shake128,
     Shake256,
+    Sm3,
     #[cfg(feature = "cuda")]
     Md5Cuda,
     #[cfg(feature = "cuda")]
@@ -110,6 +111,7 @@ impl Display for HashAlgorithm {
             Self::Blake2s => "blake2s",
             Self::Shake128 => "shake128",
             Self::Shake256 => "shake256",
+            Self::Sm3 => "sm3",
             #[cfg(feature = "cuda")]
             Self::Md5Cuda => "md5-cuda",
             #[cfg(feature = "cuda")]

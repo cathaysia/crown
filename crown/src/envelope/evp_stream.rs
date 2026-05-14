@@ -7,10 +7,14 @@ use crate::block::des::Des;
 use crate::block::des::TripleDes;
 use crate::block::idea::Idea;
 use crate::block::kasumi::Kasumi;
+use crate::block::khazad::Khazad;
 use crate::block::kseed::Kseed;
+use crate::block::multi2::Multi2;
+use crate::block::noekeon::Noekeon;
 use crate::block::rc2::Rc2;
 use crate::block::rc5::Rc5;
 use crate::block::rc6::Rc6;
+use crate::block::serpent::Serpent;
 use crate::block::skipjack::Skipjack;
 use crate::block::sm4::Sm4;
 use crate::block::tea::Tea;
@@ -80,6 +84,12 @@ macro_rules! impl_stream_cipher {
             Self::new_impl(Rc4::new(key)?)
         }
     };
+    (@special rabbit) => {
+        pub fn new_rabbit(key: &[u8], iv: &[u8]) -> CryptoResult<Self> {
+            let iv = if iv.is_empty() { None } else { Some(iv) };
+            Self::new_impl(Rabbit::new(key, iv)?)
+        }
+    };
     (@special salsa20) => {
         pub fn new_salsa20(key: &[u8], iv: &[u8]) -> CryptoResult<Self> {
             Self::new_impl(Salsa20::new(key, iv)?)
@@ -88,11 +98,6 @@ macro_rules! impl_stream_cipher {
     (@special chacha20) => {
         pub fn new_chacha20(key: &[u8], iv: &[u8]) -> CryptoResult<Self> {
             Self::new_impl(Chacha20::new(key, iv)?)
-        }
-    };
-    (@special rabbit) => {
-        pub fn new_rabbit(key: &[u8], iv: Option<&[u8]>) -> CryptoResult<Self> {
-            Self::new_impl(Rabbit::new(key, iv)?)
         }
     };
     (@special sosemanuk) => {
@@ -113,8 +118,8 @@ macro_rules! impl_stream_cipher {
 
 impl EvpStreamCipher {
     impl_stream_cipher!(
-        basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack, Kasumi, Kseed, Anubis],
-        rounds: [Rc2, Rc5, Camellia],
+        basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack, Kasumi, Kseed, Anubis, Noekeon, Khazad, Serpent],
+        rounds: [Rc2, Rc5, Camellia, Multi2],
         special: [rc4, salsa20, chacha20, rabbit, sosemanuk, sober128],
     );
 
@@ -179,7 +184,7 @@ mod tests {
     fn test_evp_rabbit() {
         let key = [0u8; 16];
         let iv = [0u8; 8];
-        let mut cipher = EvpStreamCipher::new_rabbit(&key, Some(&iv)).unwrap();
+        let mut cipher = EvpStreamCipher::new_rabbit(&key, &iv).unwrap();
         let mut data = [0u8; 32];
         cipher.encrypt(&mut data).unwrap();
 
