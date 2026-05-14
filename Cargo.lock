@@ -942,7 +942,6 @@ dependencies = [
  "sha1",
  "sha2",
  "sha3",
- "thiserror 2.0.17",
  "tinyvec",
  "twofish",
  "typify",
