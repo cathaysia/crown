@@ -1,8 +1,5 @@
-use thiserror::Error;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
-#[error("cudaError: {self:?}")]
 pub enum CudaError {
     /**
      * The API call returned with no errors. In the case of query calls, this
@@ -950,5 +947,14 @@ impl From<super::sys::cudaError> for CudaError {
         unsafe { core::mem::transmute(value) }
     }
 }
+
+impl core::fmt::Display for CudaError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "cudaError: {:?}", self)
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for CudaError {}
 
 pub type CudaResult<T> = Result<T, CudaError>;

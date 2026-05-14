@@ -1,84 +1,112 @@
 #[cfg(feature = "alloc")]
 use alloc::string::String;
 
-use thiserror::Error;
-
-#[derive(Debug, Error, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum CryptoError {
-    #[error("invalid hasher")]
     InvalidHasher,
 
-    #[error("buffer too small")]
     BufferTooSmall,
-    #[error("unsupported block size: {0}")]
     UnsupportedBlockSize(usize),
-    #[error("invalid cipher")]
     MessageTooLarge,
-    #[error("invalid hash size: {0}")]
     InvalidHashSize(usize),
     #[cfg(feature = "alloc")]
-    #[error("unsupported operation: {0}")]
     UnsupportedOperation(String),
-    #[error("invalid round: {0}")]
     InvalidRound(usize),
-    #[error("invalid nonce length, expected {expected}, got {actual}")]
     InvalidNonceSize {
         expected: &'static str,
         actual: usize,
     },
-    #[error("invalid tag size, expected {expected}, got {actual}")]
     InvalidTagSize {
         expected: &'static str,
         actual: usize,
     },
-    #[error("invalid block size: {0}")]
     InvalidBlockSize(usize),
-    #[error("invalid parameter: {0}")]
     InvalidParameterStr(&'static str),
-    #[error("invalid key size, expected: {expected}, got: {actual}")]
     InvalidKeySize {
         expected: &'static str,
         actual: usize,
     },
-    #[error("invalid iv size: {0}")]
     InvalidIvSize(usize),
-    #[error("counter overflow")]
     CounterOverflow,
-    #[error("invalid input size")]
     InvalidLength,
-    #[error("invalid buffer overlap")]
     InvalidBufferOverlap,
-    #[error("invalid tag")]
     AuthenticationFailed,
-    #[error("invalid hash state")]
     InvalidHashState,
-    #[error("invalid hash identifier")]
     InvalidHashIdentifier,
-    #[error("invalid hash size")]
     StrError(&'static str),
 
-    #[error("invalid UTF-8 sequence")]
-    Utf8Error(#[from] core::str::Utf8Error),
-    #[error("io eof")]
+    Utf8Error(core::str::Utf8Error),
     IoEof,
 
-    #[error("mismatched hash and password")]
     MismatchedHashAndPassword,
-    #[error("hash too short")]
     HashTooShort,
-    #[error("hash version too new: {0}")]
     HashVersionTooNew(u8),
-    #[error("invalid hash prefix: {0}")]
     InvalidHashPrefix(u8),
-    #[error("invalid cost: {0}")]
     InvalidCost(u32),
-    #[error("password too long")]
     PasswordTooLong,
 
-    #[error("unpad error")]
     UnpadError,
-    #[error("pad error")]
     PadError,
+}
+
+impl core::fmt::Display for CryptoError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            CryptoError::InvalidHasher => write!(f, "invalid hasher"),
+            CryptoError::BufferTooSmall => write!(f, "buffer too small"),
+            CryptoError::UnsupportedBlockSize(size) => write!(f, "unsupported block size: {}", size),
+            CryptoError::MessageTooLarge => write!(f, "invalid cipher"),
+            CryptoError::InvalidHashSize(size) => write!(f, "invalid hash size: {}", size),
+            #[cfg(feature = "alloc")]
+            CryptoError::UnsupportedOperation(op) => write!(f, "unsupported operation: {}", op),
+            CryptoError::InvalidRound(round) => write!(f, "invalid round: {}", round),
+            CryptoError::InvalidNonceSize { expected, actual } => {
+                write!(f, "invalid nonce length, expected {}, got {}", expected, actual)
+            }
+            CryptoError::InvalidTagSize { expected, actual } => {
+                write!(f, "invalid tag size, expected {}, got {}", expected, actual)
+            }
+            CryptoError::InvalidBlockSize(size) => write!(f, "invalid block size: {}", size),
+            CryptoError::InvalidParameterStr(s) => write!(f, "invalid parameter: {}", s),
+            CryptoError::InvalidKeySize { expected, actual } => {
+                write!(f, "invalid key size, expected: {}, got: {}", expected, actual)
+            }
+            CryptoError::InvalidIvSize(size) => write!(f, "invalid iv size: {}", size),
+            CryptoError::CounterOverflow => write!(f, "counter overflow"),
+            CryptoError::InvalidLength => write!(f, "invalid input size"),
+            CryptoError::InvalidBufferOverlap => write!(f, "invalid buffer overlap"),
+            CryptoError::AuthenticationFailed => write!(f, "invalid tag"),
+            CryptoError::InvalidHashState => write!(f, "invalid hash state"),
+            CryptoError::InvalidHashIdentifier => write!(f, "invalid hash identifier"),
+            CryptoError::StrError(_) => write!(f, "invalid hash size"),
+            CryptoError::Utf8Error(_) => write!(f, "invalid UTF-8 sequence"),
+            CryptoError::IoEof => write!(f, "io eof"),
+            CryptoError::MismatchedHashAndPassword => write!(f, "mismatched hash and password"),
+            CryptoError::HashTooShort => write!(f, "hash too short"),
+            CryptoError::HashVersionTooNew(v) => write!(f, "hash version too new: {}", v),
+            CryptoError::InvalidHashPrefix(v) => write!(f, "invalid hash prefix: {}", v),
+            CryptoError::InvalidCost(v) => write!(f, "invalid cost: {}", v),
+            CryptoError::PasswordTooLong => write!(f, "password too long"),
+            CryptoError::UnpadError => write!(f, "unpad error"),
+            CryptoError::PadError => write!(f, "pad error"),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for CryptoError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            CryptoError::Utf8Error(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
+impl From<core::str::Utf8Error> for CryptoError {
+    fn from(err: core::str::Utf8Error) -> Self {
+        CryptoError::Utf8Error(err)
+    }
 }
 
 pub type CryptoResult<T> = Result<T, CryptoError>;
