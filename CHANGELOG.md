@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/cathaysia/crown/compare/v0.16.0...v0.17.0) (2026-05-14)
+
+
+### Features
+
+* **crown-derive:** remove useless deps ([e06c635](https://github.com/cathaysia/crown/commit/e06c63550da7896bdc4f283e9e24b36e9964af4b))
+
 ## [0.16.0](https://github.com/cathaysia/crown/compare/v0.15.0...v0.16.0) (2026-05-14)
 
 
