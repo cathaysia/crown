@@ -8,7 +8,7 @@ use crate::error::CryptoResult;
 pub mod chacha20;
 pub mod rabbit;
 pub mod rc4;
-pub mod sala20;
+pub mod salsa20;
 
 /// A Stream represents a stream cipher.
 pub trait StreamCipher {

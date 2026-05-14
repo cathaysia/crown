@@ -1,4 +1,4 @@
-use crate::{stream::sala20::Sala20, stream::StreamCipher, utils::copy};
+use crate::{stream::salsa20::Salsa20, stream::StreamCipher, utils::copy};
 
 fn from_hex(s: &str) -> Vec<u8> {
     hex::decode(s).expect("Invalid hex string")
@@ -93,7 +93,7 @@ fn test_salsa20() {
         let iv = from_hex(test.iv);
 
         copy(&mut output, input);
-        let mut cipher = Sala20::new(&key, &iv).unwrap();
+        let mut cipher = Salsa20::new(&key, &iv).unwrap();
         cipher.xor_key_stream(&mut output).unwrap();
 
         let mut xor_result = [0u8; 64];
@@ -125,7 +125,7 @@ fn test_xsalsa20() {
         key.copy_from_slice(test.key);
 
         copy(&mut output, test.input);
-        let mut cipher = Sala20::new(&key, test.nonce).unwrap();
+        let mut cipher = Salsa20::new(&key, test.nonce).unwrap();
         cipher.xor_key_stream(&mut output).unwrap();
 
         assert_eq!(

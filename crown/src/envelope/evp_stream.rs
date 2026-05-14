@@ -22,7 +22,7 @@ use crate::modes::ofb::Ofb;
 use crate::stream::chacha20::Chacha20;
 use crate::stream::rabbit::Rabbit;
 use crate::stream::rc4::Rc4;
-use crate::stream::sala20::Sala20;
+use crate::stream::salsa20::Salsa20;
 use crate::{error::CryptoResult, stream::StreamCipher};
 use alloc::boxed::Box;
 
@@ -80,7 +80,7 @@ macro_rules! impl_stream_cipher {
     };
     (@special salsa20) => {
         pub fn new_salsa20(key: &[u8], iv: &[u8]) -> CryptoResult<Self> {
-            Self::new_impl(Sala20::new(key, iv)?)
+            Self::new_impl(Salsa20::new(key, iv)?)
         }
     };
     (@special chacha20) => {
