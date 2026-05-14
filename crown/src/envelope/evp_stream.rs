@@ -23,6 +23,7 @@ use crate::stream::chacha20::Chacha20;
 use crate::stream::rabbit::Rabbit;
 use crate::stream::rc4::Rc4;
 use crate::stream::salsa20::Salsa20;
+use crate::stream::sosemanuk::Sosemanuk;
 use crate::{error::CryptoResult, stream::StreamCipher};
 use alloc::boxed::Box;
 
@@ -93,13 +94,20 @@ macro_rules! impl_stream_cipher {
             Self::new_impl(Rabbit::new(key, iv)?)
         }
     };
+    (@special sosemanuk) => {
+        pub fn new_sosemanuk(key: &[u8], iv: &[u8]) -> CryptoResult<Self> {
+            let mut cipher = Sosemanuk::new(key)?;
+            cipher.set_iv(iv)?;
+            Self::new_impl(cipher)
+        }
+    };
 }
 
 impl EvpStreamCipher {
     impl_stream_cipher!(
         basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack, Kasumi, Kseed, Anubis],
         rounds: [Rc2, Rc5, Camellia],
-        special: [rc4, salsa20, chacha20, rabbit],
+        special: [rc4, salsa20, chacha20, rabbit, sosemanuk],
     );
 
     fn new_cfb_mode<T: Cfb>(cipher: T, decyrpter: T, iv: &[u8]) -> CryptoResult<Self> {
