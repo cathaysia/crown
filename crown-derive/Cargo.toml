@@ -17,9 +17,7 @@ jsasm = ["dep:crown-jsasm"]
 
 [dependencies]
 quote = "1.0.40"
-syn = { version = "2.0.104", features = ["full"] }
-serde_json = "1.0"
-darling = "0.21.3"
+syn = { version = "2.0.104" }
+darling = { version = "0.21.3", default-features = false }
 proc-macro2 = "1.0.101"
-anyhow.workspace = true
 crown-jsasm = { workspace = true, optional = true }
