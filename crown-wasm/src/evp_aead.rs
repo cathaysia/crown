@@ -86,8 +86,11 @@ macro_rules! impl_aead_cipher {
 }
 
 impl_aead_cipher!(
-    basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Rc6, Sm4, Skipjack],
-    rounds: [Rc2, Rc5, Camellia],
+    basic: [
+        Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Rc6, Sm4, Skipjack, Kasumi,
+        Kseed, Anubis, Noekeon, Khazad, Serpent, Idea
+    ],
+    rounds: [Rc2, Rc5, Camellia, Multi2],
     special: [chacha20_poly1305, xchacha20_poly1305],
 );
 

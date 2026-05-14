@@ -110,12 +110,51 @@ macro_rules! impl_stream_cipher {
             }
         }
     };
+    (@special rabbit) => {
+        #[wasm_bindgen]
+        impl StreamCipher {
+            #[wasm_bindgen]
+            pub fn new_rabbit(key: &[u8], iv: &[u8]) -> Result<StreamCipher, JsValue> {
+                match EvpStreamCipher::new_rabbit(key, iv) {
+                    Ok(cipher) => Ok(StreamCipher(cipher)),
+                    Err(e) => Err(JsValue::from_str(&format!("Failed to create cipher: {:?}", e))),
+                }
+            }
+        }
+    };
+    (@special sosemanuk) => {
+        #[wasm_bindgen]
+        impl StreamCipher {
+            #[wasm_bindgen]
+            pub fn new_sosemanuk(key: &[u8], iv: &[u8]) -> Result<StreamCipher, JsValue> {
+                match EvpStreamCipher::new_sosemanuk(key, iv) {
+                    Ok(cipher) => Ok(StreamCipher(cipher)),
+                    Err(e) => Err(JsValue::from_str(&format!("Failed to create cipher: {:?}", e))),
+                }
+            }
+        }
+    };
+    (@special sober128) => {
+        #[wasm_bindgen]
+        impl StreamCipher {
+            #[wasm_bindgen]
+            pub fn new_sober128(key: &[u8], iv: &[u8]) -> Result<StreamCipher, JsValue> {
+                match EvpStreamCipher::new_sober128(key, iv) {
+                    Ok(cipher) => Ok(StreamCipher(cipher)),
+                    Err(e) => Err(JsValue::from_str(&format!("Failed to create cipher: {:?}", e))),
+                }
+            }
+        }
+    };
 }
 
 impl_stream_cipher!(
-    basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack],
-    rounds: [Rc2, Rc5, Camellia],
-    special: [rc4, salsa20, chacha20],
+    basic: [
+        Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack,
+        Kasumi, Kseed, Anubis, Noekeon, Khazad, Serpent
+    ],
+    rounds: [Rc2, Rc5, Camellia, Multi2],
+    special: [rc4, salsa20, chacha20, rabbit, sosemanuk, sober128],
 );
 
 #[wasm_bindgen]
