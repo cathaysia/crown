@@ -316,9 +316,58 @@ export function getAvailableAlgorithms(): StreamAlgorithmInfo[] {
       requiresParams: true,
     },
 
+    { value: 'anubis_cfb', label: 'Anubis-CFB', keySize: 32, ivSize: 16 },
+    { value: 'anubis_ctr', label: 'Anubis-CTR', keySize: 32, ivSize: 16 },
+    { value: 'anubis_ofb', label: 'Anubis-OFB', keySize: 32, ivSize: 16 },
+
+    { value: 'kasumi_cfb', label: 'Kasumi-CFB', keySize: 16, ivSize: 8 },
+    { value: 'kasumi_ctr', label: 'Kasumi-CTR', keySize: 16, ivSize: 8 },
+    { value: 'kasumi_ofb', label: 'Kasumi-OFB', keySize: 16, ivSize: 8 },
+
+    { value: 'khazad_cfb', label: 'Khazad-CFB', keySize: 16, ivSize: 8 },
+    { value: 'khazad_ctr', label: 'Khazad-CTR', keySize: 16, ivSize: 8 },
+    { value: 'khazad_ofb', label: 'Khazad-OFB', keySize: 16, ivSize: 8 },
+
+    { value: 'kseed_cfb', label: 'Kseed-CFB', keySize: 16, ivSize: 16 },
+    { value: 'kseed_ctr', label: 'Kseed-CTR', keySize: 16, ivSize: 16 },
+    { value: 'kseed_ofb', label: 'Kseed-OFB', keySize: 16, ivSize: 16 },
+
+    { value: 'noekeon_cfb', label: 'Noekeon-CFB', keySize: 16, ivSize: 16 },
+    { value: 'noekeon_ctr', label: 'Noekeon-CTR', keySize: 16, ivSize: 16 },
+    { value: 'noekeon_ofb', label: 'Noekeon-OFB', keySize: 16, ivSize: 16 },
+
+    { value: 'serpent_cfb', label: 'Serpent-CFB', keySize: 32, ivSize: 16 },
+    { value: 'serpent_ctr', label: 'Serpent-CTR', keySize: 32, ivSize: 16 },
+    { value: 'serpent_ofb', label: 'Serpent-OFB', keySize: 32, ivSize: 16 },
+
+    {
+      value: 'multi2_cfb',
+      label: 'Multi2-CFB',
+      keySize: 40,
+      ivSize: 8,
+      requiresParams: true,
+    },
+    {
+      value: 'multi2_ctr',
+      label: 'Multi2-CTR',
+      keySize: 40,
+      ivSize: 8,
+      requiresParams: true,
+    },
+    {
+      value: 'multi2_ofb',
+      label: 'Multi2-OFB',
+      keySize: 40,
+      ivSize: 8,
+      requiresParams: true,
+    },
+
     { value: 'rc4', label: 'RC4', keySize: 16, ivSize: 0 },
     { value: 'salsa20', label: 'Salsa20', keySize: 32, ivSize: 8 },
     { value: 'chacha20', label: 'ChaCha20', keySize: 32, ivSize: 12 },
+    { value: 'rabbit', label: 'Rabbit', keySize: 16, ivSize: 8 },
+    { value: 'sosemanuk', label: 'Sosemanuk', keySize: 32, ivSize: 16 },
+    { value: 'sober128', label: 'Sober128', keySize: 16, ivSize: 4 },
   ];
 
   return algorithms.filter(alg => {

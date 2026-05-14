@@ -296,6 +296,56 @@ export function getAvailableAlgorithms(): BlockAlgorithmInfo[] {
       blockSize: 16,
       requiresParams: true,
     },
+    {
+      value: 'anubis_cbc',
+      label: 'Anubis-CBC',
+      keySize: 32,
+      ivSize: 16,
+      blockSize: 16,
+    },
+    {
+      value: 'kasumi_cbc',
+      label: 'Kasumi-CBC',
+      keySize: 16,
+      ivSize: 8,
+      blockSize: 8,
+    },
+    {
+      value: 'khazad_cbc',
+      label: 'Khazad-CBC',
+      keySize: 16,
+      ivSize: 8,
+      blockSize: 8,
+    },
+    {
+      value: 'kseed_cbc',
+      label: 'Kseed-CBC',
+      keySize: 16,
+      ivSize: 16,
+      blockSize: 16,
+    },
+    {
+      value: 'noekeon_cbc',
+      label: 'Noekeon-CBC',
+      keySize: 16,
+      ivSize: 16,
+      blockSize: 16,
+    },
+    {
+      value: 'serpent_cbc',
+      label: 'Serpent-CBC',
+      keySize: 32,
+      ivSize: 16,
+      blockSize: 16,
+    },
+    {
+      value: 'multi2_cbc',
+      label: 'Multi2-CBC',
+      keySize: 40,
+      ivSize: 8,
+      blockSize: 8,
+      requiresParams: true,
+    },
   ];
 
   return algorithms.filter(alg => {
