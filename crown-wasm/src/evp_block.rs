@@ -41,8 +41,11 @@ macro_rules! impl_block_cipher {
 }
 
 impl_block_cipher!(
-    basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack],
-    rounds: [Rc2, Rc5, Camellia],
+    basic: [
+        Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack,
+        Kasumi, Kseed, Anubis, Noekeon, Khazad, Serpent
+    ],
+    rounds: [Rc2, Rc5, Camellia, Multi2],
 );
 
 #[wasm_bindgen]

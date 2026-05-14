@@ -4,6 +4,7 @@ use crate::{
     block::{BlockCipher, BlockCipherMarker},
     error::{CryptoError, CryptoResult},
 };
+use alloc::vec::Vec;
 
 #[derive(Clone)]
 pub struct Safer {
