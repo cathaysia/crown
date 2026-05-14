@@ -2,7 +2,7 @@ use crate::error::CryptoError;
 
 impl<T> super::Padding for T
 where
-    T: block_padding::RawPadding,
+    T: block_padding::Padding,
 {
     fn pad(&self, block: &mut [u8], pos: usize) {
         Self::raw_pad(block, pos);
