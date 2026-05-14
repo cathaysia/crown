@@ -14,11 +14,11 @@
 //! nonce as specified in <https://cr.yp.to/snuffle/xsalsa-20081128.pdf>. Simply
 //! passing a 24-byte slice as the nonce triggers XSalsa20.
 
-mod hsala20;
+mod hsalsa20;
 mod noasm;
-mod sala20_ref;
+mod salsa20_ref;
 
-pub use hsala20::SIGMA;
+pub use hsalsa20::SIGMA;
 
 #[cfg(test)]
 mod tests;
@@ -28,17 +28,17 @@ use crate::{
     stream::StreamCipher,
     utils::copy,
 };
-use hsala20::hsalsa20;
+use hsalsa20::hsalsa20;
 use noasm::xor_key_stream;
 
-pub struct Sala20 {
+pub struct Salsa20 {
     key: [u8; 32],
     nonce: [u8; 24],
     nonce_len: usize,
 }
 
-impl Sala20 {
-    pub fn new(key: &[u8], nonce: &[u8]) -> CryptoResult<Sala20> {
+impl Salsa20 {
+    pub fn new(key: &[u8], nonce: &[u8]) -> CryptoResult<Salsa20> {
         if nonce.len() != 8 && nonce.len() != 24 {
             return Err(CryptoError::InvalidNonceSize {
                 expected: "8 | 24",
@@ -62,7 +62,7 @@ impl Sala20 {
     }
 }
 
-impl StreamCipher for Sala20 {
+impl StreamCipher for Salsa20 {
     fn xor_key_stream(&mut self, inout: &mut [u8]) -> CryptoResult<()> {
         let Self {
             key,
