@@ -235,13 +235,91 @@ macro_rules! impl_stream_cipher {
             }
         }
     };
+    (@special rabbit) => {
+        #[unsafe(no_mangle)]
+        pub unsafe extern "C" fn stream_cipher_new_rabbit(
+            key: *const u8,
+            key_len: usize,
+            iv: *const u8,
+            iv_len: usize
+        ) -> *mut Self {
+            unsafe {
+                let key_slice = match slice_from_raw_parts(key, key_len) {
+                    Some(slice) => slice,
+                    None => return std::ptr::null_mut(),
+                };
+                let iv_slice = match slice_from_raw_parts(iv, iv_len) {
+                    Some(slice) => slice,
+                    None => return std::ptr::null_mut(),
+                };
+
+                match EvpStreamCipher::new_rabbit(key_slice, iv_slice) {
+                    Ok(cipher) => Box::into_raw(Box::new(Self(cipher))),
+                    Err(_) => std::ptr::null_mut(),
+                }
+            }
+        }
+    };
+    (@special sosemanuk) => {
+        #[unsafe(no_mangle)]
+        pub unsafe extern "C" fn stream_cipher_new_sosemanuk(
+            key: *const u8,
+            key_len: usize,
+            iv: *const u8,
+            iv_len: usize
+        ) -> *mut Self {
+            unsafe {
+                let key_slice = match slice_from_raw_parts(key, key_len) {
+                    Some(slice) => slice,
+                    None => return std::ptr::null_mut(),
+                };
+                let iv_slice = match slice_from_raw_parts(iv, iv_len) {
+                    Some(slice) => slice,
+                    None => return std::ptr::null_mut(),
+                };
+
+                match EvpStreamCipher::new_sosemanuk(key_slice, iv_slice) {
+                    Ok(cipher) => Box::into_raw(Box::new(Self(cipher))),
+                    Err(_) => std::ptr::null_mut(),
+                }
+            }
+        }
+    };
+    (@special sober128) => {
+        #[unsafe(no_mangle)]
+        pub unsafe extern "C" fn stream_cipher_new_sober128(
+            key: *const u8,
+            key_len: usize,
+            iv: *const u8,
+            iv_len: usize
+        ) -> *mut Self {
+            unsafe {
+                let key_slice = match slice_from_raw_parts(key, key_len) {
+                    Some(slice) => slice,
+                    None => return std::ptr::null_mut(),
+                };
+                let iv_slice = match slice_from_raw_parts(iv, iv_len) {
+                    Some(slice) => slice,
+                    None => return std::ptr::null_mut(),
+                };
+
+                match EvpStreamCipher::new_sober128(key_slice, iv_slice) {
+                    Ok(cipher) => Box::into_raw(Box::new(Self(cipher))),
+                    Err(_) => std::ptr::null_mut(),
+                }
+            }
+        }
+    };
 }
 
 impl StreamCipher {
     impl_stream_cipher!(
-        basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack],
-        rounds: [Rc2, Rc5, Camellia],
-        special: [rc4, salsa20, chacha20],
+        basic: [
+            Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack,
+            Kasumi, Kseed, Anubis, Noekeon, Khazad, Serpent
+        ],
+        rounds: [Rc2, Rc5, Camellia, Multi2],
+        special: [rc4, salsa20, chacha20, rabbit, sosemanuk, sober128],
     );
 
     #[unsafe(no_mangle)]
