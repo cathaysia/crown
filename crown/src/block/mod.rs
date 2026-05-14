@@ -22,6 +22,7 @@ pub mod noekeon;
 pub mod rc2;
 pub mod rc5;
 pub mod rc6;
+pub mod safer;
 pub mod serpent;
 pub mod skipjack;
 pub mod sm4;
