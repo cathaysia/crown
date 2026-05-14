@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.18.0](https://github.com/cathaysia/crown/compare/v0.17.0...v0.18.0) (2026-05-14)
+
+
+### Features
+
+* **block:** implement MULTI2 block cipher ([4ff7e92](https://github.com/cathaysia/crown/commit/4ff7e9287b040ff5c2f7b6389231cb0c87e46004))
+* **block:** implement Noekeon block cipher ([d009fbe](https://github.com/cathaysia/crown/commit/d009fbe7df91577d4ebfda96a5d95a6792423d2d))
+* **crown:** bump rand to 0.10 ([8432f29](https://github.com/cathaysia/crown/commit/8432f297ec08144172a72ef4d35d13672c82c9ca))
+* **jsasm:** bump swc ([9dae912](https://github.com/cathaysia/crown/commit/9dae912552d7d5ad3a6ac0cf1918a3f06efd0ced))
+* **jsasm:** remove useless deps ([8374d1e](https://github.com/cathaysia/crown/commit/8374d1ea5f4cc2ea903a563612fafa1145ca0b8e))
+
 ## [0.17.0](https://github.com/cathaysia/crown/compare/v0.16.0...v0.17.0) (2026-05-14)
 
 
