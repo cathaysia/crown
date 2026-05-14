@@ -19,3 +19,24 @@ fn rustcrypto_blake2s_interop() {
         assert_eq!(hex::encode(this), hex::encode(rustcrypto));
     }
 }
+
+#[test]
+#[cfg(feature = "marshal")]
+fn test_marsh_unmarsh() {
+    use crate::core::CoreWrite;
+    use crate::mac::hmac::Marshalable;
+
+    let mut x = new256(None).unwrap();
+    x.write_all(b"xxxxx").unwrap();
+
+    let status = x.marshal_binary().unwrap();
+
+    let mut x_cloned = x.clone();
+    let ret1 = x_cloned.sum();
+
+    let mut x2 = new256(None).unwrap();
+    x2.unmarshal_binary(&status).unwrap();
+    let ret2 = x2.sum();
+
+    assert_eq!(ret1, ret2);
+}

@@ -24,7 +24,23 @@ const IV: [u32; 8] = [
     0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
 ];
 
+#[derive(Clone)]
 pub struct Blake2s<const N: usize>(Blake2sVariable);
+
+#[cfg(feature = "marshal")]
+impl<const N: usize> crate::mac::hmac::Marshalable for Blake2s<N> {
+    fn marshal_size(&self) -> usize {
+        self.0.marshal_size()
+    }
+
+    fn marshal_into(&self, out: &mut [u8]) -> CryptoResult<usize> {
+        self.0.marshal_into(out)
+    }
+
+    fn unmarshal_binary(&mut self, b: &[u8]) -> CryptoResult<()> {
+        self.0.unmarshal_binary(b)
+    }
+}
 
 impl<const N: usize> HashUser for Blake2s<N> {
     fn reset(&mut self) {

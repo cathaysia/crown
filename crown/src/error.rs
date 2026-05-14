@@ -54,14 +54,20 @@ impl core::fmt::Display for CryptoError {
         match self {
             CryptoError::InvalidHasher => write!(f, "invalid hasher"),
             CryptoError::BufferTooSmall => write!(f, "buffer too small"),
-            CryptoError::UnsupportedBlockSize(size) => write!(f, "unsupported block size: {}", size),
+            CryptoError::UnsupportedBlockSize(size) => {
+                write!(f, "unsupported block size: {}", size)
+            }
             CryptoError::MessageTooLarge => write!(f, "invalid cipher"),
             CryptoError::InvalidHashSize(size) => write!(f, "invalid hash size: {}", size),
             #[cfg(feature = "alloc")]
             CryptoError::UnsupportedOperation(op) => write!(f, "unsupported operation: {}", op),
             CryptoError::InvalidRound(round) => write!(f, "invalid round: {}", round),
             CryptoError::InvalidNonceSize { expected, actual } => {
-                write!(f, "invalid nonce length, expected {}, got {}", expected, actual)
+                write!(
+                    f,
+                    "invalid nonce length, expected {}, got {}",
+                    expected, actual
+                )
             }
             CryptoError::InvalidTagSize { expected, actual } => {
                 write!(f, "invalid tag size, expected {}, got {}", expected, actual)
@@ -69,7 +75,11 @@ impl core::fmt::Display for CryptoError {
             CryptoError::InvalidBlockSize(size) => write!(f, "invalid block size: {}", size),
             CryptoError::InvalidParameterStr(s) => write!(f, "invalid parameter: {}", s),
             CryptoError::InvalidKeySize { expected, actual } => {
-                write!(f, "invalid key size, expected: {}, got: {}", expected, actual)
+                write!(
+                    f,
+                    "invalid key size, expected: {}, got: {}",
+                    expected, actual
+                )
             }
             CryptoError::InvalidIvSize(size) => write!(f, "invalid iv size: {}", size),
             CryptoError::CounterOverflow => write!(f, "counter overflow"),

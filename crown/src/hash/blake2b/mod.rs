@@ -28,6 +28,7 @@ pub(crate) const SIZE: usize = 64;
 pub(crate) const SIZE384: usize = 48;
 pub(crate) const SIZE256: usize = 32;
 
+#[derive(Clone)]
 pub struct Blake2b<const N: usize>(Blake2bVariable);
 
 impl<const N: usize> Blake2b<N> {
