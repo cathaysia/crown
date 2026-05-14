@@ -80,9 +80,7 @@ impl Noekeon {
         state[1] ^= !(state[3] | state[2]);
         state[0] ^= state[2] & state[1];
 
-        let temp = state[3];
-        state[3] = state[0];
-        state[0] = temp;
+        state.swap(3, 0);
 
         state[2] ^= state[0] ^ state[1] ^ state[3];
         state[1] ^= !(state[3] | state[2]);
