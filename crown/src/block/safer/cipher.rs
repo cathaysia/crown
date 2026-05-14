@@ -1,5 +1,6 @@
 use super::consts::{SAFER_EBOX, SAFER_LBOX};
 use crate::{
+    aead::ocb3::Ocb3Marker,
     block::{BlockCipher, BlockCipherMarker},
     error::{CryptoError, CryptoResult},
 };
@@ -11,6 +12,7 @@ pub struct Safer {
 }
 
 impl BlockCipherMarker for Safer {}
+impl Ocb3Marker for Safer {}
 
 impl BlockCipher for Safer {
     fn block_size(&self) -> usize {

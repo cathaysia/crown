@@ -1,5 +1,6 @@
 use crate::{
-    block::BlockCipher,
+    aead::ocb3::Ocb3Marker,
+    block::{BlockCipher, BlockCipherMarker},
     error::{CryptoError, CryptoResult},
 };
 
@@ -10,6 +11,9 @@ const ROUNDS: usize = 32;
 pub struct Serpent {
     round_keys: [[u32; 4]; ROUNDS + 1],
 }
+
+impl BlockCipherMarker for Serpent {}
+impl Ocb3Marker for Serpent {}
 
 impl Serpent {
     pub const BLOCK_SIZE: usize = 16;

@@ -6,10 +6,12 @@ mod tests;
 use crate::block::anubis::Anubis;
 use crate::block::idea::Idea;
 use crate::block::kasumi::Kasumi;
+use crate::block::khazad::Khazad;
 use crate::block::kseed::Kseed;
 use crate::block::multi2::Multi2;
 use crate::block::noekeon::Noekeon;
 use crate::block::safer::Safer;
+use crate::block::serpent::Serpent;
 use crate::block::skipjack::Skipjack;
 use crate::block::sm4::Sm4;
 use crate::block::BlockCipher;
@@ -64,7 +66,7 @@ macro_rules! impl_newer {
 
 impl EvpBlockCipher {
     impl_newer!(
-        basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack, Kasumi, Kseed, Anubis, Noekeon],
+        basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack, Kasumi, Kseed, Anubis, Noekeon, Khazad, Serpent],
         rounds: [Rc2, Rc5, Camellia, Multi2]
     );
 
