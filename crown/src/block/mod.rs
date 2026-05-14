@@ -15,6 +15,7 @@ pub mod cast5;
 pub mod des;
 pub mod idea;
 pub mod kasumi;
+pub mod khazad;
 pub mod kseed;
 pub mod multi2;
 pub mod noekeon;
