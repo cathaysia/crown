@@ -20,6 +20,7 @@ use crate::modes::cfb::Cfb;
 use crate::modes::ctr::Ctr;
 use crate::modes::ofb::Ofb;
 use crate::stream::chacha20::Chacha20;
+use crate::stream::rabbit::Rabbit;
 use crate::stream::rc4::Rc4;
 use crate::stream::sala20::Sala20;
 use crate::{error::CryptoResult, stream::StreamCipher};
@@ -87,13 +88,18 @@ macro_rules! impl_stream_cipher {
             Self::new_impl(Chacha20::new(key, iv)?)
         }
     };
+    (@special rabbit) => {
+        pub fn new_rabbit(key: &[u8], iv: Option<&[u8]>) -> CryptoResult<Self> {
+            Self::new_impl(Rabbit::new(key, iv)?)
+        }
+    };
 }
 
 impl EvpStreamCipher {
     impl_stream_cipher!(
         basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack, Kasumi, Kseed, Anubis],
         rounds: [Rc2, Rc5, Camellia],
-        special: [rc4, salsa20, chacha20],
+        special: [rc4, salsa20, chacha20, rabbit],
     );
 
     fn new_cfb_mode<T: Cfb>(cipher: T, decyrpter: T, iv: &[u8]) -> CryptoResult<Self> {
@@ -146,5 +152,26 @@ impl EvpStreamCipher {
 
     pub fn decrypt(&mut self, inout: &mut [u8]) -> CryptoResult<()> {
         self.0.decrypt(inout)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_evp_rabbit() {
+        let key = [0u8; 16];
+        let iv = [0u8; 8];
+        let mut cipher = EvpStreamCipher::new_rabbit(&key, Some(&iv)).unwrap();
+        let mut data = [0u8; 32];
+        cipher.encrypt(&mut data).unwrap();
+
+        let expected = [
+            0xED, 0xB7, 0x05, 0x67, 0x37, 0x5D, 0xCD, 0x7C, 0xD8, 0x95, 0x54, 0xF8, 0x5E, 0x27,
+            0xA7, 0xC6, 0x8D, 0x4A, 0xDC, 0x70, 0x32, 0x29, 0x8F, 0x7B, 0xD4, 0xEF, 0xF5, 0x04,
+            0xAC, 0xA6, 0x29, 0x5F,
+        ];
+        assert_eq!(data, expected);
     }
 }
