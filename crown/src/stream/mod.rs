@@ -9,6 +9,7 @@ pub mod chacha20;
 pub mod rabbit;
 pub mod rc4;
 pub mod salsa20;
+pub mod sosemanuk;
 
 /// A Stream represents a stream cipher.
 pub trait StreamCipher {
