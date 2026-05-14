@@ -7,20 +7,6 @@ pub(crate) fn copy(dst: &mut [u8], src: &[u8]) -> usize {
     len
 }
 
-/// Check if two slices have any overlap in memory
-pub(crate) fn any_overlap(a: &[u8], b: &[u8]) -> bool {
-    if a.is_empty() || b.is_empty() {
-        return false;
-    }
-
-    let a_start = a.as_ptr() as usize;
-    let a_end = a_start + a.len();
-    let b_start = b.as_ptr() as usize;
-    let b_end = b_start + b.len();
-
-    !(a_end <= b_start || b_end <= a_start)
-}
-
 /// Creates a new slice from the given slice without transferring ownership.
 ///
 /// This function reinterprets the lifetime of the input slice to a new lifetime `'a`,
