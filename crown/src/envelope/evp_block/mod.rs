@@ -7,6 +7,7 @@ use crate::block::anubis::Anubis;
 use crate::block::idea::Idea;
 use crate::block::kasumi::Kasumi;
 use crate::block::kseed::Kseed;
+use crate::block::multi2::Multi2;
 use crate::block::noekeon::Noekeon;
 use crate::block::skipjack::Skipjack;
 use crate::block::sm4::Sm4;
@@ -63,7 +64,7 @@ macro_rules! impl_newer {
 impl EvpBlockCipher {
     impl_newer!(
         basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack, Kasumi, Kseed, Anubis, Noekeon],
-        rounds: [Rc2, Rc5, Camellia]
+        rounds: [Rc2, Rc5, Camellia, Multi2]
     );
 
     fn new_impl<D: BlockCipher>(
