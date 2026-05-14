@@ -23,6 +23,7 @@ use crate::stream::chacha20::Chacha20;
 use crate::stream::rabbit::Rabbit;
 use crate::stream::rc4::Rc4;
 use crate::stream::salsa20::Salsa20;
+use crate::stream::sober128::Sober128;
 use crate::stream::sosemanuk::Sosemanuk;
 use crate::{error::CryptoResult, stream::StreamCipher};
 use alloc::boxed::Box;
@@ -101,13 +102,20 @@ macro_rules! impl_stream_cipher {
             Self::new_impl(cipher)
         }
     };
+    (@special sober128) => {
+        pub fn new_sober128(key: &[u8], iv: &[u8]) -> CryptoResult<Self> {
+            let mut cipher = Sober128::new(key)?;
+            cipher.set_iv(iv)?;
+            Self::new_impl(cipher)
+        }
+    };
 }
 
 impl EvpStreamCipher {
     impl_stream_cipher!(
         basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack, Kasumi, Kseed, Anubis],
         rounds: [Rc2, Rc5, Camellia],
-        special: [rc4, salsa20, chacha20, rabbit, sosemanuk],
+        special: [rc4, salsa20, chacha20, rabbit, sosemanuk, sober128],
     );
 
     fn new_cfb_mode<T: Cfb>(cipher: T, decyrpter: T, iv: &[u8]) -> CryptoResult<Self> {
@@ -181,5 +189,17 @@ mod tests {
             0xAC, 0xA6, 0x29, 0x5F,
         ];
         assert_eq!(data, expected);
+    }
+
+    #[test]
+    fn test_evp_sober128() {
+        let key = hex::decode("74657374206b65792031323862697473").unwrap();
+        let iv = hex::decode("00000000").unwrap();
+        let mut cipher = EvpStreamCipher::new_sober128(&key, &iv).unwrap();
+        let mut data = [0u8; 20];
+        cipher.encrypt(&mut data).unwrap();
+
+        let expected = hex::decode("43500ccf89919f1daa377495f4b458c240378bbb").unwrap();
+        assert_eq!(data.as_slice(), expected.as_slice());
     }
 }
