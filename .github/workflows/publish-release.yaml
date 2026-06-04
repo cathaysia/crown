@@ -54,6 +54,45 @@ jobs:
           RUSTC_WRAPPER: "sccache"
         run: |
           cargo publish -p crown-bin --allow-dirty
+  publish-wasm:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      - name: setup env
+        run: |
+          sudo apt update -y
+          sudo apt install build-essential gcc cpp libclang-dev openssl libssl-dev -y
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.89.0
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Copy README and LICENSE
+        run: |
+          cp README.md crown-wasm/
+          cp LICENSE crown-wasm/
+
+      - name: Build wasm package
+        working-directory: crown-wasm
+        run: wasm-pack build --scope cathaysia --target bundler
+
+      - name: Publish to GitHub Packages
+        working-directory: crown-wasm/pkg
+        run: |
+          echo "@cathaysia:registry=https://npm.pkg.github.com" > .npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+          npm publish
+
   build-cross:
     runs-on: ubuntu-latest
     strategy:
@@ -129,7 +168,7 @@ jobs:
           name: ${{ matrix.target }}
           path: "*.tar.gz"
   create-release:
-    needs: [publish-crate, build-cross]
+    needs: [publish-crate, build-cross, publish-wasm]
     permissions:
       contents: write
       discussions: write
