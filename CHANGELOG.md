@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/cathaysia/crown/compare/v0.19.0...v0.20.0) (2026-06-04)
+
+
+### Features
+
+* **wasm:** add jsr.json for crown-wasm and sync version in release-please ([9817533](https://github.com/cathaysia/crown/commit/98175336540c9ca9e5e7b202998e0fc028207f02))
+
 ## [0.19.0](https://github.com/cathaysia/crown/compare/v0.18.0...v0.19.0) (2026-05-14)
 
 
