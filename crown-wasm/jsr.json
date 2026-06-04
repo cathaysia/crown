@@ -1,0 +1,17 @@
+{
+  "name": "@cathaysia/crown-wasm",
+  "version": "0.19.0",
+  "exports": "./pkg/crown_wasm.js",
+  "publish": {
+    "include": [
+      "./LICENSE",
+      "./README.md",
+      "pkg/crown_wasm.js",
+      "pkg/crown_wasm_bg.wasm",
+      "pkg/crown_wasm_bg.js",
+      "pkg/crown_wasm.d.ts",
+      "pkg/README.md",
+      "pkg/LICENSE"
+    ]
+  }
+}

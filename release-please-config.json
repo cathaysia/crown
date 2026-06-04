@@ -56,6 +56,11 @@
           "path": "Cargo.lock",
           "type": "toml",
           "jsonpath": "$.package[?(@.name.value=='crown-jsasm')].version"
+        },
+        {
+          "path": "crown-wasm/jsr.json",
+          "type": "json",
+          "jsonpath": "$.version"
         }
       ]
     }
