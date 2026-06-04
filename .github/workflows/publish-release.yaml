@@ -96,6 +96,10 @@ jobs:
         working-directory: crown-wasm/pkg
         run: npm publish --access public
 
+      - name: Publish to jsr
+        working-directory: crown-wasm
+        run: npx jsr publish --allow-dirty
+
   build-cross:
     runs-on: ubuntu-latest
     strategy:
