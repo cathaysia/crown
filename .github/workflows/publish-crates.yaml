@@ -21,14 +21,14 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.89.0
+          toolchain: 1.92.0
+
+      - uses: rust-lang/crates-io-auth-action@v1
+        id: auth
 
       - name: Try publish crates to crates.io
         run: |
           cargo publish --workspace --dry-run
-
-      - uses: rust-lang/crates-io-auth-action@v1
-        id: auth
 
       - name: Publish crates to crates.io
         env:
