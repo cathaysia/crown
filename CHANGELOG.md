@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.0](https://github.com/cathaysia/crown/compare/v0.20.0...v0.21.0) (2026-06-12)
+
+
+### Features
+
+* using oidc publish ([f592927](https://github.com/cathaysia/crown/commit/f592927b6cf88be6a8ac06cb9fe5e68fcc433f54))
+
 ## [0.20.0](https://github.com/cathaysia/crown/compare/v0.19.0...v0.20.0) (2026-06-04)
 
 
