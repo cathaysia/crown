@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.0](https://github.com/cathaysia/crown/compare/v0.21.0...v0.22.0) (2026-06-15)
+
+
+### Features
+
+* bump rust to 1.92.0 ([b5622e8](https://github.com/cathaysia/crown/commit/b5622e8d137249446f1e6eebbe9dd82c71e1e6b2))
+
 ## [0.21.0](https://github.com/cathaysia/crown/compare/v0.20.0...v0.21.0) (2026-06-12)
 
 
