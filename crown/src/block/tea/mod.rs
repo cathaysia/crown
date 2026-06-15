@@ -61,7 +61,7 @@ impl Tea {
             });
         }
 
-        if rounds % 2 != 0 {
+        if !rounds.is_multiple_of(2) {
             return Err(CryptoError::InvalidRound(rounds));
         }
 

@@ -365,7 +365,7 @@ fn process_segment(
         let random = if mode == ArgonMode::ARGON2I
             || (mode == ArgonMode::ARGON2ID && n == 0 && slice < SYNC_POINTS / 2)
         {
-            if index % BLOCK_LENGTH as u32 == 0 {
+            if index.is_multiple_of(BLOCK_LENGTH as u32) {
                 input[6] += 1;
                 process_block(&mut addresses, &input, &zero);
                 let src = addresses;

@@ -255,7 +255,7 @@ impl Chacha20 {
     }
 
     fn xor_key_stream_blocks_generic(&mut self, inout: &mut [u8]) {
-        if inout.len() % Self::block_size() != 0 {
+        if !inout.len().is_multiple_of(Self::block_size()) {
             panic!("chacha20: internal error: wrong dst and/or src length");
         }
 
