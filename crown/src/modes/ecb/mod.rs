@@ -39,7 +39,7 @@ impl<B: BlockCipher> BlockMode for EcbImpl<B> {
 
     fn encrypt(&mut self, inout: &mut [u8]) {
         let block_size = self.cipher.block_size();
-        assert!(inout.len() % block_size == 0);
+        assert!(inout.len().is_multiple_of(block_size));
 
         for chunk in inout.chunks_mut(block_size) {
             self.cipher.encrypt_block(chunk);
@@ -48,7 +48,7 @@ impl<B: BlockCipher> BlockMode for EcbImpl<B> {
 
     fn decrypt(&mut self, inout: &mut [u8]) {
         let block_size = self.cipher.block_size();
-        assert!(inout.len() % block_size == 0);
+        assert!(inout.len().is_multiple_of(block_size));
 
         for chunk in inout.chunks_mut(block_size) {
             self.cipher.decrypt_block(chunk);

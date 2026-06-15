@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use crate::{
     aead::ocb3::Ocb3Marker,
     block::{BlockCipher, BlockCipherMarker},
@@ -593,6 +596,3 @@ const fn sbox_d7([mut w1, mut w2, mut w3, mut w4]: [u32; 4]) -> [u32; 4] {
     t0 ^= w3;
     [w4, w1, w2, t0]
 }
-
-#[cfg(test)]
-mod tests;

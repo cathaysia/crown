@@ -163,7 +163,7 @@ impl EvpBlockCipher {
     /// ```
     ///
     pub fn decrypt(&mut self, inout: &mut [u8]) -> CryptoResult<usize> {
-        if inout.len() % self.block_size() != 0 {
+        if !inout.len().is_multiple_of(self.block_size()) {
             return Err(CryptoError::InvalidLength);
         }
 
