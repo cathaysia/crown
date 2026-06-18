@@ -201,6 +201,16 @@ export function getAvailableAlgorithms(): AeadAlgorithmInfo[] {
       defaultNonceSize: 12,
     },
 
+    { value: 'aria_gcm', label: 'ARIA-GCM', keySize: 32 },
+    {
+      value: 'aria_ocb3',
+      label: 'ARIA-OCB3',
+      keySize: 32,
+      requiresParams: true,
+      defaultTagSize: 16,
+      defaultNonceSize: 12,
+    },
+
     { value: 'blowfish_gcm', label: 'Blowfish-GCM', keySize: 56 },
     {
       value: 'blowfish_ocb3',

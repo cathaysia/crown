@@ -202,6 +202,13 @@ export function getAvailableAlgorithms(): BlockAlgorithmInfo[] {
       blockSize: 16,
     },
     {
+      value: 'aria_cbc',
+      label: 'ARIA-CBC',
+      keySize: 32,
+      ivSize: 16,
+      blockSize: 16,
+    },
+    {
       value: 'blowfish_cbc',
       label: 'Blowfish-CBC',
       keySize: 56,

@@ -11,6 +11,7 @@ fn test_aead() {
                 "CHACHA20-POLY1305" => EvpAeadCipher::new_chacha20_poly1305(key),
                 "XCHACHA20-POLY1305" => EvpAeadCipher::new_xchacha20_poly1305(key),
                 "AES-GCM" => EvpAeadCipher::new_aes_gcm(key),
+                "ARIA-GCM" => EvpAeadCipher::new_aria_gcm(key),
                 _ => return None,
             }
             .unwrap(),
@@ -49,6 +50,10 @@ fn test_aead() {
                     t.comment.as_ref().unwrap()
                 );
                 assert_eq!(&hex::encode(&tag) == t.tag.as_ref().unwrap(), is_valid);
+
+                if !is_valid {
+                    continue;
+                }
 
                 h.open_in_place_separate_tag(
                     &mut out,

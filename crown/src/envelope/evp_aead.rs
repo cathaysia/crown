@@ -2,6 +2,7 @@ use crate::aead::gcm::Gcm;
 use crate::aead::ocb3::Ocb3;
 use crate::block::aes::Aes;
 use crate::block::anubis::Anubis;
+use crate::block::aria::Aria;
 use crate::block::blowfish::Blowfish;
 use crate::block::camellia::Camellia;
 use crate::block::cast5::Cast5;
@@ -89,7 +90,7 @@ macro_rules! impl_aead_cipher {
 
 impl EvpAeadCipher {
     impl_aead_cipher!(
-        basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack, Kasumi, Kseed, Anubis, Noekeon, Khazad, Serpent],
+        basic: [Aes, Aria, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack, Kasumi, Kseed, Anubis, Noekeon, Khazad, Serpent],
         rounds: [Rc2, Rc5, Camellia, Multi2],
         special: [chacha20_poly1305, xchacha20_poly1305],
     );
