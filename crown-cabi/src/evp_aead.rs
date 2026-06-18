@@ -3,6 +3,63 @@ use crown::envelope::EvpAeadCipher;
 
 pub struct AeadCipher(EvpAeadCipher);
 
+macro_rules! dispatch_ccm {
+    ($method:ident, $key:expr, $tag_size:expr, $nonce_size:expr $(, $rounds:expr)?) => {
+        match ($tag_size, $nonce_size) {
+            (4, 7) => EvpAeadCipher::$method::<4, 7>($key $(, $rounds)?),
+            (4, 8) => EvpAeadCipher::$method::<4, 8>($key $(, $rounds)?),
+            (4, 9) => EvpAeadCipher::$method::<4, 9>($key $(, $rounds)?),
+            (4, 10) => EvpAeadCipher::$method::<4, 10>($key $(, $rounds)?),
+            (4, 11) => EvpAeadCipher::$method::<4, 11>($key $(, $rounds)?),
+            (4, 12) => EvpAeadCipher::$method::<4, 12>($key $(, $rounds)?),
+            (4, 13) => EvpAeadCipher::$method::<4, 13>($key $(, $rounds)?),
+            (6, 7) => EvpAeadCipher::$method::<6, 7>($key $(, $rounds)?),
+            (6, 8) => EvpAeadCipher::$method::<6, 8>($key $(, $rounds)?),
+            (6, 9) => EvpAeadCipher::$method::<6, 9>($key $(, $rounds)?),
+            (6, 10) => EvpAeadCipher::$method::<6, 10>($key $(, $rounds)?),
+            (6, 11) => EvpAeadCipher::$method::<6, 11>($key $(, $rounds)?),
+            (6, 12) => EvpAeadCipher::$method::<6, 12>($key $(, $rounds)?),
+            (6, 13) => EvpAeadCipher::$method::<6, 13>($key $(, $rounds)?),
+            (8, 7) => EvpAeadCipher::$method::<8, 7>($key $(, $rounds)?),
+            (8, 8) => EvpAeadCipher::$method::<8, 8>($key $(, $rounds)?),
+            (8, 9) => EvpAeadCipher::$method::<8, 9>($key $(, $rounds)?),
+            (8, 10) => EvpAeadCipher::$method::<8, 10>($key $(, $rounds)?),
+            (8, 11) => EvpAeadCipher::$method::<8, 11>($key $(, $rounds)?),
+            (8, 12) => EvpAeadCipher::$method::<8, 12>($key $(, $rounds)?),
+            (8, 13) => EvpAeadCipher::$method::<8, 13>($key $(, $rounds)?),
+            (10, 7) => EvpAeadCipher::$method::<10, 7>($key $(, $rounds)?),
+            (10, 8) => EvpAeadCipher::$method::<10, 8>($key $(, $rounds)?),
+            (10, 9) => EvpAeadCipher::$method::<10, 9>($key $(, $rounds)?),
+            (10, 10) => EvpAeadCipher::$method::<10, 10>($key $(, $rounds)?),
+            (10, 11) => EvpAeadCipher::$method::<10, 11>($key $(, $rounds)?),
+            (10, 12) => EvpAeadCipher::$method::<10, 12>($key $(, $rounds)?),
+            (10, 13) => EvpAeadCipher::$method::<10, 13>($key $(, $rounds)?),
+            (12, 7) => EvpAeadCipher::$method::<12, 7>($key $(, $rounds)?),
+            (12, 8) => EvpAeadCipher::$method::<12, 8>($key $(, $rounds)?),
+            (12, 9) => EvpAeadCipher::$method::<12, 9>($key $(, $rounds)?),
+            (12, 10) => EvpAeadCipher::$method::<12, 10>($key $(, $rounds)?),
+            (12, 11) => EvpAeadCipher::$method::<12, 11>($key $(, $rounds)?),
+            (12, 12) => EvpAeadCipher::$method::<12, 12>($key $(, $rounds)?),
+            (12, 13) => EvpAeadCipher::$method::<12, 13>($key $(, $rounds)?),
+            (14, 7) => EvpAeadCipher::$method::<14, 7>($key $(, $rounds)?),
+            (14, 8) => EvpAeadCipher::$method::<14, 8>($key $(, $rounds)?),
+            (14, 9) => EvpAeadCipher::$method::<14, 9>($key $(, $rounds)?),
+            (14, 10) => EvpAeadCipher::$method::<14, 10>($key $(, $rounds)?),
+            (14, 11) => EvpAeadCipher::$method::<14, 11>($key $(, $rounds)?),
+            (14, 12) => EvpAeadCipher::$method::<14, 12>($key $(, $rounds)?),
+            (14, 13) => EvpAeadCipher::$method::<14, 13>($key $(, $rounds)?),
+            (16, 7) => EvpAeadCipher::$method::<16, 7>($key $(, $rounds)?),
+            (16, 8) => EvpAeadCipher::$method::<16, 8>($key $(, $rounds)?),
+            (16, 9) => EvpAeadCipher::$method::<16, 9>($key $(, $rounds)?),
+            (16, 10) => EvpAeadCipher::$method::<16, 10>($key $(, $rounds)?),
+            (16, 11) => EvpAeadCipher::$method::<16, 11>($key $(, $rounds)?),
+            (16, 12) => EvpAeadCipher::$method::<16, 12>($key $(, $rounds)?),
+            (16, 13) => EvpAeadCipher::$method::<16, 13>($key $(, $rounds)?),
+            _ => return std::ptr::null_mut(),
+        }
+    };
+}
+
 macro_rules! impl_aead_cipher {
     (
         basic: [$($basic:ident),* $(,)?],
@@ -54,6 +111,28 @@ macro_rules! impl_aead_cipher {
                         }
                     }
                 }
+
+                #[unsafe(no_mangle)]
+                pub unsafe extern "C" fn [<aead_cipher_new_ $basic:lower _ccm>](
+                    key: *const u8,
+                    key_len: usize,
+                    tag_size: usize,
+                    nonce_size: usize
+                ) -> *mut Self {
+                    unsafe {
+                        let key_slice = match slice_from_raw_parts(key, key_len) {
+                            Some(slice) => slice,
+                            None => return std::ptr::null_mut(),
+                        };
+
+                        let result = dispatch_ccm!([<new_ $basic:lower _ccm>], key_slice, tag_size, nonce_size);
+
+                        match result {
+                            Ok(cipher) => Box::into_raw(Box::new(Self(cipher))),
+                            Err(_) => std::ptr::null_mut(),
+                        }
+                    }
+                }
             }
         )*
         $(
@@ -72,6 +151,30 @@ macro_rules! impl_aead_cipher {
                         let rounds_opt = option_from_ptr(rounds);
 
                         match EvpAeadCipher::[<new_ $rc:lower _gcm>](key_slice, rounds_opt) {
+                            Ok(cipher) => Box::into_raw(Box::new(Self(cipher))),
+                            Err(_) => std::ptr::null_mut(),
+                        }
+                    }
+                }
+
+                #[unsafe(no_mangle)]
+                pub unsafe extern "C" fn [<aead_cipher_new_ $rc:lower _ccm>](
+                    key: *const u8,
+                    key_len: usize,
+                    tag_size: usize,
+                    nonce_size: usize,
+                    rounds: *const usize
+                ) -> *mut Self {
+                    unsafe {
+                        let key_slice = match slice_from_raw_parts(key, key_len) {
+                            Some(slice) => slice,
+                            None => return std::ptr::null_mut(),
+                        };
+                        let rounds_opt = option_from_ptr(rounds);
+
+                        let result = dispatch_ccm!([<new_ $rc:lower _ccm>], key_slice, tag_size, nonce_size, rounds_opt);
+
+                        match result {
                             Ok(cipher) => Box::into_raw(Box::new(Self(cipher))),
                             Err(_) => std::ptr::null_mut(),
                         }

@@ -45,7 +45,7 @@ impl<B: BlockCipher, const TAG_SIZE: usize, const NONCE_SIZE: usize>
             });
         }
 
-        if !(4..=CCM_BLOCK_SIZE).contains(&TAG_SIZE) || TAG_SIZE % 2 != 0 {
+        if !(4..=CCM_BLOCK_SIZE).contains(&TAG_SIZE) || !TAG_SIZE.is_multiple_of(2) {
             return Err(CryptoError::InvalidTagSize {
                 expected: "4, 6, 8, 10, 12, 14, or 16",
                 actual: TAG_SIZE,
