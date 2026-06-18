@@ -206,6 +206,10 @@ export function getAvailableAlgorithms(): StreamAlgorithmInfo[] {
     { value: 'aes_ctr', label: 'AES-CTR', keySize: 32, ivSize: 16 },
     { value: 'aes_ofb', label: 'AES-OFB', keySize: 32, ivSize: 16 },
 
+    { value: 'aria_cfb', label: 'ARIA-CFB', keySize: 32, ivSize: 16 },
+    { value: 'aria_ctr', label: 'ARIA-CTR', keySize: 32, ivSize: 16 },
+    { value: 'aria_ofb', label: 'ARIA-OFB', keySize: 32, ivSize: 16 },
+
     { value: 'blowfish_cfb', label: 'Blowfish-CFB', keySize: 56, ivSize: 8 },
     { value: 'blowfish_ctr', label: 'Blowfish-CTR', keySize: 56, ivSize: 8 },
     { value: 'blowfish_ofb', label: 'Blowfish-OFB', keySize: 56, ivSize: 8 },

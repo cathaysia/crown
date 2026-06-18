@@ -9,7 +9,6 @@ use crate::block::BlockCipherMarker;
 use crate::error::{CryptoError, CryptoResult};
 use crate::utils::subtle::xor::xor_bytes;
 use crate::utils::{copy, subtle::constant_time_eq};
-use core::convert::TryInto;
 
 // Constants
 const GCM_BLOCK_SIZE: usize = 16;
@@ -61,7 +60,7 @@ where
     fn to_gcm_with_params<const NONCE_SIZE: usize, const TAG_SIZE: usize>(
         self,
     ) -> CryptoResult<impl Aead<TAG_SIZE>> {
-        GcmGeneric::<Self, TAG_SIZE, NONCE_SIZE>::new(self)
+        GcmGeneric::<Self, NONCE_SIZE, TAG_SIZE>::new(self)
     }
 }
 
@@ -71,13 +70,20 @@ struct GcmGeneric<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize
 }
 
 impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize>
-    GcmGeneric<B, TAG_SIZE, NONCE_SIZE>
+    GcmGeneric<B, NONCE_SIZE, TAG_SIZE>
 {
     const _NONCE_ASSERT: () = assert!(NONCE_SIZE != 0);
-    const _TAG_ASSERT_LOW: () = assert!(TAG_SIZE > GCM_MINIMUM_TAG_SIZE);
+    const _TAG_ASSERT_LOW: () = assert!(TAG_SIZE >= GCM_MINIMUM_TAG_SIZE);
     const _TAG_ASSERT_HIGH: () = assert!(TAG_SIZE <= GCM_BLOCK_SIZE);
 
     fn new(cipher: B) -> CryptoResult<Self> {
+        if !(GCM_MINIMUM_TAG_SIZE..=GCM_BLOCK_SIZE).contains(&TAG_SIZE) {
+            return Err(CryptoError::InvalidTagSize {
+                expected: "12..=16",
+                actual: TAG_SIZE,
+            });
+        }
+
         if cipher.block_size() != GCM_BLOCK_SIZE {
             return Err(CryptoError::UnsupportedBlockSize(cipher.block_size()));
         }
@@ -98,7 +104,7 @@ impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize> AeadUser
     }
 }
 
-impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize> Aead<NONCE_SIZE>
+impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize> Aead<TAG_SIZE>
     for GcmGeneric<B, NONCE_SIZE, TAG_SIZE>
 {
     fn seal_in_place_separate_tag(
@@ -106,7 +112,7 @@ impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize> Aead<NONCE_
         inout: &mut [u8],
         nonce: &[u8],
         additional_data: &[u8],
-    ) -> CryptoResult<[u8; NONCE_SIZE]> {
+    ) -> CryptoResult<[u8; TAG_SIZE]> {
         if nonce.len() != self.nonce_size() {
             return Err(CryptoError::InvalidNonceSize {
                 expected: stringify!(N),
@@ -128,7 +134,7 @@ impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize> Aead<NONCE_
         self.cipher.encrypt_block(&mut h);
 
         // Derive counter
-        Self::derive_counter(&mut h, &mut counter, nonce);
+        Self::derive_counter(&h, &mut counter, nonce);
 
         // Generate tag mask
         let tag_mask_copy = tag_mask;
@@ -143,8 +149,8 @@ impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize> Aead<NONCE_
         Self::gcm_auth(&mut tag, &mut h, &tag_mask, inout, additional_data);
 
         // Return the tag
-        let mut result = [0u8; NONCE_SIZE];
-        result.copy_from_slice(&tag[..NONCE_SIZE]);
+        let mut result = [0u8; TAG_SIZE];
+        result.copy_from_slice(&tag[..TAG_SIZE]);
 
         Ok(result)
     }
@@ -185,7 +191,7 @@ impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize> Aead<NONCE_
         self.cipher.encrypt_block(&mut h);
 
         // Derive counter
-        Self::derive_counter(&mut h, &mut counter, nonce);
+        Self::derive_counter(&h, &mut counter, nonce);
 
         // Generate tag mask
         let tag_mask_copy = tag_mask;
@@ -196,7 +202,7 @@ impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize> Aead<NONCE_
         Self::gcm_auth(&mut expected_tag, &mut h, &tag_mask, inout, additional_data);
 
         // Verify tag
-        if !constant_time_eq(&expected_tag[..NONCE_SIZE], tag) {
+        if !constant_time_eq(&expected_tag[..TAG_SIZE], &tag[..TAG_SIZE]) {
             // Clear output in case of tag mismatch
             for byte in inout.iter_mut() {
                 *byte = 0;
@@ -213,14 +219,10 @@ impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize> Aead<NONCE_
 }
 
 impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize>
-    GcmGeneric<B, TAG_SIZE, NONCE_SIZE>
+    GcmGeneric<B, NONCE_SIZE, TAG_SIZE>
 {
     // Helper functions for GCM operations
-    fn derive_counter(
-        h: &mut [u8; GCM_BLOCK_SIZE],
-        counter: &mut [u8; GCM_BLOCK_SIZE],
-        nonce: &[u8],
-    ) {
+    fn derive_counter(h: &[u8; GCM_BLOCK_SIZE], counter: &mut [u8; GCM_BLOCK_SIZE], nonce: &[u8]) {
         if nonce.len() == GCM_STANDARD_NONCE_SIZE {
             copy(counter, nonce);
             counter[GCM_BLOCK_SIZE - 1] = 1;
@@ -229,8 +231,7 @@ impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize>
             let nonce_bits = (nonce.len() as u64) * 8;
             len_block[8..].copy_from_slice(&nonce_bits.to_be_bytes());
 
-            aes_gcm::ghash::ghash(h, nonce.try_into().unwrap(), &[&len_block]);
-            copy(counter, h);
+            aes_gcm::ghash::ghash(counter, h, &[nonce, &len_block]);
         }
     }
 
@@ -300,7 +301,8 @@ impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize>
         len_block[8..].copy_from_slice(&ct_bits.to_be_bytes());
 
         // Compute GHASH(H, additional_data, ciphertext, len_block)
-        aes_gcm::ghash::ghash(h, &additional_data.try_into().unwrap(), &[&len_block]);
+        let h_key = *h;
+        aes_gcm::ghash::ghash(h, &h_key, &[additional_data, ciphertext, &len_block]);
 
         copy(out, h);
         xor_bytes(out, tag_mask);

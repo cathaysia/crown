@@ -9,6 +9,7 @@ fn test_ind_cpa() {
         Some(
             match alg {
                 "AES-CBC-PKCS5" => EvpBlockCipher::new_aes_cbc(key, iv),
+                "ARIA-CBC-PKCS5" => EvpBlockCipher::new_aria_cbc(key, iv),
                 _ => return None,
             }
             .unwrap(),

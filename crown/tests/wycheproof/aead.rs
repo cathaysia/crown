@@ -6,6 +6,7 @@ pub const AEAD_TESTS: &[&str] = &[
     "chacha20_poly1305_test.json",
     "xchacha20_poly1305_test.json",
     "aes_gcm_test.json",
+    "../testvectors_v1/aria_gcm_test.json",
 ];
 
 pub fn get_aead_test(file: &str) -> Root {

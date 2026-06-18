@@ -69,7 +69,7 @@ macro_rules! impl_block_cipher {
 
 impl BlockCipher {
     impl_block_cipher!(
-        basic: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack],
+        basic: [Aes, Aria, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack],
         rounds: [Rc2, Rc5, Camellia],
     );
 

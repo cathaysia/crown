@@ -9,6 +9,7 @@
 
 pub mod aes;
 pub mod anubis;
+pub mod aria;
 pub mod blowfish;
 pub mod camellia;
 pub mod cast5;

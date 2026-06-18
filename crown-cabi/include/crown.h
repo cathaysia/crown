@@ -21,6 +21,13 @@ struct AeadCipher *aead_cipher_new_aes_ocb3(const uint8_t *key,
                                             uintptr_t tag_size,
                                             uintptr_t nonce_size);
 
+struct AeadCipher *aead_cipher_new_aria_gcm(const uint8_t *key, uintptr_t key_len);
+
+struct AeadCipher *aead_cipher_new_aria_ocb3(const uint8_t *key,
+                                             uintptr_t key_len,
+                                             uintptr_t tag_size,
+                                             uintptr_t nonce_size);
+
 struct AeadCipher *aead_cipher_new_blowfish_gcm(const uint8_t *key, uintptr_t key_len);
 
 struct AeadCipher *aead_cipher_new_blowfish_ocb3(const uint8_t *key,
@@ -190,6 +197,11 @@ struct BlockCipher *block_cipher_new_aes_cbc(const uint8_t *key,
                                              uintptr_t key_len,
                                              const uint8_t *iv,
                                              uintptr_t iv_len);
+
+struct BlockCipher *block_cipher_new_aria_cbc(const uint8_t *key,
+                                              uintptr_t key_len,
+                                              const uint8_t *iv,
+                                              uintptr_t iv_len);
 
 struct BlockCipher *block_cipher_new_blowfish_cbc(const uint8_t *key,
                                                   uintptr_t key_len,
@@ -379,6 +391,21 @@ struct StreamCipher *stream_cipher_new_aes_ofb(const uint8_t *key,
                                                uintptr_t key_len,
                                                const uint8_t *iv,
                                                uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_aria_cfb(const uint8_t *key,
+                                                uintptr_t key_len,
+                                                const uint8_t *iv,
+                                                uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_aria_ctr(const uint8_t *key,
+                                                uintptr_t key_len,
+                                                const uint8_t *iv,
+                                                uintptr_t iv_len);
+
+struct StreamCipher *stream_cipher_new_aria_ofb(const uint8_t *key,
+                                                uintptr_t key_len,
+                                                const uint8_t *iv,
+                                                uintptr_t iv_len);
 
 struct StreamCipher *stream_cipher_new_blowfish_cfb(const uint8_t *key,
                                                     uintptr_t key_len,

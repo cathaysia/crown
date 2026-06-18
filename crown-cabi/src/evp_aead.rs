@@ -126,7 +126,7 @@ macro_rules! impl_aead_cipher {
 impl AeadCipher {
     impl_aead_cipher!(
         basic: [
-            Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Rc6, Sm4, Skipjack, Kasumi,
+            Aes, Aria, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Rc6, Sm4, Skipjack, Kasumi,
             Kseed, Anubis, Noekeon, Khazad, Serpent, Idea
         ],
         rounds: [Rc2, Rc5, Camellia, Multi2],
