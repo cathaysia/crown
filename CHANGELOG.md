@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.24.0](https://github.com/cathaysia/crown/compare/v0.23.0...v0.24.0) (2026-06-18)
+
+
+### Features
+
+* **crown:** add ccm aead mode ([d5ae6e5](https://github.com/cathaysia/crown/commit/d5ae6e537b86a955a6c4fdbd15dd97fee851ecdf))
+* **crown:** expose ccm wrappers ([16fee32](https://github.com/cathaysia/crown/commit/16fee329bbc600fba3a108ec3ffda4fa6bace54f))
+
 ## [0.23.0](https://github.com/cathaysia/crown/compare/v0.22.0...v0.23.0) (2026-06-18)
 
 
