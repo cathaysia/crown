@@ -1,3 +1,4 @@
+use crate::aead::ccm::Ccm;
 use crate::aead::gcm::Gcm;
 use crate::aead::ocb3::Ocb3;
 use crate::block::aes::Aes;
@@ -63,12 +64,18 @@ macro_rules! impl_aead_cipher {
                 pub fn [<new_ $basic:lower _ocb3>]<const TAG_SIZE: usize, const NONCE_SIZE: usize>(key: &[u8]) -> CryptoResult<Self> {
                     Ok(Self::new_impl($basic::new(key)?.to_ocb3::<TAG_SIZE, NONCE_SIZE>()?))
                 }
+                pub fn [<new_ $basic:lower _ccm>]<const TAG_SIZE: usize, const NONCE_SIZE: usize>(key: &[u8]) -> CryptoResult<Self> {
+                    Ok(Self::new_impl($basic::new(key)?.to_ccm::<TAG_SIZE, NONCE_SIZE>()?))
+                }
             }
         )*
         $(
             paste::paste! {
                 pub fn [<new_ $rc:lower _gcm>](key: &[u8], rounds: Option<usize>) -> CryptoResult<Self> {
                     Ok(Self::new_impl($rc::new(key, rounds)?.to_gcm()?))
+                }
+                pub fn [<new_ $rc:lower _ccm>]<const TAG_SIZE: usize, const NONCE_SIZE: usize>(key: &[u8], rounds: Option<usize>) -> CryptoResult<Self> {
+                    Ok(Self::new_impl($rc::new(key, rounds)?.to_ccm::<TAG_SIZE, NONCE_SIZE>()?))
                 }
             }
         )*

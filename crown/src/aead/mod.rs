@@ -6,6 +6,7 @@
 //! The module includes native AEAD algorithms like ChaCha20-Poly1305, as well as modes like
 //! GCM and OCB3 that can transform block ciphers and stream ciphers into AEAD constructions.
 
+pub mod ccm;
 pub mod chacha20poly1305;
 #[cfg(feature = "alloc")]
 pub mod gcm;
