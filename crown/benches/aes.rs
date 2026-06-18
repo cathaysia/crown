@@ -31,13 +31,6 @@ fn bench_aes(c: &mut Criterion) {
             })
         });
 
-        group.bench_function("boring".to_string(), |b| {
-            let cipher = boring::symm::Cipher::aes_256_cbc();
-
-            b.iter(|| {
-                let _ = boring::symm::encrypt(cipher, &key, Some(&iv), &block);
-            });
-        });
         group.finish();
     }
 
@@ -56,13 +49,6 @@ fn bench_aes(c: &mut Criterion) {
             })
         });
 
-        group.bench_function("boring".to_string(), |b| {
-            let cipher = boring::symm::Cipher::aes_256_ctr();
-
-            b.iter(|| {
-                let _ = boring::symm::encrypt(cipher, &key, Some(&iv), &block);
-            });
-        });
         group.finish();
     }
 
@@ -79,14 +65,6 @@ fn bench_aes(c: &mut Criterion) {
             b.iter(|| {
                 let _ = cipher.seal_in_place_separate_tag(block, &nonce, &[]);
             })
-        });
-
-        group.bench_function("boring".to_string(), |b| {
-            let cipher = boring::symm::Cipher::aes_256_gcm();
-
-            b.iter(|| {
-                let _ = boring::symm::encrypt(cipher, &key, Some(&iv), &block);
-            });
         });
 
         group.bench_function("rustcrypto", |b| {

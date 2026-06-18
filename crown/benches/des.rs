@@ -31,13 +31,6 @@ fn bench_des(c: &mut Criterion) {
             })
         });
 
-        group.bench_function("boring".to_string(), |b| {
-            let cipher = boring::symm::Cipher::des_cbc();
-
-            b.iter(|| {
-                let _ = boring::symm::encrypt(cipher, &key, Some(&iv), &block);
-            });
-        });
         group.finish();
     }
 
@@ -56,13 +49,6 @@ fn bench_des(c: &mut Criterion) {
             })
         });
 
-        group.bench_function("boring".to_string(), |b| {
-            let cipher = boring::symm::Cipher::des_cbc();
-
-            b.iter(|| {
-                let _ = boring::symm::encrypt(cipher, &key, Some(&iv), &block);
-            });
-        });
         group.finish();
     }
 
