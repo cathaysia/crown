@@ -68,17 +68,22 @@ impl<B: BlockCipher, const TAG_SIZE: usize, const NONCE_SIZE: usize>
         }
 
         let q_size = Self::q_size();
-        if q_size < core::mem::size_of::<usize>() && msg_len >= (1usize << (8 * q_size)) {
+        let max_msg_len = if q_size == core::mem::size_of::<u64>() {
+            u64::MAX
+        } else {
+            (1u64 << (8 * q_size)) - 1
+        };
+        if msg_len as u64 > max_msg_len {
             return Err(CryptoError::MessageTooLarge);
         }
 
         Ok(())
     }
 
-    fn encode_msg_len(block: &mut [u8; CCM_BLOCK_SIZE], msg_len: usize) {
+    fn encode_len(block: &mut [u8; CCM_BLOCK_SIZE], value: u64) {
         let q_size = Self::q_size();
         for i in 0..q_size {
-            block[CCM_BLOCK_SIZE - 1 - i] = (msg_len >> (8 * i)) as u8;
+            block[CCM_BLOCK_SIZE - 1 - i] = (value >> (8 * i)) as u8;
         }
     }
 
@@ -88,7 +93,7 @@ impl<B: BlockCipher, const TAG_SIZE: usize, const NONCE_SIZE: usize>
         block[0] =
             ((has_aad as u8) << 6) | ((((TAG_SIZE - 2) / 2) as u8) << 3) | (q_size as u8 - 1);
         block[1..1 + NONCE_SIZE].copy_from_slice(nonce);
-        Self::encode_msg_len(&mut block, msg_len);
+        Self::encode_len(&mut block, msg_len as u64);
         block
     }
 
@@ -97,7 +102,7 @@ impl<B: BlockCipher, const TAG_SIZE: usize, const NONCE_SIZE: usize>
         let q_size = Self::q_size();
         block[0] = q_size as u8 - 1;
         block[1..1 + NONCE_SIZE].copy_from_slice(nonce);
-        Self::encode_msg_len(&mut block, value);
+        Self::encode_len(&mut block, value as u64);
         block
     }
 

@@ -28,31 +28,20 @@ const RC: [u64; 24] = [
 
 /// keccak_f1600_generic applies the Keccak permutation.
 pub fn keccak_f1600_generic(da: &mut [u8; 200]) {
-    let mut a_storage: [u64; 25];
-    let a: &mut [u64; 25];
-
-    if cfg!(target_endian = "big") {
-        a_storage = [0u64; 25];
-        for i in 0..25 {
-            a_storage[i] = u64::from_le_bytes([
-                da[i * 8],
-                da[i * 8 + 1],
-                da[i * 8 + 2],
-                da[i * 8 + 3],
-                da[i * 8 + 4],
-                da[i * 8 + 5],
-                da[i * 8 + 6],
-                da[i * 8 + 7],
-            ]);
-        }
-        a = &mut a_storage;
-    } else {
-        // Safety: We're casting a [u8; 200] to [u64; 25], which is safe because:
-        // - Both have the same size (200 bytes = 25 * 8 bytes)
-        // - u64 has alignment requirements that are satisfied by u8 arrays
-        // - We're on little-endian, so byte order matches
-        a = unsafe { &mut *(da.as_mut_ptr() as *mut [u64; 25]) };
+    let mut a_storage = [0u64; 25];
+    for i in 0..25 {
+        a_storage[i] = u64::from_le_bytes([
+            da[i * 8],
+            da[i * 8 + 1],
+            da[i * 8 + 2],
+            da[i * 8 + 3],
+            da[i * 8 + 4],
+            da[i * 8 + 5],
+            da[i * 8 + 6],
+            da[i * 8 + 7],
+        ]);
     }
+    let a = &mut a_storage;
 
     // Implementation translated from Keccak-inplace.c
     // in the keccak reference code.
@@ -440,11 +429,8 @@ pub fn keccak_f1600_generic(da: &mut [u8; 200]) {
         i += 4;
     }
 
-    // Convert back to bytes if we're on big-endian
-    if cfg!(target_endian = "big") {
-        for i in 0..25 {
-            let bytes = a[i].to_le_bytes();
-            da[i * 8..i * 8 + 8].copy_from_slice(&bytes);
-        }
+    for i in 0..25 {
+        let bytes = a[i].to_le_bytes();
+        da[i * 8..i * 8 + 8].copy_from_slice(&bytes);
     }
 }
