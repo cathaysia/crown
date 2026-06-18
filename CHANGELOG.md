@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.1](https://github.com/cathaysia/crown/compare/v0.24.0...v0.24.1) (2026-06-18)
+
+
+### Bug Fixes
+
+* fix ccm and sha3 ([b1b53ce](https://github.com/cathaysia/crown/commit/b1b53ce9064f85b2e9b206f9571333be8a0ac05c))
+
 ## [0.24.0](https://github.com/cathaysia/crown/compare/v0.23.0...v0.24.0) (2026-06-18)
 
 
