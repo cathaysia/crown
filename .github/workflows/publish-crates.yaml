@@ -31,5 +31,7 @@ jobs:
           cargo publish --workspace --dry-run
 
       - name: Publish crates to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: |
           cargo publish --workspace
