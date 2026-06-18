@@ -80,6 +80,24 @@ pub enum Cipher {
     Block(EvpBlockCipher),
 }
 
+macro_rules! new_ccm_cipher {
+    ($method:ident, $key:expr, $iv:expr $(, $rounds:expr)?) => {
+        match $iv.len() {
+            7 => EvpAeadCipher::$method::<16, 7>($key $(, $rounds)?).map(Cipher::Aead),
+            8 => EvpAeadCipher::$method::<16, 8>($key $(, $rounds)?).map(Cipher::Aead),
+            9 => EvpAeadCipher::$method::<16, 9>($key $(, $rounds)?).map(Cipher::Aead),
+            10 => EvpAeadCipher::$method::<16, 10>($key $(, $rounds)?).map(Cipher::Aead),
+            11 => EvpAeadCipher::$method::<16, 11>($key $(, $rounds)?).map(Cipher::Aead),
+            12 => EvpAeadCipher::$method::<16, 12>($key $(, $rounds)?).map(Cipher::Aead),
+            13 => EvpAeadCipher::$method::<16, 13>($key $(, $rounds)?).map(Cipher::Aead),
+            actual => Err(crown::error::CryptoError::InvalidNonceSize {
+                expected: "7..=13",
+                actual,
+            }),
+        }
+    };
+}
+
 macro_rules! enc_algorithm {
     (
         aead: [$(($aead_enum: ident, $aead_func: ident)),* $(,)*],
@@ -107,6 +125,8 @@ macro_rules! enc_algorithm {
                 $(
                     #[doc=$block " in Gcm mode"]
                     [<$block Gcm>],
+                    #[doc=$block " in Ccm mode"]
+                    [<$block Ccm>],
                     #[doc=$block " in Cbc mode"]
                     [<$block Cbc>],
                     #[doc=$block " in Ctr mode"]
@@ -119,6 +139,8 @@ macro_rules! enc_algorithm {
                 $(
                     #[doc=$rounds " in Gcm mode"]
                     [<$rounds Gcm>],
+                    #[doc=$rounds " in Ccm mode"]
+                    [<$rounds Ccm>],
                     #[doc=$rounds " in Cbc mode"]
                     [<$rounds Cbc>],
                     #[doc=$rounds " in Ctr mode"]
@@ -147,10 +169,16 @@ macro_rules! enc_algorithm {
                             EncAlgorithm::[<$block Gcm>] => {
                                 EvpAeadCipher::[<new_ $block:lower _gcm>](&key).map(Cipher::Aead)
                             },
+                            EncAlgorithm::[<$block Ccm>] => {
+                                new_ccm_cipher!([<new_ $block:lower _ccm>], key, iv)
+                            },
                         )*
                         $(
                             EncAlgorithm::[<$rounds Gcm>] => {
                                 EvpAeadCipher::[<new_ $rounds:lower _gcm>](&key, rounds).map(Cipher::Aead)
+                            },
+                            EncAlgorithm::[<$rounds Ccm>] => {
+                                new_ccm_cipher!([<new_ $rounds:lower _ccm>], key, iv, rounds)
                             },
                         )*
 

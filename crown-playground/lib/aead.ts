@@ -29,9 +29,16 @@ export function createAeadCipher(
     throw new Error(`Unsupported algorithm: ${algorithm}`);
   }
 
-  if (algorithm.endsWith('_ocb3')) {
+  if (algorithm.endsWith('_ocb3') || algorithm.endsWith('_ccm')) {
     const tagSize = params?.tagSize || 16;
     const nonceSize = params?.nonceSize || 12;
+    if (
+      algorithm.includes('rc2') ||
+      algorithm.includes('rc5') ||
+      algorithm.includes('camellia')
+    ) {
+      return method(keyBytes, tagSize, nonceSize, params?.rounds || null);
+    }
     return method(keyBytes, tagSize, nonceSize);
   }
 
@@ -193,6 +200,14 @@ export function getAvailableAlgorithms(): AeadAlgorithmInfo[] {
   const algorithms: AeadAlgorithmInfo[] = [
     { value: 'aes_gcm', label: 'AES-GCM', keySize: 32 },
     {
+      value: 'aes_ccm',
+      label: 'AES-CCM',
+      keySize: 32,
+      requiresParams: true,
+      defaultTagSize: 16,
+      defaultNonceSize: 12,
+    },
+    {
       value: 'aes_ocb3',
       label: 'AES-OCB3',
       keySize: 32,
@@ -202,6 +217,14 @@ export function getAvailableAlgorithms(): AeadAlgorithmInfo[] {
     },
 
     { value: 'aria_gcm', label: 'ARIA-GCM', keySize: 32 },
+    {
+      value: 'aria_ccm',
+      label: 'ARIA-CCM',
+      keySize: 32,
+      requiresParams: true,
+      defaultTagSize: 16,
+      defaultNonceSize: 12,
+    },
     {
       value: 'aria_ocb3',
       label: 'ARIA-OCB3',
@@ -293,6 +316,14 @@ export function getAvailableAlgorithms(): AeadAlgorithmInfo[] {
 
     { value: 'sm4_gcm', label: 'SM4-GCM', keySize: 16 },
     {
+      value: 'sm4_ccm',
+      label: 'SM4-CCM',
+      keySize: 16,
+      requiresParams: true,
+      defaultTagSize: 16,
+      defaultNonceSize: 12,
+    },
+    {
       value: 'sm4_ocb3',
       label: 'SM4-OCB3',
       keySize: 16,
@@ -314,6 +345,14 @@ export function getAvailableAlgorithms(): AeadAlgorithmInfo[] {
     { value: 'rc2_gcm', label: 'RC2-GCM', keySize: 16 },
     { value: 'rc5_gcm', label: 'RC5-GCM', keySize: 16 },
     { value: 'camellia_gcm', label: 'Camellia-GCM', keySize: 32 },
+    {
+      value: 'camellia_ccm',
+      label: 'Camellia-CCM',
+      keySize: 32,
+      requiresParams: true,
+      defaultTagSize: 16,
+      defaultNonceSize: 12,
+    },
 
     { value: 'anubis_gcm', label: 'Anubis-GCM', keySize: 32 },
     {
