@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.23.0](https://github.com/cathaysia/crown/compare/v0.22.0...v0.23.0) (2026-06-18)
+
+
+### Features
+
+* **block:** add ARIA cipher support ([7605777](https://github.com/cathaysia/crown/commit/760577710e709e26f3c2fe6a3c2ce579d4149534))
+
+
+### Bug Fixes
+
+* **crown:** fix build with --no-default-feature ([44c00c9](https://github.com/cathaysia/crown/commit/44c00c925368c9f6ca213847c36ee38d7822d780))
+
 ## [0.22.0](https://github.com/cathaysia/crown/compare/v0.21.0...v0.22.0) (2026-06-15)
 
 
