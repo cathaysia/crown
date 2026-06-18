@@ -80,7 +80,6 @@ typify = "0.4.2"
 blake2 = "0.10.6"
 anyhow = "1.0.99"
 aes-gcm = "0.10.3"
-boring = "4.19.0"
 
 [[bench]]
 name = "md5"

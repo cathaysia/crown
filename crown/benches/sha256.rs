@@ -1,4 +1,3 @@
-use boring::hash::MessageDigest;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use sha2::Digest;
 use std::hint::black_box;
@@ -55,19 +54,6 @@ fn bench_sha256(c: &mut Criterion) {
             },
         );
 
-        group.bench_function(
-            format!(
-                "boring_sha256_{size}_{}",
-                if unaligned { "unaligned" } else { "aligned" }
-            ),
-            |b| {
-                b.iter(|| {
-                    let hash =
-                        boring::hash::hash(MessageDigest::sha256(), black_box(data)).unwrap();
-                    let _ = hash.to_vec();
-                })
-            },
-        );
         group.finish();
     }
 }
