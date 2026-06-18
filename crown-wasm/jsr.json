@@ -1,6 +1,6 @@
 {
   "name": "@cathaysia/crown-wasm",
-  "version": "0.22.0",
+  "version": "0.23.0",
   "exports": "./pkg/crown_wasm.js",
   "publish": {
     "include": [
