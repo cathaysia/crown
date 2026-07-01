@@ -18,7 +18,7 @@ jobs:
           - aarch64-unknown-linux-musl
           - x86_64-pc-windows-gnu
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: true
       - name: setup env
@@ -89,7 +89,7 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: download all artifacts
         uses: actions/download-artifact@v8
         with:
