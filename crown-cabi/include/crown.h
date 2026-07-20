@@ -26,6 +26,11 @@ struct AeadCipher *aead_cipher_new_aes_ccm(const uint8_t *key,
                                            uintptr_t tag_size,
                                            uintptr_t nonce_size);
 
+struct AeadCipher *aead_cipher_new_aes_eax(const uint8_t *key,
+                                           uintptr_t key_len,
+                                           uintptr_t tag_size,
+                                           uintptr_t nonce_size);
+
 struct AeadCipher *aead_cipher_new_aria_gcm(const uint8_t *key, uintptr_t key_len);
 
 struct AeadCipher *aead_cipher_new_aria_ocb3(const uint8_t *key,
@@ -34,6 +39,11 @@ struct AeadCipher *aead_cipher_new_aria_ocb3(const uint8_t *key,
                                              uintptr_t nonce_size);
 
 struct AeadCipher *aead_cipher_new_aria_ccm(const uint8_t *key,
+                                            uintptr_t key_len,
+                                            uintptr_t tag_size,
+                                            uintptr_t nonce_size);
+
+struct AeadCipher *aead_cipher_new_aria_eax(const uint8_t *key,
                                             uintptr_t key_len,
                                             uintptr_t tag_size,
                                             uintptr_t nonce_size);
@@ -50,6 +60,11 @@ struct AeadCipher *aead_cipher_new_blowfish_ccm(const uint8_t *key,
                                                 uintptr_t tag_size,
                                                 uintptr_t nonce_size);
 
+struct AeadCipher *aead_cipher_new_blowfish_eax(const uint8_t *key,
+                                                uintptr_t key_len,
+                                                uintptr_t tag_size,
+                                                uintptr_t nonce_size);
+
 struct AeadCipher *aead_cipher_new_cast5_gcm(const uint8_t *key, uintptr_t key_len);
 
 struct AeadCipher *aead_cipher_new_cast5_ocb3(const uint8_t *key,
@@ -58,6 +73,11 @@ struct AeadCipher *aead_cipher_new_cast5_ocb3(const uint8_t *key,
                                               uintptr_t nonce_size);
 
 struct AeadCipher *aead_cipher_new_cast5_ccm(const uint8_t *key,
+                                             uintptr_t key_len,
+                                             uintptr_t tag_size,
+                                             uintptr_t nonce_size);
+
+struct AeadCipher *aead_cipher_new_cast5_eax(const uint8_t *key,
                                              uintptr_t key_len,
                                              uintptr_t tag_size,
                                              uintptr_t nonce_size);
@@ -74,6 +94,11 @@ struct AeadCipher *aead_cipher_new_des_ccm(const uint8_t *key,
                                            uintptr_t tag_size,
                                            uintptr_t nonce_size);
 
+struct AeadCipher *aead_cipher_new_des_eax(const uint8_t *key,
+                                           uintptr_t key_len,
+                                           uintptr_t tag_size,
+                                           uintptr_t nonce_size);
+
 struct AeadCipher *aead_cipher_new_tripledes_gcm(const uint8_t *key, uintptr_t key_len);
 
 struct AeadCipher *aead_cipher_new_tripledes_ocb3(const uint8_t *key,
@@ -82,6 +107,11 @@ struct AeadCipher *aead_cipher_new_tripledes_ocb3(const uint8_t *key,
                                                   uintptr_t nonce_size);
 
 struct AeadCipher *aead_cipher_new_tripledes_ccm(const uint8_t *key,
+                                                 uintptr_t key_len,
+                                                 uintptr_t tag_size,
+                                                 uintptr_t nonce_size);
+
+struct AeadCipher *aead_cipher_new_tripledes_eax(const uint8_t *key,
                                                  uintptr_t key_len,
                                                  uintptr_t tag_size,
                                                  uintptr_t nonce_size);
@@ -98,6 +128,11 @@ struct AeadCipher *aead_cipher_new_tea_ccm(const uint8_t *key,
                                            uintptr_t tag_size,
                                            uintptr_t nonce_size);
 
+struct AeadCipher *aead_cipher_new_tea_eax(const uint8_t *key,
+                                           uintptr_t key_len,
+                                           uintptr_t tag_size,
+                                           uintptr_t nonce_size);
+
 struct AeadCipher *aead_cipher_new_twofish_gcm(const uint8_t *key, uintptr_t key_len);
 
 struct AeadCipher *aead_cipher_new_twofish_ocb3(const uint8_t *key,
@@ -106,6 +141,11 @@ struct AeadCipher *aead_cipher_new_twofish_ocb3(const uint8_t *key,
                                                 uintptr_t nonce_size);
 
 struct AeadCipher *aead_cipher_new_twofish_ccm(const uint8_t *key,
+                                               uintptr_t key_len,
+                                               uintptr_t tag_size,
+                                               uintptr_t nonce_size);
+
+struct AeadCipher *aead_cipher_new_twofish_eax(const uint8_t *key,
                                                uintptr_t key_len,
                                                uintptr_t tag_size,
                                                uintptr_t nonce_size);
@@ -122,6 +162,11 @@ struct AeadCipher *aead_cipher_new_xtea_ccm(const uint8_t *key,
                                             uintptr_t tag_size,
                                             uintptr_t nonce_size);
 
+struct AeadCipher *aead_cipher_new_xtea_eax(const uint8_t *key,
+                                            uintptr_t key_len,
+                                            uintptr_t tag_size,
+                                            uintptr_t nonce_size);
+
 struct AeadCipher *aead_cipher_new_rc6_gcm(const uint8_t *key, uintptr_t key_len);
 
 struct AeadCipher *aead_cipher_new_rc6_ocb3(const uint8_t *key,
@@ -130,6 +175,11 @@ struct AeadCipher *aead_cipher_new_rc6_ocb3(const uint8_t *key,
                                             uintptr_t nonce_size);
 
 struct AeadCipher *aead_cipher_new_rc6_ccm(const uint8_t *key,
+                                           uintptr_t key_len,
+                                           uintptr_t tag_size,
+                                           uintptr_t nonce_size);
+
+struct AeadCipher *aead_cipher_new_rc6_eax(const uint8_t *key,
                                            uintptr_t key_len,
                                            uintptr_t tag_size,
                                            uintptr_t nonce_size);
@@ -146,6 +196,11 @@ struct AeadCipher *aead_cipher_new_sm4_ccm(const uint8_t *key,
                                            uintptr_t tag_size,
                                            uintptr_t nonce_size);
 
+struct AeadCipher *aead_cipher_new_sm4_eax(const uint8_t *key,
+                                           uintptr_t key_len,
+                                           uintptr_t tag_size,
+                                           uintptr_t nonce_size);
+
 struct AeadCipher *aead_cipher_new_skipjack_gcm(const uint8_t *key, uintptr_t key_len);
 
 struct AeadCipher *aead_cipher_new_skipjack_ocb3(const uint8_t *key,
@@ -154,6 +209,11 @@ struct AeadCipher *aead_cipher_new_skipjack_ocb3(const uint8_t *key,
                                                  uintptr_t nonce_size);
 
 struct AeadCipher *aead_cipher_new_skipjack_ccm(const uint8_t *key,
+                                                uintptr_t key_len,
+                                                uintptr_t tag_size,
+                                                uintptr_t nonce_size);
+
+struct AeadCipher *aead_cipher_new_skipjack_eax(const uint8_t *key,
                                                 uintptr_t key_len,
                                                 uintptr_t tag_size,
                                                 uintptr_t nonce_size);
@@ -170,6 +230,11 @@ struct AeadCipher *aead_cipher_new_kasumi_ccm(const uint8_t *key,
                                               uintptr_t tag_size,
                                               uintptr_t nonce_size);
 
+struct AeadCipher *aead_cipher_new_kasumi_eax(const uint8_t *key,
+                                              uintptr_t key_len,
+                                              uintptr_t tag_size,
+                                              uintptr_t nonce_size);
+
 struct AeadCipher *aead_cipher_new_kseed_gcm(const uint8_t *key, uintptr_t key_len);
 
 struct AeadCipher *aead_cipher_new_kseed_ocb3(const uint8_t *key,
@@ -178,6 +243,11 @@ struct AeadCipher *aead_cipher_new_kseed_ocb3(const uint8_t *key,
                                               uintptr_t nonce_size);
 
 struct AeadCipher *aead_cipher_new_kseed_ccm(const uint8_t *key,
+                                             uintptr_t key_len,
+                                             uintptr_t tag_size,
+                                             uintptr_t nonce_size);
+
+struct AeadCipher *aead_cipher_new_kseed_eax(const uint8_t *key,
                                              uintptr_t key_len,
                                              uintptr_t tag_size,
                                              uintptr_t nonce_size);
@@ -194,6 +264,11 @@ struct AeadCipher *aead_cipher_new_anubis_ccm(const uint8_t *key,
                                               uintptr_t tag_size,
                                               uintptr_t nonce_size);
 
+struct AeadCipher *aead_cipher_new_anubis_eax(const uint8_t *key,
+                                              uintptr_t key_len,
+                                              uintptr_t tag_size,
+                                              uintptr_t nonce_size);
+
 struct AeadCipher *aead_cipher_new_noekeon_gcm(const uint8_t *key, uintptr_t key_len);
 
 struct AeadCipher *aead_cipher_new_noekeon_ocb3(const uint8_t *key,
@@ -202,6 +277,11 @@ struct AeadCipher *aead_cipher_new_noekeon_ocb3(const uint8_t *key,
                                                 uintptr_t nonce_size);
 
 struct AeadCipher *aead_cipher_new_noekeon_ccm(const uint8_t *key,
+                                               uintptr_t key_len,
+                                               uintptr_t tag_size,
+                                               uintptr_t nonce_size);
+
+struct AeadCipher *aead_cipher_new_noekeon_eax(const uint8_t *key,
                                                uintptr_t key_len,
                                                uintptr_t tag_size,
                                                uintptr_t nonce_size);
@@ -218,6 +298,11 @@ struct AeadCipher *aead_cipher_new_khazad_ccm(const uint8_t *key,
                                               uintptr_t tag_size,
                                               uintptr_t nonce_size);
 
+struct AeadCipher *aead_cipher_new_khazad_eax(const uint8_t *key,
+                                              uintptr_t key_len,
+                                              uintptr_t tag_size,
+                                              uintptr_t nonce_size);
+
 struct AeadCipher *aead_cipher_new_serpent_gcm(const uint8_t *key, uintptr_t key_len);
 
 struct AeadCipher *aead_cipher_new_serpent_ocb3(const uint8_t *key,
@@ -226,6 +311,11 @@ struct AeadCipher *aead_cipher_new_serpent_ocb3(const uint8_t *key,
                                                 uintptr_t nonce_size);
 
 struct AeadCipher *aead_cipher_new_serpent_ccm(const uint8_t *key,
+                                               uintptr_t key_len,
+                                               uintptr_t tag_size,
+                                               uintptr_t nonce_size);
+
+struct AeadCipher *aead_cipher_new_serpent_eax(const uint8_t *key,
                                                uintptr_t key_len,
                                                uintptr_t tag_size,
                                                uintptr_t nonce_size);
@@ -242,11 +332,22 @@ struct AeadCipher *aead_cipher_new_idea_ccm(const uint8_t *key,
                                             uintptr_t tag_size,
                                             uintptr_t nonce_size);
 
+struct AeadCipher *aead_cipher_new_idea_eax(const uint8_t *key,
+                                            uintptr_t key_len,
+                                            uintptr_t tag_size,
+                                            uintptr_t nonce_size);
+
 struct AeadCipher *aead_cipher_new_rc2_gcm(const uint8_t *key,
                                            uintptr_t key_len,
                                            const uintptr_t *rounds);
 
 struct AeadCipher *aead_cipher_new_rc2_ccm(const uint8_t *key,
+                                           uintptr_t key_len,
+                                           uintptr_t tag_size,
+                                           uintptr_t nonce_size,
+                                           const uintptr_t *rounds);
+
+struct AeadCipher *aead_cipher_new_rc2_eax(const uint8_t *key,
                                            uintptr_t key_len,
                                            uintptr_t tag_size,
                                            uintptr_t nonce_size,
@@ -262,6 +363,12 @@ struct AeadCipher *aead_cipher_new_rc5_ccm(const uint8_t *key,
                                            uintptr_t nonce_size,
                                            const uintptr_t *rounds);
 
+struct AeadCipher *aead_cipher_new_rc5_eax(const uint8_t *key,
+                                           uintptr_t key_len,
+                                           uintptr_t tag_size,
+                                           uintptr_t nonce_size,
+                                           const uintptr_t *rounds);
+
 struct AeadCipher *aead_cipher_new_camellia_gcm(const uint8_t *key,
                                                 uintptr_t key_len,
                                                 const uintptr_t *rounds);
@@ -272,11 +379,23 @@ struct AeadCipher *aead_cipher_new_camellia_ccm(const uint8_t *key,
                                                 uintptr_t nonce_size,
                                                 const uintptr_t *rounds);
 
+struct AeadCipher *aead_cipher_new_camellia_eax(const uint8_t *key,
+                                                uintptr_t key_len,
+                                                uintptr_t tag_size,
+                                                uintptr_t nonce_size,
+                                                const uintptr_t *rounds);
+
 struct AeadCipher *aead_cipher_new_multi2_gcm(const uint8_t *key,
                                               uintptr_t key_len,
                                               const uintptr_t *rounds);
 
 struct AeadCipher *aead_cipher_new_multi2_ccm(const uint8_t *key,
+                                              uintptr_t key_len,
+                                              uintptr_t tag_size,
+                                              uintptr_t nonce_size,
+                                              const uintptr_t *rounds);
+
+struct AeadCipher *aead_cipher_new_multi2_eax(const uint8_t *key,
                                               uintptr_t key_len,
                                               uintptr_t tag_size,
                                               uintptr_t nonce_size,
