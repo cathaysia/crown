@@ -29,7 +29,11 @@ export function createAeadCipher(
     throw new Error(`Unsupported algorithm: ${algorithm}`);
   }
 
-  if (algorithm.endsWith('_ocb3') || algorithm.endsWith('_ccm')) {
+  if (
+    algorithm.endsWith('_ocb3') ||
+    algorithm.endsWith('_ccm') ||
+    algorithm.endsWith('_eax')
+  ) {
     const tagSize = params?.tagSize || 16;
     const nonceSize = params?.nonceSize || 12;
     if (
@@ -215,6 +219,14 @@ export function getAvailableAlgorithms(): AeadAlgorithmInfo[] {
       defaultTagSize: 16,
       defaultNonceSize: 12,
     },
+    {
+      value: 'aes_eax',
+      label: 'AES-EAX',
+      keySize: 32,
+      requiresParams: true,
+      defaultTagSize: 16,
+      defaultNonceSize: 12,
+    },
 
     { value: 'aria_gcm', label: 'ARIA-GCM', keySize: 32 },
     {
@@ -228,6 +240,14 @@ export function getAvailableAlgorithms(): AeadAlgorithmInfo[] {
     {
       value: 'aria_ocb3',
       label: 'ARIA-OCB3',
+      keySize: 32,
+      requiresParams: true,
+      defaultTagSize: 16,
+      defaultNonceSize: 12,
+    },
+    {
+      value: 'aria_eax',
+      label: 'ARIA-EAX',
       keySize: 32,
       requiresParams: true,
       defaultTagSize: 16,
@@ -293,6 +313,14 @@ export function getAvailableAlgorithms(): AeadAlgorithmInfo[] {
       defaultTagSize: 16,
       defaultNonceSize: 12,
     },
+    {
+      value: 'twofish_eax',
+      label: 'Twofish-EAX',
+      keySize: 32,
+      requiresParams: true,
+      defaultTagSize: 16,
+      defaultNonceSize: 12,
+    },
 
     { value: 'xtea_gcm', label: 'XTEA-GCM', keySize: 16 },
     {
@@ -313,6 +341,14 @@ export function getAvailableAlgorithms(): AeadAlgorithmInfo[] {
       defaultTagSize: 16,
       defaultNonceSize: 12,
     },
+    {
+      value: 'rc6_eax',
+      label: 'RC6-EAX',
+      keySize: 32,
+      requiresParams: true,
+      defaultTagSize: 16,
+      defaultNonceSize: 12,
+    },
 
     { value: 'sm4_gcm', label: 'SM4-GCM', keySize: 16 },
     {
@@ -326,6 +362,14 @@ export function getAvailableAlgorithms(): AeadAlgorithmInfo[] {
     {
       value: 'sm4_ocb3',
       label: 'SM4-OCB3',
+      keySize: 16,
+      requiresParams: true,
+      defaultTagSize: 16,
+      defaultNonceSize: 12,
+    },
+    {
+      value: 'sm4_eax',
+      label: 'SM4-EAX',
       keySize: 16,
       requiresParams: true,
       defaultTagSize: 16,
@@ -353,11 +397,27 @@ export function getAvailableAlgorithms(): AeadAlgorithmInfo[] {
       defaultTagSize: 16,
       defaultNonceSize: 12,
     },
+    {
+      value: 'camellia_eax',
+      label: 'Camellia-EAX',
+      keySize: 32,
+      requiresParams: true,
+      defaultTagSize: 16,
+      defaultNonceSize: 12,
+    },
 
     { value: 'anubis_gcm', label: 'Anubis-GCM', keySize: 32 },
     {
       value: 'anubis_ocb3',
       label: 'Anubis-OCB3',
+      keySize: 32,
+      requiresParams: true,
+      defaultTagSize: 16,
+      defaultNonceSize: 12,
+    },
+    {
+      value: 'anubis_eax',
+      label: 'Anubis-EAX',
       keySize: 32,
       requiresParams: true,
       defaultTagSize: 16,
@@ -393,6 +453,14 @@ export function getAvailableAlgorithms(): AeadAlgorithmInfo[] {
       defaultTagSize: 16,
       defaultNonceSize: 12,
     },
+    {
+      value: 'kseed_eax',
+      label: 'Kseed-EAX',
+      keySize: 16,
+      requiresParams: true,
+      defaultTagSize: 16,
+      defaultNonceSize: 12,
+    },
 
     { value: 'noekeon_gcm', label: 'Noekeon-GCM', keySize: 16 },
     {
@@ -403,11 +471,27 @@ export function getAvailableAlgorithms(): AeadAlgorithmInfo[] {
       defaultTagSize: 16,
       defaultNonceSize: 12,
     },
+    {
+      value: 'noekeon_eax',
+      label: 'Noekeon-EAX',
+      keySize: 16,
+      requiresParams: true,
+      defaultTagSize: 16,
+      defaultNonceSize: 12,
+    },
 
     { value: 'serpent_gcm', label: 'Serpent-GCM', keySize: 32 },
     {
       value: 'serpent_ocb3',
       label: 'Serpent-OCB3',
+      keySize: 32,
+      requiresParams: true,
+      defaultTagSize: 16,
+      defaultNonceSize: 12,
+    },
+    {
+      value: 'serpent_eax',
+      label: 'Serpent-EAX',
       keySize: 32,
       requiresParams: true,
       defaultTagSize: 16,
