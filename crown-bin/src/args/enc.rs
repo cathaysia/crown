@@ -125,6 +125,8 @@ macro_rules! enc_algorithm {
                 $(
                     #[doc=$block " in Gcm mode"]
                     [<$block Gcm>],
+                    #[doc=$block " in Eax mode"]
+                    [<$block Eax>],
                     #[doc=$block " in Ccm mode"]
                     [<$block Ccm>],
                     #[doc=$block " in Cbc mode"]
@@ -139,6 +141,8 @@ macro_rules! enc_algorithm {
                 $(
                     #[doc=$rounds " in Gcm mode"]
                     [<$rounds Gcm>],
+                    #[doc=$rounds " in Eax mode"]
+                    [<$rounds Eax>],
                     #[doc=$rounds " in Ccm mode"]
                     [<$rounds Ccm>],
                     #[doc=$rounds " in Cbc mode"]
@@ -169,6 +173,9 @@ macro_rules! enc_algorithm {
                             EncAlgorithm::[<$block Gcm>] => {
                                 EvpAeadCipher::[<new_ $block:lower _gcm>](&key).map(Cipher::Aead)
                             },
+                            EncAlgorithm::[<$block Eax>] => {
+                                EvpAeadCipher::[<new_ $block:lower _eax>]::<16>(&key, iv.len()).map(Cipher::Aead)
+                            },
                             EncAlgorithm::[<$block Ccm>] => {
                                 new_ccm_cipher!([<new_ $block:lower _ccm>], key, iv)
                             },
@@ -176,6 +183,9 @@ macro_rules! enc_algorithm {
                         $(
                             EncAlgorithm::[<$rounds Gcm>] => {
                                 EvpAeadCipher::[<new_ $rounds:lower _gcm>](&key, rounds).map(Cipher::Aead)
+                            },
+                            EncAlgorithm::[<$rounds Eax>] => {
+                                EvpAeadCipher::[<new_ $rounds:lower _eax>]::<16>(&key, iv.len(), rounds).map(Cipher::Aead)
                             },
                             EncAlgorithm::[<$rounds Ccm>] => {
                                 new_ccm_cipher!([<new_ $rounds:lower _ccm>], key, iv, rounds)

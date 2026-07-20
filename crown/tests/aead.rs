@@ -12,6 +12,12 @@ fn test_aead() {
                     "CHACHA20-POLY1305" => EvpAeadCipher::new_chacha20_poly1305(key),
                     "XCHACHA20-POLY1305" => EvpAeadCipher::new_xchacha20_poly1305(key),
                     "AES-GCM" => EvpAeadCipher::new_aes_gcm(key),
+                    "AES-EAX" => {
+                        if nonce_len < 12 || tag_len != 16 {
+                            return None;
+                        }
+                        EvpAeadCipher::new_aes_eax::<16>(key, nonce_len)
+                    }
                     "AES-CCM" => return build_ccm(CcmCipher::Aes, key, nonce_len, tag_len),
                     "ARIA-GCM" => EvpAeadCipher::new_aria_gcm(key),
                     "ARIA-CCM" => return build_ccm(CcmCipher::Aria, key, nonce_len, tag_len),
@@ -48,7 +54,7 @@ fn test_aead() {
                 }
                 let tag = h
                     .seal_in_place_separate_tag(&mut out, &nonce, &aad)
-                    .unwrap_or_else(|_| panic!("test: {idx} failed."));
+                    .unwrap_or_else(|err| panic!("{algorithm} test {idx} failed: {err:?}"));
 
                 assert_eq!(
                     &hex::encode(&out),

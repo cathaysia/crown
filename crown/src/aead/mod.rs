@@ -8,6 +8,7 @@
 
 pub mod ccm;
 pub mod chacha20poly1305;
+pub mod eax;
 #[cfg(feature = "alloc")]
 pub mod gcm;
 pub mod ocb3;
