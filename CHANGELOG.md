@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.0](https://github.com/cathaysia/crown/compare/v0.24.1...v0.25.0) (2026-07-20)
+
+
+### Features
+
+* **aead:** add EAX mode support ([1fba60e](https://github.com/cathaysia/crown/commit/1fba60e3a1a76804cfb455558995d84398a10d2e))
+
 ## [0.24.1](https://github.com/cathaysia/crown/compare/v0.24.0...v0.24.1) (2026-06-18)
 
 
