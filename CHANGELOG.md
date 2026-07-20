@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.0](https://github.com/cathaysia/crown/compare/v0.25.0...v0.26.0) (2026-07-20)
+
+
+### Features
+
+* **playground:** add EAX cipher options ([88790ba](https://github.com/cathaysia/crown/commit/88790ba8d4e5fc584baa8462f5708b368e4d3704))
+
 ## [0.25.0](https://github.com/cathaysia/crown/compare/v0.24.1...v0.25.0) (2026-07-20)
 
 
