@@ -27,6 +27,12 @@ const IV: [u32; 8] = [
 #[derive(Clone)]
 pub struct Blake2s<const N: usize>(Blake2sVariable);
 
+impl<const N: usize> Blake2s<N> {
+    pub fn new(key: Option<&[u8]>) -> CryptoResult<Blake2s<N>> {
+        Ok(Blake2s(Blake2sVariable::new(key, N)?))
+    }
+}
+
 #[cfg(feature = "marshal")]
 impl<const N: usize> crate::mac::hmac::Marshalable for Blake2s<N> {
     fn marshal_size(&self) -> usize {
@@ -89,8 +95,9 @@ macro_rules! impl_new_for {
     };
 }
 
-impl_new_for!(new128, 16, "Blake2s");
-impl_new_for!(new256, 32, "Blake2s");
+impl_new_for!(new128, 16, "Blake2s128");
+impl_new_for!(new192, 24, "Blake2s192");
+impl_new_for!(new256, 32, "Blake2s256");
 
 macro_rules! impl_sum_for {
     ($name:ident, $fn:expr, $len:expr, $x:literal) => {
