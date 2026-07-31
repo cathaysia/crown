@@ -1,0 +1,35 @@
+name: Fuzz Testing
+on:
+  schedule:
+    - cron: '0 2 * * *' # 每天 UTC 时间 02:00 执行（北京时间 10:00）
+  workflow_dispatch: # 允许手动触发
+
+jobs:
+  fuzzing:
+    name: Run Fuzzing (3 Hours)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install Rust Nightly
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+
+      - name: Install cargo-fuzz
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+
+      - name: Run envelope_fuzz (3 hours)
+        # 10800 秒 = 3 小时
+        run: cargo fuzz run envelope_fuzz -- -max_total_time=10800
+
+      - name: Upload crashes if any
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crashes
+          path: fuzz/artifacts/
