@@ -1,4 +1,4 @@
-//! # KittyTLS Cryptographic Library
+//! # crown Cryptographic Library
 //!
 //! A comprehensive cryptographic library designed to provide first-class documentation,
 //! easy-to-use APIs, and wide deployment compatibility across different environments.

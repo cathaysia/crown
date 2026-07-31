@@ -43,3 +43,45 @@ jobs:
             git diff Cargo.lock
             exit 1
           fi
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - name: setup env
+        run: |
+          sudo apt update -y
+          sudo apt install build-essential gcc cpp libclang-dev openssl libssl-dev -y
+      - name: Install Rust Nightly
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+      - name: Install cargo-tarpaulin
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-tarpaulin
+      - name: Run code coverage
+        run: |
+          cargo tarpaulin -p crown --timeout 120 --out Html Xml --features "std,alloc,password,marshal,asm,unstable"
+      - name: Generate Coverage Summary
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: cobertura.xml
+          badge: true
+          format: markdown
+          output: both
+          hide_branch_rate: false
+          hide_complexity: true
+          indicators: true
+          thresholds: '50 80'
+      - name: Append Coverage to Job Summary
+        run: cat code-coverage-results.md >> $GITHUB_STEP_SUMMARY
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: tarpaulin-report
+          path: |
+            tarpaulin-report.html
+            cobertura.xml
