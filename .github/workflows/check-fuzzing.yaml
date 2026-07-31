@@ -1,8 +1,8 @@
-name: Fuzz Testing
+name: check-fuzz-testing
 on:
   schedule:
-    - cron: '0 2 * * *' # 每天 UTC 时间 02:00 执行（北京时间 10:00）
-  workflow_dispatch: # 允许手动触发
+    - cron: "0 0 * * *"
+  workflow_dispatch:
 
 jobs:
   fuzzing:
@@ -24,8 +24,8 @@ jobs:
           tool: cargo-fuzz
 
       - name: Run envelope_fuzz (3 hours)
-        # 10800 秒 = 3 小时
-        run: cargo fuzz run envelope_fuzz -- -max_total_time=10800
+        run: |
+          cargo +nightly fuzz run envelope_fuzz --target=x86_64-unknown-linux-gnu -- -max_total_time=10800
 
       - name: Upload crashes if any
         if: failure()
