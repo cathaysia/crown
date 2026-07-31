@@ -18,7 +18,7 @@
 
 * **API-first design**: clean and intuitive, minimal boilerplate
 * **First-class documentation**: comprehensive guides, examples, and references to get you started quickly
-* **`no_std` support**: works in embedded and bare-metal environments. (in plan)
+* **`no_std` support**: works in embedded and bare-metal environments.
 * **Modern cryptographic primitives**: symmetric/asymmetric encryption, hashing, AEAD
 
 ## Credits
