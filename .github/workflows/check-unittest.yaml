@@ -59,7 +59,7 @@ jobs:
         with:
           toolchain: nightly
       - name: Install cargo-tarpaulin
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@v2.85.4
         with:
           tool: cargo-tarpaulin
       - name: Run code coverage
