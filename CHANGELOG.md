@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.3](https://github.com/cathaysia/crown/compare/v0.26.2...v0.26.3) (2026-08-03)
+
+
+### Bug Fixes
+
+* timeout in Multi2 from unbound rounds by capping at 256 ([002f4f6](https://github.com/cathaysia/crown/commit/002f4f6897c43902b937b548552b7f577c7b5258))
+
 ## [0.26.2](https://github.com/cathaysia/crown/compare/v0.26.1...v0.26.2) (2026-08-03)
 
 
