@@ -62,7 +62,10 @@ pub fn rc6_setup(key: &[u8], keylen: usize, skey: &mut Rc6Key) -> CryptoResult<(
     sarr[..44].copy_from_slice(&RC6_STAB);
 
     let s = 3_u32.wrapping_mul(if 44 > j { 44 } else { j });
-    let l = j;
+    let mut l = j;
+    if l == 0 {
+        l = 1;
+    }
     let mut v = 0u32;
     j = v;
     i = j;

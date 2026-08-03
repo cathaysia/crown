@@ -42,8 +42,20 @@ impl BlockCipherMarker for Rc2 {}
 
 impl Rc2 {
     pub fn new(key: &[u8], rounds: Option<usize>) -> CryptoResult<Self> {
+        if !(1..=128).contains(&key.len()) {
+            return Err(crate::error::CryptoError::InvalidKeySize {
+                expected: "1..=128",
+                actual: key.len(),
+            });
+        }
+
+        let t1 = rounds.unwrap_or(key.len() * 8);
+        if t1 == 0 || t1 > 1024 {
+            return Err(crate::error::CryptoError::InvalidRound(t1));
+        }
+
         Ok(Self {
-            k: expand_key(key, rounds.unwrap_or(0)),
+            k: expand_key(key, t1),
         })
     }
 }
