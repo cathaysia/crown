@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.2](https://github.com/cathaysia/crown/compare/v0.26.1...v0.26.2) (2026-08-03)
+
+
+### Bug Fixes
+
+* attempt to subtract with overflow in RC2 key expansion when t1 &gt;= 1024 ([3c3787e](https://github.com/cathaysia/crown/commit/3c3787ec34c4fd49e598689edb02935992515064))
+
 ## [0.26.1](https://github.com/cathaysia/crown/compare/v0.26.0...v0.26.1) (2026-08-03)
 
 
