@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.1](https://github.com/cathaysia/crown/compare/v0.26.0...v0.26.1) (2026-08-03)
+
+
+### Bug Fixes
+
+* **crypto:** fix fuzzer crashes on invalid key lengths and IVs ([9888ea3](https://github.com/cathaysia/crown/commit/9888ea339fb4af4f3d45327bff28c6f3e476bf8e))
+
 ## [0.26.0](https://github.com/cathaysia/crown/compare/v0.25.0...v0.26.0) (2026-07-29)
 
 
