@@ -354,8 +354,10 @@ fn expand_key(key: &[u8], t1: usize) -> [u16; 64] {
 
     l[128 - t8] = PI_TABLE[(l[128 - t8] & tm) as usize];
 
-    for i in (0..=(127 - t8)).rev() {
-        l[i] = PI_TABLE[(l[i + 1] ^ l[i + t8]) as usize];
+    if t8 <= 127 {
+        for i in (0..=(127 - t8)).rev() {
+            l[i] = PI_TABLE[(l[i + 1] ^ l[i + t8]) as usize];
+        }
     }
 
     let mut k = [0u16; 64];
