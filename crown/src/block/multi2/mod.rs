@@ -26,10 +26,8 @@ impl Multi2 {
             });
         }
 
-        if rounds == 0 {
-            return Err(CryptoError::InvalidParameterStr(
-                "rounds must be greater than zero",
-            ));
+        if rounds == 0 || rounds > 256 {
+            return Err(CryptoError::InvalidRound(rounds));
         }
 
         let mut sk = [0u32; 8];
