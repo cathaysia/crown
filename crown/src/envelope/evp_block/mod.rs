@@ -51,14 +51,14 @@ macro_rules! impl_newer {
         $(
             paste::paste! {
                 pub fn [<new_ $name:lower _cbc>](key: &[u8], iv: &[u8]) -> CryptoResult<Self> {
-                    Ok(Self::new_impl($name::new(key)?, $name::new(key)?, iv, Box::new(Pkcs7)))
+                    Self::new_impl($name::new(key)?, $name::new(key)?, iv, Box::new(Pkcs7))
                 }
             }
         )*
         $(
             paste::paste! {
                  pub fn [<new_ $rc:lower _cbc>](key: &[u8], iv: &[u8], rounds: Option<usize>) -> CryptoResult<Self> {
-                    Ok(Self::new_impl($rc::new(key, rounds)?, $rc::new(key, rounds)?, iv, Box::new(Pkcs7)))
+                    Self::new_impl($rc::new(key, rounds)?, $rc::new(key, rounds)?, iv, Box::new(Pkcs7))
                 }
             }
         )*
@@ -72,51 +72,54 @@ impl EvpBlockCipher {
     );
 
     pub fn new_safer_k64_cbc(key: &[u8], iv: &[u8], rounds: u8) -> CryptoResult<Self> {
-        Ok(Self::new_impl(
+        Self::new_impl(
             Safer::new_k64(key, rounds)?,
             Safer::new_k64(key, rounds)?,
             iv,
             Box::new(Pkcs7),
-        ))
+        )
     }
 
     pub fn new_safer_sk64_cbc(key: &[u8], iv: &[u8], rounds: u8) -> CryptoResult<Self> {
-        Ok(Self::new_impl(
+        Self::new_impl(
             Safer::new_sk64(key, rounds)?,
             Safer::new_sk64(key, rounds)?,
             iv,
             Box::new(Pkcs7),
-        ))
+        )
     }
 
     pub fn new_safer_k128_cbc(key: &[u8], iv: &[u8], rounds: u8) -> CryptoResult<Self> {
-        Ok(Self::new_impl(
+        Self::new_impl(
             Safer::new_k128(key, rounds)?,
             Safer::new_k128(key, rounds)?,
             iv,
             Box::new(Pkcs7),
-        ))
+        )
     }
 
     pub fn new_safer_sk128_cbc(key: &[u8], iv: &[u8], rounds: u8) -> CryptoResult<Self> {
-        Ok(Self::new_impl(
+        Self::new_impl(
             Safer::new_sk128(key, rounds)?,
             Safer::new_sk128(key, rounds)?,
             iv,
             Box::new(Pkcs7),
-        ))
+        )
     }
 
     fn new_impl<D: BlockCipher>(
-        enc: impl CbcEncryptor<D> + 'static,
+        enc: impl CbcEncryptor<D> + BlockCipher + 'static,
         dec: impl CbcDecryptor<D> + 'static,
         iv: &[u8],
         padding: Box<dyn Padding>,
-    ) -> Self {
-        EvpBlockCipher {
+    ) -> CryptoResult<Self> {
+        if iv.len() != enc.block_size() {
+            return Err(CryptoError::InvalidIvSize(iv.len()));
+        }
+        Ok(EvpBlockCipher {
             cipher: ErasedBlockMode::new_cbc(enc, dec, iv),
             padding,
-        }
+        })
     }
 
     pub fn set_padding(&mut self, padding: Box<dyn Padding>) {
