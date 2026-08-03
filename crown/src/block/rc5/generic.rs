@@ -149,9 +149,9 @@ impl Rc5 {
                 idx = idx.wrapping_sub(4);
             });
         } else {
-            (0..self.rounds - 1).rev().for_each(|_| {
-                b = ROR!(b - self.key[idx + 1], a) ^ a;
-                a = ROR!(a - self.key[idx], b) ^ b;
+            (0..self.rounds).rev().for_each(|_| {
+                b = ROR!(b.wrapping_sub(self.key[idx + 1]), a) ^ a;
+                a = ROR!(a.wrapping_sub(self.key[idx]), b) ^ b;
                 idx = idx.wrapping_sub(2);
             });
         }
