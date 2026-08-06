@@ -29,3 +29,10 @@ crown-derive = { path = "./crown-derive", version = "0.26.3" }
 crown-jsasm = { path = "./crown-jsasm", version = "0.26.3" }
 anyhow = "1.0.52"
 serde = "1"
+
+# Fix out of range PC16 fixup on mipsel
+[profile.dev.package.regress]
+opt-level = "z"
+
+[profile.test.package.regress]
+opt-level = "z"
