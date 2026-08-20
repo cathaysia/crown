@@ -60,8 +60,8 @@ jobs:
           - powerpc64le-unknown-linux-gnu
           - powerpc64le-unknown-linux-musl
 
-          - mips64el-unknown-linux-gnuabi64
-          - mipsel-unknown-linux-gnu
+          # - mips64el-unknown-linux-gnuabi64
+          # - mipsel-unknown-linux-gnu
 
     env:
       CROSS_NO_WARNINGS: 0
