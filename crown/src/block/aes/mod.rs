@@ -1,6 +1,7 @@
 mod consts;
 use consts::*;
 
+#[cfg(feature = "alloc")]
 pub(crate) mod cbc;
 #[cfg(feature = "alloc")]
 pub(crate) mod ctr;
@@ -9,6 +10,7 @@ mod generic;
 mod noasm;
 use noasm::*;
 
+#[cfg(feature = "alloc")]
 pub(crate) mod gcm;
 
 #[cfg(all(target_arch = "x86_64", feature = "unstable"))]

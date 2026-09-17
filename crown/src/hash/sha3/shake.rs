@@ -1,11 +1,10 @@
-use bytes::BufMut;
-
 use super::*;
+#[cfg(feature = "marshal")]
+use crate::mac::hmac::Marshalable;
 use crate::{
     core::{CoreRead, CoreWrite},
-    error::{CryptoError, CryptoResult},
+    error::CryptoResult,
     hash::{Hash, HashUser},
-    mac::hmac::Marshalable,
 };
 use alloc::vec;
 use alloc::vec::Vec;
@@ -83,9 +82,10 @@ impl<const N: usize> Marshalable for Shake<N> {
     }
 
     fn marshal_into(&self, mut b: &mut [u8]) -> CryptoResult<usize> {
+        use bytes::BufMut;
         let len = b.len();
         if len < self.marshal_size() {
-            return Err(CryptoError::BufferTooSmall);
+            return Err(crate::error::CryptoError::BufferTooSmall);
         }
         let consume = self.d.marshal_into(b)?;
         b = &mut b[consume..];
@@ -97,7 +97,7 @@ impl<const N: usize> Marshalable for Shake<N> {
         const MARSHALED_SIZE: usize = 207; // magic(4) + rate(1) + state(200) + n(1) + direction(1)
 
         if b.len() < MARSHALED_SIZE {
-            return Err(CryptoError::InvalidHashState);
+            return Err(crate::error::CryptoError::InvalidHashState);
         }
 
         self.d.unmarshal_binary(&b[..MARSHALED_SIZE])?;
