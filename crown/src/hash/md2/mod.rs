@@ -8,6 +8,7 @@
 //! applications**. This implementation is provided for compatibility and
 //! legacy purposes only.
 
+#[cfg(feature = "marshal")]
 use bytes::BufMut;
 #[cfg(feature = "marshal")]
 use crown_derive::Marshal;

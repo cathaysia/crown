@@ -1,3 +1,4 @@
+#[cfg(feature = "marshal")]
 use bytes::BufMut;
 #[cfg(feature = "marshal")]
 use crown_derive::Marshal;
