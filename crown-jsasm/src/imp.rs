@@ -1,102 +1,55 @@
-use std::path::Path;
-
-use anyhow::anyhow;
-use anyhow::bail;
-use boa_engine::module::SimpleModuleLoader;
-use boa_engine::Module;
-use boa_engine::{property::Attribute, Context, Source};
-use boa_runtime::Console;
+use anyhow::{anyhow, bail};
+use rquickjs::{Context, Runtime};
 
 use crate::bundler::bundle_module;
 
 pub fn execute_js_with_json_context(path: String) -> anyhow::Result<String> {
-    use boa_engine::{builtins::promise::PromiseState, JsError, JsValue, NativeFunction};
-
-    let loader = std::rc::Rc::new(SimpleModuleLoader::new("./").map_err(|err| anyhow!("{err}"))?);
-    let mut ctx = Context::builder()
-        .module_loader(loader.clone())
-        .build()
-        .map_err(|err| anyhow!("{err}"))?;
-
     let user_code = bundle_module(None, path.clone())?;
 
-    {
-        let console = Console::init(&mut ctx);
-        ctx.register_global_property(Console::NAME, console, Attribute::all())
-            .expect("the console builtin shouldn't exist");
-    }
-    {
-        let context = std::env::var("JSASM_VAR").unwrap();
-        let context = format!("globalThis.__CONTEXT = {:?};", context);
-        if let Err(e) = ctx.eval(Source::from_bytes(&context)) {
-            bail!("Failed to evaluate context: {}", e);
-        }
+    let context_json =
+        std::env::var("JSASM_VAR").map_err(|e| anyhow!("JSASM_VAR missing: {e}"))?;
+    if context_json.is_empty() {
+        bail!("JSASM_VAR empty");
     }
 
-    let global_code = include_str!("../preload/index.ts");
-    let global_transpiled =
-        bundle_module(Some(global_code.to_string()), "preload/index.ts".into())?;
-    let global_source = Source::from_bytes(&global_transpiled);
-    if let Err(e) = ctx.eval(global_source) {
-        bail!("Failed to evaluate preload script: {}", e);
-    }
+    let preload_code = bundle_module(
+        Some(include_str!("../preload/index.ts").to_string()),
+        "preload/index.ts".into(),
+    )?;
 
-    let user_source = Source::from_bytes(&user_code);
-    let user_module = Module::parse(user_source, None, &mut ctx).map_err(|err| anyhow!("{err}"))?;
+    let rt = Runtime::new().map_err(|e| anyhow!("Runtime::new failed: {e}"))?;
+    let ctx = Context::full(&rt).map_err(|e| anyhow!("Context::full failed: {e}"))?;
 
-    let user_module_path = Path::new("./").canonicalize()?.join(path);
-
-    loader.insert(user_module_path, user_module.clone());
-
-    let promise_result = user_module
-        .load(&mut ctx)
-        .then(
-            Some(
-                NativeFunction::from_copy_closure_with_captures(
-                    |_, _, module, context| {
-                        module.link(context)?;
-                        Ok(JsValue::undefined())
-                    },
-                    user_module.clone(),
-                )
-                .to_js_function(ctx.realm()),
-            ),
-            None,
-            &mut ctx,
+    let result = ctx.with(|ctx| -> anyhow::Result<String> {
+        ctx.eval::<(), _>(
+            "globalThis.console = { log: (...a)=>{}, error: (...a)=>{}, warn: (...a)=>{}, info: (...a)=>{}, debug: (...a)=>{} };",
         )
-        .then(
-            Some(
-                NativeFunction::from_copy_closure_with_captures(
-                    |_, _, module, context| Ok(module.evaluate(context).into()),
-                    user_module.clone(),
-                )
-                .to_js_function(ctx.realm()),
-            ),
-            None,
-            &mut ctx,
-        );
+        .map_err(|e| anyhow!("console stub failed: {e}"))?;
 
-    ctx.run_jobs();
+        let init_context = format!("globalThis.__CONTEXT = {:?};", context_json);
+        ctx.eval::<(), _>(init_context.as_str())
+            .map_err(|e| anyhow!("Failed to evaluate context: {e}"))?;
 
-    match promise_result.state() {
-        PromiseState::Pending => bail!("module didn't execute!"),
-        PromiseState::Fulfilled(_) => {}
-        PromiseState::Rejected(err) => {
-            let js_error = JsError::from_opaque(err);
-            match js_error.try_native(&mut ctx) {
-                Ok(native_error) => bail!("module execution failed: {}", native_error),
-                Err(_) => bail!("module execution failed: {js_error}"),
-            }
-        }
-    }
+        ctx.eval::<(), _>(preload_code.as_str())
+            .map_err(|e| anyhow!("Failed to evaluate preload script: {e}"))?;
 
-    let namespace = user_module.namespace(&mut ctx);
-    let default_export = namespace
-        .get(boa_engine::js_string!("default"), &mut ctx)
-        .map_err(|err| anyhow!("Failed to get default export: {err}"))?;
+        let user_code_eval = if user_code.contains("export default") {
+            user_code.replace("export default", "globalThis.__JSASM_RESULT =")
+        } else {
+            format!(
+                "{user_code}\n; globalThis.__JSASM_RESULT = (typeof code !== 'undefined' ? code : (typeof generateAssembly !== 'undefined' ? generateAssembly() : undefined));"
+            )
+        };
 
-    let result = default_export.display().to_string();
-    let result = result.trim_matches('"');
+        ctx.eval::<(), _>(user_code_eval.as_str())
+            .map_err(|e| anyhow!("Failed to evaluate user module: {e}"))?;
 
-    Ok(result.to_string())
+        let result: String = ctx
+            .eval::<String, _>("String(globalThis.__JSASM_RESULT)")
+            .map_err(|e| anyhow!("Failed to get default export: {e}"))?;
+
+        Ok(result)
+    })?;
+
+    Ok(result)
 }
