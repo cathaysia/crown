@@ -17,7 +17,7 @@ mod tests;
 use crate::{
     core::CoreWrite,
     hash::{Hash, HashUser},
-    mac::hmac::{Marshalable, HMAC},
+    mac::hmac::HMAC,
 };
 use alloc::vec;
 use alloc::vec::Vec;
@@ -46,7 +46,7 @@ pub fn key<const N: usize, H, F>(
     hash_fn: F,
 ) -> Vec<u8>
 where
-    H: Hash<N> + Marshalable,
+    H: Hash<N> + crate::mac::hmac::MaybeMarshalable,
     F: Fn() -> H,
 {
     // Create HMAC with password as key

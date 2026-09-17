@@ -11,7 +11,7 @@ mod tests;
 use crate::{
     core::CoreWrite,
     hash::{Hash, HashUser},
-    mac::hmac::{self, Marshalable},
+    mac::hmac::{self},
     utils::copy,
 };
 use std::io::Read;
@@ -23,7 +23,7 @@ use std::io::Read;
 /// a pseudorandom key (PRK) of fixed length.
 pub fn extract<const N: usize, H, F>(hash_fn: F, secret: &[u8], salt: &[u8]) -> [u8; N]
 where
-    H: Hash<N> + Marshalable,
+    H: Hash<N> + crate::mac::hmac::MaybeMarshalable,
     F: Fn() -> H,
 {
     let salt = if salt.is_empty() {
@@ -96,7 +96,7 @@ impl<const N: usize, H: Hash<N>> Read for Hkdf<N, H> {
 /// output length, and produces the output keying material (OKM).
 pub fn expand<const N: usize, H, F>(hash_fn: F, pseudorandom_key: &[u8], info: &[u8]) -> impl Read
 where
-    H: Hash<N> + Marshalable,
+    H: Hash<N> + crate::mac::hmac::MaybeMarshalable,
     F: Fn() -> H,
 {
     let expander = crate::mac::hmac::new(hash_fn, pseudorandom_key);
@@ -119,7 +119,7 @@ pub fn new<const N: usize, F, H>(
     info: &[u8],
 ) -> impl std::io::Read
 where
-    H: Hash<N> + Marshalable,
+    H: Hash<N> + crate::mac::hmac::MaybeMarshalable,
     F: Fn() -> H + Copy,
 {
     let prk = extract(hash_fn, secret, salt);
