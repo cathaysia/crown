@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.26.4](https://github.com/cathaysia/crown/compare/v0.26.3...v0.26.4) (2026-09-17)
+
+
+### Bug Fixes
+
+* **crown:** gate imports and modules by feature to eliminate warnings ([8da3e36](https://github.com/cathaysia/crown/commit/8da3e365dbf7d4b57b57743a1d48124278965ffe))
+* **crown:** relax PBKDF2/HKDF bounds to MaybeMarshalable ([82fcb7f](https://github.com/cathaysia/crown/commit/82fcb7f46e7aac2f21a68c0ab0f26f5c0a2fa321))
+
 ## [0.26.3](https://github.com/cathaysia/crown/compare/v0.26.2...v0.26.3) (2026-08-03)
 
 
