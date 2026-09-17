@@ -1,0 +1,38 @@
+name: check-features
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  check-features:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - name: setup env
+        run: |
+          sudo apt update -y
+          sudo apt install build-essential libclang-dev -y
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.11
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.92.0
+          components: clippy
+      - name: Install cargo-hack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hack
+      - name: check feature powerset
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: "sccache"
+          RUSTFLAGS: "-D warnings"
+        run: |
+          cargo hack check -p crown --feature-powerset --no-dev-deps --exclude-features cuda,bindgen
+          cargo hack clippy -p crown --feature-powerset --no-dev-deps --exclude-features cuda,bindgen -- -D warnings
