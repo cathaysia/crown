@@ -41,18 +41,31 @@ pub struct Chacha20 {
 
     // The counter-independent results of the first round are cached after they
     // are computed the first time.
+    #[allow(dead_code)] // precomputed state is only used by the generic path
     precomp_done: bool,
+    #[allow(dead_code)]
     p1: u32,
+    #[allow(dead_code)]
     p5: u32,
+    #[allow(dead_code)]
     p9: u32,
+    #[allow(dead_code)]
     p13: u32,
+    #[allow(dead_code)]
     p2: u32,
+    #[allow(dead_code)]
     p6: u32,
+    #[allow(dead_code)]
     p10: u32,
+    #[allow(dead_code)]
     p14: u32,
+    #[allow(dead_code)]
     p3: u32,
+    #[allow(dead_code)]
     p7: u32,
+    #[allow(dead_code)]
     p11: u32,
+    #[allow(dead_code)]
     p15: u32,
 }
 
@@ -254,6 +267,8 @@ impl Chacha20 {
         }
     }
 
+    // Only reachable when the assembly feature is disabled.
+    #[allow(dead_code)]
     fn xor_key_stream_blocks_generic(&mut self, inout: &mut [u8]) {
         if !inout.len().is_multiple_of(Self::block_size()) {
             panic!("chacha20: internal error: wrong dst and/or src length");
@@ -373,6 +388,8 @@ fn quarter_round(a: u32, b: u32, c: u32, d: u32) -> (u32, u32, u32, u32) {
 
 /// add_xor adds the first two arguments, XORs the result with the third, and
 /// writes it to the destination.
+// Only reachable when the assembly feature is disabled.
+#[allow(dead_code)]
 fn add_xor(inout: &mut [u8], a: u32, b: u32) {
     unsafe {
         let p_src = inout.as_ptr() as *const u32;
