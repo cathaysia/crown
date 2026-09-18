@@ -1,4 +1,4 @@
-// gcmFieldElement represents a value in GF(2¹²⁸). In order to reflect the GCM
+//! gcmFieldElement represents a value in GF(2¹²⁸). In order to reflect the GCM
 // standard and make binary.BigEndian suitable for marshaling these values, the
 // bits are stored in big endian order. For example:
 //
@@ -6,6 +6,10 @@
 //	the coefficient of x⁶³ can be obtained by v.low & 1.
 //	the coefficient of x⁶⁴ can be obtained by v.high >> 63.
 //	the coefficient of x¹²⁷ can be obtained by v.high & 1.
+//
+// The generic helpers below are unused when the asm feature is enabled.
+#![allow(dead_code)]
+
 #[derive(Clone, Copy, Debug)]
 struct GcmFieldElement {
     low: u64,
@@ -19,6 +23,16 @@ const GCM_BLOCK_SIZE: usize = 16;
 //
 // Each input is zero-padded to 128-bit before being absorbed.
 pub(crate) fn ghash(out: &mut [u8; GCM_BLOCK_SIZE], h: &[u8; GCM_BLOCK_SIZE], inputs: &[&[u8]]) {
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    {
+        super::asm::ghash(out, h, inputs);
+    }
+
+    #[cfg(any(not(feature = "asm"), not(target_arch = "x86_64")))]
+    generic_ghash(out, h, inputs);
+}
+
+fn generic_ghash(out: &mut [u8; GCM_BLOCK_SIZE], h: &[u8; GCM_BLOCK_SIZE], inputs: &[&[u8]]) {
     // productTable contains the first sixteen powers of the key, H.
     // However, they are in bit reversed order.
     let mut product_table = [GcmFieldElement { low: 0, high: 0 }; 16];
