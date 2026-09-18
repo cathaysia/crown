@@ -46,9 +46,7 @@ impl CBCEncryptor {
 
     /// Generic CBC encryption function
     fn crypt_blocks_enc(&mut self, inout: &mut [u8]) {
-        let inout_chunks = inout.chunks_exact_mut(Aes::BLOCK_SIZE);
-
-        for dst_block in inout_chunks {
+        for dst_block in inout.as_chunks_mut::<{ Aes::BLOCK_SIZE }>().0 {
             // Write the xor to dst, then encrypt in place
             xor_bytes(dst_block, &self.iv);
             self.block.encrypt_block(dst_block);

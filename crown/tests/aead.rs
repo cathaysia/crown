@@ -40,7 +40,7 @@ fn test_aead() {
                 let key = hex::decode(t.key.as_ref().unwrap()).unwrap();
                 let nonce = hex::decode(t.iv.as_ref().unwrap()).unwrap();
                 let aad = hex::decode(t.aad.as_ref().unwrap()).unwrap();
-                let expected_tag = hex::decode(t.tag.as_ref().unwrap()).unwrap();
+                let expected_tag = hex::decode(t.tag.as_deref().unwrap()).unwrap();
                 let is_valid = matches!(t.result.unwrap(), AeadTestVectorResult::Valid);
 
                 let Some(h) = builder(&algorithm, &key, nonce.len(), expected_tag.len()) else {
@@ -48,7 +48,7 @@ fn test_aead() {
                     continue;
                 };
 
-                let mut out = hex::decode(t.msg.as_ref().unwrap()).unwrap();
+                let mut out = hex::decode(t.msg.as_deref().unwrap()).unwrap();
                 if nonce.len() != h.nonce_size() {
                     continue;
                 }
@@ -57,17 +57,17 @@ fn test_aead() {
                     .unwrap_or_else(|err| panic!("{algorithm} test {idx} failed: {err:?}"));
 
                 assert_eq!(
-                    &hex::encode(&out),
-                    t.ct.as_ref().unwrap(),
+                    hex::encode(&out),
+                    t.ct.as_deref().unwrap(),
                     "test: {idx} failed. expected: {:?}, got: {:?}, {}",
-                    t.ct.as_ref().unwrap(),
-                    &hex::encode(&out),
+                    t.ct.as_deref().unwrap(),
+                    hex::encode(&out),
                     t.comment.as_ref().unwrap()
                 );
-                assert_eq!(&hex::encode(&tag) == t.tag.as_ref().unwrap(), is_valid);
+                assert_eq!(hex::encode(&tag) == t.tag.as_deref().unwrap(), is_valid);
 
                 if !is_valid {
-                    let mut invalid_ct = hex::decode(t.ct.as_ref().unwrap()).unwrap();
+                    let mut invalid_ct = hex::decode(t.ct.as_deref().unwrap()).unwrap();
                     assert!(
                         h.open_in_place_separate_tag(&mut invalid_ct, &expected_tag, &nonce, &aad)
                             .is_err(),
@@ -78,7 +78,7 @@ fn test_aead() {
 
                 h.open_in_place_separate_tag(&mut out, &tag, &nonce, &aad)
                     .unwrap();
-                assert_eq!(&hex::encode(out), t.msg.as_ref().unwrap());
+                assert_eq!(&hex::encode(out), t.msg.as_deref().unwrap());
             }
         }
     }
