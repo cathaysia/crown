@@ -29,7 +29,7 @@ fn test_ind_cpa() {
                 )
                 .unwrap();
 
-                let mut out = hex::decode(t.msg.as_ref().unwrap()).unwrap();
+                let mut out = hex::decode(t.msg.as_deref().unwrap()).unwrap();
                 h.encrypt_alloc(&mut out)
                     .unwrap_or_else(|_| panic!("test: {idx} failed."));
 
@@ -39,16 +39,16 @@ fn test_ind_cpa() {
                 }
 
                 assert_eq!(
-                    &hex::encode(&out),
-                    t.ct.as_ref().unwrap(),
+                    hex::encode(&out),
+                    t.ct.as_deref().unwrap(),
                     "test: {idx} failed. expected: {:?}, got: {:?}, {}",
-                    t.ct.as_ref().unwrap(),
-                    &hex::encode(&out),
+                    t.ct.as_deref().unwrap(),
+                    hex::encode(&out),
                     t.comment.as_ref().unwrap()
                 );
 
                 h.decrypt_alloc(&mut out).unwrap();
-                assert_eq!(&hex::encode(out), t.msg.as_ref().unwrap());
+                assert_eq!(&hex::encode(out), t.msg.as_deref().unwrap());
             }
         }
     }
