@@ -113,6 +113,22 @@ mod tests {
     }
 
     #[test]
+    fn test_execute_sha256() {
+        std::env::set_var("JSASM_VAR", "{}");
+        let result =
+            execute_js_with_json_context("crown/src/hash/sha256/block/x86_64.ts".into()).unwrap();
+        assert!(result.contains("sha256_block_data_order"));
+    }
+
+    #[test]
+    fn test_execute_sha512() {
+        std::env::set_var("JSASM_VAR", "{}");
+        let result =
+            execute_js_with_json_context("crown/src/hash/sha512/block/x86_64.ts".into()).unwrap();
+        assert!(result.contains("sha512_block_data_order"));
+    }
+
+    #[test]
     fn test_execute_rc4_with_import() {
         std::env::set_var("JSASM_VAR", "{}");
         let result =
