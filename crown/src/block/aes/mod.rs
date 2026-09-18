@@ -10,6 +10,9 @@ mod generic;
 mod noasm;
 use noasm::*;
 
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+mod asm;
+
 #[cfg(feature = "alloc")]
 pub(crate) mod gcm;
 
