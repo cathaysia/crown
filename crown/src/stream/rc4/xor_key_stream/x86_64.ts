@@ -9,8 +9,7 @@ let out = '%rcx'; // arg4
 let code = '';
 
 // Main RC4 function
-code += `
-.text
+code += `.text
 .extern	OPENSSL_ia32cap_P
 
 .globl	RC4
@@ -45,8 +44,7 @@ const TX = ['%rax', '%rbx'];
 const YY = '%rcx';
 const TY = '%rdx';
 
-code += `
-	xor	${XX[0]},${XX[0]}
+code += `	xor	${XX[0]},${XX[0]}
 	xor	${YY},${YY}
 
 	lea	8(${dat}),${dat}
@@ -331,11 +329,17 @@ code += `.align	16
 .size	RC4,.-RC4
 `;
 
+// Restore the original argument registers: the perl scopes the reassignments
+// above to the RC4 function block only, while RC4_set_key uses the raw ABI
+// registers again.
+len = '%rsi';
+inp = '%rdx';
+out = '%rcx';
+
 const idx = '%r8';
 const ido = '%r9';
 
-code += `
-.globl	RC4_set_key
+code += `.globl	RC4_set_key
 .type	RC4_set_key,@function,3
 .align	16
 RC4_set_key:

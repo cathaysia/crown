@@ -1,300 +1,282 @@
 /**
- * MD5 x86_64 Assembly Code Generator
+ * MD5 optimized for AMD64.
  *
- * Generates optimized x86_64 assembly code for MD5 hash computation.
- * This is a TypeScript port of the original Perl script that generates
- * high-performance assembly implementation of the MD5 algorithm.
- *
+ * TypeScript port of OpenSSL crypto/md5/asm/md5-x86_64.pl.
  * Based on work by Marc Bevand <bevand_m (at) epita.fr>
  * Copyright 2005-2025 The OpenSSL Project Authors. All Rights Reserved.
- * Licensed under Apache License 2.0
- *
- * The generated assembly implements the four rounds of MD5:
- * - Round 1: F(x,y,z) = (x & y) | ((~x) & z)
- * - Round 2: G(x,y,z) = (x & z) | (y & (~z))
- * - Round 3: H(x,y,z) = x ^ y ^ z
- * - Round 4: I(x,y,z) = y ^ (x | (~z))
- *
- * Each round processes 16 steps with different constants and shift amounts
- * for optimal performance on AMD64 architecture.
+ * Licensed under Apache License 2.0.
  */
 
-/**
- * Generates assembly code for MD5 round 1 step
- * Implements: dst = x + ((dst + F(x,y,z) + X[k] + T_i) <<< s)
- */
+import { translateAssembly } from 'jsasm/x86_64-xlate';
+
+let code = '';
+
+// round1_step() does:
+//   dst = x + ((dst + F(x,y,z) + X[k] + T_i) <<< s)
+//   %r10d = X[k_next]
+//   %r11d = z' (copy of z for the next step)
+// Each round1_step() takes about 5.3 clocks (9 instructions, 1.7 IPC)
 function round1_step(
-  pos: number, // Position indicator (-1 for first step, 0 for middle steps, 1 for last step)
-  dst: string, // Destination register (e.g., '%eax')
-  x: string, // X register (e.g., '%ebx')
-  y: string, // Y register (e.g., '%ecx')
-  z: string, // Z register (e.g., '%edx')
-  k_next: number, // Index for next X[k_next] value (0-15)
-  T_i: number, // MD5 constant value (e.g., 0xd76aa478)
-  s: number, // Left rotate shift amount
-): string {
-  let result = '';
+  pos: number,
+  dst: string,
+  x: string,
+  y: string,
+  z: string,
+  k_next: string,
+  T_i: string,
+  s: string,
+): void {
   if (pos === -1) {
-    result += `	mov	0(%rsi),%r10d\n`;
-    result += `	mov	%edx,%r11d\n`;
+    code += ' mov	0*4(%rsi),	%r10d		/* (NEXT STEP) X[0] */\n';
+    code += " mov	%edx,		%r11d		/* (NEXT STEP) z' = %edx */\n";
   }
-  result += `	xor	${y},%r11d
-	lea	${T_i}(${dst.replace('%e', '%r')},%r10,1),${dst}
-	and	${x},%r11d
-	mov	${k_next * 4}(%rsi),%r10d
-	xor	${z},%r11d
-	add	%r11d,${dst}
-	rol	$${s},${dst}
-	mov	${y},%r11d
-	add	${x},${dst}
+  code += `	xor	${y},		%r11d		/* y ^ ... */
+	lea	${T_i}(${dst},%r10d),${dst}		/* Const + dst + ... */
+	and	${x},		%r11d		/* x & ... */
+	mov	${k_next}*4(%rsi),%r10d		/* (NEXT STEP) X[${k_next}] */
+	xor	${z},		%r11d		/* z ^ ... */
+	add	%r11d,		${dst}		/* dst += ... */
+	rol	$${s},		${dst}		/* dst <<< s */
+	mov	${y},		%r11d		/* (NEXT STEP) z' = ${y} */
+	add	${x},		${dst}		/* dst += x */
 `;
-  return result;
 }
 
-/**
- * Generates assembly code for MD5 round 2 step
- * Implements: dst = x + ((dst + G(x,y,z) + X[k] + T_i) <<< s)
- */
+// round2_step() does:
+//   dst = x + ((dst + G(x,y,z) + X[k] + T_i) <<< s)
+//   %r10d = X[k_next]
+//   %r11d = z' (copy of z for the next step)
+//   %r12d = z' (copy of z for the next step)
 function round2_step(
-  pos: number, // Position indicator (-1 for first step, 0 for middle steps, 1 for last step)
-  dst: string, // Destination register (e.g., '%eax')
-  x: string, // X register (e.g., '%ebx')
-  y: string, // Y register (e.g., '%ecx')
-  z: string, // Z register (e.g., '%edx')
-  k_next: number, // Index for next X[k_next] value (0-15)
-  T_i: number, // MD5 constant value (e.g., 0xf61e2562)
-  s: number, // Left rotate shift amount
-): string {
-  let result = '';
+  pos: number,
+  dst: string,
+  x: string,
+  y: string,
+  z: string,
+  k_next: string,
+  T_i: string,
+  s: string,
+): void {
   if (pos === -1) {
-    result += `	mov	%edx,%r11d\n`;
-    result += `	mov	%edx,%r12d\n`;
+    code += " mov	%edx,		%r11d		/* (NEXT STEP) z' = %edx */\n";
+    code += " mov	%edx,		%r12d		/* (NEXT STEP) z' = %edx */\n";
   }
-  result += `	not	%r11d
-	and	${x},%r12d
-	lea	${T_i}(${dst.replace('%e', '%r')},%r10,1),${dst}
-	and	${y},%r11d
-	mov	${k_next * 4}(%rsi),%r10d
-	add	%r11d,${dst}
-	mov	${y},%r11d
-	add	%r12d,${dst}
-	mov	${y},%r12d
-	rol	$${s},${dst}
-	add	${x},${dst}
+  code += `	not	%r11d				/* not z */
+	and	${x},		%r12d		/* x & z */
+	lea	${T_i}(${dst},%r10d),${dst}		/* Const + dst + ... */
+	and	${y},		%r11d		/* y & (not z) */
+	mov	${k_next}*4(%rsi),%r10d		/* (NEXT STEP) X[${k_next}] */
+	add	%r11d,		${dst}		/* dst += (y & (not z)) */
+	mov	${y},		%r11d		/* (NEXT STEP) z' = ${y} */
+	add	%r12d,		${dst}		/* dst += (x & z) */
+	mov	${y},		%r12d		/* (NEXT STEP) z' = ${y} */
+	rol	$${s},		${dst}		/* dst <<< s */
+	add	${x},		${dst}		/* dst += x */
 `;
-  return result;
 }
 
-/** Alternating flag for round 3 instruction ordering optimization */
-let round3_alter: number = 0;
-
-/**
- * Generates assembly code for MD5 round 3 step
- * Implements: dst = x + ((dst + H(x,y,z) + X[k] + T_i) <<< s)
- */
+// round3_step() does:
+//   dst = x + ((dst + H(x,y,z) + X[k] + T_i) <<< s)
+//   %r10d = X[k_next]
+//   %r11d = y' (copy of y for the next step)
+// Each round3_step() takes about 4.2 clocks (8 instructions, 1.9 IPC)
+let round3_alter = 0;
 function round3_step(
-  pos: number, // Position indicator (-1 for first step, 0 for middle steps, 1 for last step)
-  dst: string, // Destination register (e.g., '%eax')
-  x: string, // X register (e.g., '%ebx')
-  y: string, // Y register (e.g., '%ecx')
-  z: string, // Z register (e.g., '%edx')
-  k_next: number, // Index for next X[k_next] value (0-15)
-  T_i: number, // MD5 constant value (e.g., 0xfffa3942)
-  s: number, // Left rotate shift amount
-): string {
-  let result = '';
+  pos: number,
+  dst: string,
+  x: string,
+  y: string,
+  z: string,
+  k_next: string,
+  T_i: string,
+  s: string,
+): void {
   if (pos === -1) {
-    result += `	mov	%ecx,%r11d\n`;
+    code += " mov	%ecx,		%r11d		/* (NEXT STEP) y' = %ecx */\n";
   }
-  result += `	lea	${T_i}(${dst.replace('%e', '%r')},%r10,1),${dst}
- xor	${z},%r11d
-	mov	${k_next * 4}(%rsi),%r10d
-	xor	${x},%r11d
-	add	%r11d,${dst}
+  code += `	lea	${T_i}(${dst},%r10d),${dst}		/* Const + dst + ... */
+	xor	${z},		%r11d		/* z ^ ... */
+	mov	${k_next}*4(%rsi),%r10d		/* (NEXT STEP) X[${k_next}] */
+	xor	${x},		%r11d		/* x ^ ... */
+	add	%r11d,		${dst}		/* dst += ... */
 `;
   if (round3_alter) {
-    result += `	rol	$${s},${dst}
-	mov	${x},%r11d
+    code += `	rol	$${s},		${dst}		/* dst <<< s */
+	mov	${x},		%r11d		/* (NEXT STEP) y' = ${x} */
 `;
   } else {
-    result += `	mov	${x},%r11d
-	rol	$${s},${dst}
+    code += `	mov	${x},		%r11d		/* (NEXT STEP) y' = ${x} */
+	rol	$${s},		${dst}		/* dst <<< s */
 `;
   }
-  result += `	add	${x},${dst}
+  code += `	add	${x},		${dst}		/* dst += x */
 `;
   round3_alter ^= 1;
-  return result;
 }
 
-/**
- * Generates assembly code for MD5 round 4 step
- * Implements: dst = x + ((dst + I(x,y,z) + X[k] + T_i) <<< s)
- */
+// round4_step() does:
+//   dst = x + ((dst + I(x,y,z) + X[k] + T_i) <<< s)
+//   %r10d = X[k_next]
+//   %r11d = not z' (copy of not z for the next step)
+// Each round4_step() takes about 5.2 clocks (9 instructions, 1.7 IPC)
 function round4_step(
-  pos: number, // Position indicator (-1 for first step, 0 for middle steps, 1 for last step)
-  dst: string, // Destination register (e.g., '%eax')
-  x: string, // X register (e.g., '%ebx')
-  y: string, // Y register (e.g., '%ecx')
-  z: string, // Z register (e.g., '%edx')
-  k_next: number, // Index for next X[k_next] value (0-15)
-  T_i: number, // MD5 constant value (e.g., 0xf4292244)
-  s: number, // Left rotate shift amount
-): string {
-  let result = '';
+  pos: number,
+  dst: string,
+  x: string,
+  y: string,
+  z: string,
+  k_next: string,
+  T_i: string,
+  s: string,
+): void {
   if (pos === -1) {
-    result += `	mov	$0xffffffff,%r11d\n`;
-    result += `	xor	%edx,%r11d\n`;
+    code += ' mov	$0xffffffff,	%r11d\n';
+    code += " xor	%edx,		%r11d		/* (NEXT STEP) not z' = not %edx*/\n";
   }
-  result += `	lea	${T_i}(${dst.replace('%e', '%r')},%r10,1),${dst}
-	orl	${x},%r11d
-	mov	${k_next * 4}(%rsi),%r10d
-	xor	${y},%r11d
-	add	%r11d,${dst}
-	mov	$0xffffffff,%r11d
-	rol	$${s},${dst}
-	xor	${y},%r11d
-	add	${x},${dst}
+  code += `	lea	${T_i}(${dst},%r10d),${dst}		/* Const + dst + ... */
+	or	${x},		%r11d		/* x | ... */
+	mov	${k_next}*4(%rsi),%r10d		/* (NEXT STEP) X[${k_next}] */
+	xor	${y},		%r11d		/* y ^ ... */
+	add	%r11d,		${dst}		/* dst += ... */
+	mov	$0xffffffff,	%r11d
+	rol	$${s},		${dst}		/* dst <<< s */
+	xor	${y},		%r11d		/* (NEXT STEP) not z' = not ${y} */
+	add	${x},		${dst}		/* dst += x */
 `;
-  return result;
 }
-
-/** Generated assembly code buffer */
-let code: string = '';
 
 code += `.text
-.align	16
+.align 16
 
-.globl	ossl_md5_block_asm_data_order
-.type	ossl_md5_block_asm_data_order,@function
+.globl ossl_md5_block_asm_data_order
+.type ossl_md5_block_asm_data_order,@function,3
 ossl_md5_block_asm_data_order:
 .cfi_startproc
-	pushq	%rbp
-.cfi_adjust_cfa_offset	8
-.cfi_offset	%rbp,-16
-	pushq	%rbx
-.cfi_adjust_cfa_offset	8
-.cfi_offset	%rbx,-24
-	pushq	%r12
-.cfi_adjust_cfa_offset	8
-.cfi_offset	%r12,-32
-	pushq	%r14
-.cfi_adjust_cfa_offset	8
-.cfi_offset	%r14,-40
-	pushq	%r15
-.cfi_adjust_cfa_offset	8
-.cfi_offset	%r15,-48
+	push	%rbp
+.cfi_push	%rbp
+	push	%rbx
+.cfi_push	%rbx
+	push	%r12
+.cfi_push	%r12
+	push	%r14
+.cfi_push	%r14
+	push	%r15
+.cfi_push	%r15
 .Lprologue:
 
+	# rdi = arg #1 (ctx, MD5_CTX pointer)
+	# rsi = arg #2 (ptr, data pointer)
+	# rdx = arg #3 (nbr, number of 16-word blocks to process)
+	mov	%rdi,		%rbp	# rbp = ctx
+	shl	$6,		%rdx	# rdx = nbr in bytes
+	lea	(%rsi,%rdx),	%rdi	# rdi = end
+	mov	0*4(%rbp),	%eax	# eax = ctx->A
+	mov	1*4(%rbp),	%ebx	# ebx = ctx->B
+	mov	2*4(%rbp),	%ecx	# ecx = ctx->C
+	mov	3*4(%rbp),	%edx	# edx = ctx->D
+	# end is 'rdi'
+	# ptr is 'rsi'
+	# A is 'eax'
+	# B is 'ebx'
+	# C is 'ecx'
+	# D is 'edx'
 
+	cmp	%rdi,		%rsi		# cmp end with ptr
+	je	.Lend				# jmp if ptr == end
 
-	mov	%rdi,%rbp
-	shl	$6,%rdx
-	lea	(%rsi,%rdx,1),%rdi
-	mov	0(%rbp),%eax
-	mov	4(%rbp),%ebx
-	mov	8(%rbp),%ecx
-	mov	12(%rbp),%edx
-
-
-
-
-	cmp	%rdi,%rsi
-	je	.Lend
-
-
-.Lloop:
-	mov	%eax,%r8d
-	mov	%ebx,%r9d
-	mov	%ecx,%r14d
-	mov	%edx,%r15d
+	# BEGIN of loop over 16-word blocks
+.Lloop:	# save old values of A, B, C, D
+	mov	%eax,		%r8d
+	mov	%ebx,		%r9d
+	mov	%ecx,		%r14d
+	mov	%edx,		%r15d
 `;
 
-code += round1_step(-1, '%eax', '%ebx', '%ecx', '%edx', 1, -680876936, 7);
-code += round1_step(0, '%edx', '%eax', '%ebx', '%ecx', 2, -389564586, 12);
-code += round1_step(0, '%ecx', '%edx', '%eax', '%ebx', 3, 606105819, 17);
-code += round1_step(0, '%ebx', '%ecx', '%edx', '%eax', 4, -1044525330, 22);
-code += round1_step(0, '%eax', '%ebx', '%ecx', '%edx', 5, -176418897, 7);
-code += round1_step(0, '%edx', '%eax', '%ebx', '%ecx', 6, 1200080426, 12);
-code += round1_step(0, '%ecx', '%edx', '%eax', '%ebx', 7, -1473231341, 17);
-code += round1_step(0, '%ebx', '%ecx', '%edx', '%eax', 8, -45705983, 22);
-code += round1_step(0, '%eax', '%ebx', '%ecx', '%edx', 9, 1770035416, 7);
-code += round1_step(0, '%edx', '%eax', '%ebx', '%ecx', 10, -1958414417, 12);
-code += round1_step(0, '%ecx', '%edx', '%eax', '%ebx', 11, -42063, 17);
-code += round1_step(0, '%ebx', '%ecx', '%edx', '%eax', 12, -1990404162, 22);
-code += round1_step(0, '%eax', '%ebx', '%ecx', '%edx', 13, 1804603682, 7);
-code += round1_step(0, '%edx', '%eax', '%ebx', '%ecx', 14, -40341101, 12);
-code += round1_step(0, '%ecx', '%edx', '%eax', '%ebx', 15, -1502002290, 17);
-code += round1_step(1, '%ebx', '%ecx', '%edx', '%eax', 1, 1236535329, 22);
+round1_step(-1, '%eax', '%ebx', '%ecx', '%edx', '1', '0xd76aa478', '7');
+round1_step(0, '%edx', '%eax', '%ebx', '%ecx', '2', '0xe8c7b756', '12');
+round1_step(0, '%ecx', '%edx', '%eax', '%ebx', '3', '0x242070db', '17');
+round1_step(0, '%ebx', '%ecx', '%edx', '%eax', '4', '0xc1bdceee', '22');
+round1_step(0, '%eax', '%ebx', '%ecx', '%edx', '5', '0xf57c0faf', '7');
+round1_step(0, '%edx', '%eax', '%ebx', '%ecx', '6', '0x4787c62a', '12');
+round1_step(0, '%ecx', '%edx', '%eax', '%ebx', '7', '0xa8304613', '17');
+round1_step(0, '%ebx', '%ecx', '%edx', '%eax', '8', '0xfd469501', '22');
+round1_step(0, '%eax', '%ebx', '%ecx', '%edx', '9', '0x698098d8', '7');
+round1_step(0, '%edx', '%eax', '%ebx', '%ecx', '10', '0x8b44f7af', '12');
+round1_step(0, '%ecx', '%edx', '%eax', '%ebx', '11', '0xffff5bb1', '17');
+round1_step(0, '%ebx', '%ecx', '%edx', '%eax', '12', '0x895cd7be', '22');
+round1_step(0, '%eax', '%ebx', '%ecx', '%edx', '13', '0x6b901122', '7');
+round1_step(0, '%edx', '%eax', '%ebx', '%ecx', '14', '0xfd987193', '12');
+round1_step(0, '%ecx', '%edx', '%eax', '%ebx', '15', '0xa679438e', '17');
+round1_step(1, '%ebx', '%ecx', '%edx', '%eax', '1', '0x49b40821', '22');
 
-code += round2_step(-1, '%eax', '%ebx', '%ecx', '%edx', 6, -165796510, 5);
-code += round2_step(0, '%edx', '%eax', '%ebx', '%ecx', 11, -1069501632, 9);
-code += round2_step(0, '%ecx', '%edx', '%eax', '%ebx', 0, 643717713, 14);
-code += round2_step(0, '%ebx', '%ecx', '%edx', '%eax', 5, -373897302, 20);
-code += round2_step(0, '%eax', '%ebx', '%ecx', '%edx', 10, -701558691, 5);
-code += round2_step(0, '%edx', '%eax', '%ebx', '%ecx', 15, 38016083, 9);
-code += round2_step(0, '%ecx', '%edx', '%eax', '%ebx', 4, -660478335, 14);
-code += round2_step(0, '%ebx', '%ecx', '%edx', '%eax', 9, -405537848, 20);
-code += round2_step(0, '%eax', '%ebx', '%ecx', '%edx', 14, 568446438, 5);
-code += round2_step(0, '%edx', '%eax', '%ebx', '%ecx', 3, -1019803690, 9);
-code += round2_step(0, '%ecx', '%edx', '%eax', '%ebx', 8, -187363961, 14);
-code += round2_step(0, '%ebx', '%ecx', '%edx', '%eax', 13, 1163531501, 20);
-code += round2_step(0, '%eax', '%ebx', '%ecx', '%edx', 2, -1444681467, 5);
-code += round2_step(0, '%edx', '%eax', '%ebx', '%ecx', 7, -51403784, 9);
-code += round2_step(0, '%ecx', '%edx', '%eax', '%ebx', 12, 1735328473, 14);
-code += round2_step(1, '%ebx', '%ecx', '%edx', '%eax', 5, -1926607734, 20);
+round2_step(-1, '%eax', '%ebx', '%ecx', '%edx', '6', '0xf61e2562', '5');
+round2_step(0, '%edx', '%eax', '%ebx', '%ecx', '11', '0xc040b340', '9');
+round2_step(0, '%ecx', '%edx', '%eax', '%ebx', '0', '0x265e5a51', '14');
+round2_step(0, '%ebx', '%ecx', '%edx', '%eax', '5', '0xe9b6c7aa', '20');
+round2_step(0, '%eax', '%ebx', '%ecx', '%edx', '10', '0xd62f105d', '5');
+round2_step(0, '%edx', '%eax', '%ebx', '%ecx', '15', '0x2441453', '9');
+round2_step(0, '%ecx', '%edx', '%eax', '%ebx', '4', '0xd8a1e681', '14');
+round2_step(0, '%ebx', '%ecx', '%edx', '%eax', '9', '0xe7d3fbc8', '20');
+round2_step(0, '%eax', '%ebx', '%ecx', '%edx', '14', '0x21e1cde6', '5');
+round2_step(0, '%edx', '%eax', '%ebx', '%ecx', '3', '0xc33707d6', '9');
+round2_step(0, '%ecx', '%edx', '%eax', '%ebx', '8', '0xf4d50d87', '14');
+round2_step(0, '%ebx', '%ecx', '%edx', '%eax', '13', '0x455a14ed', '20');
+round2_step(0, '%eax', '%ebx', '%ecx', '%edx', '2', '0xa9e3e905', '5');
+round2_step(0, '%edx', '%eax', '%ebx', '%ecx', '7', '0xfcefa3f8', '9');
+round2_step(0, '%ecx', '%edx', '%eax', '%ebx', '12', '0x676f02d9', '14');
+round2_step(1, '%ebx', '%ecx', '%edx', '%eax', '5', '0x8d2a4c8a', '20');
 
-code += round3_step(-1, '%eax', '%ebx', '%ecx', '%edx', 8, -378558, 4);
-code += round3_step(0, '%edx', '%eax', '%ebx', '%ecx', 11, -2022574463, 11);
-code += round3_step(0, '%ecx', '%edx', '%eax', '%ebx', 14, 1839030562, 16);
-code += round3_step(0, '%ebx', '%ecx', '%edx', '%eax', 1, -35309556, 23);
-code += round3_step(0, '%eax', '%ebx', '%ecx', '%edx', 4, -1530992060, 4);
-code += round3_step(0, '%edx', '%eax', '%ebx', '%ecx', 7, 1272893353, 11);
-code += round3_step(0, '%ecx', '%edx', '%eax', '%ebx', 10, -155497632, 16);
-code += round3_step(0, '%ebx', '%ecx', '%edx', '%eax', 13, -1094730640, 23);
-code += round3_step(0, '%eax', '%ebx', '%ecx', '%edx', 0, 681279174, 4);
-code += round3_step(0, '%edx', '%eax', '%ebx', '%ecx', 3, -358537222, 11);
-code += round3_step(0, '%ecx', '%edx', '%eax', '%ebx', 6, -722521979, 16);
-code += round3_step(0, '%ebx', '%ecx', '%edx', '%eax', 9, 76029189, 23);
-code += round3_step(0, '%eax', '%ebx', '%ecx', '%edx', 12, -640364487, 4);
-code += round3_step(0, '%edx', '%eax', '%ebx', '%ecx', 15, -421815835, 11);
-code += round3_step(0, '%ecx', '%edx', '%eax', '%ebx', 2, 530742520, 16);
-code += round3_step(1, '%ebx', '%ecx', '%edx', '%eax', 0, -995338651, 23);
+round3_step(-1, '%eax', '%ebx', '%ecx', '%edx', '8', '0xfffa3942', '4');
+round3_step(0, '%edx', '%eax', '%ebx', '%ecx', '11', '0x8771f681', '11');
+round3_step(0, '%ecx', '%edx', '%eax', '%ebx', '14', '0x6d9d6122', '16');
+round3_step(0, '%ebx', '%ecx', '%edx', '%eax', '1', '0xfde5380c', '23');
+round3_step(0, '%eax', '%ebx', '%ecx', '%edx', '4', '0xa4beea44', '4');
+round3_step(0, '%edx', '%eax', '%ebx', '%ecx', '7', '0x4bdecfa9', '11');
+round3_step(0, '%ecx', '%edx', '%eax', '%ebx', '10', '0xf6bb4b60', '16');
+round3_step(0, '%ebx', '%ecx', '%edx', '%eax', '13', '0xbebfbc70', '23');
+round3_step(0, '%eax', '%ebx', '%ecx', '%edx', '0', '0x289b7ec6', '4');
+round3_step(0, '%edx', '%eax', '%ebx', '%ecx', '3', '0xeaa127fa', '11');
+round3_step(0, '%ecx', '%edx', '%eax', '%ebx', '6', '0xd4ef3085', '16');
+round3_step(0, '%ebx', '%ecx', '%edx', '%eax', '9', '0x4881d05', '23');
+round3_step(0, '%eax', '%ebx', '%ecx', '%edx', '12', '0xd9d4d039', '4');
+round3_step(0, '%edx', '%eax', '%ebx', '%ecx', '15', '0xe6db99e5', '11');
+round3_step(0, '%ecx', '%edx', '%eax', '%ebx', '2', '0x1fa27cf8', '16');
+round3_step(1, '%ebx', '%ecx', '%edx', '%eax', '0', '0xc4ac5665', '23');
 
-code += round4_step(-1, '%eax', '%ebx', '%ecx', '%edx', 7, -198630844, 6);
-code += round4_step(0, '%edx', '%eax', '%ebx', '%ecx', 14, 1126891415, 10);
-code += round4_step(0, '%ecx', '%edx', '%eax', '%ebx', 5, -1416354905, 15);
-code += round4_step(0, '%ebx', '%ecx', '%edx', '%eax', 12, -57434055, 21);
-code += round4_step(0, '%eax', '%ebx', '%ecx', '%edx', 3, 1700485571, 6);
-code += round4_step(0, '%edx', '%eax', '%ebx', '%ecx', 10, -1894986606, 10);
-code += round4_step(0, '%ecx', '%edx', '%eax', '%ebx', 1, -1051523, 15);
-code += round4_step(0, '%ebx', '%ecx', '%edx', '%eax', 8, -2054922799, 21);
-code += round4_step(0, '%eax', '%ebx', '%ecx', '%edx', 15, 1873313359, 6);
-code += round4_step(0, '%edx', '%eax', '%ebx', '%ecx', 6, -30611744, 10);
-code += round4_step(0, '%ecx', '%edx', '%eax', '%ebx', 13, -1560198380, 15);
-code += round4_step(0, '%ebx', '%ecx', '%edx', '%eax', 4, 1309151649, 21);
-code += round4_step(0, '%eax', '%ebx', '%ecx', '%edx', 11, -145523070, 6);
-code += round4_step(0, '%edx', '%eax', '%ebx', '%ecx', 2, -1120210379, 10);
-code += round4_step(0, '%ecx', '%edx', '%eax', '%ebx', 9, 718787259, 15);
-code += round4_step(1, '%ebx', '%ecx', '%edx', '%eax', 0, -343485551, 21);
+round4_step(-1, '%eax', '%ebx', '%ecx', '%edx', '7', '0xf4292244', '6');
+round4_step(0, '%edx', '%eax', '%ebx', '%ecx', '14', '0x432aff97', '10');
+round4_step(0, '%ecx', '%edx', '%eax', '%ebx', '5', '0xab9423a7', '15');
+round4_step(0, '%ebx', '%ecx', '%edx', '%eax', '12', '0xfc93a039', '21');
+round4_step(0, '%eax', '%ebx', '%ecx', '%edx', '3', '0x655b59c3', '6');
+round4_step(0, '%edx', '%eax', '%ebx', '%ecx', '10', '0x8f0ccc92', '10');
+round4_step(0, '%ecx', '%edx', '%eax', '%ebx', '1', '0xffeff47d', '15');
+round4_step(0, '%ebx', '%ecx', '%edx', '%eax', '8', '0x85845dd1', '21');
+round4_step(0, '%eax', '%ebx', '%ecx', '%edx', '15', '0x6fa87e4f', '6');
+round4_step(0, '%edx', '%eax', '%ebx', '%ecx', '6', '0xfe2ce6e0', '10');
+round4_step(0, '%ecx', '%edx', '%eax', '%ebx', '13', '0xa3014314', '15');
+round4_step(0, '%ebx', '%ecx', '%edx', '%eax', '4', '0x4e0811a1', '21');
+round4_step(0, '%eax', '%ebx', '%ecx', '%edx', '11', '0xf7537e82', '6');
+round4_step(0, '%edx', '%eax', '%ebx', '%ecx', '2', '0xbd3af235', '10');
+round4_step(0, '%ecx', '%edx', '%eax', '%ebx', '9', '0x2ad7d2bb', '15');
+round4_step(1, '%ebx', '%ecx', '%edx', '%eax', '0', '0xeb86d391', '21');
 
-code += `
-	add	%r8d,%eax
-	add	%r9d,%ebx
-	add	%r14d,%ecx
-	add	%r15d,%edx
+code += `	# add old values of A, B, C, D
+	add	%r8d,	%eax
+	add	%r9d,	%ebx
+	add	%r14d,	%ecx
+	add	%r15d,	%edx
 
-
-	add	$64,%rsi
-	cmp	%rdi,%rsi
-	jb	.Lloop
-
+	# loop control
+	add	$64,		%rsi		# ptr += 64
+	cmp	%rdi,		%rsi		# cmp end with ptr
+	jb	.Lloop				# jmp if ptr < end
+	# END of loop over 16-word blocks
 
 .Lend:
-	mov	%eax,0(%rbp)
-	mov	%ebx,4(%rbp)
-	mov	%ecx,8(%rbp)
-	mov	%edx,12(%rbp)
+	mov	%eax,		0*4(%rbp)	# ctx->A = A
+	mov	%ebx,		1*4(%rbp)	# ctx->B = B
+	mov	%ecx,		2*4(%rbp)	# ctx->C = C
+	mov	%edx,		3*4(%rbp)	# ctx->D = D
 
 	mov	(%rsp),%r15
 .cfi_restore	%r15
@@ -309,30 +291,12 @@ code += `
 	add	$40,%rsp
 .cfi_adjust_cfa_offset	-40
 .Lepilogue:
-	.byte	0xf3,0xc3
+	ret
 .cfi_endproc
-.size	ossl_md5_block_asm_data_order,.-ossl_md5_block_asm_data_order
-	.section ".note.gnu.property", "a"
-	.p2align 3
-	.long 1f - 0f
-	.long 4f - 1f
-	.long 5
-0:
-	# "GNU" encoded with .byte, since .asciz isn't supported
-	# on Solaris.
-	.byte 0x47
-	.byte 0x4e
-	.byte 0x55
-	.byte 0
-1:
-	.p2align 3
-	.long 0xc0000002
-	.long 3f - 2f
-2:
-	.long 3
-3:
-	.p2align 3
-4:
+.size ossl_md5_block_asm_data_order,.-ossl_md5_block_asm_data_order
 `;
 
-export default code;
+// The win64 structured exception handling section of the original perl script
+// is omitted: only the elf flavour is generated.
+
+export default translateAssembly(code);
