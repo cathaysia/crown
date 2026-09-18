@@ -48,7 +48,10 @@ export function initConfig(flavour?: Flavour): Config {
   let masm = 0;
   let nasm = 0;
   let PTR = ' PTR';
-  let gnuas = false;
+  // crown consumes the generated assembly with LLVM (rustc global_asm!),
+  // which requires the quoted ".section" flags form; the perl sets this
+  // via $gnuas when CC is clang.
+  let gnuas = true;
 
   if (flavour === Flavour.Mingw64) {
     gas = true;
@@ -331,7 +334,9 @@ class Opcode {
   }
 
   size(sz?: string): string | undefined {
-    if (sz && !this.sz) this.sz = sz;
+    // Mirror perl defined($self->{sz}): an explicitly empty size (e.g. movd
+    // with an xmm operand) must not be overwritten.
+    if (sz && this.sz === undefined) this.sz = sz;
     return this.sz;
   }
 
@@ -1409,6 +1414,18 @@ function palignr(arg: string): number[] {
   return opcode;
 }
 
+// Mirror perl oct(): 0x-prefixed strings are hex, other leading-zero
+// strings are octal.
+function octal(c: string): number {
+  if (/^0x/i.test(c)) {
+    return parseInt(c, 16);
+  }
+  if (c.startsWith('0')) {
+    return parseInt(c, 8);
+  }
+  return parseInt(c);
+}
+
 function pclmulqdq(arg: string): number[] {
   const match = arg.match(/\$([x0-9a-f]+),\s*%xmm([0-9]+),\s*%xmm([0-9]+)/);
   if (!match) return [];
@@ -1421,7 +1438,7 @@ function pclmulqdq(arg: string): number[] {
   opcode.push(0xc0 | (src & 7) | ((dst & 7) << 3)); // ModR/M
 
   const c = match[1];
-  const imm = c.startsWith('0') ? parseInt(c, 8) : parseInt(c);
+  const imm = octal(c);
   opcode.push(imm);
   return opcode;
 }
@@ -1490,7 +1507,7 @@ function vprotd(arg: string): number[] {
   opcode.push(0xc0 | (src & 7) | ((dst & 7) << 3)); // ModR/M
 
   const c = match[1];
-  const imm = c.startsWith('0') ? parseInt(c, 8) : parseInt(c);
+  const imm = octal(c);
   opcode.push(imm);
   return opcode;
 }
@@ -1507,7 +1524,7 @@ function vprotq(arg: string): number[] {
   opcode.push(0xc0 | (src & 7) | ((dst & 7) << 3)); // ModR/M
 
   const c = match[1];
-  const imm = c.startsWith('0') ? parseInt(c, 8) : parseInt(c);
+  const imm = octal(c);
   opcode.push(imm);
   return opcode;
 }
