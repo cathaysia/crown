@@ -91,7 +91,7 @@ export function initConfig(flavour?: Flavour): Config {
 }
 // Generate CET property for ELF outputs
 function generateCetProperty(flavour: Flavour, gnuas: boolean): string {
-  if (!flavour.toString().includes('elf')) {
+  if (flavour !== Flavour.Elf) {
     return '';
   }
 
@@ -104,27 +104,26 @@ function generateCetProperty(flavour: Flavour, gnuas: boolean): string {
     ? '".note.gnu.property", "a"'
     : '.note.gnu.property, #alloc';
 
-  return `
-\t.section ${section}
-\t.p2align ${p2align}
-\t.long 1f - 0f
-\t.long 4f - 1f
-\t.long 5
+  return `\t.section ${section}
+	.p2align ${p2align}
+	.long 1f - 0f
+	.long 4f - 1f
+	.long 5
 0:
-\t# "GNU" encoded with .byte, since .asciz isn't supported
-\t# on Solaris.
-\t.byte 0x47
-\t.byte 0x4e
-\t.byte 0x55
-\t.byte 0
+	# "GNU" encoded with .byte, since .asciz isn't supported
+	# on Solaris.
+	.byte 0x47
+	.byte 0x4e
+	.byte 0x55
+	.byte 0
 1:
-\t.p2align ${p2align}
-\t.long 0xc0000002
-\t.long 3f - 2f
+	.p2align ${p2align}
+	.long 0xc0000002
+	.long 3f - 2f
 2:
-\t.long 3
+	.long 3
 3:
-\t.p2align ${p2align}
+	.p2align ${p2align}
 4:
 `;
 }
@@ -406,21 +405,18 @@ class Const {
     );
 
     if (config.gas) {
-      value = value.replace(/(?<![\w\$\.])(0x?[0-9a-f]+)/gi, m => {
-        try {
-          return String(parseInt(m));
-        } catch {
-          return m;
-        }
-      });
-
-      value = value.replace(/([0-9]+\s*[\*\/\%]\s*[0-9]+)/g, m => {
-        try {
-          return String(eval(m));
-        } catch {
-          return m;
-        }
-      });
+      // Mirror perl: hex conversion is folded back into the constant only
+      // when an arithmetic expression is present, otherwise the original
+      // literal is preserved (e.g. $0xffffffff stays untouched).
+      const converted = value.replace(
+        /(?<![\w\$\.])(0x?[0-9a-f]+)/gi,
+        m => String(parseInt(m)),
+      );
+      if (/([0-9]+\s*[\*\/\%]\s*[0-9]+)/.test(converted)) {
+        value = converted.replace(/([0-9]+\s*[\*\/\%]\s*[0-9]+)/g, m =>
+          String(eval(m)),
+        );
+      }
 
       return `$${value}`;
     } else {
@@ -509,8 +505,8 @@ class EA {
       String(eval(m)),
     );
 
-    // Sign extension for 32-bit offsets
-    label = label.replace(/\b([0-9]+)\b/g, m => String(parseInt(m) >>> 0));
+    // Sign extension for 32-bit offsets (perl: $1<<32>>32 under use integer)
+    label = label.replace(/\b([0-9]+)\b/g, m => String(parseInt(m) | 0));
 
     // Optimize base/index for rbp/r13
     if (!label && index && this.scale === 1 && base.match(/(rbp|r13)/)) {
@@ -1559,6 +1555,11 @@ export function translateAssembly(input: string, flavour?: Flavour): string {
   input = input.replaceAll('endbranch', '.byte   243,15,30,250');
 
   const lines = input.split('\n');
+  // Mirror perl's line-at-a-time reading: a single trailing newline is a line
+  // terminator, not an extra empty line.
+  if (lines.length > 0 && lines[lines.length - 1] === '') {
+    lines.pop();
+  }
   const output: string[] = [];
 
   // Add header for NASM/MASM
