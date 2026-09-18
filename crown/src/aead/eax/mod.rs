@@ -102,7 +102,7 @@ impl<B: BlockCipher, const TAG_SIZE: usize> EaxImpl<B, TAG_SIZE> {
             data.len() - data.len() % EAX_BLOCK_SIZE
         };
 
-        for chunk in data[..last_block_start].chunks_exact(EAX_BLOCK_SIZE) {
+        for chunk in data[..last_block_start].as_chunks::<EAX_BLOCK_SIZE>().0 {
             let mut block = [0u8; EAX_BLOCK_SIZE];
             block.copy_from_slice(chunk);
             self.mac_block(&mut state, &block);

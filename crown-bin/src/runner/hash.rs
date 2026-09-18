@@ -145,7 +145,7 @@ pub(crate) fn calc_and_output_hash(
                 continue;
             }
         }
-        for (_, (path, hex)) in buffer.iter() {
+        for (path, hex) in buffer.values() {
             println!("{hex} {path}");
         }
     });
