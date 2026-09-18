@@ -1,4 +1,6 @@
 // pub mod cpuid;
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+pub mod cpuid;
 pub mod subtle;
 
 pub(crate) fn copy(dst: &mut [u8], src: &[u8]) -> usize {
