@@ -1,7 +1,7 @@
 // SHA512 block step.
 // In its own file so that a faster assembly or C version
 // can be substituted easily.
-
+#![allow(dead_code)]
 use super::*;
 use crate::error::CryptoResult;
 
@@ -88,6 +88,9 @@ const K: [u64; 80] = [
     0x5fcb6fab3ad6faec,
     0x6c44198c4a475817,
 ];
+
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+pub(crate) mod asm;
 
 /// SHA512 block size in bytes
 const CHUNK: usize = 128;

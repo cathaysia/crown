@@ -1,4 +1,7 @@
 // SHA256 block step.
+#![allow(dead_code)]
+
+// SHA256 block step.
 // In its own file so that a faster assembly or C version
 // can be substituted easily.
 

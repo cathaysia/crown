@@ -19,6 +19,7 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
+mod block;
 #[cfg(feature = "cuda")]
 pub mod cuda;
 mod generic;
@@ -257,7 +258,7 @@ impl<const N: usize, const IS_224: bool> Hash<N> for Sha256<N, IS_224> {
 }
 
 fn block<const N: usize, const IS_224: bool>(d: &mut Sha256<N, IS_224>, p: &[u8]) {
-    generic::block_generic(d, p);
+    block::block(d, p);
 }
 
 /// Create a new [Hash] computing the SHA-256 checksum.
