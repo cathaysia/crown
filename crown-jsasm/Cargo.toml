@@ -11,12 +11,11 @@ repository.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-rquickjs = { version = "0.13", features = ["full"] }
-swc_common = { version = "=21.0.1", features = ["tty-emitter"] }
+rquickjs = { version = "0.13", features = ["loader"] }
+swc_common = "=21.0.1"
 swc_ecma_ast = "=23.0.0"
 serde.workspace = true
 swc_ecma_parser = { version = "=39.1.0", default-features = false }
-swc_compiler_base = "=55.0.0"
-swc_ecma_transforms = { version = "=52.0.0", features = ["typescript"] }
+swc_ecma_transforms_typescript = "=46.0.1"
 swc_ecma_transforms_base = "42.0.1"
 swc_ecma_codegen = "26.0.1"

@@ -1,15 +1,12 @@
 use anyhow::anyhow;
 use swc_common::{
-    comments::SingleThreadedComments,
-    errors::{ColorConfig, Handler},
-    sync::Lrc,
-    FileName, Mark, SourceMap,
+    comments::SingleThreadedComments, sync::Lrc, FileName, Mark, SourceMap,
 };
 use swc_ecma_ast::EsVersion;
 use swc_ecma_codegen::{text_writer::JsWriter, Emitter};
-use swc_ecma_parser::Syntax;
-use swc_ecma_transforms::typescript::strip;
+use swc_ecma_parser::{Lexer, Parser, StringInput, TsSyntax};
 use swc_ecma_transforms_base::{fixer::fixer, hygiene::hygiene, resolver};
+use swc_ecma_transforms_typescript::strip;
 
 pub(crate) fn transpile_ts(code: Option<&str>, file_path: &str) -> anyhow::Result<String> {
     let globals = swc_common::Globals::default();
@@ -23,19 +20,21 @@ pub(crate) fn transpile_ts(code: Option<&str>, file_path: &str) -> anyhow::Resul
             None => cm.load_file(std::path::Path::new(file_path))?,
         };
 
-        let handler =
-            Handler::with_tty_emitter(ColorConfig::Always, false, false, Some(cm.clone()));
+        let comments = SingleThreadedComments::default();
 
-        let program = swc_compiler_base::parse_js(
-            cm.clone(),
-            fm.clone(),
-            &handler,
+        let lexer = Lexer::new(
+            swc_ecma_parser::Syntax::Typescript(TsSyntax::default()),
             EsVersion::Es2024,
-            Syntax::Typescript(Default::default()),
-            Default::default(),
-            None,
-        )
-        .map_err(|e| anyhow!("Failed to parse {file_path}: {e:?}"))?;
+            StringInput::from(&*fm),
+            Some(&comments),
+        );
+        let mut parser = Parser::new_from(lexer);
+        let program = parser
+            .parse_program()
+            .map_err(|e| anyhow!("Failed to parse {file_path}: {e:?}"))?;
+        if let Some(err) = parser.take_errors().into_iter().next() {
+            return Err(anyhow!("Failed to parse {file_path}: {err:?}"));
+        }
 
         let unresolved_mark = Mark::new();
         let top_level_mark = Mark::new();
@@ -50,7 +49,6 @@ pub(crate) fn transpile_ts(code: Option<&str>, file_path: &str) -> anyhow::Resul
         let program = program.apply(hygiene());
 
         // Ensure that we have enough parenthesis.
-        let comments = SingleThreadedComments::default();
         let program = program.apply(fixer(Some(&comments)));
 
         let mut buf = Vec::new();
