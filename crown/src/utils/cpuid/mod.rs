@@ -16,6 +16,12 @@ extern "C" {
     fn OPENSSL_ia32_cpuid(out: *mut u32) -> u64;
 }
 
+/// Returns the CPU feature flags collected by OPENSSL_cpuid_setup.
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+pub(crate) fn ia32cap(index: usize) -> u32 {
+    unsafe { (*core::ptr::addr_of!(OPENSSL_ia32cap_P))[index] }
+}
+
 /// Called from the .init section stub emitted by x86_64.ts, mirroring
 /// OpenSSL's cryptlib.c OPENSSL_cpuid_setup: fills OPENSSL_ia32cap_P with
 /// the CPU feature flags. The OPENSSL_ia32CAP environment override is not
