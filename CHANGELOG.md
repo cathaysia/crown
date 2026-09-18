@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.5](https://github.com/cathaysia/crown/compare/v0.26.4...v0.26.5) (2026-09-18)
+
+
+### Performance Improvements
+
+* **crown-jsasm:** replace boa_engine with rquickjs, keep swc bundler ([ba2d247](https://github.com/cathaysia/crown/commit/ba2d2476ee850b5d9cb393a38e93a06ffb2ef708))
+
 ## [0.26.4](https://github.com/cathaysia/crown/compare/v0.26.3...v0.26.4) (2026-09-17)
 
 

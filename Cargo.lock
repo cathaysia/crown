@@ -620,7 +620,7 @@ checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
 name = "crown"
-version = "0.26.4"
+version = "0.26.5"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -665,7 +665,7 @@ dependencies = [
 
 [[package]]
 name = "crown-bin"
-version = "0.26.4"
+version = "0.26.5"
 dependencies = [
  "anyhow",
  "base64",
@@ -689,7 +689,7 @@ dependencies = [
 
 [[package]]
 name = "crown-cabi"
-version = "0.26.4"
+version = "0.26.5"
 dependencies = [
  "cbindgen",
  "crown",
@@ -699,7 +699,7 @@ dependencies = [
 
 [[package]]
 name = "crown-derive"
-version = "0.26.4"
+version = "0.26.5"
 dependencies = [
  "crown-jsasm",
  "darling",
@@ -710,7 +710,7 @@ dependencies = [
 
 [[package]]
 name = "crown-jsasm"
-version = "0.26.4"
+version = "0.26.5"
 dependencies = [
  "anyhow",
  "rquickjs",
@@ -726,7 +726,7 @@ dependencies = [
 
 [[package]]
 name = "crown-wasm"
-version = "0.26.4"
+version = "0.26.5"
 dependencies = [
  "crown",
  "js-sys",
