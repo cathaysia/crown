@@ -18,6 +18,9 @@ mod shake;
 pub use shake::*;
 
 mod noasm;
+
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+mod asm;
 use crate::core::CoreWrite;
 use crate::hash::HashUser;
 use digest::SpongeDirection;
