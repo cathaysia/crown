@@ -7,12 +7,10 @@
 //! [sha512](crate::hash::sha512) or the [sha3](crate::hash::sha3).
 //!
 mod block;
-
-mod generic;
+use block::block;
 use bytes::BufMut;
 #[cfg(feature = "marshal")]
 use crown_derive::Marshal;
-use generic::*;
 
 #[cfg(test)]
 mod tests;
