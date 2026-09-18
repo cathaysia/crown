@@ -330,10 +330,13 @@ xor128_decrypt_n_pad:
 }
 
 genScalar();
-genXor128();
 
+// the signature string is emitted between poly1305_emit and the
+// chacha20-poly1305 helper functions
 code += `.asciz	"Poly1305 for x86_64, CRYPTOGAMS by <https://github.com/dot-asm>"
 .align	16
 `;
+
+genXor128();
 
 export default translateAssembly(code);
