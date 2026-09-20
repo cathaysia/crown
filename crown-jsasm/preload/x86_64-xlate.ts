@@ -413,9 +413,8 @@ class Const {
       // Mirror perl: hex conversion is folded back into the constant only
       // when an arithmetic expression is present, otherwise the original
       // literal is preserved (e.g. $0xffffffff stays untouched).
-      const converted = value.replace(
-        /(?<![\w\$\.])(0x?[0-9a-f]+)/gi,
-        m => String(parseInt(m)),
+      const converted = value.replace(/(?<![\w\$\.])(0x?[0-9a-f]+)/gi, m =>
+        String(parseInt(m)),
       );
       if (/([0-9]+\s*[\*\/\%]\s*[0-9]+)/.test(converted)) {
         value = converted.replace(/([0-9]+\s*[\*\/\%]\s*[0-9]+)/g, m =>
