@@ -43,10 +43,10 @@ function AUTOLOAD(opcode: string, ...args: string[]): void {
 }
 
 function LB(r: string): string {
-  let out = r.replace(/%[er]([a-d])x/,'%$1l');
-  if (out === r) out = r.replace(/%[er]([sd]i)/,'%$1l');
-  if (out === r) out = r.replace(/%[er](bp)/,'%$1l');
-  if (out === r) out = r.replace(/%(r[0-9]+)[d]?/,'%$1b');
+  let out = r.replace(/%[er]([a-d])x/, '%$1l');
+  if (out === r) out = r.replace(/%[er]([sd]i)/, '%$1l');
+  if (out === r) out = r.replace(/%[er](bp)/, '%$1l');
+  if (out === r) out = r.replace(/%(r[0-9]+)[d]?/, '%$1b');
   return out;
 }
 

@@ -82,16 +82,39 @@ code += `.text
 // ialu round: critical path is 24 cycles per round
 // ---------------------------------------------------------------------------
 const x = [
-  '%eax', '%ebx', '%ecx', '%edx', '%r8d', '%r9d', '%r10d', '%r11d',
-  'nox', 'nox', 'nox', 'nox', '%r12d', '%r13d', '%r14d', '%r15d',
+  '%eax',
+  '%ebx',
+  '%ecx',
+  '%edx',
+  '%r8d',
+  '%r9d',
+  '%r10d',
+  '%r11d',
+  'nox',
+  'nox',
+  'nox',
+  'nox',
+  '%r12d',
+  '%r13d',
+  '%r14d',
+  '%r15d',
 ];
 const t = ['%esi', '%edi'];
 
 function ROUND(a0: number, b0: number, c0: number, d0: number): void {
   const lane = (v: number) => (v & ~3) + ((v + 1) & 3);
-  const a1 = lane(a0), b1 = lane(b0), c1 = lane(c0), d1 = lane(d0);
-  const a2 = lane(a1), b2 = lane(b1), c2 = lane(c1), d2 = lane(d1);
-  const a3 = lane(a2), b3 = lane(b2), c3 = lane(c2), d3 = lane(d2);
+  const a1 = lane(a0),
+    b1 = lane(b0),
+    c1 = lane(c0),
+    d1 = lane(d0);
+  const a2 = lane(a1),
+    b2 = lane(b1),
+    c2 = lane(c1),
+    d2 = lane(d1);
+  const a3 = lane(a2),
+    b3 = lane(b2),
+    c3 = lane(c2),
+    d3 = lane(d2);
   const xc = t[0];
   const xc_ = t[1];
 
@@ -348,8 +371,14 @@ ChaCha20_ctr32:
 // SSSE3 code path that handles shorter lengths
 // ---------------------------------------------------------------------------
 function SSSE3ROUND(
-  a: string, b: string, c: string, d: string,
-  t0: string, t1: string, rot16: string, rot24: string,
+  a: string,
+  b: string,
+  c: string,
+  d: string,
+  t0: string,
+  t1: string,
+  rot16: string,
+  rot24: string,
 ): void {
   AUTOLOAD('paddd', a, b);
   AUTOLOAD('pxor', d, a);
@@ -375,8 +404,14 @@ function SSSE3ROUND(
 }
 
 function genSsse3(): void {
-  const a = '%xmm0', b = '%xmm1', c = '%xmm2', d = '%xmm3';
-  const t0 = '%xmm4', t1 = '%xmm5', rot16 = '%xmm6', rot24 = '%xmm7';
+  const a = '%xmm0',
+    b = '%xmm1',
+    c = '%xmm2',
+    d = '%xmm3';
+  const t0 = '%xmm4',
+    t1 = '%xmm5',
+    rot16 = '%xmm6',
+    rot24 = '%xmm7';
   const xframe = 8; // win64 ? 160+8 : 8
 
   code += `.type	ChaCha20_ssse3,@function,5
@@ -494,9 +529,18 @@ ChaCha20_ssse3:
 // SSSE3 code path that handles 128-byte inputs
 // ---------------------------------------------------------------------------
 function SSSE3ROUND_2x(
-  a: string, b: string, c: string, d: string,
-  t0: string, t1: string, rot16: string, rot24: string,
-  a1: string, b1: string, c1: string, d1: string,
+  a: string,
+  b: string,
+  c: string,
+  d: string,
+  t0: string,
+  t1: string,
+  rot16: string,
+  rot24: string,
+  a1: string,
+  b1: string,
+  c1: string,
+  d1: string,
 ): void {
   AUTOLOAD('paddd', a, b);
   AUTOLOAD('pxor', d, a);
@@ -540,9 +584,18 @@ function SSSE3ROUND_2x(
 }
 
 function gen128(): void {
-  const a = '%xmm8', b = '%xmm9', c = '%xmm2', d = '%xmm3';
-  const t0 = '%xmm4', t1 = '%xmm5', rot16 = '%xmm6', rot24 = '%xmm7';
-  const a1 = '%xmm10', b1 = '%xmm11', c1 = '%xmm0', d1 = '%xmm1';
+  const a = '%xmm8',
+    b = '%xmm9',
+    c = '%xmm2',
+    d = '%xmm3';
+  const t0 = '%xmm4',
+    t1 = '%xmm5',
+    rot16 = '%xmm6',
+    rot24 = '%xmm7';
+  const a1 = '%xmm10',
+    b1 = '%xmm11',
+    c1 = '%xmm0',
+    d1 = '%xmm1';
   const xframe = 8; // win64 ? 0x68 : 8
 
   code += `.type	ChaCha20_128,@function,5
@@ -640,21 +693,59 @@ ChaCha20_128:
 
 function gen4x(): void {
   // assign variables to favor Atom front-end
-  let xd0 = '%xmm0', xd1 = '%xmm1', xd2 = '%xmm2', xd3 = '%xmm3';
-  let xt0 = '%xmm4', xt1 = '%xmm5', xt2 = '%xmm6', xt3 = '%xmm7';
-  let xa0 = '%xmm8', xa1 = '%xmm9', xa2 = '%xmm10', xa3 = '%xmm11';
-  let xb0 = '%xmm12', xb1 = '%xmm13', xb2 = '%xmm14', xb3 = '%xmm15';
+  let xd0 = '%xmm0',
+    xd1 = '%xmm1',
+    xd2 = '%xmm2',
+    xd3 = '%xmm3';
+  let xt0 = '%xmm4',
+    xt1 = '%xmm5',
+    xt2 = '%xmm6',
+    xt3 = '%xmm7';
+  let xa0 = '%xmm8',
+    xa1 = '%xmm9',
+    xa2 = '%xmm10',
+    xa3 = '%xmm11';
+  let xb0 = '%xmm12',
+    xb1 = '%xmm13',
+    xb2 = '%xmm14',
+    xb3 = '%xmm15';
   const xx = [
-    xa0, xa1, xa2, xa3, xb0, xb1, xb2, xb3,
-    'nox', 'nox', 'nox', 'nox', xd0, xd1, xd2, xd3,
+    xa0,
+    xa1,
+    xa2,
+    xa3,
+    xb0,
+    xb1,
+    xb2,
+    xb3,
+    'nox',
+    'nox',
+    'nox',
+    'nox',
+    xd0,
+    xd1,
+    xd2,
+    xd3,
   ];
 
   function laneROUND(a0: number, b0: number, c0: number, d0: number): void {
     const lane = (v: number) => (v & ~3) + ((v + 1) & 3);
-    const a1 = lane(a0), b1 = lane(b0), c1 = lane(c0), d1 = lane(d0);
-    const a2 = lane(a1), b2 = lane(b1), c2 = lane(c1), d2 = lane(d1);
-    const a3 = lane(a2), b3 = lane(b2), c3 = lane(c2), d3 = lane(d2);
-    const xc = xt0, xc_ = xt1, t0 = xt2, t1 = xt3;
+    const a1 = lane(a0),
+      b1 = lane(b0),
+      c1 = lane(c0),
+      d1 = lane(d0);
+    const a2 = lane(a1),
+      b2 = lane(b1),
+      c2 = lane(c1),
+      d2 = lane(d1);
+    const a3 = lane(a2),
+      b3 = lane(b2),
+      c3 = lane(c2),
+      d3 = lane(d2);
+    const xc = xt0,
+      xc_ = xt1,
+      t0 = xt2,
+      t1 = xt3;
 
     AUTOLOAD('paddd', xx[a0], xx[b0]); // Q1
     AUTOLOAD('paddd', xx[a1], xx[b1]); // Q2
@@ -893,7 +984,10 @@ ChaCha20_4x:
   // perl: ($xb2,$xt2)=($xt2,$xb2);
   [xb2, xt2] = [xt2, xb2];
   // perl: my ($xc0,$xc1,$xc2,$xc3)=($xt0,$xt1,$xa0,$xa1);
-  let xc0 = xt0, xc1 = xt1, xc2 = xa0, xc3 = xa1;
+  let xc0 = xt0,
+    xc1 = xt1,
+    xc2 = xa0,
+    xc3 = xa1;
   code += `	paddd		0xc0-0x100(%rcx),${xc0}
 	paddd		0xd0-0x100(%rcx),${xc1}
 	paddd		0xe0-0x100(%rcx),${xc2}

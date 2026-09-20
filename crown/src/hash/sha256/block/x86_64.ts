@@ -589,12 +589,15 @@ function body_00_15(): Insn[] {
     insn('&mov($a0,$d)', () => {
       AUTOLOAD('mov', a0, d);
     }),
-    insn('&add($a1,$h);($a2,$a3)=($a3,$a2);unshift(@ROT,pop(@ROT));$i++;', () => {
-      AUTOLOAD('add', a1, h); // h+=Sigma0(a)
-      [a2, a3] = [a3, a2];
-      ROT.unshift(ROT.pop() as string);
-      i++;
-    }),
+    insn(
+      '&add($a1,$h);($a2,$a3)=($a3,$a2);unshift(@ROT,pop(@ROT));$i++;',
+      () => {
+        AUTOLOAD('add', a1, h); // h+=Sigma0(a)
+        [a2, a3] = [a3, a2];
+        ROT.unshift(ROT.pop() as string);
+        i++;
+      },
+    ),
   ];
 }
 
