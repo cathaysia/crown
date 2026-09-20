@@ -55,7 +55,7 @@ jobs:
       - name: run unit tests for ${{ matrix.target[0] }}
         if: ${{ !contains(matrix.target[0], 'mips') }}
         run: |
-          cross test --target=${{ matrix.target[0] }}
+          cross test --target=${{ matrix.target[0] }} -p crown
 
       - name: run unit tests for ${{ matrix.target[0] }}
         if: ${{ contains(matrix.target[0], 'mips') }}
