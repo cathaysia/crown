@@ -11,7 +11,7 @@ repository.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-rquickjs = { version = "0.13", features = ["loader"] }
+rquickjs = { version = "0.14", features = ["loader"] }
 swc_common = "=21.0.1"
 swc_ecma_ast = "=23.0.0"
 serde.workspace = true
@@ -19,3 +19,18 @@ swc_ecma_parser = { version = "=39.1.0", default-features = false }
 swc_ecma_transforms_typescript = "=46.0.1"
 swc_ecma_transforms_base = "42.0.1"
 swc_ecma_codegen = "26.0.1"
+
+[target.x86_64-linux-android.dependencies]
+rquickjs-sys = { version = "0.14", features = ["bindgen"] }
+
+[target.arm-unknown-linux-gnueabihf.dependencies]
+rquickjs-sys = { version = "0.14", features = ["bindgen"] }
+
+[target.arm-unknown-linux-musleabi.dependencies]
+rquickjs-sys = { version = "0.14", features = ["bindgen"] }
+
+[target.armv7-unknown-linux-gnueabi.dependencies]
+rquickjs-sys = { version = "0.14", features = ["bindgen"] }
+
+[target.aarch64-linux-android.dependencies]
+rquickjs-sys = { version = "0.14", features = ["bindgen"] }
