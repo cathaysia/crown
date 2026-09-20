@@ -196,7 +196,17 @@ for (i = 0; i < 16; i++) {
   code += `	mov	${ROT[4]},${a0}\n`;
   code += `	mov	${ROT[0]},${a1}\n`;
   code += `	bswap	${T1}\n`;
-  ROUND_00_15(i, ROT[0], ROT[1], ROT[2], ROT[3], ROT[4], ROT[5], ROT[6], ROT[7]);
+  ROUND_00_15(
+    i,
+    ROT[0],
+    ROT[1],
+    ROT[2],
+    ROT[3],
+    ROT[4],
+    ROT[5],
+    ROT[6],
+    ROT[7],
+  );
   ROT.unshift(ROT.pop() as string);
 }
 code += `	jmp	.Lrounds_16_xx
@@ -204,7 +214,17 @@ code += `	jmp	.Lrounds_16_xx
 .Lrounds_16_xx:
 `;
 for (; i < 32; i++) {
-  ROUND_16_XX(i, ROT[0], ROT[1], ROT[2], ROT[3], ROT[4], ROT[5], ROT[6], ROT[7]);
+  ROUND_16_XX(
+    i,
+    ROT[0],
+    ROT[1],
+    ROT[2],
+    ROT[3],
+    ROT[4],
+    ROT[5],
+    ROT[6],
+    ROT[7],
+  );
   ROT.unshift(ROT.pop() as string);
 }
 

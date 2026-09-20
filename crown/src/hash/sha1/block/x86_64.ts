@@ -416,7 +416,16 @@ const T = ['%esi', '%edi'];
 let j = 0;
 let rx = 0;
 let Xi = 4;
-const X = ['%xmm4', '%xmm5', '%xmm6', '%xmm7', '%xmm0', '%xmm1', '%xmm2', '%xmm3'];
+const X = [
+  '%xmm4',
+  '%xmm5',
+  '%xmm6',
+  '%xmm7',
+  '%xmm0',
+  '%xmm1',
+  '%xmm2',
+  '%xmm3',
+];
 const Tx = ['%xmm8', '%xmm9', '%xmm10'];
 const Kx = '%xmm11';
 const K_XX_XX = '%r14';
@@ -602,14 +611,14 @@ function Xupdate_ssse3_16_31(body: () => Insn[]): void {
   };
 
   ev(); // ror
-  AUTOLOAD('pshufd', X[0], X[(-4) & 7], '238'); // was &movdqa (@X[0],@X[-3&7]);
+  AUTOLOAD('pshufd', X[0], X[-4 & 7], '238'); // was &movdqa (@X[0],@X[-3&7]);
   ev();
-  AUTOLOAD('movdqa', Tx[0], X[(-1) & 7]);
-  AUTOLOAD('paddd', Tx[1], X[(-1) & 7]);
+  AUTOLOAD('movdqa', Tx[0], X[-1 & 7]);
+  AUTOLOAD('paddd', Tx[1], X[-1 & 7]);
   ev();
   ev();
 
-  AUTOLOAD('punpcklqdq', X[0], X[(-3) & 7]); // compose "X[-14]" in "X[0]", was &palignr(@X[0],@X[-4&7],8);
+  AUTOLOAD('punpcklqdq', X[0], X[-3 & 7]); // compose "X[-14]" in "X[0]", was &palignr(@X[0],@X[-4&7],8);
   ev();
   ev(); // rol
   ev();
@@ -617,10 +626,10 @@ function Xupdate_ssse3_16_31(body: () => Insn[]): void {
   ev();
   ev();
 
-  AUTOLOAD('pxor', X[0], X[(-4) & 7]); // "X[0]"^="X[-16]"
+  AUTOLOAD('pxor', X[0], X[-4 & 7]); // "X[0]"^="X[-16]"
   ev();
   ev(); // ror
-  AUTOLOAD('pxor', Tx[0], X[(-2) & 7]); // "X[-3]"^"X[-8]"
+  AUTOLOAD('pxor', Tx[0], X[-2 & 7]); // "X[-3]"^"X[-8]"
   ev();
   ev();
   ev();
@@ -663,14 +672,18 @@ function Xupdate_ssse3_16_31(body: () => Insn[]): void {
   AUTOLOAD('pslld', Tx[1], '2');
   AUTOLOAD('pxor', X[0], Tx[2]);
   ev();
-  AUTOLOAD('movdqa', Tx[2], (2 * 16 * Math.floor(Xi / 5) - 64).toString() + `(${K_XX_XX})`); // K_XX_XX
+  AUTOLOAD(
+    'movdqa',
+    Tx[2],
+    (2 * 16 * Math.floor(Xi / 5) - 64).toString() + `(${K_XX_XX})`,
+  ); // K_XX_XX
   ev(); // rol
   ev();
   ev();
 
   AUTOLOAD('pxor', X[0], Tx[1]); // "X[0]"^=("X[0]">>96)<<<2
   if (Xi === 7) {
-    AUTOLOAD('pshufd', Tx[1], X[(-1) & 7], '238'); // was &movdqa (@Tx[0],@X[-1&7]) in Xupdate_ssse3_32_79
+    AUTOLOAD('pshufd', Tx[1], X[-1 & 7], '238'); // was &movdqa (@Tx[0],@X[-1&7]) in Xupdate_ssse3_32_79
   }
 
   for (const s of insns) {
@@ -694,7 +707,7 @@ function Xupdate_ssse3_32_79(body: () => Insn[]): void {
   if (Xi === 8) {
     ev();
   }
-  AUTOLOAD('pxor', X[0], X[(-4) & 7]); // "X[0]"="X[-32]"^"X[-16]"
+  AUTOLOAD('pxor', X[0], X[-4 & 7]); // "X[0]"="X[-32]"^"X[-16]"
   if (Xi === 8) {
     ev();
   }
@@ -706,21 +719,25 @@ function Xupdate_ssse3_32_79(body: () => Insn[]): void {
   if (/_ror/.test(insns[0]?.text ?? '')) {
     ev();
   }
-  AUTOLOAD('punpcklqdq', Tx[0], X[(-1) & 7]); // compose "X[-6]", was &palignr(@Tx[0],@X[-2&7],8);
+  AUTOLOAD('punpcklqdq', Tx[0], X[-1 & 7]); // compose "X[-6]", was &palignr(@Tx[0],@X[-2&7],8);
   ev();
   ev(); // rol
 
-  AUTOLOAD('pxor', X[0], X[(-7) & 7]); // "X[0]"^="X[-28]"
+  AUTOLOAD('pxor', X[0], X[-7 & 7]); // "X[0]"^="X[-28]"
   ev();
   ev();
   if (Xi % 5 !== 0) {
     AUTOLOAD('movdqa', Tx[2], Tx[1]); // "perpetuate" K_XX_XX...
   } else {
     // ... or load next one
-    AUTOLOAD('movdqa', Tx[2], (2 * 16 * Math.floor(Xi / 5) - 64).toString() + `(${K_XX_XX})`);
+    AUTOLOAD(
+      'movdqa',
+      Tx[2],
+      (2 * 16 * Math.floor(Xi / 5) - 64).toString() + `(${K_XX_XX})`,
+    );
   }
   ev(); // ror
-  AUTOLOAD('paddd', Tx[1], X[(-1) & 7]);
+  AUTOLOAD('paddd', Tx[1], X[-1 & 7]);
   ev();
 
   AUTOLOAD('pxor', X[0], Tx[0]); // "X[0]"^="X[-6]"
@@ -761,7 +778,7 @@ function Xupdate_ssse3_32_79(body: () => Insn[]): void {
     ev();
   }
   if (Xi < 19) {
-    AUTOLOAD('pshufd', Tx[1], X[(-1) & 7], '238'); // was &movdqa (@Tx[1],@X[0])
+    AUTOLOAD('pshufd', Tx[1], X[-1 & 7], '238'); // was &movdqa (@Tx[1],@X[0])
   }
   ev();
   ev(); // rol
@@ -792,7 +809,7 @@ function Xuplast_ssse3_80(body: () => Insn[]): void {
   ev();
   ev();
   ev();
-  AUTOLOAD('paddd', Tx[1], X[(-1) & 7]);
+  AUTOLOAD('paddd', Tx[1], X[-1 & 7]);
   ev();
   ev();
 
@@ -809,11 +826,11 @@ function Xuplast_ssse3_80(body: () => Insn[]): void {
 
   AUTOLOAD('movdqa', X[2], `64(${K_XX_XX})`); // pbswap mask
   AUTOLOAD('movdqa', Tx[1], `-64(${K_XX_XX})`); // K_00_19
-  AUTOLOAD('movdqu', X[(-4) & 7], `0(${inp})`); // load input
-  AUTOLOAD('movdqu', X[(-3) & 7], `16(${inp})`);
-  AUTOLOAD('movdqu', X[(-2) & 7], `32(${inp})`);
-  AUTOLOAD('movdqu', X[(-1) & 7], `48(${inp})`);
-  AUTOLOAD('pshufb', X[(-4) & 7], X[2]); // byte swap
+  AUTOLOAD('movdqu', X[-4 & 7], `0(${inp})`); // load input
+  AUTOLOAD('movdqu', X[-3 & 7], `16(${inp})`);
+  AUTOLOAD('movdqu', X[-2 & 7], `32(${inp})`);
+  AUTOLOAD('movdqu', X[-1 & 7], `48(${inp})`);
+  AUTOLOAD('pshufb', X[-4 & 7], X[2]); // byte swap
   AUTOLOAD('add', inp, '64');
 
   Xi = 0;

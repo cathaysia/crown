@@ -713,7 +713,12 @@ code += `	ret
 .cfi_endproc
 .size	${PREFIX}_decrypt,.-${PREFIX}_decrypt
 `;
-let inp = '%rdi', out = '%rsi', len = '%rdx', key = '%rcx', ivp = '%r8', enc = '%r9';
+let inp = '%rdi',
+  out = '%rsi',
+  len = '%rdx',
+  key = '%rcx',
+  ivp = '%r8',
+  enc = '%r9';
 code += `.globl	${PREFIX}_cbc_encrypt
 .type	${PREFIX}_cbc_encrypt,@function,6
 .align	16
