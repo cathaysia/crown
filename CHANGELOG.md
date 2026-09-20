@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.6](https://github.com/cathaysia/crown/compare/v0.26.5...v0.26.6) (2026-09-20)
+
+
+### Performance Improvements
+
+* **crown-jsasm:** trim swc and rquickjs deps to cut cold build time ([3a11264](https://github.com/cathaysia/crown/commit/3a112643cf00e23cef2ec6ac24f7b6633da89702))
+
 ## [0.26.5](https://github.com/cathaysia/crown/compare/v0.26.4...v0.26.5) (2026-09-18)
 
 
