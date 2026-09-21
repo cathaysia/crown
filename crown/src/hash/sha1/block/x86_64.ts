@@ -195,8 +195,8 @@ sha1_block_data_order:
 	test	$${1 << 9},%r8d		# check SSSE3 bit
 	jz	.Lialu
 	test	$${1 << 29},%r10d		# check SHA bit
-	jnz	_shaext_shortcut
-	jmp	_ssse3_shortcut
+	jnz	.Lshaext_shortcut
+	jmp	.Lssse3_shortcut
 
 .align	16
 .Lialu:
@@ -301,7 +301,7 @@ function genShaext(): void {
   code += `.type	sha1_block_data_order_shaext,@function,3
 .align	32
 sha1_block_data_order_shaext:
-_shaext_shortcut:
+.Lshaext_shortcut:
 .cfi_startproc
 	movdqu	(${seCtx}),${ABCD}
 	movd	16(${seCtx}),${E}
@@ -883,7 +883,7 @@ function genSsse3(): void {
   code += `.type	sha1_block_data_order_ssse3,@function,3
 .align	16
 sha1_block_data_order_ssse3:
-_ssse3_shortcut:
+.Lssse3_shortcut:
 .cfi_startproc
 	mov	%rsp,${fp}	# frame pointer
 .cfi_def_cfa_register	${fp}

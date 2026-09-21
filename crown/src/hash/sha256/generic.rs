@@ -224,7 +224,7 @@ pub fn block_generic<const N: usize, const IS_224: bool>(
 ) {
     // Local copy avoids repeated bounds checks / aliasing stores.
     let mut state = dig.h;
-    for block in p.chunks_exact(CHUNK) {
+    for block in p.as_chunks::<CHUNK>().0 {
         block_u32(&mut state, block);
     }
     dig.h = state;
