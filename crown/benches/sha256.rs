@@ -36,7 +36,7 @@ fn bench_sha256(c: &mut Criterion) {
             ),
             |b| {
                 b.iter(|| {
-                    let _ = crown::hash::sha256::sum256(black_box(data));
+                    black_box(crown::hash::sha256::sum256(black_box(data)));
                 })
             },
         );
@@ -48,8 +48,7 @@ fn bench_sha256(c: &mut Criterion) {
             ),
             |b| {
                 b.iter(|| {
-                    let digest = sha2::Sha256::digest(black_box(data));
-                    let _ = digest.to_vec();
+                    black_box(sha2::Sha256::digest(black_box(data)));
                 })
             },
         );
