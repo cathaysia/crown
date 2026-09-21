@@ -154,7 +154,7 @@ ${func}:
     mov 0(%r10),%r9
     mov 8(%r10),%r11d
     test $${1 << 29},%r11d            # check for SHA
-    jnz  _shaext_shortcut
+    jnz  .Lshaext_shortcut
     bt $41,%r9                     # mask SSSE3
     jc .Lssse3_shortcut
 	mov	%rsp,%rax		# copy %rsp
@@ -354,7 +354,7 @@ function genShaext(): void {
   code += `.type	sha256_block_data_order_shaext,@function,3
 .align	64
 sha256_block_data_order_shaext:
-_shaext_shortcut:
+.Lshaext_shortcut:
 .cfi_startproc
 	lea		K256+0x80(%rip),${seTbl}
 	movdqu		(${seCtx}),${ABEF}		# DCBA
