@@ -295,14 +295,16 @@ pub fn new224() -> Sha256<28, true> {
 pub fn sum256(data: &[u8]) -> [u8; SIZE] {
     let mut h = new256();
     h.write_all(data).unwrap();
-
-    h.sum()
+    // One-shot: finalize in place, skip the streaming `sum()` clone.
+    h.check_sum()
 }
 
 /// Compute the SHA-224 checksum of the input.
 pub fn sum224(data: &[u8]) -> [u8; SIZE224] {
     let mut h = new224();
     h.write_all(data).unwrap();
-
-    h.sum()
+    let full = h.check_sum();
+    let mut ret = [0u8; SIZE224];
+    ret.copy_from_slice(&full[..SIZE224]);
+    ret
 }
