@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.27.0](https://github.com/cathaysia/crown/compare/v0.26.6...v0.27.0) (2026-09-23)
+
+
+### Features
+
+* **asm:** add aes x86_64 asm ([5c7be4c](https://github.com/cathaysia/crown/commit/5c7be4c7b7f521d4af6c41e4217b71c50271900b))
+* **asm:** add aesni-gcm x86_64 asm ([7bba546](https://github.com/cathaysia/crown/commit/7bba546f59de9d154b693d665367e3d3a6f8c577))
+* **asm:** add aesni, bsaes and rc4-md5 x86_64 asm ([cb3fe68](https://github.com/cathaysia/crown/commit/cb3fe6878bd60aa359692d22fb06f1225525bf29))
+* **asm:** add camellia x86_64 asm ([5e48bbc](https://github.com/cathaysia/crown/commit/5e48bbc7844cca5d9a0a03ccd49ce0d121f61da2))
+* **asm:** add chacha20 x86_64 asm ([8da1e50](https://github.com/cathaysia/crown/commit/8da1e50203a94a34e312a11034520a142e47ccb1))
+* **asm:** add ghash x86_64 asm ([8e2c27f](https://github.com/cathaysia/crown/commit/8e2c27fd051efe5d1116d3c9402d15910d88bacd))
+* **asm:** add keccak1600 x86_64 asm ([5d5eef5](https://github.com/cathaysia/crown/commit/5d5eef5ea1462e0c466092155b0b9b1f69acb750))
+* **asm:** add poly1305 x86_64 asm ([e1e497b](https://github.com/cathaysia/crown/commit/e1e497b1caf23e32288da37dd8fdbafc8c52af98))
+* **asm:** add sha1 x86_64 asm ([79cccbf](https://github.com/cathaysia/crown/commit/79cccbf941997fd94fa122649d6db3c3d0624722))
+* **asm:** add sha256 and sha512 x86_64 asm ([aa67d0c](https://github.com/cathaysia/crown/commit/aa67d0ccb51f590eaecc9b55da24eaaaa9a76be8))
+* **asm:** add sm3 x86_64 asm ([1fe7a92](https://github.com/cathaysia/crown/commit/1fe7a9290f1af5a74d7d8889af1b2778d66042df))
+* **asm:** add sm4 x86_64 asm ([b933fe7](https://github.com/cathaysia/crown/commit/b933fe77527515c67ca51bd264e2028614df52b8))
+* **asm:** add vpaes x86_64 asm ([7399621](https://github.com/cathaysia/crown/commit/739962140f21618a8466eb6e1da8f2476cd6178f))
+* **asm:** wire cpuid asm and OPENSSL_ia32cap_P initialization ([f88ab8c](https://github.com/cathaysia/crown/commit/f88ab8c5c6ff028a344240d68b8ce60384758733))
+* **hkdf:** switch to CoreRead and drop the std dependency ([02f8c0e](https://github.com/cathaysia/crown/commit/02f8c0e605cc727667a5517f34f4e6bef7fb636f))
+
+
+### Bug Fixes
+
+* **asm:** move poly1305 signature and trailing align to match perl output ([32502d4](https://github.com/cathaysia/crown/commit/32502d4f69b580c899026b3434d956012a608fc3))
+* **ci:** localize sha shortcut labels and use as_chunks ([0396a32](https://github.com/cathaysia/crown/commit/0396a3248cf53561337277c2b7454d1ef3e38788))
+* **crown-jsasm:** make md5 and rc4 asm byte-identical to openssl output ([b4d2a1e](https://github.com/cathaysia/crown/commit/b4d2a1eac985b52c40260c36c05a864ffa3c66b0))
+
+
+### Performance Improvements
+
+* **hkdf:** drop heap allocations on the expand hot path ([6e7a916](https://github.com/cathaysia/crown/commit/6e7a9165f3c9412d5781e1311a47258c7dcb84f6))
+* **sha256:** improve generic soft path and one-shot sum ([186bd09](https://github.com/cathaysia/crown/commit/186bd0998b2118eeab7208a7b1719836cddb1e59))
+
 ## [0.26.6](https://github.com/cathaysia/crown/compare/v0.26.5...v0.26.6) (2026-09-20)
 
 
