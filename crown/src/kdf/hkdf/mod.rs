@@ -10,7 +10,7 @@ mod tests;
 
 use crate::{
     core::CoreWrite,
-    hash::{Hash, HashUser},
+    hash::Hash,
     mac::hmac::{self},
     utils::copy,
 };
@@ -26,13 +26,9 @@ where
     H: Hash<N> + crate::mac::hmac::MaybeMarshalable,
     F: Fn() -> H,
 {
-    let salt = if salt.is_empty() {
-        vec![0u8; hash_fn().size()]
-    } else {
-        salt.to_vec()
-    };
-
-    let mut extractor = hmac::new(hash_fn, &salt);
+    // RFC 5869 sets a missing salt to HashLen zero bytes. As an HMAC key that
+    // pads to the same zero block as an empty key, so pass `salt` through.
+    let mut extractor = hmac::new(hash_fn, salt);
     extractor
         .write_all(secret)
         .expect("HMAC write should not fail");
@@ -42,17 +38,29 @@ where
 
 pub struct Hkdf<const N: usize, H: Hash<N>> {
     expander: H,
-    size: usize,
     info: Vec<u8>,
     counter: u8,
-    prev: Vec<u8>,
-    buf: Vec<u8>,
+    /// T(i-1). `prev_len` is 0 until the first block is generated, so the
+    /// first HMAC sees T(0) as the empty string (RFC 5869).
+    prev: [u8; N],
+    prev_len: usize,
+    /// Last generated block, with a read cursor for partial consumption.
+    buf: [u8; N],
+    buf_pos: usize,
+    buf_len: usize,
+}
+
+impl<const N: usize, H: Hash<N>> Hkdf<N, H> {
+    #[inline]
+    fn buf_remain(&self) -> usize {
+        self.buf_len - self.buf_pos
+    }
 }
 
 impl<const N: usize, H: Hash<N>> Read for Hkdf<N, H> {
     fn read(&mut self, p: &mut [u8]) -> std::io::Result<usize> {
         let need = p.len();
-        let remains = self.buf.len() + (255 - self.counter + 1) as usize * self.size;
+        let remains = self.buf_remain() + (255 - self.counter + 1) as usize * N;
         if remains < need {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::UnexpectedEof,
@@ -60,7 +68,8 @@ impl<const N: usize, H: Hash<N>> Read for Hkdf<N, H> {
             ));
         }
 
-        let mut n = copy(p, &self.buf);
+        let mut n = copy(p, &self.buf[self.buf_pos..self.buf_len]);
+        self.buf_pos += n;
         let mut p = &mut p[n..];
 
         while !p.is_empty() {
@@ -68,7 +77,7 @@ impl<const N: usize, H: Hash<N>> Read for Hkdf<N, H> {
                 self.expander.reset();
             }
             self.expander
-                .write_all(&self.prev)
+                .write_all(&self.prev[..self.prev_len])
                 .expect("HMAC write should not fail");
             self.expander
                 .write_all(&self.info)
@@ -76,15 +85,19 @@ impl<const N: usize, H: Hash<N>> Read for Hkdf<N, H> {
             self.expander
                 .write_all(&[self.counter])
                 .expect("HMAC write should not fail");
-            self.prev = self.expander.sum().to_vec();
+            let block = self.expander.sum();
+            self.prev = block;
+            self.prev_len = N;
             (self.counter, _) = self.counter.overflowing_add(1);
 
-            self.buf = self.prev.clone();
+            self.buf = block;
+            self.buf_pos = 0;
+            self.buf_len = N;
             n = copy(p, &self.buf);
+            self.buf_pos += n;
             p = &mut p[n..];
         }
 
-        self.buf = self.buf[n..].to_vec();
         Ok(need)
     }
 }
@@ -101,12 +114,14 @@ where
 {
     let expander = crate::mac::hmac::new(hash_fn, pseudorandom_key);
     Hkdf {
-        size: expander.size(),
         expander,
         info: info.to_vec(),
         counter: 1,
-        prev: vec![],
-        buf: vec![],
+        prev: [0; N],
+        prev_len: 0,
+        buf: [0; N],
+        buf_pos: 0,
+        buf_len: 0,
     }
 }
 

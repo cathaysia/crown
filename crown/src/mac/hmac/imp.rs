@@ -56,18 +56,18 @@ impl<const N: usize, H: Hash<N> + MaybeMarshalable> HMAC<N, H> {
         let mut opad: ArrayVec<[u8; MAX_MARSHAL_SIZE]> = ArrayVec::new();
         opad.resize(block_size, 0);
 
-        let mut processed_key = key.to_vec();
-
-        // If key is longer than block size, hash it first
+        // If key is longer than block size, hash it first; copy straight into
+        // the pads to avoid an intermediate key buffer.
         if key.len() > block_size {
             outer.write_all(key).expect("Hash write should not fail");
-            processed_key = outer.sum().to_vec();
+            let hash = outer.sum();
+            ipad[..hash.len()].copy_from_slice(&hash);
+            opad[..hash.len()].copy_from_slice(&hash);
             outer.reset();
+        } else {
+            ipad[..key.len()].copy_from_slice(key);
+            opad[..key.len()].copy_from_slice(key);
         }
-
-        // Copy key to ipad and opad
-        ipad[..processed_key.len()].copy_from_slice(&processed_key);
-        opad[..processed_key.len()].copy_from_slice(&processed_key);
 
         // XOR with ipad and opad constants
         for byte in &mut ipad {
