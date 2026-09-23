@@ -298,82 +298,82 @@ impl Camellia {
 
         #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
         {
-        let mut L: u64;
-        let mut R: u64;
-        let mut a: u32;
-        let mut b: u32;
-        {
-            let mut pt = &*inout;
-            L = pt.get_u64();
-            R = pt.get_u64();
-        }
+            let mut L: u64;
+            let mut R: u64;
+            let mut a: u32;
+            let mut b: u32;
+            {
+                let mut pt = &*inout;
+                L = pt.get_u64();
+                R = pt.get_u64();
+            }
 
-        L ^= self.kw[0];
-        R ^= self.kw[1];
-        R ^= F(L ^ self.k[0]);
-        L ^= F(R ^ self.k[1]);
-        R ^= F(L ^ self.k[2]);
-        L ^= F(R ^ self.k[3]);
-        R ^= F(L ^ self.k[4]);
-        L ^= F(R ^ self.k[5]);
-        a = (L >> 32) as u32;
-        b = (L & 0xffffffff) as u32;
-        b ^= (a & (self.kl[0] >> 32) as u32).rotate_left(1);
-        a = (a as u64 ^ (b as u64 | self.kl[0] & 0xffffffff_u32 as u64)) as u32;
-        L = ((a as u64) << 32) | b as u64;
-        a = (R >> 32) as u32;
-        b = (R & 0xffffffff) as u32;
-        a = (a as u64 ^ (b as u64 | self.kl[1] & 0xffffffff_u32 as u64)) as u32;
-        b ^= (a & (self.kl[1] >> 32) as u32).rotate_left(1);
-        R = ((a as u64) << 32) | b as u64;
-        R ^= F(L ^ self.k[6]);
-        L ^= F(R ^ self.k[7]);
-        R ^= F(L ^ self.k[8]);
-        L ^= F(R ^ self.k[9]);
-        R ^= F(L ^ self.k[10]);
-        L ^= F(R ^ self.k[11]);
-        a = (L >> 32) as u32;
-        b = (L & 0xffffffff) as u32;
-        b ^= (a & (self.kl[2] >> 32) as u32).rotate_left(1);
-        a = (a as u64 ^ (b as u64 | self.kl[2] & 0xffffffff_u32 as u64)) as u32;
-        L = ((a as u64) << 32) | b as u64;
-        a = (R >> 32) as u32;
-        b = (R & 0xffffffff) as u32;
-        a = (a as u64 ^ (b as u64 | self.kl[3] & 0xffffffff_u32 as u64)) as u32;
-        b ^= (a & (self.kl[3] >> 32) as u32).rotate_left(1);
-        R = ((a as u64) << 32) | b as u64;
-        R ^= F(L ^ self.k[12]);
-        L ^= F(R ^ self.k[13]);
-        R ^= F(L ^ self.k[14]);
-        L ^= F(R ^ self.k[15]);
-        R ^= F(L ^ self.k[16]);
-        L ^= F(R ^ self.k[17]);
-        if self.rounds == 24 {
+            L ^= self.kw[0];
+            R ^= self.kw[1];
+            R ^= F(L ^ self.k[0]);
+            L ^= F(R ^ self.k[1]);
+            R ^= F(L ^ self.k[2]);
+            L ^= F(R ^ self.k[3]);
+            R ^= F(L ^ self.k[4]);
+            L ^= F(R ^ self.k[5]);
             a = (L >> 32) as u32;
             b = (L & 0xffffffff) as u32;
-            b ^= (a & (self.kl[4] >> 32) as u32).rotate_left(1);
-            a = (a as u64 ^ (b as u64 | self.kl[4] & 0xffffffff_u32 as u64)) as u32;
+            b ^= (a & (self.kl[0] >> 32) as u32).rotate_left(1);
+            a = (a as u64 ^ (b as u64 | self.kl[0] & 0xffffffff_u32 as u64)) as u32;
             L = ((a as u64) << 32) | b as u64;
             a = (R >> 32) as u32;
             b = (R & 0xffffffff) as u32;
-            a = (a as u64 ^ (b as u64 | self.kl[5] & 0xffffffff_u32 as u64)) as u32;
-            b ^= (a & (self.kl[5] >> 32) as u32).rotate_left(1);
+            a = (a as u64 ^ (b as u64 | self.kl[1] & 0xffffffff_u32 as u64)) as u32;
+            b ^= (a & (self.kl[1] >> 32) as u32).rotate_left(1);
             R = ((a as u64) << 32) | b as u64;
-            R ^= F(L ^ self.k[18]);
-            L ^= F(R ^ self.k[19]);
-            R ^= F(L ^ self.k[20]);
-            L ^= F(R ^ self.k[21]);
-            R ^= F(L ^ self.k[22]);
-            L ^= F(R ^ self.k[23]);
-        }
-        L ^= self.kw[3];
-        R ^= self.kw[2];
+            R ^= F(L ^ self.k[6]);
+            L ^= F(R ^ self.k[7]);
+            R ^= F(L ^ self.k[8]);
+            L ^= F(R ^ self.k[9]);
+            R ^= F(L ^ self.k[10]);
+            L ^= F(R ^ self.k[11]);
+            a = (L >> 32) as u32;
+            b = (L & 0xffffffff) as u32;
+            b ^= (a & (self.kl[2] >> 32) as u32).rotate_left(1);
+            a = (a as u64 ^ (b as u64 | self.kl[2] & 0xffffffff_u32 as u64)) as u32;
+            L = ((a as u64) << 32) | b as u64;
+            a = (R >> 32) as u32;
+            b = (R & 0xffffffff) as u32;
+            a = (a as u64 ^ (b as u64 | self.kl[3] & 0xffffffff_u32 as u64)) as u32;
+            b ^= (a & (self.kl[3] >> 32) as u32).rotate_left(1);
+            R = ((a as u64) << 32) | b as u64;
+            R ^= F(L ^ self.k[12]);
+            L ^= F(R ^ self.k[13]);
+            R ^= F(L ^ self.k[14]);
+            L ^= F(R ^ self.k[15]);
+            R ^= F(L ^ self.k[16]);
+            L ^= F(R ^ self.k[17]);
+            if self.rounds == 24 {
+                a = (L >> 32) as u32;
+                b = (L & 0xffffffff) as u32;
+                b ^= (a & (self.kl[4] >> 32) as u32).rotate_left(1);
+                a = (a as u64 ^ (b as u64 | self.kl[4] & 0xffffffff_u32 as u64)) as u32;
+                L = ((a as u64) << 32) | b as u64;
+                a = (R >> 32) as u32;
+                b = (R & 0xffffffff) as u32;
+                a = (a as u64 ^ (b as u64 | self.kl[5] & 0xffffffff_u32 as u64)) as u32;
+                b ^= (a & (self.kl[5] >> 32) as u32).rotate_left(1);
+                R = ((a as u64) << 32) | b as u64;
+                R ^= F(L ^ self.k[18]);
+                L ^= F(R ^ self.k[19]);
+                R ^= F(L ^ self.k[20]);
+                L ^= F(R ^ self.k[21]);
+                R ^= F(L ^ self.k[22]);
+                L ^= F(R ^ self.k[23]);
+            }
+            L ^= self.kw[3];
+            R ^= self.kw[2];
 
-        {
-            let mut inout = inout;
-            inout.put_u64(R);
-            inout.put_u64(L);
-        }
+            {
+                let mut inout = inout;
+                inout.put_u64(R);
+                inout.put_u64(L);
+            }
         }
 
         Ok(())
@@ -387,80 +387,80 @@ impl Camellia {
 
         #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
         {
-        let mut L: u64;
-        let mut R: u64;
-        let mut a: u32;
-        let mut b: u32;
-        {
-            let mut pt = &*inout;
-            R = pt.get_u64();
-            L = pt.get_u64();
-        }
+            let mut L: u64;
+            let mut R: u64;
+            let mut a: u32;
+            let mut b: u32;
+            {
+                let mut pt = &*inout;
+                R = pt.get_u64();
+                L = pt.get_u64();
+            }
 
-        L ^= self.kw[3];
-        R ^= self.kw[2];
-        if self.rounds == 24 {
-            L ^= F(R ^ self.k[23]);
-            R ^= F(L ^ self.k[22]);
-            L ^= F(R ^ self.k[21]);
-            R ^= F(L ^ self.k[20]);
-            L ^= F(R ^ self.k[19]);
-            R ^= F(L ^ self.k[18]);
+            L ^= self.kw[3];
+            R ^= self.kw[2];
+            if self.rounds == 24 {
+                L ^= F(R ^ self.k[23]);
+                R ^= F(L ^ self.k[22]);
+                L ^= F(R ^ self.k[21]);
+                R ^= F(L ^ self.k[20]);
+                L ^= F(R ^ self.k[19]);
+                R ^= F(L ^ self.k[18]);
+                a = (L >> 32) as u32;
+                b = (L & 0xffffffff) as u32;
+                a = (a as u64 ^ (b as u64 | self.kl[4] & 0xffffffff_u32 as u64)) as u32;
+                b ^= (a & (self.kl[4] >> 32) as u32).rotate_left(1);
+                L = ((a as u64) << 32) | b as u64;
+                a = (R >> 32) as u32;
+                b = (R & 0xffffffff) as u32;
+                b ^= (a & (self.kl[5] >> 32) as u32).rotate_left(1);
+                a = (a as u64 ^ (b as u64 | self.kl[5] & 0xffffffff_u32 as u64)) as u32;
+                R = ((a as u64) << 32) | b as u64;
+            }
+            L ^= F(R ^ self.k[17]);
+            R ^= F(L ^ self.k[16]);
+            L ^= F(R ^ self.k[15]);
+            R ^= F(L ^ self.k[14]);
+            L ^= F(R ^ self.k[13]);
+            R ^= F(L ^ self.k[12]);
             a = (L >> 32) as u32;
             b = (L & 0xffffffff) as u32;
-            a = (a as u64 ^ (b as u64 | self.kl[4] & 0xffffffff_u32 as u64)) as u32;
-            b ^= (a & (self.kl[4] >> 32) as u32).rotate_left(1);
+            a = (a as u64 ^ (b as u64 | self.kl[2] & 0xffffffff_u32 as u64)) as u32;
+            b ^= (a & (self.kl[2] >> 32) as u32).rotate_left(1);
             L = ((a as u64) << 32) | b as u64;
             a = (R >> 32) as u32;
             b = (R & 0xffffffff) as u32;
-            b ^= (a & (self.kl[5] >> 32) as u32).rotate_left(1);
-            a = (a as u64 ^ (b as u64 | self.kl[5] & 0xffffffff_u32 as u64)) as u32;
+            b ^= (a & (self.kl[3] >> 32) as u32).rotate_left(1);
+            a = (a as u64 ^ (b as u64 | self.kl[3] & 0xffffffff_u32 as u64)) as u32;
             R = ((a as u64) << 32) | b as u64;
-        }
-        L ^= F(R ^ self.k[17]);
-        R ^= F(L ^ self.k[16]);
-        L ^= F(R ^ self.k[15]);
-        R ^= F(L ^ self.k[14]);
-        L ^= F(R ^ self.k[13]);
-        R ^= F(L ^ self.k[12]);
-        a = (L >> 32) as u32;
-        b = (L & 0xffffffff) as u32;
-        a = (a as u64 ^ (b as u64 | self.kl[2] & 0xffffffff_u32 as u64)) as u32;
-        b ^= (a & (self.kl[2] >> 32) as u32).rotate_left(1);
-        L = ((a as u64) << 32) | b as u64;
-        a = (R >> 32) as u32;
-        b = (R & 0xffffffff) as u32;
-        b ^= (a & (self.kl[3] >> 32) as u32).rotate_left(1);
-        a = (a as u64 ^ (b as u64 | self.kl[3] & 0xffffffff_u32 as u64)) as u32;
-        R = ((a as u64) << 32) | b as u64;
-        L ^= F(R ^ self.k[11]);
-        R ^= F(L ^ self.k[10]);
-        L ^= F(R ^ self.k[9]);
-        R ^= F(L ^ self.k[8]);
-        L ^= F(R ^ self.k[7]);
-        R ^= F(L ^ self.k[6]);
-        a = (L >> 32) as u32;
-        b = (L & 0xffffffff) as u32;
-        a = (a as u64 ^ (b as u64 | self.kl[0] & 0xffffffff_u32 as u64)) as u32;
-        b ^= (a & (self.kl[0] >> 32) as u32).rotate_left(1);
-        L = ((a as u64) << 32) | b as u64;
-        a = (R >> 32) as u32;
-        b = (R & 0xffffffff) as u32;
-        b ^= (a & (self.kl[1] >> 32) as u32).rotate_left(1);
-        a = (a as u64 ^ (b as u64 | self.kl[1] & 0xffffffff_u32 as u64)) as u32;
-        R = ((a as u64) << 32) | b as u64;
-        L ^= F(R ^ self.k[5]);
-        R ^= F(L ^ self.k[4]);
-        L ^= F(R ^ self.k[3]);
-        R ^= F(L ^ self.k[2]);
-        L ^= F(R ^ self.k[1]);
-        R ^= F(L ^ self.k[0]);
-        R ^= self.kw[1];
-        L ^= self.kw[0];
+            L ^= F(R ^ self.k[11]);
+            R ^= F(L ^ self.k[10]);
+            L ^= F(R ^ self.k[9]);
+            R ^= F(L ^ self.k[8]);
+            L ^= F(R ^ self.k[7]);
+            R ^= F(L ^ self.k[6]);
+            a = (L >> 32) as u32;
+            b = (L & 0xffffffff) as u32;
+            a = (a as u64 ^ (b as u64 | self.kl[0] & 0xffffffff_u32 as u64)) as u32;
+            b ^= (a & (self.kl[0] >> 32) as u32).rotate_left(1);
+            L = ((a as u64) << 32) | b as u64;
+            a = (R >> 32) as u32;
+            b = (R & 0xffffffff) as u32;
+            b ^= (a & (self.kl[1] >> 32) as u32).rotate_left(1);
+            a = (a as u64 ^ (b as u64 | self.kl[1] & 0xffffffff_u32 as u64)) as u32;
+            R = ((a as u64) << 32) | b as u64;
+            L ^= F(R ^ self.k[5]);
+            R ^= F(L ^ self.k[4]);
+            L ^= F(R ^ self.k[3]);
+            R ^= F(L ^ self.k[2]);
+            L ^= F(R ^ self.k[1]);
+            R ^= F(L ^ self.k[0]);
+            R ^= self.kw[1];
+            L ^= self.kw[0];
 
-        let mut inout = inout;
-        inout.put_u64(L);
-        inout.put_u64(R);
+            let mut inout = inout;
+            inout.put_u64(L);
+            inout.put_u64(R);
         }
 
         Ok(())

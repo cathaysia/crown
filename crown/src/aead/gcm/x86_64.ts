@@ -17,7 +17,7 @@
  *   ebx=counter ebp=rounds r10=ret r11=const r14=in0 r15=end0
  */
 
-import { translateAssembly } from "jsasm/x86_64-xlate";
+import { translateAssembly } from 'jsasm/x86_64-xlate';
 
 const code = `.text
 
@@ -604,7 +604,7 @@ aesni_gcm_encrypt:
 	 vmovdqu	(%r11),%xmm0		# borrow %xmm0 for .Lbswap_mask
 	vmovdqu		0x00-0x20(%r9),%xmm3	# %xmm3^1
 	vpunpckhqdq	%xmm7,%xmm7,%xmm1
-	vmovdqu		0x20-0x20(%r9),%xmm15	# borrow %xmm15 for 
+	vmovdqu		0x20-0x20(%r9),%xmm15	# borrow %xmm15 for
 	 vmovups	%xmm9,-0x60(%rsi)	# save output
 	 vpshufb	%xmm0,%xmm9,%xmm9	# but keep bswapped copy
 	vpxor		%xmm7,%xmm1,%xmm1

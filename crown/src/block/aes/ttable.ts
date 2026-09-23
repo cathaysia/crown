@@ -17,7 +17,7 @@
  *   sbox=%r14 key=%r15
  */
 
-import { translateAssembly } from "jsasm/x86_64-xlate";
+import { translateAssembly } from 'jsasm/x86_64-xlate';
 
 const code = `.text
 .type	_x86_64_AES_encrypt,@abi-omnipotent
@@ -1348,17 +1348,17 @@ AES_set_decrypt_key:
 	shr	$32,%r11
 	xor	%r13d,%edx
 
-	
+
 	rol	$16,%r9d	# ROTATE(tp4^tp1^tp8,16)
-	
+
 	rol	$16,%r12d	# ROTATE(tp4^tp1^tp8,16)
-	
+
 	rol	$16,%r8d	# ROTATE(tp4^tp1^tp8,16)
-	
+
 	xor	%r9d,%eax
 	rol	$16,%r11d	# ROTATE(tp4^tp1^tp8,16)
 	xor	%r12d,%ecx
-	
+
 	xor	%r8d,%ebx
 	xor	%r11d,%edx
 		mov	%eax,0(%r15)

@@ -1,5 +1,5 @@
 #![allow(dead_code)] // software AES path: fallback and test oracle
-// This file contains AES constants - 8720 bytes of initialized data.
+                     // This file contains AES constants - 8720 bytes of initialized data.
 
 // https://csrc.nist.gov/publications/fips/fips197/fips-197.pdf
 

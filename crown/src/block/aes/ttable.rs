@@ -29,7 +29,8 @@ pub fn set_encrypt_key(user_key: &[u8]) -> AesKey {
         rd_key: [0; 60],
         rounds: 0,
     };
-    let rc = unsafe { AES_set_encrypt_key(user_key.as_ptr(), (user_key.len() * 8) as i32, &mut key) };
+    let rc =
+        unsafe { AES_set_encrypt_key(user_key.as_ptr(), (user_key.len() * 8) as i32, &mut key) };
     debug_assert_eq!(rc, 0, "AES_set_encrypt_key failed: {rc}");
     key
 }
@@ -39,7 +40,8 @@ pub fn set_decrypt_key(user_key: &[u8]) -> AesKey {
         rd_key: [0; 60],
         rounds: 0,
     };
-    let rc = unsafe { AES_set_decrypt_key(user_key.as_ptr(), (user_key.len() * 8) as i32, &mut key) };
+    let rc =
+        unsafe { AES_set_decrypt_key(user_key.as_ptr(), (user_key.len() * 8) as i32, &mut key) };
     debug_assert_eq!(rc, 0, "AES_set_decrypt_key failed: {rc}");
     key
 }

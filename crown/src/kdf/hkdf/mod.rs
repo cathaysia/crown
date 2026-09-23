@@ -107,7 +107,11 @@ impl<const N: usize, H: Hash<N>> CoreRead for Hkdf<N, H> {
 /// This is the "expand" step of HKDF as defined in RFC 5869.
 /// It takes a pseudorandom key (PRK), optional context info, and desired
 /// output length, and produces the output keying material (OKM).
-pub fn expand<const N: usize, H, F>(hash_fn: F, pseudorandom_key: &[u8], info: &[u8]) -> impl CoreRead
+pub fn expand<const N: usize, H, F>(
+    hash_fn: F,
+    pseudorandom_key: &[u8],
+    info: &[u8],
+) -> impl CoreRead
 where
     H: Hash<N> + crate::mac::hmac::MaybeMarshalable,
     F: Fn() -> H,

@@ -23,7 +23,7 @@
  * .byte list is the UTF-8 pair 195,164 that perl x86_64-xlate.pl produces.
  */
 
-import { translateAssembly } from "jsasm/x86_64-xlate";
+import { translateAssembly } from 'jsasm/x86_64-xlate';
 
 const code = `.text
 

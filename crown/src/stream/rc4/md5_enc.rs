@@ -70,13 +70,6 @@ pub fn rc4_md5_blocks(
     debug_assert_eq!(pt.len(), blocks * 64);
     debug_assert_eq!(ct.len(), blocks * 64);
     unsafe {
-        rc4_md5_enc(
-            key,
-            pt.as_ptr(),
-            ct.as_mut_ptr(),
-            ctx,
-            pt.as_ptr(),
-            blocks,
-        );
+        rc4_md5_enc(key, pt.as_ptr(), ct.as_mut_ptr(), ctx, pt.as_ptr(), blocks);
     }
 }

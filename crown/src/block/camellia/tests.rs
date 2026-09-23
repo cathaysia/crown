@@ -103,7 +103,6 @@ fn test_gloden() {
     }
 }
 
-
 #[test]
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 fn test_camellia_asm_round_trip() {
