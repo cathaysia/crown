@@ -32,6 +32,19 @@ impl std::io::Write for dyn CoreWrite {
 
 pub trait CoreRead {
     fn read(&mut self, buf: &mut [u8]) -> CryptoResult<usize>;
+
+    fn read_exact(&mut self, mut buf: &mut [u8]) -> CryptoResult<()> {
+        while !buf.is_empty() {
+            match self.read(buf) {
+                Ok(0) => {
+                    return Err(CryptoError::IoEof);
+                }
+                Ok(n) => buf = &mut buf[n..],
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(feature = "std")]

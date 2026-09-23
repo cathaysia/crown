@@ -1,12 +1,12 @@
 mod wycheproof;
 
-use std::io::Read;
+use crown::core::CoreRead;
 
 use wycheproof::hkdf::*;
 
 #[test]
 fn test_hkdf() {
-    let builder = |alg: &str, secret: &[u8], salt: &[u8], info: &[u8]| -> Option<Box<dyn Read>> {
+    let builder = |alg: &str, secret: &[u8], salt: &[u8], info: &[u8]| -> Option<Box<dyn CoreRead>> {
         Some(match alg {
             "SHA-1" => Box::new(crown::kdf::hkdf::new(
                 crown::hash::sha1::new,

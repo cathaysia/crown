@@ -3,5 +3,5 @@
 //! This module provides implementations of key derivation functions that generate
 //! cryptographic keys from input key material such as passwords or shared secrets.
 
-#[cfg(feature = "std")]
+#[cfg(feature = "alloc")]
 pub mod hkdf;
