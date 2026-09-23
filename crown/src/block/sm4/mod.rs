@@ -1,6 +1,9 @@
 #[cfg(test)]
 mod tests;
 
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+mod asm;
+
 use bytes::BufMut;
 
 use crate::aead::ocb3::Ocb3Marker;
@@ -51,10 +54,25 @@ impl BlockCipher for Sm4 {
     }
 
     fn encrypt_block(&self, inout: &mut [u8]) {
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        {
+            if asm::sm4_supported() {
+                asm::encrypt_block(inout, &self.ek);
+                return;
+            }
+        }
         s_sm4_do(inout, &(self.ek));
     }
 
     fn decrypt_block(&self, inout: &mut [u8]) {
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        {
+            if asm::sm4_supported() {
+                // The SM4-NI path consumes the forward round-key schedule.
+                asm::decrypt_block(inout, &self.ek);
+                return;
+            }
+        }
         s_sm4_do(inout, &(self.dk));
     }
 }
