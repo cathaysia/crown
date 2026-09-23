@@ -1,3 +1,4 @@
+#![allow(dead_code)] // software AES path: fallback and test oracle
 use bytes::{Buf, BufMut};
 
 use crate::block::aes::{

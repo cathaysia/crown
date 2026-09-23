@@ -7,11 +7,16 @@ pub(crate) mod cbc;
 pub(crate) mod ctr;
 mod generic;
 
+#[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
 mod noasm;
+#[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
 use noasm::*;
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 mod asm;
+
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+mod ttable;
 
 #[cfg(feature = "alloc")]
 pub(crate) mod gcm;
@@ -41,7 +46,13 @@ const AES256_ROUNDS: usize = 14;
 
 #[derive(Clone)]
 pub struct Aes {
+    /// Software schedule; kept for the no-asm path and as a test oracle.
+    #[cfg_attr(all(feature = "asm", target_arch = "x86_64"), allow(dead_code))]
     block: BlockExpanded,
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    enc_key: ttable::AesKey,
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    dec_key: ttable::AesKey,
 }
 
 #[cfg(feature = "alloc")]
@@ -62,13 +73,27 @@ impl Aes {
     pub fn new(key: &[u8]) -> CryptoResult<Self> {
         match key.len() {
             AES128_KEY_SIZE | AES192_KEY_SIZE | AES256_KEY_SIZE => {
-                let mut block = BlockExpanded {
+                let block = BlockExpanded {
                     rounds: 0,
                     enc: [0; 60],
                     dec: [0; 60],
                 };
-                block.expand(key);
-                Ok(Aes { block })
+                #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+                {
+                    let enc_key = ttable::set_encrypt_key(key);
+                    let dec_key = ttable::set_decrypt_key(key);
+                    Ok(Aes {
+                        block,
+                        enc_key,
+                        dec_key,
+                    })
+                }
+                #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
+                {
+                    let mut block = block;
+                    block.expand(key);
+                    Ok(Aes { block })
+                }
             }
             len => Err(CryptoError::InvalidKeySize {
                 expected: "16 | 24 | 32",
@@ -78,6 +103,9 @@ impl Aes {
     }
 
     pub fn encrypt_block_internal(&self, inout: &mut [u8]) {
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        ttable::encrypt_block(inout, &self.enc_key);
+        #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
         encrypt_block(self, inout);
     }
 }
@@ -92,6 +120,9 @@ impl BlockCipher for Aes {
             panic!("crypto/aes: inout not full block");
         }
 
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        ttable::encrypt_block(inout, &self.enc_key);
+        #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
         encrypt_block(self, inout);
     }
 
@@ -100,19 +131,30 @@ impl BlockCipher for Aes {
             panic!("crypto/aes: output not full block");
         }
 
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        ttable::decrypt_block(inout, &self.dec_key);
+        #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
         decrypt_block(self, inout);
     }
 }
 
 #[derive(Clone)]
-struct BlockExpanded {
+pub(crate) struct BlockExpanded {
     pub rounds: usize,
     pub enc: [u32; 60],
     pub dec: [u32; 60],
 }
 
+#[cfg(test)]
+impl Default for BlockExpanded {
+    fn default() -> Self {
+        Self { rounds: 0, enc: [0; 60], dec: [0; 60] }
+    }
+}
+
+#[allow(dead_code)] // software key schedule; unused when asm owns key setup
 impl BlockExpanded {
-    fn expand(&mut self, key: &[u8]) {
+    pub(crate) fn expand(&mut self, key: &[u8]) {
         match key.len() {
             AES128_KEY_SIZE => self.rounds = AES128_ROUNDS,
             AES192_KEY_SIZE => self.rounds = AES192_ROUNDS,
