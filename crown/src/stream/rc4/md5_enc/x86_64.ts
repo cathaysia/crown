@@ -6,7 +6,7 @@
  * Exported symbols: rc4_md5_enc
  */
 
-import { translateAssembly } from "jsasm/x86_64-xlate";
+import { translateAssembly } from 'jsasm/x86_64-xlate';
 
 const code = `.text
 .align 16

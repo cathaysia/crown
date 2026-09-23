@@ -20,7 +20,7 @@
  *   aesni_set_encrypt_key
  */
 
-import { translateAssembly } from "jsasm/x86_64-xlate";
+import { translateAssembly } from 'jsasm/x86_64-xlate';
 
 const code = `.text
 .extern	OPENSSL_ia32cap_P
@@ -1442,7 +1442,7 @@ aesni_ctr32_encrypt_blocks:
 	lea		0x80(%rdi),%rdi		# %rdi+=8*16
 
 	.byte	102,65,15,56,221,210
-	pxor		%xmm0,%xmm1	# borrowed 
+	pxor		%xmm0,%xmm1	# borrowed
 	movdqu		0x70-0x80(%rdi),%xmm10
 	.byte	102,65,15,56,221,219
 	pxor		%xmm0,%xmm10
@@ -4403,7 +4403,7 @@ __aesni_set_encrypt_key:
 .cfi_adjust_cfa_offset	-8
 	ret
 .LSEH_end_set_encrypt_key:
-
+
 .align	16
 .Lkey_expansion_128:
 	movups	%xmm0,(%rax)

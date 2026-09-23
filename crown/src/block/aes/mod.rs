@@ -175,7 +175,11 @@ pub(crate) struct BlockExpanded {
 #[cfg(test)]
 impl Default for BlockExpanded {
     fn default() -> Self {
-        Self { rounds: 0, enc: [0; 60], dec: [0; 60] }
+        Self {
+            rounds: 0,
+            enc: [0; 60],
+            dec: [0; 60],
+        }
     }
 }
 

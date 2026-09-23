@@ -33,7 +33,13 @@ extern "C" {
 /// Expand `raw_key` into `key_table`. Returns the grand-round count.
 pub fn ekeygen(raw_key: &[u8], key_table: &mut [u32]) -> i32 {
     debug_assert_eq!(key_table.len(), KEY_TABLE_WORDS);
-    unsafe { Camellia_Ekeygen((raw_key.len() * 8) as i32, raw_key.as_ptr(), key_table.as_mut_ptr()) }
+    unsafe {
+        Camellia_Ekeygen(
+            (raw_key.len() * 8) as i32,
+            raw_key.as_ptr(),
+            key_table.as_mut_ptr(),
+        )
+    }
 }
 
 /// Encrypt one 16-byte block in place.

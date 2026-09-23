@@ -1,7 +1,7 @@
 #![allow(clippy::type_complexity)]
 
-use crate::hash::sha1;
 use crate::core::CoreRead;
+use crate::hash::sha1;
 use std::sync::LazyLock;
 
 use super::expand;
