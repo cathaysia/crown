@@ -8,13 +8,14 @@
 #[cfg(test)]
 mod tests;
 
+use alloc::vec::Vec;
+
 use crate::{
-    core::CoreWrite,
+    core::{CoreRead, CoreWrite},
     hash::Hash,
     mac::hmac::{self},
     utils::copy,
 };
-use std::io::Read;
 
 /// Extract a pseudorandom key from input keying material.
 ///
@@ -57,13 +58,12 @@ impl<const N: usize, H: Hash<N>> Hkdf<N, H> {
     }
 }
 
-impl<const N: usize, H: Hash<N>> Read for Hkdf<N, H> {
-    fn read(&mut self, p: &mut [u8]) -> std::io::Result<usize> {
+impl<const N: usize, H: Hash<N>> CoreRead for Hkdf<N, H> {
+    fn read(&mut self, p: &mut [u8]) -> crate::error::CryptoResult<usize> {
         let need = p.len();
         let remains = self.buf_remain() + (255 - self.counter + 1) as usize * N;
         if remains < need {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::UnexpectedEof,
+            return Err(crate::error::CryptoError::StrError(
                 "hkdf: entropy limit reached",
             ));
         }
@@ -107,7 +107,7 @@ impl<const N: usize, H: Hash<N>> Read for Hkdf<N, H> {
 /// This is the "expand" step of HKDF as defined in RFC 5869.
 /// It takes a pseudorandom key (PRK), optional context info, and desired
 /// output length, and produces the output keying material (OKM).
-pub fn expand<const N: usize, H, F>(hash_fn: F, pseudorandom_key: &[u8], info: &[u8]) -> impl Read
+pub fn expand<const N: usize, H, F>(hash_fn: F, pseudorandom_key: &[u8], info: &[u8]) -> impl CoreRead
 where
     H: Hash<N> + crate::mac::hmac::MaybeMarshalable,
     F: Fn() -> H,
@@ -132,7 +132,7 @@ pub fn new<const N: usize, F, H>(
     secret: &[u8],
     salt: &[u8],
     info: &[u8],
-) -> impl std::io::Read
+) -> impl CoreRead
 where
     H: Hash<N> + crate::mac::hmac::MaybeMarshalable,
     F: Fn() -> H + Copy,

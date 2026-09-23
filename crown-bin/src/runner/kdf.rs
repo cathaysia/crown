@@ -41,7 +41,7 @@ pub fn run_kdf(args: ArgsKdf) -> anyhow::Result<()> {
                 crown::kdf::hkdf::extract(crown::hash::sha256::new256, password_bytes, salt_bytes);
             let mut hkdf = crown::kdf::hkdf::expand(crown::hash::sha256::new256, &prk, &[]);
             let mut output = vec![0u8; length];
-            std::io::Read::read_exact(&mut hkdf, &mut output)?;
+            crown::core::CoreRead::read_exact(&mut hkdf, &mut output)?;
             output
         }
         crate::args::KdfAlgorithm::Bcrypt => {
