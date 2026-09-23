@@ -56,3 +56,36 @@ fn test_sm4_gloden() {
         assert_eq!(plaintext, out);
     }
 }
+
+#[test]
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+fn test_sm4_asm_matches_soft() {
+    if !super::asm::sm4_supported() {
+        return;
+    }
+    let mut key = [0u8; 16];
+    rand::fill(&mut key);
+    let enc = super::Sm4::new(&key).unwrap();
+
+    // The SM4-NI set_key must agree with the software round-key schedule.
+    let mut hw_rk = [0u32; 32];
+    super::asm::set_key(&key, &mut hw_rk);
+    assert_eq!(enc.ek, hw_rk);
+
+    for _ in 0..256 {
+        let mut inout = [0u8; 16];
+        rand::fill(&mut inout);
+
+        let mut soft = inout;
+        super::s_sm4_do(&mut soft, &enc.ek);
+        let mut hw = inout;
+        super::asm::encrypt_block(&mut hw, &enc.ek);
+        assert_eq!(soft, hw);
+
+        let mut soft_dec = hw;
+        super::s_sm4_do(&mut soft_dec, &enc.dk);
+        let mut hw_dec = hw;
+        super::asm::decrypt_block(&mut hw_dec, &enc.ek);
+        assert_eq!(soft_dec, hw_dec);
+    }
+}
