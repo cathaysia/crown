@@ -6,6 +6,9 @@
 #[cfg(test)]
 mod tests;
 
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+pub mod md5_enc;
+
 mod xor_key_stream;
 
 use crate::error::{CryptoError, CryptoResult};
