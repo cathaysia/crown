@@ -18,6 +18,12 @@ mod asm;
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 mod ttable;
 
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+mod aesni;
+
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+mod bsaes;
+
 #[cfg(feature = "alloc")]
 pub(crate) mod gcm;
 
@@ -80,8 +86,11 @@ impl Aes {
                 };
                 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
                 {
-                    let enc_key = ttable::set_encrypt_key(key);
-                    let dec_key = ttable::set_decrypt_key(key);
+                    let (enc_key, dec_key) = if aesni::supported() {
+                        (aesni::set_encrypt_key(key), aesni::set_decrypt_key(key))
+                    } else {
+                        (ttable::set_encrypt_key(key), ttable::set_decrypt_key(key))
+                    };
                     Ok(Aes {
                         block,
                         enc_key,
@@ -104,7 +113,13 @@ impl Aes {
 
     pub fn encrypt_block_internal(&self, inout: &mut [u8]) {
         #[cfg(all(feature = "asm", target_arch = "x86_64"))]
-        ttable::encrypt_block(inout, &self.enc_key);
+        {
+            if aesni::supported() {
+                aesni::encrypt_block(inout, &self.enc_key);
+            } else {
+                ttable::encrypt_block(inout, &self.enc_key);
+            }
+        }
         #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
         encrypt_block(self, inout);
     }
@@ -121,7 +136,13 @@ impl BlockCipher for Aes {
         }
 
         #[cfg(all(feature = "asm", target_arch = "x86_64"))]
-        ttable::encrypt_block(inout, &self.enc_key);
+        {
+            if aesni::supported() {
+                aesni::encrypt_block(inout, &self.enc_key);
+            } else {
+                ttable::encrypt_block(inout, &self.enc_key);
+            }
+        }
         #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
         encrypt_block(self, inout);
     }
@@ -132,7 +153,13 @@ impl BlockCipher for Aes {
         }
 
         #[cfg(all(feature = "asm", target_arch = "x86_64"))]
-        ttable::decrypt_block(inout, &self.dec_key);
+        {
+            if aesni::supported() {
+                aesni::decrypt_block(inout, &self.dec_key);
+            } else {
+                ttable::decrypt_block(inout, &self.dec_key);
+            }
+        }
         #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
         decrypt_block(self, inout);
     }
