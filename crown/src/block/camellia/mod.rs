@@ -12,6 +12,9 @@ use crate::{
 mod feistel;
 use feistel::F;
 
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+mod asm;
+
 #[cfg(test)]
 mod tests;
 
@@ -20,6 +23,10 @@ pub struct Camellia {
     pub k: [u64; 24],
     pub kl: [u64; 6],
     pub rounds: usize,
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    key_table: [u32; asm::KEY_TABLE_WORDS],
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    grand_rounds: i32,
 }
 
 impl Camellia {
@@ -29,6 +36,10 @@ impl Camellia {
             k: [0; 24],
             kl: [0; 6],
             rounds: 0,
+            #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+            key_table: [0; asm::KEY_TABLE_WORDS],
+            #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+            grand_rounds: 0,
         };
 
         s.init(key, num_rounds.unwrap_or(0))?;
@@ -270,10 +281,23 @@ impl Camellia {
             self.kw[2] = (&T[32..]).get_u64();
             self.kw[3] = (&T[40..]).get_u64();
         }
+
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        {
+            self.grand_rounds = asm::ekeygen(key, &mut self.key_table);
+        }
+
         Ok(())
     }
 
     pub fn encrypt_block(&self, inout: &mut [u8]) -> CryptoResult<()> {
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        {
+            asm::encrypt_block(self.grand_rounds, inout, &self.key_table);
+        }
+
+        #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
+        {
         let mut L: u64;
         let mut R: u64;
         let mut a: u32;
@@ -350,11 +374,19 @@ impl Camellia {
             inout.put_u64(R);
             inout.put_u64(L);
         }
+        }
 
         Ok(())
     }
 
     pub fn decrypt_block(&self, inout: &mut [u8]) -> CryptoResult<()> {
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        {
+            asm::decrypt_block(self.grand_rounds, inout, &self.key_table);
+        }
+
+        #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
+        {
         let mut L: u64;
         let mut R: u64;
         let mut a: u32;
@@ -429,6 +461,7 @@ impl Camellia {
         let mut inout = inout;
         inout.put_u64(L);
         inout.put_u64(R);
+        }
 
         Ok(())
     }

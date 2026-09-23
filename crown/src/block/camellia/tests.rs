@@ -102,3 +102,25 @@ fn test_gloden() {
         assert_eq!(pt, pt_copy);
     }
 }
+
+
+#[test]
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+fn test_camellia_asm_round_trip() {
+    for key_len in [16usize, 24, 32] {
+        let mut key = vec![0u8; key_len];
+        rand::fill(&mut key[..]);
+        let c = super::Camellia::new(&key, None).unwrap();
+
+        for _ in 0..64 {
+            let mut block = [0u8; 16];
+            rand::fill(&mut block);
+
+            let mut ct = block;
+            super::asm::encrypt_block(c.grand_rounds, &mut ct, &c.key_table);
+            let mut pt = ct;
+            super::asm::decrypt_block(c.grand_rounds, &mut pt, &c.key_table);
+            assert_eq!(pt, block);
+        }
+    }
+}
