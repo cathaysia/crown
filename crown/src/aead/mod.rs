@@ -12,6 +12,8 @@ pub mod eax;
 #[cfg(feature = "alloc")]
 pub mod gcm;
 pub mod ocb3;
+#[cfg(feature = "alloc")]
+pub mod siv;
 
 use crate::error::CryptoResult;
 

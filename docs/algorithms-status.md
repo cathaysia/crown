@@ -69,13 +69,45 @@ All four are registered in `envelope::EvpHash` (`new_ripemd160`, `new_whirlpool`
 | KMAC128/KMAC256 (+XOF) | implemented (`mac/kmac`, on existing cSHAKE; SP 800-185 sample vectors cross-checked against OpenSSL CLI and a validated local Keccak reference) |
 | BLAKE2BMAC/BLAKE2SMAC | already covered by keyed BLAKE2 (`Blake2bVariable::new(Some(key))`) |
 
+### crown gaps — modes/AEAD — ALL CLOSED 2026-09-26 (software; envelope surface unchanged)
+
+| algorithm | openssl source | crown status |
+|---|---|---|
+| AES-XTS (128/256) | `crypto/modes/xts128.c` + `cipher_aes_xts.c` | implemented (`modes/xts`), IEEE 1619-2007 vectors + ciphertext-stealing set from `evpciph_aes_common.txt`; duplicate-key and 2^20-block limits enforced |
+| SM4-XTS | `cipher_sm4_xts.c` | implemented (`modes/xts`, `Xts<Sm4>`), both IEEE and GB/T 17964-2021 (`encrypt_gb`) variants, vectors from `evpciph_sm4.txt` |
+| AES-SIV (128/192/256) | `crypto/modes/siv128.c` + `cipher_aes_siv.c` | implemented (`aead/siv`), RFC 5297 A.1/A.2 + `evpciph_aes_siv.txt` vectors; tag = SIV, nonce passed as AAD like OpenSSL |
+| AES-GCM-SIV | `cipher_aes_gcm_siv*.c` | not started (POLYVAL-based, separate construction) |
+| ASCON-AEAD128 | `ascon` | not started |
+| Key Wrap (KW/KWP) | `crypto/modes/wrap128.c` | not started |
+| CTS | `crypto/modes/cts128.c` | not started (XTS stealing is unrelated) |
+| DES-X(EX) | `cipher_desx.c` | not started |
+
+### crown gaps — KDF — ALL CLOSED 2026-09-26 (software; envelope surface does not exist yet)
+
+| KDF | openssl source | crown status |
+|---|---|---|
+| TLS1-PRF | `kdfs/tls1_prf.c` | implemented (`kdf/tls1_prf`), TLS 1.2 single-hash + TLS 1.0/1.1 MD5-SHA1 dual PRF; NIST vectors from `evpkdf_tls12_prf.txt`/`evpkdf_tls11_prf.txt` |
+| SSKDF | `kdfs/sskdf.c` | implemented (`kdf/sskdf`): hash, HMAC and KMAC128/256 H(x); `evpkdf_ss.txt` vectors |
+| X963KDF | `kdfs/sskdf.c` (shared) | implemented (`kdf/sskdf::x963_derive_hash`), counter appended; NIST `evpkdf_x963.txt` vectors |
+| X942KDF | `kdfs/x942kdf.c` | implemented (`kdf/x942kdf`) with DER OtherInfo encoder (keyInfo/partyU/partyV/suppPub/suppPriv, keybits = 8×KEK len of the CEK alg); RFC 3565 + generated vectors, cross-checked against the OpenSSL 3.5.8 CLI |
+| SSHKDF | `kdfs/sshkdf.c` | implemented (`kdf/sshkdf`), types A-F; NIST CAVS `evpkdf_ssh.txt` vectors |
+| KRB5KDF | `kdfs/krb5kdf.c` | implemented (`kdf/krb5kdf`): n-fold + block chaining, AES-128/256-CBC and DES3 (parity fixup + raw 21-byte form); RFC 3961 vectors |
+| PKCS12KDF | `kdfs/pkcs12kdf.c` | implemented (`kdf/pkcs12kdf`), ids 1/2/3; vectors generated with the OpenSSL CLI |
+| PBKDF1 | `kdfs/pbkdf1.c` | implemented (`kdf/pbkdf1`); `evpkdf_pbkdf1.txt` vectors incl. MD2 |
+| KBKDF | `kdfs/kbkdf.c` | implemented (`kdf/kbkdf`): SP 800-108 counter/feedback with HMAC/CMAC (r=8/16/32, L/separator switches) + single-shot KMAC128/256; `evpkdf_kbkdf_*.txt` + CLI vectors |
+| SRTP-KDF | `kdfs/srtpkdf.c` | implemented (`kdf/srtpkdf`), RFC 3711 AES-CM labels 0-7 with kdr rate handling; `evpkdf_srtp.txt` vectors |
+| IKEv2-KDF | `kdfs/ikev2kdf.c` | implemented (`kdf/ikev2kdf`): GEN/REKEY seedkey + DKM (Child SA/DH) with the RFC 7296 left-padding rules; `evpkdf_ikev2.txt` vectors |
+
+Digest parameters are runtime-selectable via `kdf::{HashFactory, HmacFactory}`
+(fn pointers onto `EvpHash::new_*` / `EvpHash::new_*_hmac`), mirroring
+EVP_KDF's digest option. HKDF/PBKDF2/scrypt/argon2 already existed
+(`kdf/hkdf`, `password_hash`).
+
 ### crown gaps — other buckets (not started)
 
-- AEAD/modes: AES/SM4 XTS, AES-SIV, AES-GCM-SIV, ASCON-AEAD128, Key Wrap
-  (KW/KWP), CTS, DES-X(EX). ARIA/SM4/Camellia GCM/CCM need only marker
-  wiring — `aead/gcm` and `aead/ccm` are already generic.
-- KDF: TLS1-PRF, KBKDF, SSKDF, X963KDF, X942KDF, SSHKDF, KRB5KDF,
-  PKCS12KDF, PBKDF1, SRTP-KDF, IKEv2-KDF.
+- AEAD/modes: AES-GCM-SIV, ASCON-AEAD128, Key Wrap (KW/KWP), CTS, DES-X(EX).
+  ARIA/SM4/Camellia GCM/CCM need only marker wiring — `aead/gcm` and
+  `aead/ccm` are already generic.
 - Asymmetric: RSA/DSA/ECDSA/EdDSA/X25519/DH/ECDH/SM2/ML-KEM/ML-DSA/
   SLH-DSA/LMS — likely outside crown's symmetric-primitives scope.
 - RAND: CTR/HMAC/HASH-DRBG, RDRAND, JITTER.
@@ -87,10 +119,17 @@ Twofish, Salsa20, Rabbit, SOSEMANUK, SOBER128, EAX, bcrypt.
 
 ## 3. Test-vector sources for this round
 
-- OpenSSL 3.5.8 system CLI (`openssl dgst` / `openssl mac`) where available.
+- OpenSSL 3.5.8 system CLI (`openssl dgst` / `openssl mac` / `openssl kdf`)
+  where available.
 - `crown-ref/openssl/test/recipes/30-test_evp_data/`:
   `evpmd_mdc2.txt`, `evpmd_whirlpool.txt` (ISO/IEC 10118-3 set),
   `evpmac_siphash.txt`, `evpmac_cmac_des.txt`, `cmactest.c` (RFC 4493),
-  `evpkdf_kbkdf_kmac.txt`.
-- RFC 2289 (RIPEMD-160), RFC 4493 (AES-CMAC), McGrew/Viega GCM test case 4
-  (GMAC), NIST SP 800-185 (KMAC samples).
+  `evpkdf_kbkdf_kmac.txt`, `evpciph_aes_common.txt` / `evpciph_sm4.txt` (XTS),
+  `evpciph_aes_siv.txt` (RFC 5297), `evpkdf_tls1{1,2}_prf.txt`,
+  `evpkdf_ss.txt`, `evpkdf_x963.txt`, `evpkdf_x942.txt`, `evpkdf_ssh.txt`,
+  `evpkdf_krb5.txt`, `evpkdf_pbkdf1.txt`, `evpkdf_kbkdf_counter.txt`,
+  `evpkdf_srtp.txt`, `evpkdf_ikev2.txt`.
+- RFC 2289 (RIPEMD-160), RFC 4493 (AES-CMAC), RFC 5297 (AES-SIV),
+  RFC 3711 (SRTP KDF), RFC 3961 (KRB5KDF), McGrew/Viega GCM test case 4
+  (GMAC), NIST SP 800-185 (KMAC samples), NIST CAVS (SSHKDF, X963KDF,
+  TLS PRF).
