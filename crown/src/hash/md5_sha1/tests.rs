@@ -1,0 +1,53 @@
+use super::*;
+
+#[test]
+fn empty() {
+    assert_eq!(
+        sum_md5_sha1(b""),
+        [
+            // MD5("")
+            0xd4, 0x1d, 0x8c, 0xd9, 0x8f, 0x00, 0xb2, 0x04, 0xe9, 0x80, 0x09, 0x98, 0xec, 0xf8,
+            0x42, 0x7e, // SHA1("")
+            0xda, 0x39, 0xa3, 0xee, 0x5e, 0x6b, 0x4b, 0x0d, 0x32, 0x55, 0xbf, 0xef, 0x95, 0x60,
+            0x18, 0x90, 0xaf, 0xd8, 0x07, 0x09,
+        ]
+    );
+}
+
+#[test]
+fn abc() {
+    assert_eq!(
+        sum_md5_sha1(b"abc"),
+        [
+            // MD5("abc")
+            0x90, 0x01, 0x50, 0x98, 0x3c, 0xd2, 0x4f, 0xb0, 0xd6, 0x96, 0x3f, 0x7d, 0x28, 0xe1,
+            0x7f, 0x72, // SHA1("abc")
+            0xa9, 0x99, 0x3e, 0x36, 0x47, 0x06, 0x81, 0x6a, 0xba, 0x3e, 0x25, 0x71, 0x78, 0x50,
+            0xc2, 0x6c, 0x9c, 0xd0, 0xd8, 0x9d,
+        ]
+    );
+}
+
+#[test]
+fn streaming_matches_oneshot() {
+    let data: alloc::vec::Vec<u8> = (0..200u32).map(|i| (i * 7 + 3) as u8).collect();
+
+    let expected = sum_md5_sha1(&data);
+
+    let mut h = new_md5_sha1();
+    h.write_all(&data[..13]).unwrap();
+    h.write_all(&data[13..97]).unwrap();
+    h.write_all(&data[97..]).unwrap();
+    assert_eq!(h.sum(), expected);
+}
+
+#[test]
+fn reset_reuses_state() {
+    let mut h = new_md5_sha1();
+    h.write_all(b"abc").unwrap();
+    assert_eq!(h.sum(), sum_md5_sha1(b"abc"));
+
+    h.reset();
+    h.write_all(b"").unwrap();
+    assert_eq!(h.sum(), sum_md5_sha1(b""));
+}

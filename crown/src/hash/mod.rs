@@ -11,11 +11,15 @@ pub mod blake2s;
 pub mod md2;
 pub mod md4;
 pub mod md5;
+pub mod md5_sha1;
+pub mod mdc2;
+pub mod ripemd160;
 pub mod sha1;
 pub mod sha256;
 pub mod sha3;
 pub mod sha512;
 pub mod sm3;
+pub mod whirlpool;
 
 use crate::core::CoreWrite;
 

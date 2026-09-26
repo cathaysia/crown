@@ -201,6 +201,10 @@ impl EvpHash {
             shake128, crate::hash::sha3::new_shake128,
             shake256, crate::hash::sha3::new_shake256,
             sm3, crate::hash::sm3::new_sm3,
+            md5_sha1, crate::hash::md5_sha1::new_md5_sha1,
+            ripemd160, crate::hash::ripemd160::new_ripemd160,
+            mdc2, crate::hash::mdc2::new_mdc2,
+            whirlpool, crate::hash::whirlpool::new_whirlpool,
         ],
         variant: [
             blake2s, crate::hash::blake2s::Blake2sVariable::new,
