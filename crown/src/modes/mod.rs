@@ -16,6 +16,8 @@ pub mod ecb;
 #[cfg(feature = "alloc")]
 pub mod ofb;
 
+pub mod xts;
+
 #[cfg(test)]
 pub mod common_test;
 
