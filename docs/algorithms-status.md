@@ -103,14 +103,23 @@ Digest parameters are runtime-selectable via `kdf::{HashFactory, HmacFactory}`
 EVP_KDF's digest option. HKDF/PBKDF2/scrypt/argon2 already existed
 (`kdf/hkdf`, `password_hash`).
 
+### crown gaps — asymmetric — partially closed 2026-09-27 (software)
+
+| algorithm | openssl source | crown status |
+|---|---|---|
+| Ed25519 | `crypto/ec/curve25519.c` | implemented (`ed25519`): 51-bit-limb field arithmetic, ref10 invert/pow22523 chains, extended-coordinate group ops, constant-time 4-bit-window scalar mult; RFC 8032 section 7.1 vectors, CLI cross-checked |
+| RSA | `crypto/rsa` + `crypto/bn` | implemented (`rsa` on `bn`): raw/PKCS#1 v1.5/OAEP encryption, PKCS#1 v1.5/PSS signatures, CRT private path, key generation (top-two-bit primes, small-prime sieve, 64 MR rounds, FIPS 186-4 distance), PKCS#1 DER + PKCS#8 parse; all directions cross-checked against the OpenSSL 3.5.8 CLI |
+| RSA-PSS/other digests | | PSS and PKCS#1 v1.5 accept md5/sha1/sha224/sha256/sha384/sha512 (DigestInfo table) |
+| X25519 | `crypto/ec/curve25519.c` | not started (the ed25519 field arithmetic is reusable) |
+| DSA/ECDSA/SM2 | | not started |
+| ML-KEM/ML-DSA/SLH-DSA/LMS | | not started |
+| RAND | `crypto/rand` | not started; randomized RSA operations take a caller-supplied `Rng` instead |
+
 ### crown gaps — other buckets (not started)
 
 - AEAD/modes: AES-GCM-SIV, ASCON-AEAD128, Key Wrap (KW/KWP), CTS, DES-X(EX).
   ARIA/SM4/Camellia GCM/CCM need only marker wiring — `aead/gcm` and
   `aead/ccm` are already generic.
-- Asymmetric: RSA/DSA/ECDSA/EdDSA/X25519/DH/ECDH/SM2/ML-KEM/ML-DSA/
-  SLH-DSA/LMS — likely outside crown's symmetric-primitives scope.
-- RAND: CTR/HMAC/HASH-DRBG, RDRAND, JITTER.
 
 ### crown extras (OpenSSL has none)
 
@@ -128,8 +137,11 @@ Twofish, Salsa20, Rabbit, SOSEMANUK, SOBER128, EAX, bcrypt.
   `evpciph_aes_siv.txt` (RFC 5297), `evpkdf_tls1{1,2}_prf.txt`,
   `evpkdf_ss.txt`, `evpkdf_x963.txt`, `evpkdf_x942.txt`, `evpkdf_ssh.txt`,
   `evpkdf_krb5.txt`, `evpkdf_pbkdf1.txt`, `evpkdf_kbkdf_counter.txt`,
-  `evpkdf_srtp.txt`, `evpkdf_ikev2.txt`.
+  `evpkdf_srtp.txt`, `evpkdf_ikev2.txt`, `tested25519.pem` (Ed25519 CLI
+  interop), `openssl genrsa`/`openssl dgst`/`openssl pkeyutl` artifacts
+  (RSA interop in both directions).
 - RFC 2289 (RIPEMD-160), RFC 4493 (AES-CMAC), RFC 5297 (AES-SIV),
+  RFC 8032 (Ed25519), RFC 8017 (RSA),
   RFC 3711 (SRTP KDF), RFC 3961 (KRB5KDF), McGrew/Viega GCM test case 4
   (GMAC), NIST SP 800-185 (KMAC samples), NIST CAVS (SSHKDF, X963KDF,
   TLS PRF).
