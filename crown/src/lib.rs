@@ -68,6 +68,7 @@ extern crate alloc;
 
 pub mod aead;
 pub mod block;
+pub mod bn;
 pub mod ed25519;
 pub mod envelope;
 pub mod hash;
@@ -77,6 +78,7 @@ pub mod modes;
 pub mod padding;
 #[cfg(feature = "password")]
 pub mod password_hash;
+pub mod rsa;
 pub mod stream;
 
 pub mod core;
