@@ -68,6 +68,7 @@ extern crate alloc;
 
 pub mod aead;
 pub mod block;
+pub mod ed25519;
 pub mod envelope;
 pub mod hash;
 pub mod kdf;
