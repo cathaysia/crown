@@ -24,12 +24,15 @@ pub struct AesKey {
     pub rounds: u32,
 }
 
-/// `{ u128 Xi, H, Htbl[9]; }` — the relative order is part of the ABI.
+/// `{ u128 Xi, H, Htable[16]; }` — the relative order is part of the ABI:
+/// the stitch loads Xi from Xip+0, keeps H at Xip+0x10 and consumes the
+/// clmul-format Htable (256 bytes) at Xip+0x20, matching
+/// `struct gcm128_context`'s `Yi EKi EK0 len Xi H Htable` ordering.
 #[repr(C)]
 pub struct GcmStitchCtx {
     pub xi: [u8; 16],
     pub h: [u8; 16],
-    pub htable: [[u8; 16]; 9],
+    pub htable: [[u8; 16]; 16],
 }
 
 extern "C" {
@@ -129,7 +132,7 @@ static SBOX: [u8; 256] = [
     0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16,
 ];
 
-/// Multiply two GHASH field elements (OpenSSL reflected representation).
+#[allow(dead_code)]
 fn ghash_mul(x: &[u8; 16], y: &[u8; 16]) -> [u8; 16] {
     let mut z = [0u8; 16];
     let mut v = *y;
@@ -153,21 +156,21 @@ fn ghash_mul(x: &[u8; 16], y: &[u8; 16]) -> [u8; 16] {
     z
 }
 
-fn ghash_powers(h: &[u8; 16]) -> [[u8; 16]; 9] {
-    let mut t = [[0u8; 16]; 9];
-    t[0] = *h;
-    for i in 1..9 {
-        t[i] = ghash_mul(&t[i - 1], h);
-    }
-    t
-}
-
-/// Initialise `{Xi, H, Htbl[9]}` from the GHASH hash subkey `H`.
+/// Initialise `{Xi, H, Htable[16]}` from the GHASH hash subkey `H`. The
+/// table is built with `gcm_init_clmul` (the format the stitch consumes),
+/// mirroring `CRYPTO_gcm128_init`.
 pub fn init_ctx(h: &[u8; 16]) -> GcmStitchCtx {
     GcmStitchCtx {
         xi: [0u8; 16],
         h: *h,
-        htable: ghash_powers(h),
+        htable: {
+            let mut table = [[0u8; 16]; 16];
+            let flat = crate::block::aes::gcm::asm::init_clmul_htable(h);
+            for (i, block) in table.iter_mut().enumerate() {
+                *block = flat[i * 16..(i + 1) * 16].try_into().unwrap();
+            }
+            table
+        },
     }
 }
 
@@ -250,7 +253,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "stitch CTR round-trip needs Htbl/Xi representation fix"]
+    #[ignore = "stitch: first 96-byte chunk returns input untransformed; needs _aesni_ctr32_ghash_6x prologue investigation (ctx layout now ABI-correct)"]
     fn stitch_round_trip() {
         if !aesni_supported() {
             return;

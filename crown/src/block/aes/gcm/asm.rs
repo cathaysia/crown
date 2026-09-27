@@ -13,6 +13,20 @@ extern "C" {
     fn gcm_ghash_clmul(xi: *mut u8, htbl: *const u8, inp: *const u8, len: usize);
 }
 
+/// Build the 256-byte clmul-format Htable exactly as CRYPTO_gcm128_init
+/// does (H byte-swapped per qword on input). The aesni-gcm stitch consumes
+/// this table from the GCM context at Xi+0x20.
+pub(crate) fn init_clmul_htable(h: &[u8; GCM_BLOCK_SIZE]) -> [u8; 256] {
+    let mut htable = [0u8; 256];
+    let mut h_swapped = [0u8; GCM_BLOCK_SIZE];
+    for i in 0..8 {
+        h_swapped[i] = h[7 - i];
+        h_swapped[8 + i] = h[15 - i];
+    }
+    unsafe { gcm_init_clmul(htable.as_mut_ptr(), h_swapped.as_ptr()) };
+    htable
+}
+
 /// GHASH via gcm_init_clmul/gcm_ghash_clmul. Only complete blocks are passed
 /// to the assembly, mirroring OpenSSL's gcm128.c which zero-pads partial
 /// blocks in C.
