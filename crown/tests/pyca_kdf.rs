@@ -257,28 +257,27 @@ fn test_pyca_ansx963() {
     let mut hash = None;
     let mut block = String::new();
 
-    let mut flush =
-        |block: &str, hash: Option<fn() -> CryptoResult<EvpHash>>, checked: &mut usize| {
-            let Some(hash) = hash else { return };
-            let vectors = parse_vectors(block);
-            let Some(v) = vectors.first() else { return };
-            let (Some(z), Some(shared), Some(key_data)) = (
-                v.field(&["z"]),
-                v.field(&["sharedinfo"]),
-                v.field(&["key_data"]),
-            ) else {
-                return;
-            };
-
-            let out = kdf::sskdf::x963_derive_hash(hash, z, shared, key_data.len()).unwrap();
-            assert_eq!(
-                hex::encode(&out),
-                hex::encode(key_data),
-                "X9.63 KDF for Z {}",
-                hex::encode(z)
-            );
-            *checked += 1;
+    let flush = |block: &str, hash: Option<fn() -> CryptoResult<EvpHash>>, checked: &mut usize| {
+        let Some(hash) = hash else { return };
+        let vectors = parse_vectors(block);
+        let Some(v) = vectors.first() else { return };
+        let (Some(z), Some(shared), Some(key_data)) = (
+            v.field(&["z"]),
+            v.field(&["sharedinfo"]),
+            v.field(&["key_data"]),
+        ) else {
+            return;
         };
+
+        let out = kdf::sskdf::x963_derive_hash(hash, z, shared, key_data.len()).unwrap();
+        assert_eq!(
+            hex::encode(&out),
+            hex::encode(key_data),
+            "X9.63 KDF for Z {}",
+            hex::encode(z)
+        );
+        *checked += 1;
+    };
 
     for line in content.lines() {
         let trimmed = line.trim();
