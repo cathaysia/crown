@@ -74,12 +74,22 @@ impl Vector {
     }
 }
 
-/// Parse a NIST-style vector file into its blank-line separated cases.
+/// Parse a NIST-style vector file into its cases.
+///
+/// Files that carry `COUNT`/`Count` lines are split at those (some layouts put
+/// a blank line between `COUNT` and its fields, so blank lines cannot be the
+/// delimiter there); files without a counter are split at blank lines, the
+/// convention of the HMAC/hash `Len =` files.
 ///
 /// `[ENCRYPT]`-style section headers are dropped; `[Keylen = 128]`-style
 /// parameter headers are kept as the field they name; `#` comments are
 /// dropped.
 pub fn parse_vectors(content: &str) -> Vec<Vector> {
+    let count_delimited = content.lines().any(|l| {
+        let name = l.split('=').next().unwrap_or("").trim().to_lowercase();
+        name == "count"
+    });
+
     let mut out: Vec<Vector> = Vec::new();
     let mut cur = Vector::default();
     let mut started = false;
@@ -87,7 +97,7 @@ pub fn parse_vectors(content: &str) -> Vec<Vector> {
     for line in content.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() {
-            if started {
+            if started && !count_delimited {
                 out.push(core::mem::take(&mut cur));
                 started = false;
             }
@@ -113,11 +123,17 @@ pub fn parse_vectors(content: &str) -> Vec<Vector> {
         };
         let name = name.trim().to_lowercase();
         let value = value.trim().to_owned();
-        let raw_value = value.to_lowercase();
-        // The raw text is always kept: some fields are decimal (`Outputlen`,
-        // XTS data unit sequence numbers) even when they happen to be valid
-        // hex as well.
-        cur.raw.insert(name.clone(), raw_value.clone());
+
+        if name == "count" && started && !cur.fields.is_empty() {
+            // A new case begins before the previous one saw a blank line.
+            out.push(core::mem::take(&mut cur));
+        }
+
+        // The raw text is always kept verbatim: some fields are decimal
+        // (`Outputlen`, XTS data unit sequence numbers, iteration counts) even
+        // when they happen to be valid hex as well, and some are
+        // case-sensitive text (scrypt's `NaCl` salt, PBKDF2's passwords).
+        cur.raw.insert(name.clone(), value.clone());
 
         if value.is_empty() || value == "0" {
             cur.fields.insert(name.clone(), Vec::new());
@@ -125,7 +141,7 @@ pub fn parse_vectors(content: &str) -> Vec<Vector> {
             // Some files (boringssl's ChaCha20-Poly1305 set) quote ASCII
             // plaintexts instead of hex encoding them.
             cur.fields.insert(name.clone(), quoted.as_bytes().to_vec());
-        } else if let Ok(bytes) = hex::decode(&raw_value) {
+        } else if let Ok(bytes) = hex::decode(&value) {
             cur.fields.insert(name.clone(), bytes);
         }
         started = true;
