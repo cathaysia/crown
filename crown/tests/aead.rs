@@ -25,6 +25,9 @@ fn test_aead() {
                         return build_ccm(CcmCipher::Camellia, key, nonce_len, tag_len);
                     }
                     "SM4-CCM" => return build_ccm(CcmCipher::Sm4, key, nonce_len, tag_len),
+                    "SM4-GCM" => EvpAeadCipher::new_sm4_gcm(key),
+                    "SEED-GCM" => EvpAeadCipher::new_kseed_gcm(key),
+                    "SEED-CCM" => return build_ccm(CcmCipher::Kseed, key, nonce_len, tag_len),
                     _ => return None,
                 }
                 .unwrap(),
@@ -89,6 +92,7 @@ enum CcmCipher {
     Aria,
     Camellia,
     Sm4,
+    Kseed,
 }
 
 fn build_ccm(
@@ -136,5 +140,87 @@ fn build_ccm_with_params<const TAG_SIZE: usize, const NONCE_SIZE: usize>(
         CcmCipher::Aria => EvpAeadCipher::new_aria_ccm::<TAG_SIZE, NONCE_SIZE>(key),
         CcmCipher::Camellia => EvpAeadCipher::new_camellia_ccm::<TAG_SIZE, NONCE_SIZE>(key, None),
         CcmCipher::Sm4 => EvpAeadCipher::new_sm4_ccm::<TAG_SIZE, NONCE_SIZE>(key),
+        CcmCipher::Kseed => EvpAeadCipher::new_kseed_ccm::<TAG_SIZE, NONCE_SIZE>(key),
     }
+}
+
+/// AES-SIV from wycheproof: the `DaeadTest` groups carry `ct` as the tag
+/// followed by the ciphertext, the AEAD-shaped ones keep the tag separate and
+/// use the nonce as the final AAD element.
+#[test]
+fn test_wycheproof_siv() {
+    use crown::aead::siv::AesSiv;
+
+    let mut checked = 0usize;
+    let mut rejected = 0usize;
+    for file in SIV_TESTS {
+        let test = get_aead_test(file);
+
+        for g in test.test_groups {
+            for (idx, t) in g.tests.iter().enumerate() {
+                let key = hex::decode(t.key.as_ref().unwrap()).unwrap();
+                let aad = hex::decode(t.aad.as_deref().unwrap_or_default()).unwrap();
+                let msg = hex::decode(t.msg.as_deref().unwrap()).unwrap();
+                let ct = hex::decode(t.ct.as_deref().unwrap()).unwrap();
+
+                // The nonce, when present, is the last AAD element.
+                let nonce = t.iv.as_deref().map(|iv| hex::decode(iv).unwrap());
+                let mut aads: Vec<&[u8]> = vec![&aad];
+                if let Some(nonce) = &nonce {
+                    aads.push(nonce);
+                }
+
+                let Ok(mut siv) = AesSiv::new(&key) else {
+                    // Unsupported key size for this vector.
+                    continue;
+                };
+                let tag = t.tag.as_deref().map(|tag| hex::decode(tag).unwrap());
+
+                // `(expected tag, expected ciphertext)`, the tag being the
+                // prefix of `ct` in the DAEAD shape.
+                let (expected_tag, expected_ct) = match &tag {
+                    Some(tag) => (tag.clone(), ct.clone()),
+                    None => (ct[..16].to_vec(), ct[16..].to_vec()),
+                };
+
+                let mut buf = msg.clone();
+                let computed_tag = siv.seal_in_place(&mut buf, &aads).unwrap();
+
+                match t.result {
+                    Some(AeadTestVectorResult::Valid) => {
+                        assert_eq!(
+                            hex::encode(computed_tag),
+                            hex::encode(&expected_tag),
+                            "{file} tc {idx} tag"
+                        );
+                        assert_eq!(
+                            hex::encode(&buf),
+                            hex::encode(&expected_ct),
+                            "{file} tc {idx} ct"
+                        );
+
+                        let mut buf = expected_ct.clone();
+                        siv.open_in_place(&mut buf, &expected_tag, &aads).unwrap();
+                        assert_eq!(hex::encode(&buf), hex::encode(&msg), "{file} tc {idx} open");
+                        checked += 1;
+                    }
+                    Some(AeadTestVectorResult::Invalid) => {
+                        let mut buf = expected_ct.clone();
+                        assert!(
+                            siv.open_in_place(&mut buf, &expected_tag, &aads).is_err(),
+                            "{file}: invalid SIV vector accepted (tc {idx})"
+                        );
+                        rejected += 1;
+                    }
+                    Some(AeadTestVectorResult::Acceptable) | None => {}
+                }
+            }
+        }
+    }
+
+    assert!(checked > 100, "only {checked} SIV vectors were verified");
+    assert!(
+        rejected > 10,
+        "only {rejected} negative SIV vectors were rejected"
+    );
 }

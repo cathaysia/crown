@@ -7,6 +7,9 @@ pub const IND_CPA_TESTS: &[&str] = &[
     "../testvectors_v1/aria_cbc_pkcs5_test.json",
 ];
 
+/// XTS also uses the `IndCpaTest` shape.
+pub const XTS_TESTS: &[&str] = &["../testvectors_v1/aes_xts_test.json"];
+
 pub fn get_ind_cpa_test(file: &str) -> Root {
     let path = format!("{}/{}", BASE_DIR, file);
     let s = std::fs::read_to_string(path).unwrap();

@@ -93,7 +93,7 @@ fn test_pyca_aead_vectors() {
                 .unwrap_or_else(|err| panic!("{filename}: open: {err:?}"));
             assert_eq!(
                 hex::encode(&opened[..]),
-                hex::encode(&v.field(&["plaintext", "pt", "in"]).unwrap()),
+                hex::encode(v.field(&["plaintext", "pt", "in"]).unwrap()),
                 "{filename}: open"
             );
             checked += 1;

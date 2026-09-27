@@ -10,8 +10,10 @@ use utils::{parse_vectors, read_pyca, Vector};
 /// stream cipher is covered by the wycheproof AEAD vectors and the in-tree
 /// RFC 8439 tests) and the CFB-1/CFB-8 segment-size batteries (crown's CFB is
 /// the block-sized CFB128 variant these files' MMT cases contradict).
+type Stream = fn(&[u8], &[u8]) -> CryptoResult<EvpStreamCipher>;
+
 #[rustfmt::skip]
-const FILES: &[(fn(&[u8], &[u8]) -> CryptoResult<EvpStreamCipher>, &str)] = &[
+const FILES: &[(Stream, &str)] = &[
     (EvpStreamCipher::new_aes_ctr, "ciphers/AES/CTR/aes-128-ctr.txt"),
     (EvpStreamCipher::new_aes_ctr, "ciphers/AES/CTR/aes-192-ctr.txt"),
     (EvpStreamCipher::new_aes_ctr, "ciphers/AES/CTR/aes-256-ctr.txt"),
