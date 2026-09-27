@@ -186,3 +186,161 @@ fn rejects_invalid_public_key() {
     let sig = sign(&secret, &msg);
     assert!(!verify(&bad_public, &sig, &msg));
 }
+
+// x25519-x86_64.pl fe51 helpers vs the portable radix-2^51 arithmetic.
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+mod asm_tests {
+    use super::asm;
+    use super::fe;
+    use super::*;
+
+    fn sample(n: u64) -> fe::Fe {
+        // deterministic pseudo-random canonical field element
+        let mut s = [0u8; 32];
+        let mut x = n.wrapping_mul(0x9e3779b97f4a7c15);
+        for b in s.iter_mut() {
+            x = x.wrapping_mul(0x9e3779b97f4a7c15).wrapping_add(0x51);
+            *b = (x >> 24) as u8;
+        }
+        s[31] &= 0x7f;
+        fe::from_bytes(&s)
+    }
+
+    #[test]
+    fn fe51_mul_matches_portable() {
+        for n in 1..8 {
+            let a = sample(n);
+            let b = sample(n * 7 + 1);
+            let got = asm::fe51_mul(&a, &b);
+            let want = fe::mul(&a, &b);
+            assert_eq!(got, want, "n={n}");
+        }
+    }
+
+    #[test]
+    fn fe51_sqr_matches_portable() {
+        for n in 1..8 {
+            let a = sample(n * 3 + 2);
+            let got = asm::fe51_sqr(&a);
+            let want = fe::sq(&a);
+            assert_eq!(got, want, "n={n}");
+        }
+    }
+
+    #[test]
+    fn fe51_mul121666_matches_portable() {
+        for n in 1..8 {
+            let a = sample(n * 5 + 3);
+            let got = asm::fe51_mul121666(&a);
+            let want = fe::mul(&a, &[121666, 0, 0, 0, 0]);
+            assert_eq!(got, want, "n={n}");
+        }
+    }
+
+    // fe64 helpers: operands live in [0, 2^256) with partial reduction; the
+    // tobytes output must equal the fully reduced product mod 2^255-19.
+    #[test]
+    fn fe64_small_known_values() {
+        let two = [2u64, 0, 0, 0];
+        let five = [5u64, 0, 0, 0];
+        let seven = [7u64, 0, 0, 0];
+
+        let prod = asm::fe64_mul(&five, &seven);
+        assert_eq!(asm::fe64_tobytes(&prod)[0], 35, "5*7");
+
+        let sum = asm::fe64_add(&five, &seven);
+        assert_eq!(asm::fe64_tobytes(&sum)[0], 12, "5+7");
+
+        let diff = asm::fe64_sub(&seven, &five);
+        assert_eq!(asm::fe64_tobytes(&diff)[0], 2, "7-5");
+
+        let sq = asm::fe64_sqr(&two);
+        assert_eq!(asm::fe64_tobytes(&sq)[0], 4, "2^2");
+
+        // 5 * 121666 stays far below 2^255-19, so tobytes passes it through.
+        let m = asm::fe64_mul121666(&five);
+        assert_eq!(
+            u64::from_le_bytes(asm::fe64_tobytes(&m)[..8].try_into().unwrap()),
+            5 * 121666
+        );
+    }
+
+    #[test]
+    fn fe64_ops_match_bigint_reference() {
+        let modulus = {
+            // 2^255 - 19 as big-endian bytes for Bn: 0x7fff..ffed.
+            let mut m = [0xffu8; 32];
+            m[0] = 0x7f;
+            m[31] = 0xed;
+            m
+        };
+        let p = crate::bn::Bn::from_be_bytes(&modulus);
+        let fe64_bytes = |x: u64| {
+            let mut v = [0u8; 32];
+            v[..8].copy_from_slice(&x.to_le_bytes());
+            v
+        };
+
+        for n in 1..6u64 {
+            let mut a_raw = [0u64; 4];
+            let mut b_raw = [0u64; 4];
+            let mut x = n.wrapping_mul(0x9e3779b97f4a7c15) | 1;
+            for limb in a_raw.iter_mut().chain(b_raw.iter_mut()) {
+                x ^= x << 13;
+                x ^= x >> 7;
+                x ^= x << 17;
+                *limb = x;
+            }
+            // keep operands below 2^255 so the sub expectation stays
+            // representable without an extra reduction
+            a_raw[3] &= 0x7fff_ffff_ffff_ffff;
+            b_raw[3] &= 0x7fff_ffff_ffff_ffff;
+
+            // fe64 limbs are little-endian; reverse into a big-endian
+            // byte string for Bn.
+            let fe64_be = |limbs: &[u64; 4]| {
+                let mut v = [0u8; 32];
+                for i in 0..4 {
+                    v[i * 8..i * 8 + 8].copy_from_slice(&limbs[i].to_le_bytes());
+                }
+                v.reverse();
+                v
+            };
+            let a = crate::bn::Bn::from_be_bytes(&fe64_be(&a_raw));
+            let b = crate::bn::Bn::from_be_bytes(&fe64_be(&b_raw));
+
+            // fe64_tobytes emits little-endian bytes; Bn serializes big-endian.
+            let be_bytes = |v: &crate::bn::Bn| {
+                let mut b = v.to_be_bytes_padded(32).unwrap();
+                b.reverse();
+                b
+            };
+
+            let prod = asm::fe64_mul(&a_raw, &b_raw);
+            let encoded = asm::fe64_tobytes(&prod);
+            let want = a.mul(&b).modulus(&p);
+            assert_eq!(encoded.to_vec(), be_bytes(&want), "mul n={n}");
+
+            let sum = asm::fe64_add(&a_raw, &b_raw);
+            let encoded = asm::fe64_tobytes(&sum);
+            let want = a.add(&b).modulus(&p);
+            assert_eq!(encoded.to_vec(), be_bytes(&want), "add n={n}");
+
+            let diff = asm::fe64_sub(&a_raw, &b_raw);
+            let encoded = asm::fe64_tobytes(&diff);
+            let want = if a.lt(&b) {
+                a.add(&p).sub(&b).unwrap()
+            } else {
+                a.sub(&b).unwrap()
+            };
+            assert_eq!(encoded.to_vec(), be_bytes(&want), "sub n={n}");
+        }
+        let _ = fe64_bytes;
+    }
+
+    #[test]
+    fn fe64_eligible_runs() {
+        // Just exercises the CPUID probe; either answer is valid.
+        let _ = asm::fe64_eligible();
+    }
+}
