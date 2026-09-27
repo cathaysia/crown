@@ -19,7 +19,7 @@ mod asm;
 mod ttable;
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
-mod aesni;
+pub(crate) mod aesni;
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 mod bsaes;
