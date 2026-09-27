@@ -107,3 +107,99 @@ fn divrem_large() {
     assert_eq!(r, hex_to_bn("06b4cb4a23d5962217beaddbc496cb8e81973e0becd7b03898d190f9ebdacc0cb1e29c658cda1495e60af593bd04cf0fd630f1f29d0da9953f48f1a09f76b5"));
     assert_eq!(a, q.mul(&b).add(&r));
 }
+
+// x86_64-mont.pl bn_mul_mont vs the portable Montgomery implementation.
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+mod asm_tests {
+    use super::*;
+
+    fn to_limbs(bytes: &[u8], limbs: usize) -> Vec<u64> {
+        let mut v = vec![0u64; limbs];
+        let be = Bn::from_be_bytes(bytes)
+            .to_be_bytes_padded(limbs * 8)
+            .unwrap();
+        for i in 0..limbs {
+            v[i] = u64::from_be_bytes(
+                be[be.len() - (i + 1) * 8..be.len() - i * 8]
+                    .try_into()
+                    .unwrap(),
+            );
+        }
+        v
+    }
+
+    #[test]
+    fn mul_mont_matches_portable() {
+        // Odd 512-bit modulus (primality irrelevant for Montgomery mul).
+        let n_be = hex_to_bn("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01").to_be_bytes_padded(64).unwrap();
+        let n = Bn::from_be_bytes(&n_be);
+        let num = 8;
+
+        // n0 = -n^-1 mod 2^64 (n is odd).
+        let n_lo = u64::from_be_bytes(n_be[56..64].try_into().unwrap());
+        let mut inv = 1u64;
+        for _ in 0..6 {
+            inv = inv.wrapping_mul(2u64.wrapping_sub(n_lo.wrapping_mul(inv)));
+        }
+        let n0 = inv.wrapping_neg();
+
+        let mont = Montgomery::new(&n).unwrap();
+        let n_limbs = to_limbs(&n_be, num);
+
+        let mut rng = 0x5eedu64;
+        for case in 0..4 {
+            let a_be: Vec<u8> = (0..64)
+                .map(|_| {
+                    rng = rng.wrapping_mul(0x9e3779b97f4a7c15).wrapping_add(case);
+                    (rng >> 24) as u8
+                })
+                .collect();
+            let b_be: Vec<u8> = (0..64)
+                .map(|_| {
+                    rng = rng.wrapping_mul(0xbf58476d1ce4e5b9).wrapping_add(case + 9);
+                    (rng >> 24) as u8
+                })
+                .collect();
+            let a = Bn::from_be_bytes(&a_be).modulus(&n);
+            let b = Bn::from_be_bytes(&b_be).modulus(&n);
+
+            // Feed Montgomery forms: the routine returns a*b*R mod n, which
+            // converts back to (a*b) mod n.
+            let a_limbs = to_limbs(&mont.to_mont(&a).to_be_bytes(), num);
+            let b_limbs = to_limbs(&mont.to_mont(&b).to_be_bytes(), num);
+
+            let mut got = super::asm::mul_mont(&a_limbs, &b_limbs, &n_limbs, n0)
+                .expect("bn_mul_mont supports 8 limbs");
+            while got.last() == Some(&0) {
+                got.pop();
+            }
+            let got_bn = Bn { limbs: got };
+            let expect = a.mul(&b).modulus(&n);
+            assert_eq!(mont.from_mont(&got_bn), expect, "case {case}");
+        }
+    }
+
+    #[test]
+    fn mul_mont_variable_path_small() {
+        // The variable-length path accepts small odd limb counts (num=2)
+        // and still matches the portable Montgomery multiplication.
+        let n = [3u64, 1]; // 2^64 + 3
+        let a = [5u64, 1];
+        let b = [7u64, 2];
+        let n_lo = n[0];
+        let mut inv = 1u64;
+        for _ in 0..6 {
+            inv = inv.wrapping_mul(2u64.wrapping_sub(n_lo.wrapping_mul(inv)));
+        }
+        let got = super::asm::mul_mont(&a, &b, &n, inv.wrapping_neg()).unwrap();
+        let bn_a = Bn { limbs: a.to_vec() };
+        let bn_b = Bn { limbs: b.to_vec() };
+        let bn_n = Bn { limbs: n.to_vec() };
+        let mont = Montgomery::new(&bn_n).unwrap();
+        let mut want = mont.mul(&bn_a, &bn_b).limbs;
+        while want.last() == Some(&0) {
+            want.pop();
+        }
+        assert_eq!(got, want);
+    }
+}
