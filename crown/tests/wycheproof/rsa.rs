@@ -47,6 +47,10 @@ pub const PKCS1_DECRYPT_TESTS: &[&str] = &[
     "rsa_pkcs1_4096_test.json",
 ];
 
+/// PKCS#1 v1.5 signature *generation*: the groups carry a full private key
+/// (PKCS#8) and the digest, and the encoding is deterministic.
+pub const PKCS1_SIGN_TESTS: &[&str] = &["rsa_sig_gen_misc_test.json"];
+
 pub fn get_rsa_test(file: &str) -> RsaTestFile {
     let path = format!("{}/{}", BASE_DIR, file);
     let s = std::fs::read_to_string(path).unwrap();

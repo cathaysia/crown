@@ -380,3 +380,43 @@ fn test_pyca_ed25519_sign() {
 
     assert!(checked > 50, "only {checked} Ed25519 vectors were verified");
 }
+
+/// PKCS#1 v1.5 signing is deterministic, so the vectors pin the exact
+/// signature (wycheproof marks them `acceptable` only because of the small
+/// moduli and weak digests).
+#[test]
+fn test_wycheproof_rsa_pkcs1_sign() {
+    let mut checked = 0usize;
+
+    for file in PKCS1_SIGN_TESTS {
+        let test = get_rsa_test(file);
+
+        for group in test.test_groups {
+            let Some(hash) = group.sha.as_deref().and_then(hash_of) else {
+                continue;
+            };
+            let Some(key) = private_key(&group) else {
+                continue;
+            };
+
+            for t in group.tests {
+                let msg = hex_or_empty(&t.msg);
+                let expected = hex_or_empty(&t.sig);
+                let sig = key.sign_pkcs1v15(hash, &msg).unwrap();
+                assert_eq!(
+                    hex::encode(&sig),
+                    hex::encode(&expected),
+                    "{file}: signature for tc {}",
+                    t.tc_id.unwrap_or_default()
+                );
+                assert!(key.public().verify_pkcs1v15(hash, &msg, &sig).unwrap());
+                checked += 1;
+            }
+        }
+    }
+
+    assert!(
+        checked >= 150,
+        "only {checked} signing vectors were verified"
+    );
+}

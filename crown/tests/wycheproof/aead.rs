@@ -7,6 +7,7 @@ pub const AEAD_TESTS: &[&str] = &[
     "xchacha20_poly1305_test.json",
     "aes_gcm_test.json",
     "aes_eax_test.json",
+    "../testvectors_v1/aes_eax_test.json",
     "../testvectors_v1/aes_ccm_test.json",
     "../testvectors_v1/aria_gcm_test.json",
     "../testvectors_v1/aria_ccm_test.json",
