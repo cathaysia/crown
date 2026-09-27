@@ -32,7 +32,11 @@ pub(crate) fn ghash(out: &mut [u8; GCM_BLOCK_SIZE], h: &[u8; GCM_BLOCK_SIZE], in
     generic_ghash(out, h, inputs);
 }
 
-fn generic_ghash(out: &mut [u8; GCM_BLOCK_SIZE], h: &[u8; GCM_BLOCK_SIZE], inputs: &[&[u8]]) {
+pub(crate) fn generic_ghash(
+    out: &mut [u8; GCM_BLOCK_SIZE],
+    h: &[u8; GCM_BLOCK_SIZE],
+    inputs: &[&[u8]],
+) {
     // productTable contains the first sixteen powers of the key, H.
     // However, they are in bit reversed order.
     let mut product_table = [GcmFieldElement { low: 0, high: 0 }; 16];

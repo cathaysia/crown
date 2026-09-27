@@ -10,20 +10,24 @@ core::arch::global_asm!(
 
 extern "C" {
     fn gcm_init_clmul(htbl: *mut u8, h: *const u8);
+    fn gcm_init_avx(htbl: *mut u8, h: *const u8);
     fn gcm_ghash_clmul(xi: *mut u8, htbl: *const u8, inp: *const u8, len: usize);
 }
 
-/// Build the 256-byte clmul-format Htable exactly as CRYPTO_gcm128_init
-/// does (H byte-swapped per qword on input). The aesni-gcm stitch consumes
-/// this table from the GCM context at Xi+0x20.
-pub(crate) fn init_clmul_htable(h: &[u8; GCM_BLOCK_SIZE]) -> [u8; 256] {
+/// Build the 256-byte AVX-format Htable (H^1..H^8 at 0x00..0x70, Karatsuba
+/// salts at 0x20/0x50/0x80, 0xc0 bytes written) exactly as CRYPTO_gcm128_init
+/// does when gcm_get_funcs picks the AVX path: H is byte-swapped per qword
+/// before the assembly sees it. The aesni-gcm stitch reads its six H keys and
+/// three salts from this layout, so the shorter clmul table (which only holds
+/// H^1..H^4 and zeroes the rest) must not be handed to it.
+pub(crate) fn init_avx_htable(h: &[u8; GCM_BLOCK_SIZE]) -> [u8; 256] {
     let mut htable = [0u8; 256];
     let mut h_swapped = [0u8; GCM_BLOCK_SIZE];
     for i in 0..8 {
         h_swapped[i] = h[7 - i];
         h_swapped[8 + i] = h[15 - i];
     }
-    unsafe { gcm_init_clmul(htable.as_mut_ptr(), h_swapped.as_ptr()) };
+    unsafe { gcm_init_avx(htable.as_mut_ptr(), h_swapped.as_ptr()) };
     htable
 }
 

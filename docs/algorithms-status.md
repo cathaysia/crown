@@ -21,8 +21,8 @@ dual-licensed under the CRYPTOGAMS license for the perlasm modules).
 | `boringSSL crypto/cipher/asm/chacha20_poly1305_x86_64.pl` | `crown/src/aead/chacha20poly1305/x86_64.ts` (`_CET_ENDBR` expanded, SSE4.1+AVX2 dispatch in Rust) |
 | `crypto/ec/asm/x25519-x86_64.pl` | `crown/src/ed25519/x86_64.ts` (fe51 for ed25519, fe64 for x25519; `$addx=1` pin) |
 | `crypto/md5/asm/md5-x86_64.pl` | `crown/src/hash/md5/block/x86_64.ts` |
-| `crypto/modes/asm/aesni-gcm-x86_64.pl` | `crown/src/aead/gcm/x86_64.ts` (stitch; compile+CTR/round-trip tested, AEAD dispatch pending) |
-| `crypto/modes/asm/ghash-x86_64.pl` | `crown/src/block/aes/gcm/x86_64.ts` (dispatch live in `block::aes::gcm::ghash`) |
+| `crypto/modes/asm/aesni-gcm-x86_64.pl` | `crown/src/aead/gcm/x86_64.ts` (stitch; compile+CTR/GHASH/round-trip tested, AEAD dispatch pending) |
+| `crypto/modes/asm/ghash-x86_64.pl` | `crown/src/block/aes/gcm/x86_64.ts` (dispatch live in `block::aes::gcm::ghash`; `gcm_init_avx` ported for the stitch, gmult/ghash AVX entry points still stubs) |
 | `crypto/poly1305/asm/poly1305-x86_64.pl` | `crown/src/mac/poly1305/x86_64.ts` |
 | `crypto/rc4/asm/rc4-x86_64.pl` | `crown/src/stream/rc4/xor_key_stream/x86_64.ts` |
 | `crypto/rc4/asm/rc4-md5-x86_64.pl` | `crown/src/stream/rc4/md5_enc/x86_64.ts` (+ NOTES.md) |
@@ -64,8 +64,13 @@ yet switched:
 - `aead/gcm/x86_64.ts` (stitch) — CTR keystream vs software AES-CTR and
   round-trip; consumes the AES-NI `aesni_set_encrypt_key` schedule format
   (not the C big-endian-word format — mixing them up was the long-standing
-  "first 96 bytes untransformed" bug). The `ctx.xi` GHASH-state contract
-  still needs NIST tag vectors as arbiter; AEAD dispatch is pending.
+  "first 96 bytes untransformed" bug). The `ctx.xi` contract is asserted as
+  well: the stitch leaves the GHASH state over the ciphertext it consumed,
+  which needs the *AVX* Htable (`gcm_init_avx`, ported into
+  `block/aes/gcm/x86_64.ts`); the shorter clmul table zeroes H^5/H^6 and
+  corrupted `ctx.xi` — that, not a pipeline subtlety, was the mismatch. Both
+  the ciphertext and the resulting Xi match the perl-generated reference asm
+  byte for byte. AEAD dispatch is still pending.
 
 ## 2. Algorithm coverage: crown vs OpenSSL (default provider)
 
