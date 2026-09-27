@@ -1,12 +1,16 @@
 //! AES-NI + GHASH stitch for GCM (aesni-gcm-x86_64.pl).
 //!
 //! The stitch symbols and helpers are compiled and unit-tested; hooking them
-//! into `seal`/`open` is pending a GHASH Htbl/Xi representation fix (see the
-//! ignored `stitch_round_trip` test).
+//! into `seal`/`open` is still pending (see the module status in
+//! `docs/algorithms-status.md`).
 //!
 //! `aesni_gcm_encrypt`/`aesni_gcm_decrypt` fuse AES-CTR and GHASH over the
 //! bulk of the message. They consume OpenSSL `AES_KEY` round keys and a
-//! `{Xi, H, Htbl[9]}` context whose relative layout is part of the ABI.
+//! `{Xi, H, Htbl[16]}` context whose relative layout is part of the ABI.
+//! `Xi` is the running GHASH state over the consumed ciphertext, in the same
+//! big-endian `u128` representation as `gcm128_context.Xi` — OpenSSL's
+//! provider passes `ctx->gcm.Xi.u` and then keeps GHASHing the remainder, so
+//! the accumulator has to line up exactly.
 
 #![allow(dead_code)] // stitch is compiled and tested; GCM dispatch is pending
 
@@ -79,16 +83,35 @@ pub fn aesni_supported() -> bool {
     crate::utils::cpuid::ia32cap(1) & (1 << 25) != 0
 }
 
-/// Initialise `{Xi, H, Htable[16]}` from the GHASH hash subkey `H`. The
-/// table is built with `gcm_init_clmul` (the format the stitch consumes),
-/// mirroring `CRYPTO_gcm128_init`.
+/// The stitch body executes `vpclmulqdq`/`movbe`/VEX instructions, so it needs
+/// PCLMULQDQ (bit 1), MOVBE (bit 22) and AVX (bit 28) plus OS YMM state —
+/// exactly the `gcm_get_funcs` predicate that installs the AVX path (and
+/// therefore the AVX Htable) in gcm128.c.
+pub fn avx_supported() -> bool {
+    const NEEDED: u32 = (1 << 1) | (1 << 22) | (1 << 28);
+    let caps = crate::utils::cpuid::ia32cap(1);
+    if caps & NEEDED != NEEDED || caps & (1 << 27) == 0 {
+        return false; // PCLMULQDQ, MOVBE, AVX and OSXSAVE
+    }
+    // XCR0[2:1] == 3: XMM and YMM state enabled by the OS.
+    (unsafe { core::arch::x86_64::_xgetbv(0) } & 0x6) == 0x6
+}
+
+/// Initialise `{Xi, H, Htable[16]}` from the GHASH hash subkey `H`. The table
+/// must be the AVX one (`gcm_init_avx`, what `CRYPTO_gcm128_init` installs on
+/// AVX+MOVBE CPUs): the stitch loads H^1..H^6 from offsets 0x00, 0x10, 0x30,
+/// 0x40, 0x60, 0x70 and the Karatsuba salts from 0x20, 0x50, 0x80. The clmul
+/// table is only 0x60 bytes and leaves H^5/H^6 zero, which corrupts `ctx.xi`.
+///
+/// The caller must have checked [`aesni_supported`] and [`avx_supported`]:
+/// `gcm_init_avx` is VEX-encoded, like the stitch itself.
 pub fn init_ctx(h: &[u8; 16]) -> GcmStitchCtx {
     GcmStitchCtx {
         xi: [0u8; 16],
         h: *h,
         htable: {
             let mut table = [[0u8; 16]; 16];
-            let flat = crate::block::aes::gcm::asm::init_clmul_htable(h);
+            let flat = crate::block::aes::gcm::asm::init_avx_htable(h);
             for (i, block) in table.iter_mut().enumerate() {
                 *block = flat[i * 16..(i + 1) * 16].try_into().unwrap();
             }
@@ -173,10 +196,10 @@ mod tests {
 
     // The stitch must match the software AES-CTR keystream and the software
     // GHASH over the produced ciphertext (a self-consistent round trip alone
-    // would not catch a wrong key schedule).
+    // would not catch a wrong key schedule or Htable).
     #[test]
     fn stitch_matches_software_ctr_and_ghash() {
-        if !aesni_supported() {
+        if !(aesni_supported() && avx_supported()) {
             return;
         }
         use crate::block::aes::Aes;
@@ -210,15 +233,35 @@ mod tests {
             assert_eq!(ct[i], pt[i] ^ ks[i], "keystream byte {i}");
         }
 
-        // Note: the stitch also updates `ctx.xi` (GHASH over the consumed
-        // bytes per OpenSSL's gcm128.c contract). A direct comparison with
-        // the software GHASH state does not match the simple expectation,
-        // which points at pipeline subtleties that are best arbitrated with
-        // NIST tag vectors once the stitch is wired into the AEAD; only the
-        // ciphertext/counter contracts are asserted here.
-        let _ = &ctx.xi;
+        // The stitch GHASHes the bytes it consumes, so `ctx.xi` must equal the
+        // software GHASH over the ciphertext — OpenSSL's provider hands the
+        // stitch `ctx->gcm.Xi.u` and then keeps accumulating from it, so a
+        // stale or differently-represented Htable (e.g. the clmul one, which
+        // leaves H^5/H^6 zero) shows up here.
+        let mut xi = [0u8; 16];
+        crate::block::aes::gcm::ghash::generic_ghash(&mut xi, &h, &[&ct]);
+        assert_eq!(ctx.xi, xi, "Xi after encrypt");
 
-        // Decrypt must invert and update the counter block identically.
+        // Golden values from the perl-generated reference asm
+        // (aesni-gcm-x86_64.pl + gcm_init_avx) driven with these same inputs,
+        // which pins the port itself rather than only its self-consistency.
+        assert_eq!(
+            &ct[..16],
+            [
+                0xd1, 0x80, 0x13, 0x5b, 0xd5, 0x1d, 0x1c, 0xbe, 0xeb, 0xb6, 0xb9, 0x4a, 0x04, 0x6c,
+                0x3c, 0x87,
+            ]
+        );
+        assert_eq!(
+            ctx.xi,
+            [
+                0xac, 0xb2, 0x8e, 0x2b, 0x33, 0x81, 0x2b, 0xef, 0x21, 0x5e, 0x2f, 0x69, 0x3d, 0x58,
+                0x1f, 0x23,
+            ]
+        );
+
+        // Decrypt must invert, update the counter block identically and leave
+        // the same GHASH state (it absorbs the same ciphertext).
         let mut back = [0u8; 384];
         let mut ctr2 = yi;
         let mut ctx2 = init_ctx(&h);
@@ -226,11 +269,12 @@ mod tests {
         assert_eq!(n, 384);
         assert_eq!(back, pt);
         assert_eq!(ctr2, ctr);
+        assert_eq!(ctx2.xi, xi, "Xi after decrypt");
     }
 
     #[test]
     fn stitch_round_trip() {
-        if !aesni_supported() {
+        if !(aesni_supported() && avx_supported()) {
             return;
         }
         let key = set_encrypt_key(&[0x11; 16], 128);

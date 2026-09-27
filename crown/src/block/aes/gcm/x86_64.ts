@@ -7,7 +7,9 @@
  *
  * Pinned to the reference configuration: $do4xaggr=1, $avx=0 (the perl
  * script auto-detects the assembler; without $ENV{CC} the avx functions
- * become stubs jumping to their clmul counterparts).
+ * become stubs jumping to their clmul counterparts) — except gcm_init_avx,
+ * which is the real AVX init: the aesni-gcm stitch requires the AVX Htable
+ * layout, and gcm128.c installs that table on every AVX+MOVBE capable CPU.
  */
 
 import { translateAssembly } from 'jsasm/x86_64-xlate';
@@ -474,6 +476,120 @@ function reduction_alg9(xhi: string, xi: string): void {
 `;
 }
 
+// AVX (VEX-encoded) variants from the $avx>1 branch of the perl script. Only
+// gcm_init_avx uses them: the aesni-gcm stitch consumes the AVX Htable layout
+// (H^1..H^8 at 0x00..0x70 with the Karatsuba salts at 0x20/0x50/0x80), which
+// is what gcm128.c installs via gcm_init_avx on AVX+MOVBE capable CPUs.
+function clmul64x64_avx(
+  xhi: string,
+  xi: string,
+  hkey: string,
+  hk: string,
+): void {
+  code += `	vpunpckhqdq	${xi},${xi},${T1reg}
+	vpxor		${xi},${T1reg},${T1reg}			#
+	vpclmulqdq	$0x11,${hkey},${xi},${xhi}	#######
+	vpclmulqdq	$0x00,${hkey},${xi},${xi}	#######
+	vpclmulqdq	$0x00,${hk},${T1reg},${T1reg}	#######
+	vpxor		${xi},${xhi},${T2reg}		#
+	vpxor		${T2reg},${T1reg},${T1reg}		#
+
+	vpslldq		$8,${T1reg},${T2reg}		#
+	vpsrldq		$8,${T1reg},${T1reg}
+	vpxor		${T2reg},${xi},${xi}		#
+	vpxor		${T1reg},${xhi},${xhi}
+`;
+}
+
+function reduction_avx(xhi: string, xi: string): void {
+  code += `	vpsllq		$57,${xi},${T1reg}		# 1st phase
+	vpsllq		$62,${xi},${T2reg}
+	vpxor		${T1reg},${T2reg},${T2reg}	#
+	vpsllq		$63,${xi},${T1reg}
+	vpxor		${T1reg},${T2reg},${T2reg}	#
+	vpslldq		$8,${T2reg},${T1reg}		#
+	vpsrldq		$8,${T2reg},${T2reg}
+	vpxor		${T1reg},${xi},${xi}		#
+	vpxor		${T2reg},${xhi},${xhi}
+
+	vpsrlq		$1,${xi},${T2reg}		# 2nd phase
+	vpxor		${xi},${xhi},${xhi}
+	vpxor		${T2reg},${xi},${xi}		#
+	vpsrlq		$5,${T2reg},${T2reg}
+	vpxor		${T2reg},${xi},${xi}		#
+	vpsrlq		$1,${xi},${xi}			#
+	vpxor		${xhi},${xi},${xi}
+`;
+}
+
+function genInitAvx(): void {
+  // my ($Htbl,$Xip)=@_4args;
+  const cHtbl = _4args[0];
+  const cXip = _4args[1];
+  const HK = '%xmm6';
+
+  code += `.globl	gcm_init_avx
+.type	gcm_init_avx,@abi-omnipotent
+.align	32
+gcm_init_avx:
+.cfi_startproc
+	endbranch
+	vzeroupper
+
+	vmovdqu		(${cXip}),${Hkeyreg}
+	vpshufd		$0b01001110,${Hkeyreg},${Hkeyreg}	# dword swap
+
+	# <<1 twist
+	vpshufd		$0b11111111,${Hkeyreg},${T2reg}	# broadcast uppermost dword
+	vpsrlq		$63,${Hkeyreg},${T1reg}
+	vpsllq		$1,${Hkeyreg},${Hkeyreg}
+	vpxor		${T3reg},${T3reg},${T3reg}	#
+	vpcmpgtd	${T2reg},${T3reg},${T3reg}	# broadcast carry bit
+	vpslldq		$8,${T1reg},${T1reg}
+	vpor		${T1reg},${Hkeyreg},${Hkeyreg}	# H<<=1
+
+	# magic reduction
+	vpand		.L0x1c2_polynomial(%rip),${T3reg},${T3reg}
+	vpxor		${T3reg},${Hkeyreg},${Hkeyreg}	# if(carry) H^=0x1c2_polynomial
+
+	vpunpckhqdq	${Hkeyreg},${Hkeyreg},${HK}
+	vmovdqa		${Hkeyreg},${Xireg}
+	vpxor		${Hkeyreg},${HK},${HK}
+	mov		$4,%r10		# up to H^8
+	jmp		.Linit_start_avx
+
+.align	32
+.Linit_loop_avx:
+	vpalignr	$8,${T1reg},${T2reg},${T3reg}	# low part is H.lo^H.hi...
+	vmovdqu		${T3reg},-0x10(${cHtbl})	# save Karatsuba "salt"
+`;
+  clmul64x64_avx(Xhireg, Xireg, Hkeyreg, HK); // calculate H^3,5,7
+  reduction_avx(Xhireg, Xireg);
+  code += `.Linit_start_avx:
+	vmovdqa		${Xireg},${T3reg}
+`;
+  clmul64x64_avx(Xhireg, Xireg, Hkeyreg, HK); // calculate H^2,4,6,8
+  reduction_avx(Xhireg, Xireg);
+  code += `	vpshufd		$0b01001110,${T3reg},${T1reg}
+	vpshufd		$0b01001110,${Xireg},${T2reg}
+	vpxor		${T3reg},${T1reg},${T1reg}	# Karatsuba pre-processing
+	vmovdqu		${T3reg},0x00(${cHtbl})	# save H^1,3,5,7
+	vpxor		${Xireg},${T2reg},${T2reg}	# Karatsuba pre-processing
+	vmovdqu		${Xireg},0x10(${cHtbl})	# save H^2,4,6,8
+	lea		0x30(${cHtbl}),${cHtbl}
+	sub		$1,%r10
+	jnz		.Linit_loop_avx
+
+	vpalignr	$8,${T2reg},${T1reg},${T3reg}	# last "salt" is flipped
+	vmovdqu		${T3reg},-0x10(${cHtbl})
+
+	vzeroupper
+	ret
+.cfi_endproc
+.size	gcm_init_avx,.-gcm_init_avx
+`;
+}
+
 function genInitClmul(): void {
   // my ($Htbl,$Xip)=@_4args;
   const cHtbl = _4args[0];
@@ -914,17 +1030,9 @@ gcm_ghash_clmul:
 }
 
 function genAvxStubs(): void {
-  code += `.globl	gcm_init_avx
-.type	gcm_init_avx,@abi-omnipotent
-.align	32
-gcm_init_avx:
-.cfi_startproc
-	endbranch
-	jmp	.L_init_clmul
-.cfi_endproc
-.size	gcm_init_avx,.-gcm_init_avx
-`;
-
+  // gcm_init_avx is the real AVX body (genInitAvx), because the aesni-gcm
+  // stitch reads the AVX table layout. The gmult/ghash AVX entry points are
+  // not ported and stay stubs jumping to their clmul counterparts.
   code += `.globl	gcm_gmult_avx
 .type	gcm_gmult_avx,@abi-omnipotent
 .align	32
@@ -1012,6 +1120,7 @@ genGhash4bit();
 genInitClmul();
 genGmultClmul();
 genGhashClmul();
+genInitAvx();
 genAvxStubs();
 genData();
 
