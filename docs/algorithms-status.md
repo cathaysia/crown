@@ -174,3 +174,44 @@ Twofish, Salsa20, Rabbit, SOSEMANUK, SOBER128, EAX, bcrypt.
   RFC 3711 (SRTP KDF), RFC 3961 (KRB5KDF), McGrew/Viega GCM test case 4
   (GMAC), NIST SP 800-185 (KMAC samples), NIST CAVS (SSHKDF, X963KDF,
   TLS PRF).
+
+## 4. Golden-vector integration tests
+
+`crown/tests/` runs the two vendored vector trees (submodules
+`crown/tests/wycheproof/data` and `crown/tests/cryptography`). Every target
+drives whole families and asserts a minimum number of verified vectors, so a
+harness cannot silently degrade into skipping everything again.
+
+| target | source | algorithms |
+|---|---|---|
+| `aead.rs` | wycheproof (`aead.json`, `mac*.json` schemas) | GCM, EAX, CCM, SIV, ChaCha20/XChaCha20-Poly1305, SM4-GCM/CCM, SEED-GCM/CCM, ARIA/Camellia-CCM, AES-CBC-PKCS5 |
+| `ind_cpa.rs` | wycheproof | AES/ARIA-CBC-PKCS5, AES-XTS |
+| `hmac.rs`, `hkdf.rs` | wycheproof | HMAC (SHA-1/2/3, SHA-512/224, SHA-512/256, SM3), HKDF |
+| `mac.rs` | wycheproof + pyca | CMAC (AES/ARIA/Camellia, truncated tags), GMAC, KMAC128/256, SipHash-2-4/-x, HMAC extras, CMAC SP 800-38B (AES/3DES), Poly1305 |
+| `rsa.rs` | wycheproof + pyca | RSA PKCS#1 v1.5 verify *and* sign, PSS verify, OAEP decrypt, PKCS#1 decrypt; Ed25519 verify, sign and key derivation |
+| `pyca_kdf.rs` | pyca | HKDF (RFC 5869), PBKDF2 (RFC 6070), scrypt (RFC 7914), Argon2id (RFC 9106), ANS X9.63 |
+| `pyca_modes.rs` | pyca | AES-XTS (CAVS), AES-SIV, ECB (AES/3DES/SM4), RC4 (incl. offsets) |
+| `pyca_block.rs`, `pyca_stream.rs`, `pyca_aead.rs` | pyca | CBC (NIST CAVS), CTR/CFB128/OFB, GCM/OCB3/ChaCha20-Poly1305 seal *and* open, CAVS negative cases |
+| `hash.rs` | pyca | MD5, SHA-1/2/3, SHAKE (incl. variable output), SM3, BLAKE2b/2s, HMAC-RIPEMD-160 |
+
+Not covered because crown has no implementation to test against those
+vectors: X25519/X448 (no public agreement API; the fe64/fe51 asm is tested
+internally), DSA/ECDSA/ECDH/Ed448, ML-KEM/ML-DSA, AES-GCM-SIV, AEGIS/ASCON,
+KW/KWP key wrap, FF1, PBES2, PKCS#7/PKCS#12/X.509 and HOTP/TOTP. The KBKDF
+CAVS files are not consumed either: their counter-placement variants
+(`CTRLOCATION`, `RLEN`) are not expressible through `kbkdf::FixedInput`,
+which the unit tests pin against OpenSSL's EVP vectors instead.
+
+### Bugs these vectors found
+
+- `hash/sm3`: `block_size()` returned 256 instead of 64, corrupting HMAC-SM3.
+- `bn`: the Knuth division estimate was corrected against the wrong low half
+  (`qhat*b` instead of `b*rhat`), which made ~6% of divisions return
+  `q*v > u` — RSA panicked in debug builds or decrypted to garbage in
+  release.
+- `rsa`: `emsa_pss_verify` skipped RFC 8017 9.1.2 step 8, accepting
+  signatures whose maskedDB had nonzero unused leading bits.
+- The pyca block/stream/AEAD harnesses matched only one spelling of each
+  field name (`keys` vs `KEY`, `plaintext` vs `PLAINTEXT1`, `PT` vs
+  `Plaintext`), so almost every vector had been skipped; the wycheproof HMAC
+  builder had no SHA-1 arm, skipping that whole file.
