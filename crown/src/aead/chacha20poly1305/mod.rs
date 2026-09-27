@@ -5,6 +5,11 @@
 mod generic;
 
 mod xchacha20poly1305;
+
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+mod asm;
+#[cfg(all(test, feature = "asm", target_arch = "x86_64"))]
+mod asm_tests;
 pub use xchacha20poly1305::*;
 
 #[cfg(test)]
