@@ -1,6 +1,8 @@
 # Algorithm & asm porting status
 
-Snapshot as of 2026-09-26. Reference tree: `crown-ref/openssl` (Apache-2.0).
+Snapshot as of 2026-09-27. Reference trees: `crown-ref/openssl` (Apache-2.0)
+and `crown-ref/boringssl` (the BoringSSL stitched AEADs; both vendors are
+dual-licensed under the CRYPTOGAMS license for the perlasm modules).
 
 ## 1. x86_64 perlasm → jsasm porting status
 
@@ -12,10 +14,15 @@ Snapshot as of 2026-09-26. Reference tree: `crown-ref/openssl` (Apache-2.0).
 | `crypto/aes/asm/aesni-x86_64.pl` | `crown/src/block/aes/aesni/x86_64.ts` (+ NOTES.md) |
 | `crypto/aes/asm/bsaes-x86_64.pl` | `crown/src/block/aes/bsaes/x86_64.ts` (+ NOTES.md) |
 | `crypto/aes/asm/vpaes-x86_64.pl` | `crown/src/block/aes/vpaes/x86_64.ts` |
+| `crypto/bn/asm/x86_64-mont.pl` | `crown/src/bn/x86_64.ts` (`bn_mul_mont`; byte-identical reassembly verified) |
+| `crypto/bn/asm/x86_64-mont5.pl` | `crown/src/bn/mont5_x86_64.ts` (`bn_power5`/gather5 + the `bn_sqr8x_internal`/`bn_sqrx8x_internal` continuations mont.pl needs) |
 | `crypto/camellia/asm/cmll-x86_64.pl` | `crown/src/block/camellia/x86_64.ts` |
 | `crypto/chacha/asm/chacha-x86_64.pl` | `crown/src/stream/chacha20/x86_64.ts` |
+| `boringSSL crypto/cipher/asm/chacha20_poly1305_x86_64.pl` | `crown/src/aead/chacha20poly1305/x86_64.ts` (`_CET_ENDBR` expanded, SSE4.1+AVX2 dispatch in Rust) |
+| `crypto/ec/asm/x25519-x86_64.pl` | `crown/src/ed25519/x86_64.ts` (fe51 for ed25519, fe64 for x25519; `$addx=1` pin) |
 | `crypto/md5/asm/md5-x86_64.pl` | `crown/src/hash/md5/block/x86_64.ts` |
-| `crypto/modes/asm/aesni-gcm-x86_64.pl` | `crown/src/aead/gcm/x86_64.ts` |
+| `crypto/modes/asm/aesni-gcm-x86_64.pl` | `crown/src/aead/gcm/x86_64.ts` (stitch; compile+CTR/round-trip tested, AEAD dispatch pending) |
+| `crypto/modes/asm/ghash-x86_64.pl` | `crown/src/block/aes/gcm/x86_64.ts` (dispatch live in `block::aes::gcm::ghash`) |
 | `crypto/poly1305/asm/poly1305-x86_64.pl` | `crown/src/mac/poly1305/x86_64.ts` |
 | `crypto/rc4/asm/rc4-x86_64.pl` | `crown/src/stream/rc4/xor_key_stream/x86_64.ts` |
 | `crypto/rc4/asm/rc4-md5-x86_64.pl` | `crown/src/stream/rc4/md5_enc/x86_64.ts` (+ NOTES.md) |
@@ -25,25 +32,40 @@ Snapshot as of 2026-09-26. Reference tree: `crown-ref/openssl` (Apache-2.0).
 | `crypto/sm3/asm/sm3-x86_64.pl` | `crown/src/hash/sm3/x86_64.ts` |
 | `crypto/sm4/asm/sm4-x86_64.pl` | `crown/src/block/sm4/x86_64.ts` |
 | `crypto/whrlpool/asm/wp-x86_64.pl` | — (no crown whirlpool module yet) |
-| `crypto/modes/asm/ghash-x86_64.pl` | — (aead round, deferred) |
 
 ### Remaining, by bucket
 
 - **hash bucket: complete.** Everything with a crown-side consumer is translated.
   Re-generated each perl and compared exported symbols against the `.ts` files;
   all match.
-- **aead-related (deferred by design):** `ghash-x86_64.pl`,
-  `aesni-gcm` (done, listed above), `aesni-sha1-x86_64.pl`,
-  `aesni-sha256-x86_64.pl`, `sha1-mb-x86_64.pl`, `sha256-mb-x86_64.pl`.
-  Note: `sha{1,256}-multi_block` in this OpenSSL version are only consumed by
-  the TLS CBC-HMAC-SHA stitched ciphers
+- **aead-related:** `aesni-gcm` and `chacha20_poly1305` are ported;
+  `aesni-sha1-x86_64.pl`, `aesni-sha256-x86_64.pl`, `sha1-mb-x86_64.pl`,
+  `sha256-mb-x86_64.pl` remain. Note: `sha{1,256}-multi_block` in this OpenSSL
+  version are only consumed by the TLS CBC-HMAC-SHA stitched ciphers
   (`cipher_aes_cbc_hmac_sha{1,256}_hw.c`), so they belong to the aead round.
 - **no crown consumer:** `wp-x86_64.pl` (whirlpool),
   `keccak1600x4-avx512vl.pl` (4-way SHA3; crown sha3 is single-stream;
   `keccak1600-avx2/avx512/avx512vl.pl` are not even referenced by this
   OpenSSL's `build.info`).
-- **not yet visited buckets:** `bn/` (x86_64-mont, mont5, rsaz, gf2m),
-  `ec/` (ecp_nistz256, x25519), `ml_dsa/` (ml_dsa_ntt).
+- **not yet visited buckets:** `bn/` (`rsaz-*`, `gf2m` — mont and mont5 are
+  done), `ec/` (`ecp_nistz256`; x25519 is done), `ml_dsa/` (`ml_dsa_ntt`).
+
+### Wiring status of the newly ported asm
+
+Compiled and unit-tested against the portable implementations, dispatch not
+yet switched:
+
+- `bn::{x86_64,mont5_x86_64}` — `bn_mul_mont` vs `bn::Montgomery`
+  (variable path, 8-limb mul4x path, Montgomery-form conversion).
+- `ed25519/x86_64.ts` — fe51 mul/sqr/mul121666 vs `ed25519::fe`, fe64
+  ops vs bigint arithmetic mod 2^255-19.
+- `aead/chacha20poly1305/x86_64.ts` — seal/open vs the BoringSSL
+  `chacha20_poly1305_tests.txt` vectors.
+- `aead/gcm/x86_64.ts` (stitch) — CTR keystream vs software AES-CTR and
+  round-trip; consumes the AES-NI `aesni_set_encrypt_key` schedule format
+  (not the C big-endian-word format — mixing them up was the long-standing
+  "first 96 bytes untransformed" bug). The `ctx.xi` GHASH-state contract
+  still needs NIST tag vectors as arbiter; AEAD dispatch is pending.
 
 ## 2. Algorithm coverage: crown vs OpenSSL (default provider)
 
@@ -140,6 +162,8 @@ Twofish, Salsa20, Rabbit, SOSEMANUK, SOBER128, EAX, bcrypt.
   `evpkdf_srtp.txt`, `evpkdf_ikev2.txt`, `tested25519.pem` (Ed25519 CLI
   interop), `openssl genrsa`/`openssl dgst`/`openssl pkeyutl` artifacts
   (RSA interop in both directions).
+- `crown-ref/boringssl/crypto/cipher/test/chacha20_poly1305_tests.txt`
+  (stitched chacha20-poly1305 asm seal/open).
 - RFC 2289 (RIPEMD-160), RFC 4493 (AES-CMAC), RFC 5297 (AES-SIV),
   RFC 8032 (Ed25519), RFC 8017 (RSA),
   RFC 3711 (SRTP KDF), RFC 3961 (KRB5KDF), McGrew/Viega GCM test case 4
