@@ -10,8 +10,8 @@ use crown::block::BlockCipher;
 use crown::hash::HashUser;
 use crown::mac::cmac::Cmac as CmacMac;
 use crown::mac::{cmac::Cmac, gmac::Gmac, kmac::Kmac128, kmac::Kmac256, siphash};
-use wycheproof::mac::with_iv::MacWithIvTestVectorResult;
 use utils::{parse_vectors, read_pyca};
+use wycheproof::mac::with_iv::MacWithIvTestVectorResult;
 use wycheproof::mac::*;
 
 fn hex_to_bytes(s: &Option<String>) -> Vec<u8> {
@@ -119,10 +119,7 @@ fn test_wycheproof_gmac() {
                 let expected = hex_to_bytes(&t.tag);
 
                 let Ok(cipher) = Aes::new(&key) else {
-                    assert!(matches!(
-                        t.result,
-                        Some(MacWithIvTestVectorResult::Invalid)
-                    ));
+                    assert!(matches!(t.result, Some(MacWithIvTestVectorResult::Invalid)));
                     continue;
                 };
                 let mut mac = Gmac::new(cipher, &iv).unwrap();
@@ -268,7 +265,10 @@ fn test_wycheproof_siphash() {
         }
     }
 
-    assert!(checked >= 80, "only {checked} SipHash vectors were verified");
+    assert!(
+        checked >= 80,
+        "only {checked} SipHash vectors were verified"
+    );
 }
 
 /// HMAC variants that only exist as wycheproof v1 files.
@@ -376,11 +376,9 @@ fn test_pyca_poly1305() {
 
     let mut checked = 0usize;
     for v in parse_vectors(&read_pyca("poly1305/rfc7539.txt")) {
-        let (Some(key), Some(msg), Some(tag)) = (
-            v.field(&["key"]),
-            v.field(&["msg"]),
-            v.field(&["tag"]),
-        ) else {
+        let (Some(key), Some(msg), Some(tag)) =
+            (v.field(&["key"]), v.field(&["msg"]), v.field(&["tag"]))
+        else {
             continue;
         };
         let key: [u8; 32] = key.try_into().unwrap();
@@ -392,13 +390,12 @@ fn test_pyca_poly1305() {
             hex::encode(key),
             hex::encode(msg)
         );
-        assert!(poly1305::verify(
-            &tag.try_into().unwrap(),
-            msg,
-            &key
-        ));
+        assert!(poly1305::verify(&tag.try_into().unwrap(), msg, &key));
         checked += 1;
     }
 
-    assert!(checked > 10, "only {checked} Poly1305 vectors were verified");
+    assert!(
+        checked > 10,
+        "only {checked} Poly1305 vectors were verified"
+    );
 }

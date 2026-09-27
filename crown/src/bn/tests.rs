@@ -108,6 +108,51 @@ fn divrem_large() {
     assert_eq!(a, q.mul(&b).add(&r));
 }
 
+// The quotient estimate must be corrected against `b*rhat + u[j+n-2]`; with
+// the wrong low half the estimate stays one too large for some operands and
+// the division silently returns `q*v > u` (this case was found through
+// wycheproof's RSA keys, where it panicked in debug builds).
+#[test]
+fn divrem_qhat_correction() {
+    let a = hex_to_bn("ba28a6794d4ca9c767c98fb9736506ecae7c8f097ddfcbc9f3308ce500eb4e11");
+    let b = hex_to_bn("60487e15580dc5ab6a8ad9cb24056361");
+    let (q, r) = a.divrem(&b).unwrap();
+    assert_eq!(q, hex_to_bn("01eef6a38c623da1b9fb8a9a2fca8ad47f"));
+    assert_eq!(r, hex_to_bn("36e11e59b1091369e1f503288fa8acf2"));
+    assert_eq!(a, q.mul(&b).add(&r));
+    assert!(r.lt(&b));
+}
+
+// Randomised division: `q*v + r == u` with `r < v` pins q and r uniquely.
+#[test]
+fn divrem_random_roundtrip() {
+    use rand::{Rng, SeedableRng};
+    let mut rng = rand::rngs::StdRng::seed_from_u64(0x5eed);
+
+    for _ in 0..200 {
+        let v_bits = rng.random_range(65..1024usize);
+        let u_bits = rng.random_range(v_bits..2048usize);
+
+        let mut u = alloc::vec![0u8; u_bits.div_ceil(8)];
+        let mut v = alloc::vec![0u8; v_bits.div_ceil(8)];
+        rng.fill(&mut u[..]);
+        rng.fill(&mut v[..]);
+        // Odd leading bytes keep the operands at their intended size.
+        u[0] |= 1;
+        v[0] |= 1;
+
+        let u = Bn::from_be_bytes(&u);
+        let v = Bn::from_be_bytes(&v);
+        if u.lt(&v) {
+            continue;
+        }
+
+        let (q, r) = u.divrem(&v).unwrap();
+        assert!(r.lt(&v));
+        assert_eq!(u, q.mul(&v).add(&r));
+    }
+}
+
 // x86_64-mont.pl bn_mul_mont vs the portable Montgomery implementation.
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 mod asm_tests {

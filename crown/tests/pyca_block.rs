@@ -143,7 +143,11 @@ fn test_pyca_block_vectors() {
                 let mut buf = expected_ct.clone();
                 let n = cipher.decrypt(&mut buf).unwrap();
                 assert_eq!(n, pt.len());
-                assert_eq!(hex::encode(&buf[..n]), hex::encode(&pt), "{filename}: decrypt");
+                assert_eq!(
+                    hex::encode(&buf[..n]),
+                    hex::encode(&pt),
+                    "{filename}: decrypt"
+                );
                 checked += 1;
             }
         }
