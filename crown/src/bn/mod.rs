@@ -11,6 +11,8 @@
 //! exponentiation data path; key generation performs variable-time work on
 //! public data, like OpenSSL's default RSA key generation.
 
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+pub(crate) mod asm;
 #[cfg(test)]
 mod tests;
 
