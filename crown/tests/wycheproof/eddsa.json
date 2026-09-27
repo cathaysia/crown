@@ -1,0 +1,107 @@
+{
+  "type": "object",
+  "definitions": {
+    "EddsaTestFile": {
+      "type": "object",
+      "properties": {
+        "algorithm": {
+          "type": "string"
+        },
+        "testGroups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EddsaTestGroup"
+          }
+        }
+      }
+    },
+    "EddsaTestGroup": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "key": {
+          "type": "object",
+          "properties": {
+            "curve": {
+              "type": "string"
+            },
+            "keySize": {
+              "type": "integer"
+            },
+            "pk": {
+              "type": "string",
+              "format": "HexBytes"
+            },
+            "sk": {
+              "type": "string",
+              "format": "HexBytes"
+            }
+          }
+        },
+        "publicKey": {
+          "type": "object",
+          "properties": {
+            "curve": {
+              "type": "string"
+            },
+            "keySize": {
+              "type": "integer"
+            },
+            "pk": {
+              "type": "string",
+              "format": "HexBytes"
+            },
+            "sk": {
+              "type": "string",
+              "format": "HexBytes"
+            }
+          }
+        },
+        "publicKeyDer": {
+          "type": "string",
+          "format": "HexBytes"
+        },
+        "tests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EddsaTestVector"
+          }
+        }
+      }
+    },
+    "EddsaTestVector": {
+      "type": "object",
+      "properties": {
+        "tcId": {
+          "type": "integer"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "msg": {
+          "type": "string",
+          "format": "HexBytes"
+        },
+        "sig": {
+          "type": "string",
+          "format": "HexBytes"
+        },
+        "result": {
+          "enum": [
+            "valid",
+            "invalid",
+            "acceptable"
+          ]
+        },
+        "flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

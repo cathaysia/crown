@@ -498,12 +498,18 @@ fn emsa_pss_verify(
     let db = &em[..em_len - h_len - 1];
     let h_prime = &em[em_len - h_len - 1..em_len - 1];
 
+    // RFC 8017 9.1.2 step 8: the unused leading bits of maskedDB must be
+    // zero; only DB (after unmasking, step 11) may have them cleared.
+    let top_bits = 8 * em_len - em_bits;
+    if top_bits > 0 && db[0] >> (8 - top_bits) != 0 {
+        return Ok(false);
+    }
+
     let db_mask = mgf1(hash, h_prime, db.len())?;
     let mut masked_db = db.to_vec();
     for (b, m) in masked_db.iter_mut().zip(db_mask.iter()) {
         *b ^= m;
     }
-    let top_bits = 8 * em_len - em_bits;
     if top_bits > 0 {
         masked_db[0] &= 0xff >> top_bits;
     }

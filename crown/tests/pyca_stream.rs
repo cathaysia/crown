@@ -99,11 +99,9 @@ fn iv_of(v: &Vector) -> Option<Vec<u8>> {
 /// `PLAINTEXT`/`CIPHERTEXT`, or the numbered `PLAINTEXT1..3` variants next to
 /// `IV1..3`.
 fn cases_of(v: &Vector, shared_iv: Option<&[u8]>) -> Vec<(Vec<u8>, Vec<u8>, Vec<u8>)> {
-    if let (Some(pt), Some(ct), Some(iv)) = (
-        v.field(&["plaintext"]),
-        v.field(&["ciphertext"]),
-        shared_iv,
-    ) {
+    if let (Some(pt), Some(ct), Some(iv)) =
+        (v.field(&["plaintext"]), v.field(&["ciphertext"]), shared_iv)
+    {
         return vec![(pt.to_vec(), ct.to_vec(), iv.to_vec())];
     }
 
@@ -168,5 +166,8 @@ fn test_pyca_stream_vectors() {
         }
     }
 
-    assert!(checked > 2000, "only {checked} stream vectors were verified");
+    assert!(
+        checked > 2000,
+        "only {checked} stream vectors were verified"
+    );
 }

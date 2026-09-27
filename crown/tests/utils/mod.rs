@@ -121,10 +121,7 @@ pub fn parse_vectors(content: &str) -> Vec<Vector> {
 
         if value.is_empty() || value == "0" {
             cur.fields.insert(name.clone(), Vec::new());
-        } else if let Some(quoted) = value
-            .strip_prefix('"')
-            .and_then(|v| v.strip_suffix('"'))
-        {
+        } else if let Some(quoted) = value.strip_prefix('"').and_then(|v| v.strip_suffix('"')) {
             // Some files (boringssl's ChaCha20-Poly1305 set) quote ASCII
             // plaintexts instead of hex encoding them.
             cur.fields.insert(name.clone(), quoted.as_bytes().to_vec());

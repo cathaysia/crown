@@ -303,7 +303,9 @@ impl Bn {
             let mut qhat = num / vn1;
             let mut rhat = num % vn1;
 
-            while qhat >= b || qhat * vn2 > ((qhat * b) + un[j + n - 2] as u128) {
+            // Knuth 4.3.1 D3: the test is against `b*rhat + u[j+n-2]`, the
+            // low part of the numerator left over by the estimate.
+            while qhat >= b || qhat * vn2 > ((rhat << 64) + un[j + n - 2] as u128) {
                 qhat -= 1;
                 rhat += vn1;
                 if rhat >= b {

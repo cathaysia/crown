@@ -1,0 +1,103 @@
+{
+  "type": "object",
+  "definitions": {
+    "RsaTestFile": {
+      "type": "object",
+      "properties": {
+        "algorithm": {
+          "type": "string"
+        },
+        "testGroups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RsaTestGroup"
+          }
+        }
+      }
+    },
+    "RsaTestGroup": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "keysize": {
+          "type": "integer"
+        },
+        "keySize": {
+          "type": "integer"
+        },
+        "e": {
+          "type": "string",
+          "format": "HexBytes"
+        },
+        "n": {
+          "type": "string",
+          "format": "HexBytes"
+        },
+        "d": {
+          "type": "string",
+          "format": "HexBytes"
+        },
+        "privateKeyPkcs8": {
+          "type": "string",
+          "format": "HexBytes"
+        },
+        "sha": {
+          "type": "string"
+        },
+        "mgf": {
+          "type": "string"
+        },
+        "mgfSha": {
+          "type": "string"
+        },
+        "sLen": {
+          "type": "integer"
+        },
+        "tests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RsaTestVector"
+          }
+        }
+      }
+    },
+    "RsaTestVector": {
+      "type": "object",
+      "properties": {
+        "tcId": {
+          "type": "integer"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "msg": {
+          "type": "string",
+          "format": "HexBytes"
+        },
+        "ct": {
+          "type": "string",
+          "format": "HexBytes"
+        },
+        "sig": {
+          "type": "string",
+          "format": "HexBytes"
+        },
+        "label": {
+          "type": "string",
+          "format": "HexBytes"
+        },
+        "result": {
+          "enum": ["valid", "invalid", "acceptable"]
+        },
+        "flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
