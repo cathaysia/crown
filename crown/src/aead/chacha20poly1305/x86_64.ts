@@ -1,0 +1,8990 @@
+/**
+ * ChaCha20-Poly1305 stitched AEAD for x86_64 (SSE4.1 and AVX2).
+ *
+ * TypeScript port of BoringSSL crypto/cipher/asm/chacha20_poly1305_x86_64.pl.
+ * Copyright 2019 The BoringSSL Authors. All Rights Reserved.
+ * Licensed under Apache License 2.0.
+ *
+ Reference configuration: default `elf` output ($avx probing produces
+ both the sse41 and avx2 paths; the AVX2 selection happens at the Rust
+ dispatch layer via CPUID+XCR0, mirroring boringssl's
+ CHACHA20_POLY1305_ASM capability handling). The Win64 SEH blocks of
+ the perl output are absent in elf output; unix SysV argument
+ registers are used.
+
+ Data layout (union chacha20_poly1305_open_data, 48 bytes):
+   key[32] @0 counter u32 @32 nonce[12] @36 (out: tag[16] @0)
+ Data layout (union chacha20_poly1305_seal_data, 64 bytes):
+   key[32] @0 counter @32 nonce[12] @36 extra_ct ptr @48 len @56
+   (out: tag[16] @0)
+ Register map (seal/open): out=%rdi in/ciphertext=%rsi len=%rdx
+ ad=%rcx ad_len=%r8 data=%r9.
+ */
+
+import { translateAssembly } from 'jsasm/x86_64-xlate';
+
+/**
+ * ChaCha20-Poly1305 stitched AEAD for x86_64 (SSE4.1 and AVX2).
+ *
+ * TypeScript port of BoringSSL crypto/cipher/asm/chacha20_poly1305_x86_64.pl.
+ * Copyright 2019 The BoringSSL Authors. All Rights Reserved.
+ * Licensed under Apache License 2.0.
+ *
+ * Reference configuration: default `elf` output, which contains both
+ * the sse41 and avx2 paths; the AVX2 selection happens at the Rust
+ * dispatch layer via CPUID+XCR0, mirroring boringssl's
+ * CHACHA20_POLY1305_ASM capability handling. Unix SysV argument
+ * registers; the Win64 SEH blocks are absent in elf output.
+ *
+ * Data layout (union chacha20_poly1305_open_data, 48 bytes):
+ *   key[32] @0, counter u32 @32, nonce[12] @36 (out: tag[16] @0)
+ * Data layout (union chacha20_poly1305_seal_data, 64 bytes):
+ *   key[32] @0, counter @32, nonce[12] @36, extra_ct ptr @48, len @56
+ *   (out: tag[16] @0)
+ * Register map (seal/open): out=%rdi in/ciphertext=%rsi len=%rdx
+ * ad=%rcx ad_len=%r8 data=%r9.
+ */
+
+const code = `// This file is generated from a similarly-named Perl script in the BoringSSL
+// source tree. Do not edit by hand.
+
+#include <openssl/asm_base.h>
+
+#if !defined(OPENSSL_NO_ASM) && defined(OPENSSL_X86_64) && defined(__ELF__)
+.section	.rodata
+.align	64
+chacha20_poly1305_constants:
+.Lchacha20_consts:
+.byte	'e','x','p','a','n','d',' ','3','2','-','b','y','t','e',' ','k'
+.byte	'e','x','p','a','n','d',' ','3','2','-','b','y','t','e',' ','k'
+.Lrol8:
+.byte	3,0,1,2, 7,4,5,6, 11,8,9,10, 15,12,13,14
+.byte	3,0,1,2, 7,4,5,6, 11,8,9,10, 15,12,13,14
+.Lrol16:
+.byte	2,3,0,1, 6,7,4,5, 10,11,8,9, 14,15,12,13
+.byte	2,3,0,1, 6,7,4,5, 10,11,8,9, 14,15,12,13
+.Lavx2_init:
+.long	0,0,0,0
+.Lsse_inc:
+.long	1,0,0,0
+.Lavx2_inc:
+.long	2,0,0,0,2,0,0,0
+.Lclamp:
+.quad	0x0FFFFFFC0FFFFFFF, 0x0FFFFFFC0FFFFFFC
+.quad	0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF
+.align	16
+.Land_masks:
+.byte	0xff,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+.byte	0xff,0xff,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+.byte	0xff,0xff,0xff,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+.byte	0xff,0xff,0xff,0xff,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+.byte	0xff,0xff,0xff,0xff,0xff,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+.byte	0xff,0xff,0xff,0xff,0xff,0xff,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+.byte	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+.byte	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+.byte	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+.byte	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x00,0x00,0x00,0x00,0x00,0x00
+.byte	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x00,0x00,0x00,0x00,0x00
+.byte	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x00,0x00,0x00,0x00
+.byte	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x00,0x00,0x00
+.byte	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x00,0x00
+.byte	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x00
+.byte	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff
+.text	
+
+.type	poly_hash_ad_internal,@function
+.align	64
+poly_hash_ad_internal:
+.cfi_startproc	
+.cfi_def_cfa	rsp, 8
+	xor	%r10,%r10
+	xor	%r11,%r11
+	xor	%r12,%r12
+	cmp	$13,%r8
+	jne	.Lhash_ad_loop
+.Lpoly_fast_tls_ad:
+// Special treatment for the TLS case of 13 bytes
+	mov	(%rcx),%r10
+	mov	5(%rcx),%r11
+	shrq	$24,%r11
+	mov	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	ret
+.Lhash_ad_loop:
+// Hash in 16 byte chunk
+	cmp	$16,%r8
+	jb	.Lhash_ad_tail
+	add	0+0(%rcx),%r10
+	adc	8+0(%rcx),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	16(%rcx),%rcx
+	sub	$16,%r8
+	jmp	.Lhash_ad_loop
+.Lhash_ad_tail:
+	cmp	$0,%r8
+	je	.Lhash_ad_done
+// Hash last < 16 byte tail
+	xor	%r13,%r13
+	xor	%r14,%r14
+	xor	%r15,%r15
+	add	%r8,%rcx
+.Lhash_ad_tail_loop:
+	shldq	$8,%r13,%r14
+	shlq	$8,%r13
+	movzbq	-1(%rcx),%r15
+	xor	%r15,%r13
+	decq	%rcx
+	decq	%r8
+	jne	.Lhash_ad_tail_loop
+
+	add	%r13,%r10
+	adc	%r14,%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+// Finished AD
+.Lhash_ad_done:
+	ret
+.cfi_endproc	
+.size	poly_hash_ad_internal, .-poly_hash_ad_internal
+
+.globl	chacha20_poly1305_open_sse41
+.hidden chacha20_poly1305_open_sse41
+.type	chacha20_poly1305_open_sse41,@function
+.align	64
+chacha20_poly1305_open_sse41:
+.cfi_startproc	
+.byte	0xf3,0x0f,0x1e,0xfa
+	pushq	%rbp
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%rbp,-16
+	pushq	%rbx
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%rbx,-24
+	pushq	%r12
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%r12,-32
+	pushq	%r13
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%r13,-40
+	pushq	%r14
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%r14,-48
+	pushq	%r15
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%r15,-56
+// We write the calculated authenticator back to keyp at the end, so save
+// the pointer on the stack too.
+	pushq	%r9
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%r9,-64
+	sub	$288 + 0 + 32,%rsp
+.cfi_adjust_cfa_offset	288 + 32
+
+	lea	32(%rsp),%rbp
+	and	$-32,%rbp
+
+	mov	%rdx,%rbx
+	mov	%r8,0+0+32(%rbp)
+	mov	%rbx,8+0+32(%rbp)
+
+	cmp	$128,%rbx
+	jbe	.Lopen_sse_128
+// For long buffers, prepare the poly key first
+	movdqa	.Lchacha20_consts(%rip),%xmm0
+	movdqu	0(%r9),%xmm4
+	movdqu	16(%r9),%xmm8
+	movdqu	32(%r9),%xmm12
+
+	movdqa	%xmm12,%xmm7
+// Store on stack, to free keyp
+	movdqa	%xmm4,0+48(%rbp)
+	movdqa	%xmm8,0+64(%rbp)
+	movdqa	%xmm12,0+96(%rbp)
+	mov	$10,%r10
+.Lopen_sse_init_rounds:
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol16(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm4
+	pxor	%xmm3,%xmm4
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol8(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm4
+	pxor	%xmm3,%xmm4
+	palignr	$4,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$12,%xmm12,%xmm12
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol16(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm4
+	pxor	%xmm3,%xmm4
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol8(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm4
+	pxor	%xmm3,%xmm4
+	palignr	$12,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$4,%xmm12,%xmm12
+
+	decq	%r10
+	jne	.Lopen_sse_init_rounds
+// A0|B0 hold the Poly1305 32-byte key, C0,D0 can be discarded
+	paddd	.Lchacha20_consts(%rip),%xmm0
+	paddd	0+48(%rbp),%xmm4
+// Clamp and store the key
+	pand	.Lclamp(%rip),%xmm0
+	movdqa	%xmm0,0+0(%rbp)
+	movdqa	%xmm4,0+16(%rbp)
+// Hash
+	mov	%r8,%r8
+	call	poly_hash_ad_internal
+.Lopen_sse_main_loop:
+	cmp	$256,%rbx
+	jb	.Lopen_sse_tail
+// Load state, increment counter blocks
+	movdqa	.Lchacha20_consts(%rip),%xmm0
+	movdqa	0+48(%rbp),%xmm4
+	movdqa	0+64(%rbp),%xmm8
+	movdqa	%xmm0,%xmm1
+	movdqa	%xmm4,%xmm5
+	movdqa	%xmm8,%xmm9
+	movdqa	%xmm0,%xmm2
+	movdqa	%xmm4,%xmm6
+	movdqa	%xmm8,%xmm10
+	movdqa	%xmm0,%xmm3
+	movdqa	%xmm4,%xmm7
+	movdqa	%xmm8,%xmm11
+	movdqa	0+96(%rbp),%xmm15
+	paddd	.Lsse_inc(%rip),%xmm15
+	movdqa	%xmm15,%xmm14
+	paddd	.Lsse_inc(%rip),%xmm14
+	movdqa	%xmm14,%xmm13
+	paddd	.Lsse_inc(%rip),%xmm13
+	movdqa	%xmm13,%xmm12
+	paddd	.Lsse_inc(%rip),%xmm12
+	movdqa	%xmm12,0+96(%rbp)
+	movdqa	%xmm13,0+112(%rbp)
+	movdqa	%xmm14,0+128(%rbp)
+	movdqa	%xmm15,0+144(%rbp)
+
+// There are 10 ChaCha20 iterations of 2QR each, so for 6 iterations we
+// hash 2 blocks, and for the remaining 4 only 1 block - for a total of 16
+	mov	$4,%rcx
+	mov	%rsi,%r8
+.Lopen_sse_main_loop_rounds:
+	movdqa	%xmm8,0+80(%rbp)
+	movdqa	.Lrol16(%rip),%xmm8
+	paddd	%xmm7,%xmm3
+	paddd	%xmm6,%xmm2
+	paddd	%xmm5,%xmm1
+	paddd	%xmm4,%xmm0
+	pxor	%xmm3,%xmm15
+	pxor	%xmm2,%xmm14
+	pxor	%xmm1,%xmm13
+	pxor	%xmm0,%xmm12
+	pshufb	%xmm8,%xmm15
+	pshufb	%xmm8,%xmm14
+	pshufb	%xmm8,%xmm13
+	pshufb	%xmm8,%xmm12
+	movdqa	0+80(%rbp),%xmm8
+	paddd	%xmm15,%xmm11
+	paddd	%xmm14,%xmm10
+	paddd	%xmm13,%xmm9
+	paddd	%xmm12,%xmm8
+	pxor	%xmm11,%xmm7
+	add	0+0(%r8),%r10
+	adc	8+0(%r8),%r11
+	adc	$1,%r12
+
+	lea	16(%r8),%r8
+	pxor	%xmm10,%xmm6
+	pxor	%xmm9,%xmm5
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm8,0+80(%rbp)
+	movdqa	%xmm7,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm7
+	pxor	%xmm8,%xmm7
+	movdqa	%xmm6,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm6
+	pxor	%xmm8,%xmm6
+	movdqa	%xmm5,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm5
+	pxor	%xmm8,%xmm5
+	movdqa	%xmm4,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm4
+	pxor	%xmm8,%xmm4
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	movdqa	.Lrol8(%rip),%xmm8
+	paddd	%xmm7,%xmm3
+	paddd	%xmm6,%xmm2
+	paddd	%xmm5,%xmm1
+	paddd	%xmm4,%xmm0
+	pxor	%xmm3,%xmm15
+	pxor	%xmm2,%xmm14
+	pxor	%xmm1,%xmm13
+	pxor	%xmm0,%xmm12
+	pshufb	%xmm8,%xmm15
+	pshufb	%xmm8,%xmm14
+	pshufb	%xmm8,%xmm13
+	pshufb	%xmm8,%xmm12
+	movdqa	0+80(%rbp),%xmm8
+	paddd	%xmm15,%xmm11
+	paddd	%xmm14,%xmm10
+	paddd	%xmm13,%xmm9
+	paddd	%xmm12,%xmm8
+	pxor	%xmm11,%xmm7
+	pxor	%xmm10,%xmm6
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	pxor	%xmm9,%xmm5
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm8,0+80(%rbp)
+	movdqa	%xmm7,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm7
+	pxor	%xmm8,%xmm7
+	movdqa	%xmm6,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm6
+	pxor	%xmm8,%xmm6
+	movdqa	%xmm5,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm5
+	pxor	%xmm8,%xmm5
+	movdqa	%xmm4,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm4
+	pxor	%xmm8,%xmm4
+	movdqa	0+80(%rbp),%xmm8
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	palignr	$4,%xmm7,%xmm7
+	palignr	$8,%xmm11,%xmm11
+	palignr	$12,%xmm15,%xmm15
+	palignr	$4,%xmm6,%xmm6
+	palignr	$8,%xmm10,%xmm10
+	palignr	$12,%xmm14,%xmm14
+	palignr	$4,%xmm5,%xmm5
+	palignr	$8,%xmm9,%xmm9
+	palignr	$12,%xmm13,%xmm13
+	palignr	$4,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$12,%xmm12,%xmm12
+	movdqa	%xmm8,0+80(%rbp)
+	movdqa	.Lrol16(%rip),%xmm8
+	paddd	%xmm7,%xmm3
+	paddd	%xmm6,%xmm2
+	paddd	%xmm5,%xmm1
+	paddd	%xmm4,%xmm0
+	pxor	%xmm3,%xmm15
+	pxor	%xmm2,%xmm14
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	pxor	%xmm1,%xmm13
+	pxor	%xmm0,%xmm12
+	pshufb	%xmm8,%xmm15
+	pshufb	%xmm8,%xmm14
+	pshufb	%xmm8,%xmm13
+	pshufb	%xmm8,%xmm12
+	movdqa	0+80(%rbp),%xmm8
+	paddd	%xmm15,%xmm11
+	paddd	%xmm14,%xmm10
+	paddd	%xmm13,%xmm9
+	paddd	%xmm12,%xmm8
+	pxor	%xmm11,%xmm7
+	pxor	%xmm10,%xmm6
+	pxor	%xmm9,%xmm5
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm8,0+80(%rbp)
+	movdqa	%xmm7,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm7
+	pxor	%xmm8,%xmm7
+	movdqa	%xmm6,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm6
+	pxor	%xmm8,%xmm6
+	movdqa	%xmm5,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm5
+	pxor	%xmm8,%xmm5
+	movdqa	%xmm4,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm4
+	pxor	%xmm8,%xmm4
+	movdqa	.Lrol8(%rip),%xmm8
+	paddd	%xmm7,%xmm3
+	paddd	%xmm6,%xmm2
+	paddd	%xmm5,%xmm1
+	paddd	%xmm4,%xmm0
+	pxor	%xmm3,%xmm15
+	pxor	%xmm2,%xmm14
+	pxor	%xmm1,%xmm13
+	pxor	%xmm0,%xmm12
+	pshufb	%xmm8,%xmm15
+	pshufb	%xmm8,%xmm14
+	pshufb	%xmm8,%xmm13
+	pshufb	%xmm8,%xmm12
+	movdqa	0+80(%rbp),%xmm8
+	paddd	%xmm15,%xmm11
+	paddd	%xmm14,%xmm10
+	paddd	%xmm13,%xmm9
+	paddd	%xmm12,%xmm8
+	pxor	%xmm11,%xmm7
+	pxor	%xmm10,%xmm6
+	pxor	%xmm9,%xmm5
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm8,0+80(%rbp)
+	movdqa	%xmm7,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm7
+	pxor	%xmm8,%xmm7
+	movdqa	%xmm6,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm6
+	pxor	%xmm8,%xmm6
+	movdqa	%xmm5,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm5
+	pxor	%xmm8,%xmm5
+	movdqa	%xmm4,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm4
+	pxor	%xmm8,%xmm4
+	movdqa	0+80(%rbp),%xmm8
+	palignr	$12,%xmm7,%xmm7
+	palignr	$8,%xmm11,%xmm11
+	palignr	$4,%xmm15,%xmm15
+	palignr	$12,%xmm6,%xmm6
+	palignr	$8,%xmm10,%xmm10
+	palignr	$4,%xmm14,%xmm14
+	palignr	$12,%xmm5,%xmm5
+	palignr	$8,%xmm9,%xmm9
+	palignr	$4,%xmm13,%xmm13
+	palignr	$12,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$4,%xmm12,%xmm12
+
+	decq	%rcx
+	jge	.Lopen_sse_main_loop_rounds
+	add	0+0(%r8),%r10
+	adc	8+0(%r8),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	16(%r8),%r8
+	cmp	$-6,%rcx
+	jg	.Lopen_sse_main_loop_rounds
+	paddd	.Lchacha20_consts(%rip),%xmm3
+	paddd	0+48(%rbp),%xmm7
+	paddd	0+64(%rbp),%xmm11
+	paddd	0+144(%rbp),%xmm15
+	paddd	.Lchacha20_consts(%rip),%xmm2
+	paddd	0+48(%rbp),%xmm6
+	paddd	0+64(%rbp),%xmm10
+	paddd	0+128(%rbp),%xmm14
+	paddd	.Lchacha20_consts(%rip),%xmm1
+	paddd	0+48(%rbp),%xmm5
+	paddd	0+64(%rbp),%xmm9
+	paddd	0+112(%rbp),%xmm13
+	paddd	.Lchacha20_consts(%rip),%xmm0
+	paddd	0+48(%rbp),%xmm4
+	paddd	0+64(%rbp),%xmm8
+	paddd	0+96(%rbp),%xmm12
+	movdqa	%xmm12,0+80(%rbp)
+	movdqu	0 + 0(%rsi),%xmm12
+	pxor	%xmm3,%xmm12
+	movdqu	%xmm12,0 + 0(%rdi)
+	movdqu	16 + 0(%rsi),%xmm12
+	pxor	%xmm7,%xmm12
+	movdqu	%xmm12,16 + 0(%rdi)
+	movdqu	32 + 0(%rsi),%xmm12
+	pxor	%xmm11,%xmm12
+	movdqu	%xmm12,32 + 0(%rdi)
+	movdqu	48 + 0(%rsi),%xmm12
+	pxor	%xmm15,%xmm12
+	movdqu	%xmm12,48 + 0(%rdi)
+	movdqu	0 + 64(%rsi),%xmm3
+	movdqu	16 + 64(%rsi),%xmm7
+	movdqu	32 + 64(%rsi),%xmm11
+	movdqu	48 + 64(%rsi),%xmm15
+	pxor	%xmm3,%xmm2
+	pxor	%xmm7,%xmm6
+	pxor	%xmm11,%xmm10
+	pxor	%xmm14,%xmm15
+	movdqu	%xmm2,0 + 64(%rdi)
+	movdqu	%xmm6,16 + 64(%rdi)
+	movdqu	%xmm10,32 + 64(%rdi)
+	movdqu	%xmm15,48 + 64(%rdi)
+	movdqu	0 + 128(%rsi),%xmm3
+	movdqu	16 + 128(%rsi),%xmm7
+	movdqu	32 + 128(%rsi),%xmm11
+	movdqu	48 + 128(%rsi),%xmm15
+	pxor	%xmm3,%xmm1
+	pxor	%xmm7,%xmm5
+	pxor	%xmm11,%xmm9
+	pxor	%xmm13,%xmm15
+	movdqu	%xmm1,0 + 128(%rdi)
+	movdqu	%xmm5,16 + 128(%rdi)
+	movdqu	%xmm9,32 + 128(%rdi)
+	movdqu	%xmm15,48 + 128(%rdi)
+	movdqu	0 + 192(%rsi),%xmm3
+	movdqu	16 + 192(%rsi),%xmm7
+	movdqu	32 + 192(%rsi),%xmm11
+	movdqu	48 + 192(%rsi),%xmm15
+	pxor	%xmm3,%xmm0
+	pxor	%xmm7,%xmm4
+	pxor	%xmm11,%xmm8
+	pxor	0+80(%rbp),%xmm15
+	movdqu	%xmm0,0 + 192(%rdi)
+	movdqu	%xmm4,16 + 192(%rdi)
+	movdqu	%xmm8,32 + 192(%rdi)
+	movdqu	%xmm15,48 + 192(%rdi)
+
+	lea	256(%rsi),%rsi
+	lea	256(%rdi),%rdi
+	sub	$256,%rbx
+	jmp	.Lopen_sse_main_loop
+.Lopen_sse_tail:
+// Handle the various tail sizes efficiently
+	test	%rbx,%rbx
+	jz	.Lopen_sse_finalize
+	cmp	$192,%rbx
+	ja	.Lopen_sse_tail_256
+	cmp	$128,%rbx
+	ja	.Lopen_sse_tail_192
+	cmp	$64,%rbx
+	ja	.Lopen_sse_tail_128
+	movdqa	.Lchacha20_consts(%rip),%xmm0
+	movdqa	0+48(%rbp),%xmm4
+	movdqa	0+64(%rbp),%xmm8
+	movdqa	0+96(%rbp),%xmm12
+	paddd	.Lsse_inc(%rip),%xmm12
+	movdqa	%xmm12,0+96(%rbp)
+
+	xor	%r8,%r8
+	mov	%rbx,%rcx
+	cmp	$16,%rcx
+	jb	.Lopen_sse_tail_64_rounds
+.Lopen_sse_tail_64_rounds_and_x1hash:
+	add	0+0(%rsi,%r8,1),%r10
+	adc	8+0(%rsi,%r8,1),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	sub	$16,%rcx
+.Lopen_sse_tail_64_rounds:
+	add	$16,%r8
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol16(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm4
+	pxor	%xmm3,%xmm4
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol8(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm4
+	pxor	%xmm3,%xmm4
+	palignr	$4,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$12,%xmm12,%xmm12
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol16(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm4
+	pxor	%xmm3,%xmm4
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol8(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm4
+	pxor	%xmm3,%xmm4
+	palignr	$12,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$4,%xmm12,%xmm12
+
+	cmp	$16,%rcx
+	jae	.Lopen_sse_tail_64_rounds_and_x1hash
+	cmp	$160,%r8
+	jne	.Lopen_sse_tail_64_rounds
+	paddd	.Lchacha20_consts(%rip),%xmm0
+	paddd	0+48(%rbp),%xmm4
+	paddd	0+64(%rbp),%xmm8
+	paddd	0+96(%rbp),%xmm12
+
+	jmp	.Lopen_sse_tail_64_dec_loop
+// ############################################################################# 
+.Lopen_sse_tail_128:
+	movdqa	.Lchacha20_consts(%rip),%xmm0
+	movdqa	0+48(%rbp),%xmm4
+	movdqa	0+64(%rbp),%xmm8
+	movdqa	%xmm0,%xmm1
+	movdqa	%xmm4,%xmm5
+	movdqa	%xmm8,%xmm9
+	movdqa	0+96(%rbp),%xmm13
+	paddd	.Lsse_inc(%rip),%xmm13
+	movdqa	%xmm13,%xmm12
+	paddd	.Lsse_inc(%rip),%xmm12
+	movdqa	%xmm12,0+96(%rbp)
+	movdqa	%xmm13,0+112(%rbp)
+
+	mov	%rbx,%rcx
+	and	$-16,%rcx
+	xor	%r8,%r8
+.Lopen_sse_tail_128_rounds_and_x1hash:
+	add	0+0(%rsi,%r8,1),%r10
+	adc	8+0(%rsi,%r8,1),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+.Lopen_sse_tail_128_rounds:
+	add	$16,%r8
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol16(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm4
+	pxor	%xmm3,%xmm4
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol8(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm4
+	pxor	%xmm3,%xmm4
+	palignr	$4,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$12,%xmm12,%xmm12
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol16(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm5
+	pxor	%xmm3,%xmm5
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol8(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm5
+	pxor	%xmm3,%xmm5
+	palignr	$4,%xmm5,%xmm5
+	palignr	$8,%xmm9,%xmm9
+	palignr	$12,%xmm13,%xmm13
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol16(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm4
+	pxor	%xmm3,%xmm4
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol8(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm4
+	pxor	%xmm3,%xmm4
+	palignr	$12,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$4,%xmm12,%xmm12
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol16(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm5
+	pxor	%xmm3,%xmm5
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol8(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm5
+	pxor	%xmm3,%xmm5
+	palignr	$12,%xmm5,%xmm5
+	palignr	$8,%xmm9,%xmm9
+	palignr	$4,%xmm13,%xmm13
+
+	cmp	%rcx,%r8
+	jb	.Lopen_sse_tail_128_rounds_and_x1hash
+	cmp	$160,%r8
+	jne	.Lopen_sse_tail_128_rounds
+	paddd	.Lchacha20_consts(%rip),%xmm1
+	paddd	0+48(%rbp),%xmm5
+	paddd	0+64(%rbp),%xmm9
+	paddd	0+112(%rbp),%xmm13
+	paddd	.Lchacha20_consts(%rip),%xmm0
+	paddd	0+48(%rbp),%xmm4
+	paddd	0+64(%rbp),%xmm8
+	paddd	0+96(%rbp),%xmm12
+	movdqu	0 + 0(%rsi),%xmm3
+	movdqu	16 + 0(%rsi),%xmm7
+	movdqu	32 + 0(%rsi),%xmm11
+	movdqu	48 + 0(%rsi),%xmm15
+	pxor	%xmm3,%xmm1
+	pxor	%xmm7,%xmm5
+	pxor	%xmm11,%xmm9
+	pxor	%xmm13,%xmm15
+	movdqu	%xmm1,0 + 0(%rdi)
+	movdqu	%xmm5,16 + 0(%rdi)
+	movdqu	%xmm9,32 + 0(%rdi)
+	movdqu	%xmm15,48 + 0(%rdi)
+
+	sub	$64,%rbx
+	lea	64(%rsi),%rsi
+	lea	64(%rdi),%rdi
+	jmp	.Lopen_sse_tail_64_dec_loop
+// ############################################################################# 
+.Lopen_sse_tail_192:
+	movdqa	.Lchacha20_consts(%rip),%xmm0
+	movdqa	0+48(%rbp),%xmm4
+	movdqa	0+64(%rbp),%xmm8
+	movdqa	%xmm0,%xmm1
+	movdqa	%xmm4,%xmm5
+	movdqa	%xmm8,%xmm9
+	movdqa	%xmm0,%xmm2
+	movdqa	%xmm4,%xmm6
+	movdqa	%xmm8,%xmm10
+	movdqa	0+96(%rbp),%xmm14
+	paddd	.Lsse_inc(%rip),%xmm14
+	movdqa	%xmm14,%xmm13
+	paddd	.Lsse_inc(%rip),%xmm13
+	movdqa	%xmm13,%xmm12
+	paddd	.Lsse_inc(%rip),%xmm12
+	movdqa	%xmm12,0+96(%rbp)
+	movdqa	%xmm13,0+112(%rbp)
+	movdqa	%xmm14,0+128(%rbp)
+
+	mov	%rbx,%rcx
+	mov	$160,%r8
+	cmp	$160,%rcx
+	cmovgq	%r8,%rcx
+	and	$-16,%rcx
+	xor	%r8,%r8
+.Lopen_sse_tail_192_rounds_and_x1hash:
+	add	0+0(%rsi,%r8,1),%r10
+	adc	8+0(%rsi,%r8,1),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+.Lopen_sse_tail_192_rounds:
+	add	$16,%r8
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol16(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm4
+	pxor	%xmm3,%xmm4
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol8(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm4
+	pxor	%xmm3,%xmm4
+	palignr	$4,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$12,%xmm12,%xmm12
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol16(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm5
+	pxor	%xmm3,%xmm5
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol8(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm5
+	pxor	%xmm3,%xmm5
+	palignr	$4,%xmm5,%xmm5
+	palignr	$8,%xmm9,%xmm9
+	palignr	$12,%xmm13,%xmm13
+	paddd	%xmm6,%xmm2
+	pxor	%xmm2,%xmm14
+	pshufb	.Lrol16(%rip),%xmm14
+	paddd	%xmm14,%xmm10
+	pxor	%xmm10,%xmm6
+	movdqa	%xmm6,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm6
+	pxor	%xmm3,%xmm6
+	paddd	%xmm6,%xmm2
+	pxor	%xmm2,%xmm14
+	pshufb	.Lrol8(%rip),%xmm14
+	paddd	%xmm14,%xmm10
+	pxor	%xmm10,%xmm6
+	movdqa	%xmm6,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm6
+	pxor	%xmm3,%xmm6
+	palignr	$4,%xmm6,%xmm6
+	palignr	$8,%xmm10,%xmm10
+	palignr	$12,%xmm14,%xmm14
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol16(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm4
+	pxor	%xmm3,%xmm4
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol8(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm4
+	pxor	%xmm3,%xmm4
+	palignr	$12,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$4,%xmm12,%xmm12
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol16(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm5
+	pxor	%xmm3,%xmm5
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol8(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm5
+	pxor	%xmm3,%xmm5
+	palignr	$12,%xmm5,%xmm5
+	palignr	$8,%xmm9,%xmm9
+	palignr	$4,%xmm13,%xmm13
+	paddd	%xmm6,%xmm2
+	pxor	%xmm2,%xmm14
+	pshufb	.Lrol16(%rip),%xmm14
+	paddd	%xmm14,%xmm10
+	pxor	%xmm10,%xmm6
+	movdqa	%xmm6,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm6
+	pxor	%xmm3,%xmm6
+	paddd	%xmm6,%xmm2
+	pxor	%xmm2,%xmm14
+	pshufb	.Lrol8(%rip),%xmm14
+	paddd	%xmm14,%xmm10
+	pxor	%xmm10,%xmm6
+	movdqa	%xmm6,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm6
+	pxor	%xmm3,%xmm6
+	palignr	$12,%xmm6,%xmm6
+	palignr	$8,%xmm10,%xmm10
+	palignr	$4,%xmm14,%xmm14
+
+	cmp	%rcx,%r8
+	jb	.Lopen_sse_tail_192_rounds_and_x1hash
+	cmp	$160,%r8
+	jne	.Lopen_sse_tail_192_rounds
+	cmp	$176,%rbx
+	jb	.Lopen_sse_tail_192_finish
+	add	0+160(%rsi),%r10
+	adc	8+160(%rsi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	cmp	$192,%rbx
+	jb	.Lopen_sse_tail_192_finish
+	add	0+176(%rsi),%r10
+	adc	8+176(%rsi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+.Lopen_sse_tail_192_finish:
+	paddd	.Lchacha20_consts(%rip),%xmm2
+	paddd	0+48(%rbp),%xmm6
+	paddd	0+64(%rbp),%xmm10
+	paddd	0+128(%rbp),%xmm14
+	paddd	.Lchacha20_consts(%rip),%xmm1
+	paddd	0+48(%rbp),%xmm5
+	paddd	0+64(%rbp),%xmm9
+	paddd	0+112(%rbp),%xmm13
+	paddd	.Lchacha20_consts(%rip),%xmm0
+	paddd	0+48(%rbp),%xmm4
+	paddd	0+64(%rbp),%xmm8
+	paddd	0+96(%rbp),%xmm12
+	movdqu	0 + 0(%rsi),%xmm3
+	movdqu	16 + 0(%rsi),%xmm7
+	movdqu	32 + 0(%rsi),%xmm11
+	movdqu	48 + 0(%rsi),%xmm15
+	pxor	%xmm3,%xmm2
+	pxor	%xmm7,%xmm6
+	pxor	%xmm11,%xmm10
+	pxor	%xmm14,%xmm15
+	movdqu	%xmm2,0 + 0(%rdi)
+	movdqu	%xmm6,16 + 0(%rdi)
+	movdqu	%xmm10,32 + 0(%rdi)
+	movdqu	%xmm15,48 + 0(%rdi)
+	movdqu	0 + 64(%rsi),%xmm3
+	movdqu	16 + 64(%rsi),%xmm7
+	movdqu	32 + 64(%rsi),%xmm11
+	movdqu	48 + 64(%rsi),%xmm15
+	pxor	%xmm3,%xmm1
+	pxor	%xmm7,%xmm5
+	pxor	%xmm11,%xmm9
+	pxor	%xmm13,%xmm15
+	movdqu	%xmm1,0 + 64(%rdi)
+	movdqu	%xmm5,16 + 64(%rdi)
+	movdqu	%xmm9,32 + 64(%rdi)
+	movdqu	%xmm15,48 + 64(%rdi)
+
+	sub	$128,%rbx
+	lea	128(%rsi),%rsi
+	lea	128(%rdi),%rdi
+	jmp	.Lopen_sse_tail_64_dec_loop
+// ############################################################################# 
+.Lopen_sse_tail_256:
+	movdqa	.Lchacha20_consts(%rip),%xmm0
+	movdqa	0+48(%rbp),%xmm4
+	movdqa	0+64(%rbp),%xmm8
+	movdqa	%xmm0,%xmm1
+	movdqa	%xmm4,%xmm5
+	movdqa	%xmm8,%xmm9
+	movdqa	%xmm0,%xmm2
+	movdqa	%xmm4,%xmm6
+	movdqa	%xmm8,%xmm10
+	movdqa	%xmm0,%xmm3
+	movdqa	%xmm4,%xmm7
+	movdqa	%xmm8,%xmm11
+	movdqa	0+96(%rbp),%xmm15
+	paddd	.Lsse_inc(%rip),%xmm15
+	movdqa	%xmm15,%xmm14
+	paddd	.Lsse_inc(%rip),%xmm14
+	movdqa	%xmm14,%xmm13
+	paddd	.Lsse_inc(%rip),%xmm13
+	movdqa	%xmm13,%xmm12
+	paddd	.Lsse_inc(%rip),%xmm12
+	movdqa	%xmm12,0+96(%rbp)
+	movdqa	%xmm13,0+112(%rbp)
+	movdqa	%xmm14,0+128(%rbp)
+	movdqa	%xmm15,0+144(%rbp)
+
+	xor	%r8,%r8
+.Lopen_sse_tail_256_rounds_and_x1hash:
+	add	0+0(%rsi,%r8,1),%r10
+	adc	8+0(%rsi,%r8,1),%r11
+	adc	$1,%r12
+	movdqa	%xmm11,0+80(%rbp)
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol16(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm11
+	pslld	$12,%xmm11
+	psrld	$20,%xmm4
+	pxor	%xmm11,%xmm4
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol8(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm11
+	pslld	$7,%xmm11
+	psrld	$25,%xmm4
+	pxor	%xmm11,%xmm4
+	palignr	$4,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$12,%xmm12,%xmm12
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol16(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm11
+	pslld	$12,%xmm11
+	psrld	$20,%xmm5
+	pxor	%xmm11,%xmm5
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol8(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm11
+	pslld	$7,%xmm11
+	psrld	$25,%xmm5
+	pxor	%xmm11,%xmm5
+	palignr	$4,%xmm5,%xmm5
+	palignr	$8,%xmm9,%xmm9
+	palignr	$12,%xmm13,%xmm13
+	paddd	%xmm6,%xmm2
+	pxor	%xmm2,%xmm14
+	pshufb	.Lrol16(%rip),%xmm14
+	paddd	%xmm14,%xmm10
+	pxor	%xmm10,%xmm6
+	movdqa	%xmm6,%xmm11
+	pslld	$12,%xmm11
+	psrld	$20,%xmm6
+	pxor	%xmm11,%xmm6
+	paddd	%xmm6,%xmm2
+	pxor	%xmm2,%xmm14
+	pshufb	.Lrol8(%rip),%xmm14
+	paddd	%xmm14,%xmm10
+	pxor	%xmm10,%xmm6
+	movdqa	%xmm6,%xmm11
+	pslld	$7,%xmm11
+	psrld	$25,%xmm6
+	pxor	%xmm11,%xmm6
+	palignr	$4,%xmm6,%xmm6
+	palignr	$8,%xmm10,%xmm10
+	palignr	$12,%xmm14,%xmm14
+	movdqa	0+80(%rbp),%xmm11
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	movdqa	%xmm9,0+80(%rbp)
+	paddd	%xmm7,%xmm3
+	pxor	%xmm3,%xmm15
+	pshufb	.Lrol16(%rip),%xmm15
+	paddd	%xmm15,%xmm11
+	pxor	%xmm11,%xmm7
+	movdqa	%xmm7,%xmm9
+	pslld	$12,%xmm9
+	psrld	$20,%xmm7
+	pxor	%xmm9,%xmm7
+	paddd	%xmm7,%xmm3
+	pxor	%xmm3,%xmm15
+	pshufb	.Lrol8(%rip),%xmm15
+	paddd	%xmm15,%xmm11
+	pxor	%xmm11,%xmm7
+	movdqa	%xmm7,%xmm9
+	pslld	$7,%xmm9
+	psrld	$25,%xmm7
+	pxor	%xmm9,%xmm7
+	palignr	$4,%xmm7,%xmm7
+	palignr	$8,%xmm11,%xmm11
+	palignr	$12,%xmm15,%xmm15
+	movdqa	0+80(%rbp),%xmm9
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	movdqa	%xmm11,0+80(%rbp)
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol16(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm11
+	pslld	$12,%xmm11
+	psrld	$20,%xmm4
+	pxor	%xmm11,%xmm4
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol8(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm11
+	pslld	$7,%xmm11
+	psrld	$25,%xmm4
+	pxor	%xmm11,%xmm4
+	palignr	$12,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$4,%xmm12,%xmm12
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol16(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm11
+	pslld	$12,%xmm11
+	psrld	$20,%xmm5
+	pxor	%xmm11,%xmm5
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol8(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm11
+	pslld	$7,%xmm11
+	psrld	$25,%xmm5
+	pxor	%xmm11,%xmm5
+	palignr	$12,%xmm5,%xmm5
+	palignr	$8,%xmm9,%xmm9
+	palignr	$4,%xmm13,%xmm13
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	paddd	%xmm6,%xmm2
+	pxor	%xmm2,%xmm14
+	pshufb	.Lrol16(%rip),%xmm14
+	paddd	%xmm14,%xmm10
+	pxor	%xmm10,%xmm6
+	movdqa	%xmm6,%xmm11
+	pslld	$12,%xmm11
+	psrld	$20,%xmm6
+	pxor	%xmm11,%xmm6
+	paddd	%xmm6,%xmm2
+	pxor	%xmm2,%xmm14
+	pshufb	.Lrol8(%rip),%xmm14
+	paddd	%xmm14,%xmm10
+	pxor	%xmm10,%xmm6
+	movdqa	%xmm6,%xmm11
+	pslld	$7,%xmm11
+	psrld	$25,%xmm6
+	pxor	%xmm11,%xmm6
+	palignr	$12,%xmm6,%xmm6
+	palignr	$8,%xmm10,%xmm10
+	palignr	$4,%xmm14,%xmm14
+	movdqa	0+80(%rbp),%xmm11
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	movdqa	%xmm9,0+80(%rbp)
+	paddd	%xmm7,%xmm3
+	pxor	%xmm3,%xmm15
+	pshufb	.Lrol16(%rip),%xmm15
+	paddd	%xmm15,%xmm11
+	pxor	%xmm11,%xmm7
+	movdqa	%xmm7,%xmm9
+	pslld	$12,%xmm9
+	psrld	$20,%xmm7
+	pxor	%xmm9,%xmm7
+	paddd	%xmm7,%xmm3
+	pxor	%xmm3,%xmm15
+	pshufb	.Lrol8(%rip),%xmm15
+	paddd	%xmm15,%xmm11
+	pxor	%xmm11,%xmm7
+	movdqa	%xmm7,%xmm9
+	pslld	$7,%xmm9
+	psrld	$25,%xmm7
+	pxor	%xmm9,%xmm7
+	palignr	$12,%xmm7,%xmm7
+	palignr	$8,%xmm11,%xmm11
+	palignr	$4,%xmm15,%xmm15
+	movdqa	0+80(%rbp),%xmm9
+
+	add	$16,%r8
+	cmp	$160,%r8
+	jb	.Lopen_sse_tail_256_rounds_and_x1hash
+
+	mov	%rbx,%rcx
+	and	$-16,%rcx
+.Lopen_sse_tail_256_hash:
+	add	0+0(%rsi,%r8,1),%r10
+	adc	8+0(%rsi,%r8,1),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	add	$16,%r8
+	cmp	%rcx,%r8
+	jb	.Lopen_sse_tail_256_hash
+	paddd	.Lchacha20_consts(%rip),%xmm3
+	paddd	0+48(%rbp),%xmm7
+	paddd	0+64(%rbp),%xmm11
+	paddd	0+144(%rbp),%xmm15
+	paddd	.Lchacha20_consts(%rip),%xmm2
+	paddd	0+48(%rbp),%xmm6
+	paddd	0+64(%rbp),%xmm10
+	paddd	0+128(%rbp),%xmm14
+	paddd	.Lchacha20_consts(%rip),%xmm1
+	paddd	0+48(%rbp),%xmm5
+	paddd	0+64(%rbp),%xmm9
+	paddd	0+112(%rbp),%xmm13
+	paddd	.Lchacha20_consts(%rip),%xmm0
+	paddd	0+48(%rbp),%xmm4
+	paddd	0+64(%rbp),%xmm8
+	paddd	0+96(%rbp),%xmm12
+	movdqa	%xmm12,0+80(%rbp)
+	movdqu	0 + 0(%rsi),%xmm12
+	pxor	%xmm3,%xmm12
+	movdqu	%xmm12,0 + 0(%rdi)
+	movdqu	16 + 0(%rsi),%xmm12
+	pxor	%xmm7,%xmm12
+	movdqu	%xmm12,16 + 0(%rdi)
+	movdqu	32 + 0(%rsi),%xmm12
+	pxor	%xmm11,%xmm12
+	movdqu	%xmm12,32 + 0(%rdi)
+	movdqu	48 + 0(%rsi),%xmm12
+	pxor	%xmm15,%xmm12
+	movdqu	%xmm12,48 + 0(%rdi)
+	movdqu	0 + 64(%rsi),%xmm3
+	movdqu	16 + 64(%rsi),%xmm7
+	movdqu	32 + 64(%rsi),%xmm11
+	movdqu	48 + 64(%rsi),%xmm15
+	pxor	%xmm3,%xmm2
+	pxor	%xmm7,%xmm6
+	pxor	%xmm11,%xmm10
+	pxor	%xmm14,%xmm15
+	movdqu	%xmm2,0 + 64(%rdi)
+	movdqu	%xmm6,16 + 64(%rdi)
+	movdqu	%xmm10,32 + 64(%rdi)
+	movdqu	%xmm15,48 + 64(%rdi)
+	movdqu	0 + 128(%rsi),%xmm3
+	movdqu	16 + 128(%rsi),%xmm7
+	movdqu	32 + 128(%rsi),%xmm11
+	movdqu	48 + 128(%rsi),%xmm15
+	pxor	%xmm3,%xmm1
+	pxor	%xmm7,%xmm5
+	pxor	%xmm11,%xmm9
+	pxor	%xmm13,%xmm15
+	movdqu	%xmm1,0 + 128(%rdi)
+	movdqu	%xmm5,16 + 128(%rdi)
+	movdqu	%xmm9,32 + 128(%rdi)
+	movdqu	%xmm15,48 + 128(%rdi)
+
+	movdqa	0+80(%rbp),%xmm12
+	sub	$192,%rbx
+	lea	192(%rsi),%rsi
+	lea	192(%rdi),%rdi
+// ############################################################################# 
+// Decrypt the remaining data, 16B at a time, using existing stream
+.Lopen_sse_tail_64_dec_loop:
+	cmp	$16,%rbx
+	jb	.Lopen_sse_tail_16_init
+	sub	$16,%rbx
+	movdqu	(%rsi),%xmm3
+	pxor	%xmm3,%xmm0
+	movdqu	%xmm0,(%rdi)
+	lea	16(%rsi),%rsi
+	lea	16(%rdi),%rdi
+	movdqa	%xmm4,%xmm0
+	movdqa	%xmm8,%xmm4
+	movdqa	%xmm12,%xmm8
+	jmp	.Lopen_sse_tail_64_dec_loop
+.Lopen_sse_tail_16_init:
+	movdqa	%xmm0,%xmm1
+
+// Decrypt up to 16 bytes at the end.
+.Lopen_sse_tail_16:
+	test	%rbx,%rbx
+	jz	.Lopen_sse_finalize
+
+// Read the final bytes into %xmm3. They need to be read in reverse order so
+// that they end up in the correct order in %xmm3.
+	pxor	%xmm3,%xmm3
+	lea	-1(%rsi,%rbx,1),%rsi
+	mov	%rbx,%r8
+.Lopen_sse_tail_16_compose:
+	pslldq	$1,%xmm3
+	pinsrb	$0,(%rsi),%xmm3
+	sub	$1,%rsi
+	sub	$1,%r8
+	jnz	.Lopen_sse_tail_16_compose
+
+	mov	%xmm3,%r13
+	pextrq	$1,%xmm3,%r14
+// The final bytes of keystream are in %xmm1.
+	pxor	%xmm1,%xmm3
+
+// Copy the plaintext bytes out.
+.Lopen_sse_tail_16_extract:
+	pextrb	$0,%xmm3,(%rdi)
+	psrldq	$1,%xmm3
+	add	$1,%rdi
+	sub	$1,%rbx
+	jne	.Lopen_sse_tail_16_extract
+
+	add	%r13,%r10
+	adc	%r14,%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+
+.Lopen_sse_finalize:
+	add	0+0+32(%rbp),%r10
+	adc	8+0+32(%rbp),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+// Final reduce
+	mov	%r10,%r13
+	mov	%r11,%r14
+	mov	%r12,%r15
+	sub	$-5,%r10
+	sbb	$-1,%r11
+	sbb	$3,%r12
+	cmovc	%r13,%r10
+	cmovc	%r14,%r11
+	cmovc	%r15,%r12
+// Add in s part of the key
+	add	0+0+16(%rbp),%r10
+	adc	8+0+16(%rbp),%r11
+
+.cfi_remember_state	
+	add	$288 + 0 + 32,%rsp
+.cfi_adjust_cfa_offset	-(288 + 32)
+// The tag replaces the key on return
+	popq	%r9
+.cfi_adjust_cfa_offset	-8
+.cfi_restore	%r9
+	mov	%r10,(%r9)
+	mov	%r11,8(%r9)
+	popq	%r15
+.cfi_adjust_cfa_offset	-8
+.cfi_restore	%r15
+	popq	%r14
+.cfi_adjust_cfa_offset	-8
+.cfi_restore	%r14
+	popq	%r13
+.cfi_adjust_cfa_offset	-8
+.cfi_restore	%r13
+	popq	%r12
+.cfi_adjust_cfa_offset	-8
+.cfi_restore	%r12
+	popq	%rbx
+.cfi_adjust_cfa_offset	-8
+.cfi_restore	%rbx
+	popq	%rbp
+.cfi_adjust_cfa_offset	-8
+.cfi_restore	%rbp
+	ret
+// ############################################################################# 
+.Lopen_sse_128:
+.cfi_restore_state	
+	movdqu	.Lchacha20_consts(%rip),%xmm0
+	movdqa	%xmm0,%xmm1
+	movdqa	%xmm0,%xmm2
+	movdqu	0(%r9),%xmm4
+	movdqa	%xmm4,%xmm5
+	movdqa	%xmm4,%xmm6
+	movdqu	16(%r9),%xmm8
+	movdqa	%xmm8,%xmm9
+	movdqa	%xmm8,%xmm10
+	movdqu	32(%r9),%xmm12
+	movdqa	%xmm12,%xmm13
+	paddd	.Lsse_inc(%rip),%xmm13
+	movdqa	%xmm13,%xmm14
+	paddd	.Lsse_inc(%rip),%xmm14
+	movdqa	%xmm4,%xmm7
+	movdqa	%xmm8,%xmm11
+	movdqa	%xmm13,%xmm15
+	mov	$10,%r10
+
+.Lopen_sse_128_rounds:
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol16(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm4
+	pxor	%xmm3,%xmm4
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol8(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm4
+	pxor	%xmm3,%xmm4
+	palignr	$4,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$12,%xmm12,%xmm12
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol16(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm5
+	pxor	%xmm3,%xmm5
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol8(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm5
+	pxor	%xmm3,%xmm5
+	palignr	$4,%xmm5,%xmm5
+	palignr	$8,%xmm9,%xmm9
+	palignr	$12,%xmm13,%xmm13
+	paddd	%xmm6,%xmm2
+	pxor	%xmm2,%xmm14
+	pshufb	.Lrol16(%rip),%xmm14
+	paddd	%xmm14,%xmm10
+	pxor	%xmm10,%xmm6
+	movdqa	%xmm6,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm6
+	pxor	%xmm3,%xmm6
+	paddd	%xmm6,%xmm2
+	pxor	%xmm2,%xmm14
+	pshufb	.Lrol8(%rip),%xmm14
+	paddd	%xmm14,%xmm10
+	pxor	%xmm10,%xmm6
+	movdqa	%xmm6,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm6
+	pxor	%xmm3,%xmm6
+	palignr	$4,%xmm6,%xmm6
+	palignr	$8,%xmm10,%xmm10
+	palignr	$12,%xmm14,%xmm14
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol16(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm4
+	pxor	%xmm3,%xmm4
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol8(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm4
+	pxor	%xmm3,%xmm4
+	palignr	$12,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$4,%xmm12,%xmm12
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol16(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm5
+	pxor	%xmm3,%xmm5
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol8(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm5
+	pxor	%xmm3,%xmm5
+	palignr	$12,%xmm5,%xmm5
+	palignr	$8,%xmm9,%xmm9
+	palignr	$4,%xmm13,%xmm13
+	paddd	%xmm6,%xmm2
+	pxor	%xmm2,%xmm14
+	pshufb	.Lrol16(%rip),%xmm14
+	paddd	%xmm14,%xmm10
+	pxor	%xmm10,%xmm6
+	movdqa	%xmm6,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm6
+	pxor	%xmm3,%xmm6
+	paddd	%xmm6,%xmm2
+	pxor	%xmm2,%xmm14
+	pshufb	.Lrol8(%rip),%xmm14
+	paddd	%xmm14,%xmm10
+	pxor	%xmm10,%xmm6
+	movdqa	%xmm6,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm6
+	pxor	%xmm3,%xmm6
+	palignr	$12,%xmm6,%xmm6
+	palignr	$8,%xmm10,%xmm10
+	palignr	$4,%xmm14,%xmm14
+
+	decq	%r10
+	jnz	.Lopen_sse_128_rounds
+	paddd	.Lchacha20_consts(%rip),%xmm0
+	paddd	.Lchacha20_consts(%rip),%xmm1
+	paddd	.Lchacha20_consts(%rip),%xmm2
+	paddd	%xmm7,%xmm4
+	paddd	%xmm7,%xmm5
+	paddd	%xmm7,%xmm6
+	paddd	%xmm11,%xmm9
+	paddd	%xmm11,%xmm10
+	paddd	%xmm15,%xmm13
+	paddd	.Lsse_inc(%rip),%xmm15
+	paddd	%xmm15,%xmm14
+// Clamp and store the key
+	pand	.Lclamp(%rip),%xmm0
+	movdqa	%xmm0,0+0(%rbp)
+	movdqa	%xmm4,0+16(%rbp)
+// Hash
+	mov	%r8,%r8
+	call	poly_hash_ad_internal
+.Lopen_sse_128_xor_hash:
+	cmp	$16,%rbx
+	jb	.Lopen_sse_tail_16
+	sub	$16,%rbx
+	add	0+0(%rsi),%r10
+	adc	8+0(%rsi),%r11
+	adc	$1,%r12
+
+// Load for decryption
+	movdqu	0(%rsi),%xmm3
+	pxor	%xmm3,%xmm1
+	movdqu	%xmm1,0(%rdi)
+	lea	16(%rsi),%rsi
+	lea	16(%rdi),%rdi
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+// Shift the stream left
+	movdqa	%xmm5,%xmm1
+	movdqa	%xmm9,%xmm5
+	movdqa	%xmm13,%xmm9
+	movdqa	%xmm2,%xmm13
+	movdqa	%xmm6,%xmm2
+	movdqa	%xmm10,%xmm6
+	movdqa	%xmm14,%xmm10
+	jmp	.Lopen_sse_128_xor_hash
+.size	chacha20_poly1305_open_sse41, .-chacha20_poly1305_open_sse41
+.cfi_endproc	
+
+// ############################################################################## 
+// ############################################################################## 
+// void chacha20_poly1305_seal(uint8_t *out_ciphertext, const uint8_t *plaintext,
+// size_t plaintext_len, const uint8_t *ad,
+// size_t ad_len,
+// union chacha20_poly1305_seal_data *data);
+.globl	chacha20_poly1305_seal_sse41
+.hidden chacha20_poly1305_seal_sse41
+.type	chacha20_poly1305_seal_sse41,@function
+.align	64
+chacha20_poly1305_seal_sse41:
+.cfi_startproc	
+.byte	0xf3,0x0f,0x1e,0xfa
+	pushq	%rbp
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%rbp,-16
+	pushq	%rbx
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%rbx,-24
+	pushq	%r12
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%r12,-32
+	pushq	%r13
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%r13,-40
+	pushq	%r14
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%r14,-48
+	pushq	%r15
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%r15,-56
+// We write the calculated authenticator back to keyp at the end, so save
+// the pointer on the stack too.
+	pushq	%r9
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%r9,-64
+	sub	$288 + 0 + 32,%rsp
+.cfi_adjust_cfa_offset	288 + 32
+	lea	32(%rsp),%rbp
+	and	$-32,%rbp
+
+	mov	56(%r9),%rbx  // extra_in_len
+	add	%rdx,%rbx
+	mov	%r8,0+0+32(%rbp)
+	mov	%rbx,8+0+32(%rbp)
+	mov	%rdx,%rbx
+
+	cmp	$128,%rbx
+	jbe	.Lseal_sse_128
+// For longer buffers, prepare the poly key + some stream
+	movdqa	.Lchacha20_consts(%rip),%xmm0
+	movdqu	0(%r9),%xmm4
+	movdqu	16(%r9),%xmm8
+	movdqu	32(%r9),%xmm12
+
+	movdqa	%xmm0,%xmm1
+	movdqa	%xmm0,%xmm2
+	movdqa	%xmm0,%xmm3
+	movdqa	%xmm4,%xmm5
+	movdqa	%xmm4,%xmm6
+	movdqa	%xmm4,%xmm7
+	movdqa	%xmm8,%xmm9
+	movdqa	%xmm8,%xmm10
+	movdqa	%xmm8,%xmm11
+	movdqa	%xmm12,%xmm15
+	paddd	.Lsse_inc(%rip),%xmm12
+	movdqa	%xmm12,%xmm14
+	paddd	.Lsse_inc(%rip),%xmm12
+	movdqa	%xmm12,%xmm13
+	paddd	.Lsse_inc(%rip),%xmm12
+// Store on stack
+	movdqa	%xmm4,0+48(%rbp)
+	movdqa	%xmm8,0+64(%rbp)
+	movdqa	%xmm12,0+96(%rbp)
+	movdqa	%xmm13,0+112(%rbp)
+	movdqa	%xmm14,0+128(%rbp)
+	movdqa	%xmm15,0+144(%rbp)
+	mov	$10,%r10
+.Lseal_sse_init_rounds:
+	movdqa	%xmm8,0+80(%rbp)
+	movdqa	.Lrol16(%rip),%xmm8
+	paddd	%xmm7,%xmm3
+	paddd	%xmm6,%xmm2
+	paddd	%xmm5,%xmm1
+	paddd	%xmm4,%xmm0
+	pxor	%xmm3,%xmm15
+	pxor	%xmm2,%xmm14
+	pxor	%xmm1,%xmm13
+	pxor	%xmm0,%xmm12
+	pshufb	%xmm8,%xmm15
+	pshufb	%xmm8,%xmm14
+	pshufb	%xmm8,%xmm13
+	pshufb	%xmm8,%xmm12
+	movdqa	0+80(%rbp),%xmm8
+	paddd	%xmm15,%xmm11
+	paddd	%xmm14,%xmm10
+	paddd	%xmm13,%xmm9
+	paddd	%xmm12,%xmm8
+	pxor	%xmm11,%xmm7
+	pxor	%xmm10,%xmm6
+	pxor	%xmm9,%xmm5
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm8,0+80(%rbp)
+	movdqa	%xmm7,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm7
+	pxor	%xmm8,%xmm7
+	movdqa	%xmm6,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm6
+	pxor	%xmm8,%xmm6
+	movdqa	%xmm5,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm5
+	pxor	%xmm8,%xmm5
+	movdqa	%xmm4,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm4
+	pxor	%xmm8,%xmm4
+	movdqa	.Lrol8(%rip),%xmm8
+	paddd	%xmm7,%xmm3
+	paddd	%xmm6,%xmm2
+	paddd	%xmm5,%xmm1
+	paddd	%xmm4,%xmm0
+	pxor	%xmm3,%xmm15
+	pxor	%xmm2,%xmm14
+	pxor	%xmm1,%xmm13
+	pxor	%xmm0,%xmm12
+	pshufb	%xmm8,%xmm15
+	pshufb	%xmm8,%xmm14
+	pshufb	%xmm8,%xmm13
+	pshufb	%xmm8,%xmm12
+	movdqa	0+80(%rbp),%xmm8
+	paddd	%xmm15,%xmm11
+	paddd	%xmm14,%xmm10
+	paddd	%xmm13,%xmm9
+	paddd	%xmm12,%xmm8
+	pxor	%xmm11,%xmm7
+	pxor	%xmm10,%xmm6
+	pxor	%xmm9,%xmm5
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm8,0+80(%rbp)
+	movdqa	%xmm7,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm7
+	pxor	%xmm8,%xmm7
+	movdqa	%xmm6,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm6
+	pxor	%xmm8,%xmm6
+	movdqa	%xmm5,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm5
+	pxor	%xmm8,%xmm5
+	movdqa	%xmm4,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm4
+	pxor	%xmm8,%xmm4
+	movdqa	0+80(%rbp),%xmm8
+	palignr	$4,%xmm7,%xmm7
+	palignr	$8,%xmm11,%xmm11
+	palignr	$12,%xmm15,%xmm15
+	palignr	$4,%xmm6,%xmm6
+	palignr	$8,%xmm10,%xmm10
+	palignr	$12,%xmm14,%xmm14
+	palignr	$4,%xmm5,%xmm5
+	palignr	$8,%xmm9,%xmm9
+	palignr	$12,%xmm13,%xmm13
+	palignr	$4,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$12,%xmm12,%xmm12
+	movdqa	%xmm8,0+80(%rbp)
+	movdqa	.Lrol16(%rip),%xmm8
+	paddd	%xmm7,%xmm3
+	paddd	%xmm6,%xmm2
+	paddd	%xmm5,%xmm1
+	paddd	%xmm4,%xmm0
+	pxor	%xmm3,%xmm15
+	pxor	%xmm2,%xmm14
+	pxor	%xmm1,%xmm13
+	pxor	%xmm0,%xmm12
+	pshufb	%xmm8,%xmm15
+	pshufb	%xmm8,%xmm14
+	pshufb	%xmm8,%xmm13
+	pshufb	%xmm8,%xmm12
+	movdqa	0+80(%rbp),%xmm8
+	paddd	%xmm15,%xmm11
+	paddd	%xmm14,%xmm10
+	paddd	%xmm13,%xmm9
+	paddd	%xmm12,%xmm8
+	pxor	%xmm11,%xmm7
+	pxor	%xmm10,%xmm6
+	pxor	%xmm9,%xmm5
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm8,0+80(%rbp)
+	movdqa	%xmm7,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm7
+	pxor	%xmm8,%xmm7
+	movdqa	%xmm6,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm6
+	pxor	%xmm8,%xmm6
+	movdqa	%xmm5,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm5
+	pxor	%xmm8,%xmm5
+	movdqa	%xmm4,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm4
+	pxor	%xmm8,%xmm4
+	movdqa	.Lrol8(%rip),%xmm8
+	paddd	%xmm7,%xmm3
+	paddd	%xmm6,%xmm2
+	paddd	%xmm5,%xmm1
+	paddd	%xmm4,%xmm0
+	pxor	%xmm3,%xmm15
+	pxor	%xmm2,%xmm14
+	pxor	%xmm1,%xmm13
+	pxor	%xmm0,%xmm12
+	pshufb	%xmm8,%xmm15
+	pshufb	%xmm8,%xmm14
+	pshufb	%xmm8,%xmm13
+	pshufb	%xmm8,%xmm12
+	movdqa	0+80(%rbp),%xmm8
+	paddd	%xmm15,%xmm11
+	paddd	%xmm14,%xmm10
+	paddd	%xmm13,%xmm9
+	paddd	%xmm12,%xmm8
+	pxor	%xmm11,%xmm7
+	pxor	%xmm10,%xmm6
+	pxor	%xmm9,%xmm5
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm8,0+80(%rbp)
+	movdqa	%xmm7,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm7
+	pxor	%xmm8,%xmm7
+	movdqa	%xmm6,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm6
+	pxor	%xmm8,%xmm6
+	movdqa	%xmm5,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm5
+	pxor	%xmm8,%xmm5
+	movdqa	%xmm4,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm4
+	pxor	%xmm8,%xmm4
+	movdqa	0+80(%rbp),%xmm8
+	palignr	$12,%xmm7,%xmm7
+	palignr	$8,%xmm11,%xmm11
+	palignr	$4,%xmm15,%xmm15
+	palignr	$12,%xmm6,%xmm6
+	palignr	$8,%xmm10,%xmm10
+	palignr	$4,%xmm14,%xmm14
+	palignr	$12,%xmm5,%xmm5
+	palignr	$8,%xmm9,%xmm9
+	palignr	$4,%xmm13,%xmm13
+	palignr	$12,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$4,%xmm12,%xmm12
+
+	decq	%r10
+	jnz	.Lseal_sse_init_rounds
+	paddd	.Lchacha20_consts(%rip),%xmm3
+	paddd	0+48(%rbp),%xmm7
+	paddd	0+64(%rbp),%xmm11
+	paddd	0+144(%rbp),%xmm15
+	paddd	.Lchacha20_consts(%rip),%xmm2
+	paddd	0+48(%rbp),%xmm6
+	paddd	0+64(%rbp),%xmm10
+	paddd	0+128(%rbp),%xmm14
+	paddd	.Lchacha20_consts(%rip),%xmm1
+	paddd	0+48(%rbp),%xmm5
+	paddd	0+64(%rbp),%xmm9
+	paddd	0+112(%rbp),%xmm13
+	paddd	.Lchacha20_consts(%rip),%xmm0
+	paddd	0+48(%rbp),%xmm4
+	paddd	0+64(%rbp),%xmm8
+	paddd	0+96(%rbp),%xmm12
+
+// Clamp and store the key
+	pand	.Lclamp(%rip),%xmm3
+	movdqa	%xmm3,0+0(%rbp)
+	movdqa	%xmm7,0+16(%rbp)
+// Hash
+	mov	%r8,%r8
+	call	poly_hash_ad_internal
+	movdqu	0 + 0(%rsi),%xmm3
+	movdqu	16 + 0(%rsi),%xmm7
+	movdqu	32 + 0(%rsi),%xmm11
+	movdqu	48 + 0(%rsi),%xmm15
+	pxor	%xmm3,%xmm2
+	pxor	%xmm7,%xmm6
+	pxor	%xmm11,%xmm10
+	pxor	%xmm14,%xmm15
+	movdqu	%xmm2,0 + 0(%rdi)
+	movdqu	%xmm6,16 + 0(%rdi)
+	movdqu	%xmm10,32 + 0(%rdi)
+	movdqu	%xmm15,48 + 0(%rdi)
+	movdqu	0 + 64(%rsi),%xmm3
+	movdqu	16 + 64(%rsi),%xmm7
+	movdqu	32 + 64(%rsi),%xmm11
+	movdqu	48 + 64(%rsi),%xmm15
+	pxor	%xmm3,%xmm1
+	pxor	%xmm7,%xmm5
+	pxor	%xmm11,%xmm9
+	pxor	%xmm13,%xmm15
+	movdqu	%xmm1,0 + 64(%rdi)
+	movdqu	%xmm5,16 + 64(%rdi)
+	movdqu	%xmm9,32 + 64(%rdi)
+	movdqu	%xmm15,48 + 64(%rdi)
+
+	cmp	$192,%rbx
+	ja	.Lseal_sse_main_init
+	mov	$128,%rcx
+	sub	$128,%rbx
+	lea	128(%rsi),%rsi
+	jmp	.Lseal_sse_128_tail_hash
+.Lseal_sse_main_init:
+	movdqu	0 + 128(%rsi),%xmm3
+	movdqu	16 + 128(%rsi),%xmm7
+	movdqu	32 + 128(%rsi),%xmm11
+	movdqu	48 + 128(%rsi),%xmm15
+	pxor	%xmm3,%xmm0
+	pxor	%xmm7,%xmm4
+	pxor	%xmm11,%xmm8
+	pxor	%xmm12,%xmm15
+	movdqu	%xmm0,0 + 128(%rdi)
+	movdqu	%xmm4,16 + 128(%rdi)
+	movdqu	%xmm8,32 + 128(%rdi)
+	movdqu	%xmm15,48 + 128(%rdi)
+
+	mov	$192,%rcx
+	sub	$192,%rbx
+	lea	192(%rsi),%rsi
+	mov	$2,%rcx
+	mov	$8,%r8
+	cmp	$64,%rbx
+	jbe	.Lseal_sse_tail_64
+	cmp	$128,%rbx
+	jbe	.Lseal_sse_tail_128
+	cmp	$192,%rbx
+	jbe	.Lseal_sse_tail_192
+
+.Lseal_sse_main_loop:
+	movdqa	.Lchacha20_consts(%rip),%xmm0
+	movdqa	0+48(%rbp),%xmm4
+	movdqa	0+64(%rbp),%xmm8
+	movdqa	%xmm0,%xmm1
+	movdqa	%xmm4,%xmm5
+	movdqa	%xmm8,%xmm9
+	movdqa	%xmm0,%xmm2
+	movdqa	%xmm4,%xmm6
+	movdqa	%xmm8,%xmm10
+	movdqa	%xmm0,%xmm3
+	movdqa	%xmm4,%xmm7
+	movdqa	%xmm8,%xmm11
+	movdqa	0+96(%rbp),%xmm15
+	paddd	.Lsse_inc(%rip),%xmm15
+	movdqa	%xmm15,%xmm14
+	paddd	.Lsse_inc(%rip),%xmm14
+	movdqa	%xmm14,%xmm13
+	paddd	.Lsse_inc(%rip),%xmm13
+	movdqa	%xmm13,%xmm12
+	paddd	.Lsse_inc(%rip),%xmm12
+	movdqa	%xmm12,0+96(%rbp)
+	movdqa	%xmm13,0+112(%rbp)
+	movdqa	%xmm14,0+128(%rbp)
+	movdqa	%xmm15,0+144(%rbp)
+
+.align	32
+.Lseal_sse_main_rounds:
+	movdqa	%xmm8,0+80(%rbp)
+	movdqa	.Lrol16(%rip),%xmm8
+	paddd	%xmm7,%xmm3
+	paddd	%xmm6,%xmm2
+	paddd	%xmm5,%xmm1
+	paddd	%xmm4,%xmm0
+	pxor	%xmm3,%xmm15
+	pxor	%xmm2,%xmm14
+	pxor	%xmm1,%xmm13
+	pxor	%xmm0,%xmm12
+	pshufb	%xmm8,%xmm15
+	pshufb	%xmm8,%xmm14
+	pshufb	%xmm8,%xmm13
+	pshufb	%xmm8,%xmm12
+	movdqa	0+80(%rbp),%xmm8
+	paddd	%xmm15,%xmm11
+	paddd	%xmm14,%xmm10
+	paddd	%xmm13,%xmm9
+	paddd	%xmm12,%xmm8
+	pxor	%xmm11,%xmm7
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	pxor	%xmm10,%xmm6
+	pxor	%xmm9,%xmm5
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm8,0+80(%rbp)
+	movdqa	%xmm7,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm7
+	pxor	%xmm8,%xmm7
+	movdqa	%xmm6,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm6
+	pxor	%xmm8,%xmm6
+	movdqa	%xmm5,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm5
+	pxor	%xmm8,%xmm5
+	movdqa	%xmm4,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm4
+	pxor	%xmm8,%xmm4
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	movdqa	.Lrol8(%rip),%xmm8
+	paddd	%xmm7,%xmm3
+	paddd	%xmm6,%xmm2
+	paddd	%xmm5,%xmm1
+	paddd	%xmm4,%xmm0
+	pxor	%xmm3,%xmm15
+	pxor	%xmm2,%xmm14
+	pxor	%xmm1,%xmm13
+	pxor	%xmm0,%xmm12
+	pshufb	%xmm8,%xmm15
+	pshufb	%xmm8,%xmm14
+	pshufb	%xmm8,%xmm13
+	pshufb	%xmm8,%xmm12
+	movdqa	0+80(%rbp),%xmm8
+	paddd	%xmm15,%xmm11
+	paddd	%xmm14,%xmm10
+	paddd	%xmm13,%xmm9
+	paddd	%xmm12,%xmm8
+	pxor	%xmm11,%xmm7
+	pxor	%xmm10,%xmm6
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	pxor	%xmm9,%xmm5
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm8,0+80(%rbp)
+	movdqa	%xmm7,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm7
+	pxor	%xmm8,%xmm7
+	movdqa	%xmm6,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm6
+	pxor	%xmm8,%xmm6
+	movdqa	%xmm5,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm5
+	pxor	%xmm8,%xmm5
+	movdqa	%xmm4,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm4
+	pxor	%xmm8,%xmm4
+	movdqa	0+80(%rbp),%xmm8
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	palignr	$4,%xmm7,%xmm7
+	palignr	$8,%xmm11,%xmm11
+	palignr	$12,%xmm15,%xmm15
+	palignr	$4,%xmm6,%xmm6
+	palignr	$8,%xmm10,%xmm10
+	palignr	$12,%xmm14,%xmm14
+	palignr	$4,%xmm5,%xmm5
+	palignr	$8,%xmm9,%xmm9
+	palignr	$12,%xmm13,%xmm13
+	palignr	$4,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$12,%xmm12,%xmm12
+	movdqa	%xmm8,0+80(%rbp)
+	movdqa	.Lrol16(%rip),%xmm8
+	paddd	%xmm7,%xmm3
+	paddd	%xmm6,%xmm2
+	paddd	%xmm5,%xmm1
+	paddd	%xmm4,%xmm0
+	pxor	%xmm3,%xmm15
+	pxor	%xmm2,%xmm14
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	pxor	%xmm1,%xmm13
+	pxor	%xmm0,%xmm12
+	pshufb	%xmm8,%xmm15
+	pshufb	%xmm8,%xmm14
+	pshufb	%xmm8,%xmm13
+	pshufb	%xmm8,%xmm12
+	movdqa	0+80(%rbp),%xmm8
+	paddd	%xmm15,%xmm11
+	paddd	%xmm14,%xmm10
+	paddd	%xmm13,%xmm9
+	paddd	%xmm12,%xmm8
+	pxor	%xmm11,%xmm7
+	pxor	%xmm10,%xmm6
+	pxor	%xmm9,%xmm5
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm8,0+80(%rbp)
+	movdqa	%xmm7,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm7
+	pxor	%xmm8,%xmm7
+	movdqa	%xmm6,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm6
+	pxor	%xmm8,%xmm6
+	movdqa	%xmm5,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm5
+	pxor	%xmm8,%xmm5
+	movdqa	%xmm4,%xmm8
+	psrld	$20,%xmm8
+	pslld	$32-20,%xmm4
+	pxor	%xmm8,%xmm4
+	movdqa	.Lrol8(%rip),%xmm8
+	paddd	%xmm7,%xmm3
+	paddd	%xmm6,%xmm2
+	paddd	%xmm5,%xmm1
+	paddd	%xmm4,%xmm0
+	pxor	%xmm3,%xmm15
+	pxor	%xmm2,%xmm14
+	pxor	%xmm1,%xmm13
+	pxor	%xmm0,%xmm12
+	pshufb	%xmm8,%xmm15
+	pshufb	%xmm8,%xmm14
+	pshufb	%xmm8,%xmm13
+	pshufb	%xmm8,%xmm12
+	movdqa	0+80(%rbp),%xmm8
+	paddd	%xmm15,%xmm11
+	paddd	%xmm14,%xmm10
+	paddd	%xmm13,%xmm9
+	paddd	%xmm12,%xmm8
+	pxor	%xmm11,%xmm7
+	pxor	%xmm10,%xmm6
+	pxor	%xmm9,%xmm5
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm8,0+80(%rbp)
+	movdqa	%xmm7,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm7
+	pxor	%xmm8,%xmm7
+	movdqa	%xmm6,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm6
+	pxor	%xmm8,%xmm6
+	movdqa	%xmm5,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm5
+	pxor	%xmm8,%xmm5
+	movdqa	%xmm4,%xmm8
+	psrld	$25,%xmm8
+	pslld	$32-25,%xmm4
+	pxor	%xmm8,%xmm4
+	movdqa	0+80(%rbp),%xmm8
+	palignr	$12,%xmm7,%xmm7
+	palignr	$8,%xmm11,%xmm11
+	palignr	$4,%xmm15,%xmm15
+	palignr	$12,%xmm6,%xmm6
+	palignr	$8,%xmm10,%xmm10
+	palignr	$4,%xmm14,%xmm14
+	palignr	$12,%xmm5,%xmm5
+	palignr	$8,%xmm9,%xmm9
+	palignr	$4,%xmm13,%xmm13
+	palignr	$12,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$4,%xmm12,%xmm12
+
+	lea	16(%rdi),%rdi
+	decq	%r8
+	jge	.Lseal_sse_main_rounds
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	16(%rdi),%rdi
+	decq	%rcx
+	jg	.Lseal_sse_main_rounds
+	paddd	.Lchacha20_consts(%rip),%xmm3
+	paddd	0+48(%rbp),%xmm7
+	paddd	0+64(%rbp),%xmm11
+	paddd	0+144(%rbp),%xmm15
+	paddd	.Lchacha20_consts(%rip),%xmm2
+	paddd	0+48(%rbp),%xmm6
+	paddd	0+64(%rbp),%xmm10
+	paddd	0+128(%rbp),%xmm14
+	paddd	.Lchacha20_consts(%rip),%xmm1
+	paddd	0+48(%rbp),%xmm5
+	paddd	0+64(%rbp),%xmm9
+	paddd	0+112(%rbp),%xmm13
+	paddd	.Lchacha20_consts(%rip),%xmm0
+	paddd	0+48(%rbp),%xmm4
+	paddd	0+64(%rbp),%xmm8
+	paddd	0+96(%rbp),%xmm12
+
+	movdqa	%xmm14,0+80(%rbp)
+	movdqa	%xmm14,0+80(%rbp)
+	movdqu	0 + 0(%rsi),%xmm14
+	pxor	%xmm3,%xmm14
+	movdqu	%xmm14,0 + 0(%rdi)
+	movdqu	16 + 0(%rsi),%xmm14
+	pxor	%xmm7,%xmm14
+	movdqu	%xmm14,16 + 0(%rdi)
+	movdqu	32 + 0(%rsi),%xmm14
+	pxor	%xmm11,%xmm14
+	movdqu	%xmm14,32 + 0(%rdi)
+	movdqu	48 + 0(%rsi),%xmm14
+	pxor	%xmm15,%xmm14
+	movdqu	%xmm14,48 + 0(%rdi)
+
+	movdqa	0+80(%rbp),%xmm14
+	movdqu	0 + 64(%rsi),%xmm3
+	movdqu	16 + 64(%rsi),%xmm7
+	movdqu	32 + 64(%rsi),%xmm11
+	movdqu	48 + 64(%rsi),%xmm15
+	pxor	%xmm3,%xmm2
+	pxor	%xmm7,%xmm6
+	pxor	%xmm11,%xmm10
+	pxor	%xmm14,%xmm15
+	movdqu	%xmm2,0 + 64(%rdi)
+	movdqu	%xmm6,16 + 64(%rdi)
+	movdqu	%xmm10,32 + 64(%rdi)
+	movdqu	%xmm15,48 + 64(%rdi)
+	movdqu	0 + 128(%rsi),%xmm3
+	movdqu	16 + 128(%rsi),%xmm7
+	movdqu	32 + 128(%rsi),%xmm11
+	movdqu	48 + 128(%rsi),%xmm15
+	pxor	%xmm3,%xmm1
+	pxor	%xmm7,%xmm5
+	pxor	%xmm11,%xmm9
+	pxor	%xmm13,%xmm15
+	movdqu	%xmm1,0 + 128(%rdi)
+	movdqu	%xmm5,16 + 128(%rdi)
+	movdqu	%xmm9,32 + 128(%rdi)
+	movdqu	%xmm15,48 + 128(%rdi)
+
+	cmp	$256,%rbx
+	ja	.Lseal_sse_main_loop_xor
+
+	mov	$192,%rcx
+	sub	$192,%rbx
+	lea	192(%rsi),%rsi
+	jmp	.Lseal_sse_128_tail_hash
+.Lseal_sse_main_loop_xor:
+	movdqu	0 + 192(%rsi),%xmm3
+	movdqu	16 + 192(%rsi),%xmm7
+	movdqu	32 + 192(%rsi),%xmm11
+	movdqu	48 + 192(%rsi),%xmm15
+	pxor	%xmm3,%xmm0
+	pxor	%xmm7,%xmm4
+	pxor	%xmm11,%xmm8
+	pxor	%xmm12,%xmm15
+	movdqu	%xmm0,0 + 192(%rdi)
+	movdqu	%xmm4,16 + 192(%rdi)
+	movdqu	%xmm8,32 + 192(%rdi)
+	movdqu	%xmm15,48 + 192(%rdi)
+
+	lea	256(%rsi),%rsi
+	sub	$256,%rbx
+	mov	$6,%rcx
+	mov	$4,%r8
+	cmp	$192,%rbx
+	jg	.Lseal_sse_main_loop
+	mov	%rbx,%rcx
+	test	%rbx,%rbx
+	je	.Lseal_sse_128_tail_hash
+	mov	$6,%rcx
+	cmp	$128,%rbx
+	ja	.Lseal_sse_tail_192
+	cmp	$64,%rbx
+	ja	.Lseal_sse_tail_128
+// ############################################################################# 
+.Lseal_sse_tail_64:
+	movdqa	.Lchacha20_consts(%rip),%xmm0
+	movdqa	0+48(%rbp),%xmm4
+	movdqa	0+64(%rbp),%xmm8
+	movdqa	0+96(%rbp),%xmm12
+	paddd	.Lsse_inc(%rip),%xmm12
+	movdqa	%xmm12,0+96(%rbp)
+
+.Lseal_sse_tail_64_rounds_and_x2hash:
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	16(%rdi),%rdi
+.Lseal_sse_tail_64_rounds_and_x1hash:
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol16(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm4
+	pxor	%xmm3,%xmm4
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol8(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm4
+	pxor	%xmm3,%xmm4
+	palignr	$4,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$12,%xmm12,%xmm12
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol16(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm4
+	pxor	%xmm3,%xmm4
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol8(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm4
+	pxor	%xmm3,%xmm4
+	palignr	$12,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$4,%xmm12,%xmm12
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	16(%rdi),%rdi
+	decq	%rcx
+	jg	.Lseal_sse_tail_64_rounds_and_x2hash
+	decq	%r8
+	jge	.Lseal_sse_tail_64_rounds_and_x1hash
+	paddd	.Lchacha20_consts(%rip),%xmm0
+	paddd	0+48(%rbp),%xmm4
+	paddd	0+64(%rbp),%xmm8
+	paddd	0+96(%rbp),%xmm12
+
+	jmp	.Lseal_sse_128_tail_xor
+// ############################################################################# 
+.Lseal_sse_tail_128:
+	movdqa	.Lchacha20_consts(%rip),%xmm0
+	movdqa	0+48(%rbp),%xmm4
+	movdqa	0+64(%rbp),%xmm8
+	movdqa	%xmm0,%xmm1
+	movdqa	%xmm4,%xmm5
+	movdqa	%xmm8,%xmm9
+	movdqa	0+96(%rbp),%xmm13
+	paddd	.Lsse_inc(%rip),%xmm13
+	movdqa	%xmm13,%xmm12
+	paddd	.Lsse_inc(%rip),%xmm12
+	movdqa	%xmm12,0+96(%rbp)
+	movdqa	%xmm13,0+112(%rbp)
+
+.Lseal_sse_tail_128_rounds_and_x2hash:
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	16(%rdi),%rdi
+.Lseal_sse_tail_128_rounds_and_x1hash:
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol16(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm4
+	pxor	%xmm3,%xmm4
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol8(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm4
+	pxor	%xmm3,%xmm4
+	palignr	$4,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$12,%xmm12,%xmm12
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol16(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm5
+	pxor	%xmm3,%xmm5
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol8(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm5
+	pxor	%xmm3,%xmm5
+	palignr	$4,%xmm5,%xmm5
+	palignr	$8,%xmm9,%xmm9
+	palignr	$12,%xmm13,%xmm13
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol16(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm4
+	pxor	%xmm3,%xmm4
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol8(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm4
+	pxor	%xmm3,%xmm4
+	palignr	$12,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$4,%xmm12,%xmm12
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol16(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm5
+	pxor	%xmm3,%xmm5
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol8(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm5
+	pxor	%xmm3,%xmm5
+	palignr	$12,%xmm5,%xmm5
+	palignr	$8,%xmm9,%xmm9
+	palignr	$4,%xmm13,%xmm13
+
+	lea	16(%rdi),%rdi
+	decq	%rcx
+	jg	.Lseal_sse_tail_128_rounds_and_x2hash
+	decq	%r8
+	jge	.Lseal_sse_tail_128_rounds_and_x1hash
+	paddd	.Lchacha20_consts(%rip),%xmm1
+	paddd	0+48(%rbp),%xmm5
+	paddd	0+64(%rbp),%xmm9
+	paddd	0+112(%rbp),%xmm13
+	paddd	.Lchacha20_consts(%rip),%xmm0
+	paddd	0+48(%rbp),%xmm4
+	paddd	0+64(%rbp),%xmm8
+	paddd	0+96(%rbp),%xmm12
+	movdqu	0 + 0(%rsi),%xmm3
+	movdqu	16 + 0(%rsi),%xmm7
+	movdqu	32 + 0(%rsi),%xmm11
+	movdqu	48 + 0(%rsi),%xmm15
+	pxor	%xmm3,%xmm1
+	pxor	%xmm7,%xmm5
+	pxor	%xmm11,%xmm9
+	pxor	%xmm13,%xmm15
+	movdqu	%xmm1,0 + 0(%rdi)
+	movdqu	%xmm5,16 + 0(%rdi)
+	movdqu	%xmm9,32 + 0(%rdi)
+	movdqu	%xmm15,48 + 0(%rdi)
+
+	mov	$64,%rcx
+	sub	$64,%rbx
+	lea	64(%rsi),%rsi
+	jmp	.Lseal_sse_128_tail_hash
+// ############################################################################# 
+.Lseal_sse_tail_192:
+	movdqa	.Lchacha20_consts(%rip),%xmm0
+	movdqa	0+48(%rbp),%xmm4
+	movdqa	0+64(%rbp),%xmm8
+	movdqa	%xmm0,%xmm1
+	movdqa	%xmm4,%xmm5
+	movdqa	%xmm8,%xmm9
+	movdqa	%xmm0,%xmm2
+	movdqa	%xmm4,%xmm6
+	movdqa	%xmm8,%xmm10
+	movdqa	0+96(%rbp),%xmm14
+	paddd	.Lsse_inc(%rip),%xmm14
+	movdqa	%xmm14,%xmm13
+	paddd	.Lsse_inc(%rip),%xmm13
+	movdqa	%xmm13,%xmm12
+	paddd	.Lsse_inc(%rip),%xmm12
+	movdqa	%xmm12,0+96(%rbp)
+	movdqa	%xmm13,0+112(%rbp)
+	movdqa	%xmm14,0+128(%rbp)
+
+.Lseal_sse_tail_192_rounds_and_x2hash:
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	16(%rdi),%rdi
+.Lseal_sse_tail_192_rounds_and_x1hash:
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol16(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm4
+	pxor	%xmm3,%xmm4
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol8(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm4
+	pxor	%xmm3,%xmm4
+	palignr	$4,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$12,%xmm12,%xmm12
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol16(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm5
+	pxor	%xmm3,%xmm5
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol8(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm5
+	pxor	%xmm3,%xmm5
+	palignr	$4,%xmm5,%xmm5
+	palignr	$8,%xmm9,%xmm9
+	palignr	$12,%xmm13,%xmm13
+	paddd	%xmm6,%xmm2
+	pxor	%xmm2,%xmm14
+	pshufb	.Lrol16(%rip),%xmm14
+	paddd	%xmm14,%xmm10
+	pxor	%xmm10,%xmm6
+	movdqa	%xmm6,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm6
+	pxor	%xmm3,%xmm6
+	paddd	%xmm6,%xmm2
+	pxor	%xmm2,%xmm14
+	pshufb	.Lrol8(%rip),%xmm14
+	paddd	%xmm14,%xmm10
+	pxor	%xmm10,%xmm6
+	movdqa	%xmm6,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm6
+	pxor	%xmm3,%xmm6
+	palignr	$4,%xmm6,%xmm6
+	palignr	$8,%xmm10,%xmm10
+	palignr	$12,%xmm14,%xmm14
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol16(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm4
+	pxor	%xmm3,%xmm4
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol8(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm4
+	pxor	%xmm3,%xmm4
+	palignr	$12,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$4,%xmm12,%xmm12
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol16(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm5
+	pxor	%xmm3,%xmm5
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol8(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm5
+	pxor	%xmm3,%xmm5
+	palignr	$12,%xmm5,%xmm5
+	palignr	$8,%xmm9,%xmm9
+	palignr	$4,%xmm13,%xmm13
+	paddd	%xmm6,%xmm2
+	pxor	%xmm2,%xmm14
+	pshufb	.Lrol16(%rip),%xmm14
+	paddd	%xmm14,%xmm10
+	pxor	%xmm10,%xmm6
+	movdqa	%xmm6,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm6
+	pxor	%xmm3,%xmm6
+	paddd	%xmm6,%xmm2
+	pxor	%xmm2,%xmm14
+	pshufb	.Lrol8(%rip),%xmm14
+	paddd	%xmm14,%xmm10
+	pxor	%xmm10,%xmm6
+	movdqa	%xmm6,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm6
+	pxor	%xmm3,%xmm6
+	palignr	$12,%xmm6,%xmm6
+	palignr	$8,%xmm10,%xmm10
+	palignr	$4,%xmm14,%xmm14
+
+	lea	16(%rdi),%rdi
+	decq	%rcx
+	jg	.Lseal_sse_tail_192_rounds_and_x2hash
+	decq	%r8
+	jge	.Lseal_sse_tail_192_rounds_and_x1hash
+	paddd	.Lchacha20_consts(%rip),%xmm2
+	paddd	0+48(%rbp),%xmm6
+	paddd	0+64(%rbp),%xmm10
+	paddd	0+128(%rbp),%xmm14
+	paddd	.Lchacha20_consts(%rip),%xmm1
+	paddd	0+48(%rbp),%xmm5
+	paddd	0+64(%rbp),%xmm9
+	paddd	0+112(%rbp),%xmm13
+	paddd	.Lchacha20_consts(%rip),%xmm0
+	paddd	0+48(%rbp),%xmm4
+	paddd	0+64(%rbp),%xmm8
+	paddd	0+96(%rbp),%xmm12
+	movdqu	0 + 0(%rsi),%xmm3
+	movdqu	16 + 0(%rsi),%xmm7
+	movdqu	32 + 0(%rsi),%xmm11
+	movdqu	48 + 0(%rsi),%xmm15
+	pxor	%xmm3,%xmm2
+	pxor	%xmm7,%xmm6
+	pxor	%xmm11,%xmm10
+	pxor	%xmm14,%xmm15
+	movdqu	%xmm2,0 + 0(%rdi)
+	movdqu	%xmm6,16 + 0(%rdi)
+	movdqu	%xmm10,32 + 0(%rdi)
+	movdqu	%xmm15,48 + 0(%rdi)
+	movdqu	0 + 64(%rsi),%xmm3
+	movdqu	16 + 64(%rsi),%xmm7
+	movdqu	32 + 64(%rsi),%xmm11
+	movdqu	48 + 64(%rsi),%xmm15
+	pxor	%xmm3,%xmm1
+	pxor	%xmm7,%xmm5
+	pxor	%xmm11,%xmm9
+	pxor	%xmm13,%xmm15
+	movdqu	%xmm1,0 + 64(%rdi)
+	movdqu	%xmm5,16 + 64(%rdi)
+	movdqu	%xmm9,32 + 64(%rdi)
+	movdqu	%xmm15,48 + 64(%rdi)
+
+	mov	$128,%rcx
+	sub	$128,%rbx
+	lea	128(%rsi),%rsi
+// ############################################################################# 
+.Lseal_sse_128_tail_hash:
+	cmp	$16,%rcx
+	jb	.Lseal_sse_128_tail_xor
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	sub	$16,%rcx
+	lea	16(%rdi),%rdi
+	jmp	.Lseal_sse_128_tail_hash
+
+.Lseal_sse_128_tail_xor:
+	cmp	$16,%rbx
+	jb	.Lseal_sse_tail_16
+	sub	$16,%rbx
+// Load for decryption
+	movdqu	0(%rsi),%xmm3
+	pxor	%xmm3,%xmm0
+	movdqu	%xmm0,0(%rdi)
+// Then hash
+	add	0(%rdi),%r10
+	adc	8(%rdi),%r11
+	adc	$1,%r12
+	lea	16(%rsi),%rsi
+	lea	16(%rdi),%rdi
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+// Shift the stream left
+	movdqa	%xmm4,%xmm0
+	movdqa	%xmm8,%xmm4
+	movdqa	%xmm12,%xmm8
+	movdqa	%xmm1,%xmm12
+	movdqa	%xmm5,%xmm1
+	movdqa	%xmm9,%xmm5
+	movdqa	%xmm13,%xmm9
+	jmp	.Lseal_sse_128_tail_xor
+
+.Lseal_sse_tail_16:
+	test	%rbx,%rbx
+	jz	.Lprocess_blocks_of_extra_in
+// We can only load the PT one byte at a time to avoid buffer overread
+	mov	%rbx,%r8
+	mov	%rbx,%rcx
+	lea	-1(%rsi,%rbx,1),%rsi
+	pxor	%xmm15,%xmm15
+.Lseal_sse_tail_16_compose:
+	pslldq	$1,%xmm15
+	pinsrb	$0,(%rsi),%xmm15
+	lea	-1(%rsi),%rsi
+	decq	%rcx
+	jne	.Lseal_sse_tail_16_compose
+
+// XOR the keystream with the plaintext.
+	pxor	%xmm0,%xmm15
+
+// Write ciphertext out, byte-by-byte.
+	mov	%rbx,%rcx
+	movdqu	%xmm15,%xmm0
+.Lseal_sse_tail_16_extract:
+	pextrb	$0,%xmm0,(%rdi)
+	psrldq	$1,%xmm0
+	add	$1,%rdi
+	sub	$1,%rcx
+	jnz	.Lseal_sse_tail_16_extract
+
+// %xmm15 contains the final (partial, non-empty) block of ciphertext which
+// needs to be fed into the Poly1305 state. The right-most %rbx bytes of it
+// are valid. We need to fill it with extra_in bytes until full, or until we
+// run out of bytes.
+// 
+// %r9 points to the tag output, which is actually a struct with the
+// extra_in pointer and length at offset 48.
+	mov	288 + 0 + 32(%rsp),%r9
+	mov	56(%r9),%r14  // extra_in_len
+	mov	48(%r9),%r13  // extra_in
+	test	%r14,%r14
+	jz	.Lprocess_partial_block  // Common case: no bytes of extra_in
+
+	mov	$16,%r15
+	sub	%rbx,%r15  // 16-%rbx is the number of bytes that fit into %xmm15.
+	cmp	%r15,%r14  // if extra_in_len < 16-%rbx, only copy extra_in_len
+// (note that AT&T syntax reverses the arguments)
+	jge	.Lload_extra_in
+	mov	%r14,%r15
+
+.Lload_extra_in:
+// %r15 contains the number of bytes of extra_in (pointed to by %r13) to load
+// into %xmm15. They are loaded in reverse order.
+	lea	-1(%r13,%r15,1),%rsi
+// Update extra_in and extra_in_len to reflect the bytes that are about to
+// be read.
+	add	%r15,%r13
+	sub	%r15,%r14
+	mov	%r13,48(%r9)
+	mov	%r14,56(%r9)
+
+// Update %r8, which is used to select the mask later on, to reflect the
+// extra bytes about to be added.
+	add	%r15,%r8
+
+// Load %r15 bytes of extra_in into %xmm11.
+	pxor	%xmm11,%xmm11
+.Lload_extra_load_loop:
+	pslldq	$1,%xmm11
+	pinsrb	$0,(%rsi),%xmm11
+	lea	-1(%rsi),%rsi
+	sub	$1,%r15
+	jnz	.Lload_extra_load_loop
+
+// Shift %xmm11 up the length of the remainder from the main encryption. Sadly,
+// the shift for an XMM register has to be a constant, thus we loop to do
+// this.
+	mov	%rbx,%r15
+
+.Lload_extra_shift_loop:
+	pslldq	$1,%xmm11
+	sub	$1,%r15
+	jnz	.Lload_extra_shift_loop
+
+// Mask %xmm15 (the remainder from the main encryption) so that superfluous
+// bytes are zero. This means that the non-zero bytes in %xmm11 and %xmm15 are
+// disjoint and so we can merge them with an OR.
+	lea	.Land_masks(%rip),%r15
+	shlq	$4,%rbx
+	pand	-16(%r15,%rbx,1),%xmm15
+
+// Merge %xmm11 into %xmm15, forming the remainder block.
+	por	%xmm11,%xmm15
+
+// The block of ciphertext + extra_in is ready to be included in the
+// Poly1305 state.
+	mov	%xmm15,%r13
+	pextrq	$1,%xmm15,%r14
+	add	%r13,%r10
+	adc	%r14,%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+
+.Lprocess_blocks_of_extra_in:
+// There may be additional bytes of extra_in to process.
+	mov	288+32+0 (%rsp),%r9
+	mov	48(%r9),%rsi  // extra_in
+	mov	56(%r9),%r8  // extra_in_len
+	mov	%r8,%rcx
+	shrq	$4,%r8  // number of blocks
+
+.Lprocess_extra_hash_loop:
+	jz	process_extra_in_trailer
+	add	0+0(%rsi),%r10
+	adc	8+0(%rsi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	16(%rsi),%rsi
+	sub	$1,%r8
+	jmp	.Lprocess_extra_hash_loop
+process_extra_in_trailer:
+	and	$15,%rcx  // remaining num bytes (<16) of extra_in
+	mov	%rcx,%rbx
+	jz	.Ldo_length_block
+	lea	-1(%rsi,%rcx,1),%rsi
+
+.Lprocess_extra_in_trailer_load:
+	pslldq	$1,%xmm15
+	pinsrb	$0,(%rsi),%xmm15
+	lea	-1(%rsi),%rsi
+	sub	$1,%rcx
+	jnz	.Lprocess_extra_in_trailer_load
+
+.Lprocess_partial_block:
+// %xmm15 contains %rbx bytes of data to be fed into Poly1305. %rbx
+	lea	.Land_masks(%rip),%r15
+	shlq	$4,%rbx
+	pand	-16(%r15,%rbx,1),%xmm15
+	mov	%xmm15,%r13
+	pextrq	$1,%xmm15,%r14
+	add	%r13,%r10
+	adc	%r14,%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+
+.Ldo_length_block:
+	add	0+0+32(%rbp),%r10
+	adc	8+0+32(%rbp),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+// Final reduce
+	mov	%r10,%r13
+	mov	%r11,%r14
+	mov	%r12,%r15
+	sub	$-5,%r10
+	sbb	$-1,%r11
+	sbb	$3,%r12
+	cmovc	%r13,%r10
+	cmovc	%r14,%r11
+	cmovc	%r15,%r12
+// Add in s part of the key
+	add	0+0+16(%rbp),%r10
+	adc	8+0+16(%rbp),%r11
+
+.cfi_remember_state	
+	add	$288 + 0 + 32,%rsp
+.cfi_adjust_cfa_offset	-(288 + 32)
+// The tag replaces the key on return
+	popq	%r9
+.cfi_adjust_cfa_offset	-8
+.cfi_restore	%r9
+	mov	%r10,(%r9)
+	mov	%r11,8(%r9)
+	popq	%r15
+.cfi_adjust_cfa_offset	-8
+.cfi_restore	%r15
+	popq	%r14
+.cfi_adjust_cfa_offset	-8
+.cfi_restore	%r14
+	popq	%r13
+.cfi_adjust_cfa_offset	-8
+.cfi_restore	%r13
+	popq	%r12
+.cfi_adjust_cfa_offset	-8
+.cfi_restore	%r12
+	popq	%rbx
+.cfi_adjust_cfa_offset	-8
+.cfi_restore	%rbx
+	popq	%rbp
+.cfi_adjust_cfa_offset	-8
+.cfi_restore	%rbp
+	ret
+// ############################################################################## 
+.Lseal_sse_128:
+.cfi_restore_state	
+	movdqu	.Lchacha20_consts(%rip),%xmm0
+	movdqa	%xmm0,%xmm1
+	movdqa	%xmm0,%xmm2
+	movdqu	0(%r9),%xmm4
+	movdqa	%xmm4,%xmm5
+	movdqa	%xmm4,%xmm6
+	movdqu	16(%r9),%xmm8
+	movdqa	%xmm8,%xmm9
+	movdqa	%xmm8,%xmm10
+	movdqu	32(%r9),%xmm14
+	movdqa	%xmm14,%xmm12
+	paddd	.Lsse_inc(%rip),%xmm12
+	movdqa	%xmm12,%xmm13
+	paddd	.Lsse_inc(%rip),%xmm13
+	movdqa	%xmm4,%xmm7
+	movdqa	%xmm8,%xmm11
+	movdqa	%xmm12,%xmm15
+	mov	$10,%r10
+
+.Lseal_sse_128_rounds:
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol16(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm4
+	pxor	%xmm3,%xmm4
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol8(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm4
+	pxor	%xmm3,%xmm4
+	palignr	$4,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$12,%xmm12,%xmm12
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol16(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm5
+	pxor	%xmm3,%xmm5
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol8(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm5
+	pxor	%xmm3,%xmm5
+	palignr	$4,%xmm5,%xmm5
+	palignr	$8,%xmm9,%xmm9
+	palignr	$12,%xmm13,%xmm13
+	paddd	%xmm6,%xmm2
+	pxor	%xmm2,%xmm14
+	pshufb	.Lrol16(%rip),%xmm14
+	paddd	%xmm14,%xmm10
+	pxor	%xmm10,%xmm6
+	movdqa	%xmm6,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm6
+	pxor	%xmm3,%xmm6
+	paddd	%xmm6,%xmm2
+	pxor	%xmm2,%xmm14
+	pshufb	.Lrol8(%rip),%xmm14
+	paddd	%xmm14,%xmm10
+	pxor	%xmm10,%xmm6
+	movdqa	%xmm6,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm6
+	pxor	%xmm3,%xmm6
+	palignr	$4,%xmm6,%xmm6
+	palignr	$8,%xmm10,%xmm10
+	palignr	$12,%xmm14,%xmm14
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol16(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm4
+	pxor	%xmm3,%xmm4
+	paddd	%xmm4,%xmm0
+	pxor	%xmm0,%xmm12
+	pshufb	.Lrol8(%rip),%xmm12
+	paddd	%xmm12,%xmm8
+	pxor	%xmm8,%xmm4
+	movdqa	%xmm4,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm4
+	pxor	%xmm3,%xmm4
+	palignr	$12,%xmm4,%xmm4
+	palignr	$8,%xmm8,%xmm8
+	palignr	$4,%xmm12,%xmm12
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol16(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm5
+	pxor	%xmm3,%xmm5
+	paddd	%xmm5,%xmm1
+	pxor	%xmm1,%xmm13
+	pshufb	.Lrol8(%rip),%xmm13
+	paddd	%xmm13,%xmm9
+	pxor	%xmm9,%xmm5
+	movdqa	%xmm5,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm5
+	pxor	%xmm3,%xmm5
+	palignr	$12,%xmm5,%xmm5
+	palignr	$8,%xmm9,%xmm9
+	palignr	$4,%xmm13,%xmm13
+	paddd	%xmm6,%xmm2
+	pxor	%xmm2,%xmm14
+	pshufb	.Lrol16(%rip),%xmm14
+	paddd	%xmm14,%xmm10
+	pxor	%xmm10,%xmm6
+	movdqa	%xmm6,%xmm3
+	pslld	$12,%xmm3
+	psrld	$20,%xmm6
+	pxor	%xmm3,%xmm6
+	paddd	%xmm6,%xmm2
+	pxor	%xmm2,%xmm14
+	pshufb	.Lrol8(%rip),%xmm14
+	paddd	%xmm14,%xmm10
+	pxor	%xmm10,%xmm6
+	movdqa	%xmm6,%xmm3
+	pslld	$7,%xmm3
+	psrld	$25,%xmm6
+	pxor	%xmm3,%xmm6
+	palignr	$12,%xmm6,%xmm6
+	palignr	$8,%xmm10,%xmm10
+	palignr	$4,%xmm14,%xmm14
+
+	decq	%r10
+	jnz	.Lseal_sse_128_rounds
+	paddd	.Lchacha20_consts(%rip),%xmm0
+	paddd	.Lchacha20_consts(%rip),%xmm1
+	paddd	.Lchacha20_consts(%rip),%xmm2
+	paddd	%xmm7,%xmm4
+	paddd	%xmm7,%xmm5
+	paddd	%xmm7,%xmm6
+	paddd	%xmm11,%xmm8
+	paddd	%xmm11,%xmm9
+	paddd	%xmm15,%xmm12
+	paddd	.Lsse_inc(%rip),%xmm15
+	paddd	%xmm15,%xmm13
+// Clamp and store the key
+	pand	.Lclamp(%rip),%xmm2
+	movdqa	%xmm2,0+0(%rbp)
+	movdqa	%xmm6,0+16(%rbp)
+// Hash
+	mov	%r8,%r8
+	call	poly_hash_ad_internal
+	jmp	.Lseal_sse_128_tail_xor
+.size	chacha20_poly1305_seal_sse41, .-chacha20_poly1305_seal_sse41
+.cfi_endproc	
+
+// ############################################################################# 
+.globl	chacha20_poly1305_open_avx2
+.hidden chacha20_poly1305_open_avx2
+.type	chacha20_poly1305_open_avx2,@function
+.align	64
+chacha20_poly1305_open_avx2:
+.cfi_startproc	
+.byte	0xf3,0x0f,0x1e,0xfa
+	pushq	%rbp
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%rbp,-16
+	pushq	%rbx
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%rbx,-24
+	pushq	%r12
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%r12,-32
+	pushq	%r13
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%r13,-40
+	pushq	%r14
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%r14,-48
+	pushq	%r15
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%r15,-56
+// We write the calculated authenticator back to keyp at the end, so save
+// the pointer on the stack too.
+	pushq	%r9
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%r9,-64
+	sub	$288 + 0 + 32,%rsp
+.cfi_adjust_cfa_offset	288 + 32
+
+	lea	32(%rsp),%rbp
+	and	$-32,%rbp
+
+	mov	%rdx,%rbx
+	mov	%r8,0+0+32(%rbp)
+	mov	%rbx,8+0+32(%rbp)
+
+	vzeroupper
+	vmovdqa	.Lchacha20_consts(%rip),%ymm0
+	vbroadcasti128	0(%r9),%ymm4
+	vbroadcasti128	16(%r9),%ymm8
+	vbroadcasti128	32(%r9),%ymm12
+	vpaddd	.Lavx2_init(%rip),%ymm12,%ymm12
+	cmp	$192,%rbx
+	jbe	.Lopen_avx2_192
+	cmp	$320,%rbx
+	jbe	.Lopen_avx2_320
+
+	vmovdqa	%ymm4,0+64(%rbp)
+	vmovdqa	%ymm8,0+96(%rbp)
+	vmovdqa	%ymm12,0+160(%rbp)
+	mov	$10,%r10
+.Lopen_avx2_init_rounds:
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$12,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$4,%ymm4,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$4,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$12,%ymm4,%ymm4,%ymm4
+
+	decq	%r10
+	jne	.Lopen_avx2_init_rounds
+	vpaddd	.Lchacha20_consts(%rip),%ymm0,%ymm0
+	vpaddd	0+64(%rbp),%ymm4,%ymm4
+	vpaddd	0+96(%rbp),%ymm8,%ymm8
+	vpaddd	0+160(%rbp),%ymm12,%ymm12
+
+	vperm2i128	$0x02,%ymm0,%ymm4,%ymm3
+// Clamp and store key
+	vpand	.Lclamp(%rip),%ymm3,%ymm3
+	vmovdqa	%ymm3,0+0(%rbp)
+// Stream for the first 64 bytes
+	vperm2i128	$0x13,%ymm0,%ymm4,%ymm0
+	vperm2i128	$0x13,%ymm8,%ymm12,%ymm4
+// Hash AD + first 64 bytes
+	mov	%r8,%r8
+	call	poly_hash_ad_internal
+// Hash first 64 bytes
+	xor	%rcx,%rcx
+.Lopen_avx2_init_hash:
+	add	0+0(%rsi,%rcx,1),%r10
+	adc	8+0(%rsi,%rcx,1),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	add	$16,%rcx
+	cmp	$64,%rcx
+	jne	.Lopen_avx2_init_hash
+// Decrypt first 64 bytes
+	vpxor	0(%rsi),%ymm0,%ymm0
+	vpxor	32(%rsi),%ymm4,%ymm4
+// Store first 64 bytes of decrypted data
+	vmovdqu	%ymm0,0(%rdi)
+	vmovdqu	%ymm4,32(%rdi)
+	lea	64(%rsi),%rsi
+	lea	64(%rdi),%rdi
+	sub	$64,%rbx
+.Lopen_avx2_main_loop:
+// Hash and decrypt 512 bytes each iteration
+	cmp	$512,%rbx
+	jb	.Lopen_avx2_main_loop_done
+	vmovdqa	.Lchacha20_consts(%rip),%ymm0
+	vmovdqa	0+64(%rbp),%ymm4
+	vmovdqa	0+96(%rbp),%ymm8
+	vmovdqa	%ymm0,%ymm1
+	vmovdqa	%ymm4,%ymm5
+	vmovdqa	%ymm8,%ymm9
+	vmovdqa	%ymm0,%ymm2
+	vmovdqa	%ymm4,%ymm6
+	vmovdqa	%ymm8,%ymm10
+	vmovdqa	%ymm0,%ymm3
+	vmovdqa	%ymm4,%ymm7
+	vmovdqa	%ymm8,%ymm11
+	vmovdqa	.Lavx2_inc(%rip),%ymm12
+	vpaddd	0+160(%rbp),%ymm12,%ymm15
+	vpaddd	%ymm15,%ymm12,%ymm14
+	vpaddd	%ymm14,%ymm12,%ymm13
+	vpaddd	%ymm13,%ymm12,%ymm12
+	vmovdqa	%ymm15,0+256(%rbp)
+	vmovdqa	%ymm14,0+224(%rbp)
+	vmovdqa	%ymm13,0+192(%rbp)
+	vmovdqa	%ymm12,0+160(%rbp)
+
+	xor	%rcx,%rcx
+.Lopen_avx2_main_loop_rounds:
+	add	0+0(%rsi,%rcx,1),%r10
+	adc	8+0(%rsi,%rcx,1),%r11
+	adc	$1,%r12
+	vmovdqa	%ymm8,0+128(%rbp)
+	vmovdqa	.Lrol16(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$20,%ymm7,%ymm8
+	vpslld	$32-20,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$20,%ymm6,%ymm8
+	vpslld	$32-20,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	vpsrld	$20,%ymm5,%ymm8
+	vpslld	$32-20,%ymm5,%ymm5
+	add	%rax,%r15
+	adc	%rdx,%r9
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$20,%ymm4,%ymm8
+	vpslld	$32-20,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	.Lrol8(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	add	0+16(%rsi,%rcx,1),%r10
+	adc	8+16(%rsi,%rcx,1),%r11
+	adc	$1,%r12
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$25,%ymm7,%ymm8
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	vpslld	$32-25,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$25,%ymm6,%ymm8
+	vpslld	$32-25,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	vpsrld	$25,%ymm5,%ymm8
+	vpslld	$32-25,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$25,%ymm4,%ymm8
+	vpslld	$32-25,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	0+128(%rbp),%ymm8
+	vpalignr	$4,%ymm7,%ymm7,%ymm7
+	vpalignr	$8,%ymm11,%ymm11,%ymm11
+	vpalignr	$12,%ymm15,%ymm15,%ymm15
+	vpalignr	$4,%ymm6,%ymm6,%ymm6
+	vpalignr	$8,%ymm10,%ymm10,%ymm10
+	vpalignr	$12,%ymm14,%ymm14,%ymm14
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	vpalignr	$4,%ymm5,%ymm5,%ymm5
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$12,%ymm13,%ymm13,%ymm13
+	vpalignr	$4,%ymm4,%ymm4,%ymm4
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$12,%ymm12,%ymm12,%ymm12
+	vmovdqa	%ymm8,0+128(%rbp)
+	vmovdqa	.Lrol16(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	add	%rax,%r15
+	adc	%rdx,%r9
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$20,%ymm7,%ymm8
+	vpslld	$32-20,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$20,%ymm6,%ymm8
+	vpslld	$32-20,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	add	0+32(%rsi,%rcx,1),%r10
+	adc	8+32(%rsi,%rcx,1),%r11
+	adc	$1,%r12
+
+	lea	48(%rcx),%rcx
+	vpsrld	$20,%ymm5,%ymm8
+	vpslld	$32-20,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$20,%ymm4,%ymm8
+	vpslld	$32-20,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	.Lrol8(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$25,%ymm7,%ymm8
+	vpslld	$32-25,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$25,%ymm6,%ymm8
+	vpslld	$32-25,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	add	%rax,%r15
+	adc	%rdx,%r9
+	vpsrld	$25,%ymm5,%ymm8
+	vpslld	$32-25,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$25,%ymm4,%ymm8
+	vpslld	$32-25,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	0+128(%rbp),%ymm8
+	vpalignr	$12,%ymm7,%ymm7,%ymm7
+	vpalignr	$8,%ymm11,%ymm11,%ymm11
+	vpalignr	$4,%ymm15,%ymm15,%ymm15
+	vpalignr	$12,%ymm6,%ymm6,%ymm6
+	vpalignr	$8,%ymm10,%ymm10,%ymm10
+	vpalignr	$4,%ymm14,%ymm14,%ymm14
+	vpalignr	$12,%ymm5,%ymm5,%ymm5
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$4,%ymm13,%ymm13,%ymm13
+	vpalignr	$12,%ymm4,%ymm4,%ymm4
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	vpalignr	$4,%ymm12,%ymm12,%ymm12
+
+	cmp	$60*8,%rcx
+	jne	.Lopen_avx2_main_loop_rounds
+	vpaddd	.Lchacha20_consts(%rip),%ymm3,%ymm3
+	vpaddd	0+64(%rbp),%ymm7,%ymm7
+	vpaddd	0+96(%rbp),%ymm11,%ymm11
+	vpaddd	0+256(%rbp),%ymm15,%ymm15
+	vpaddd	.Lchacha20_consts(%rip),%ymm2,%ymm2
+	vpaddd	0+64(%rbp),%ymm6,%ymm6
+	vpaddd	0+96(%rbp),%ymm10,%ymm10
+	vpaddd	0+224(%rbp),%ymm14,%ymm14
+	vpaddd	.Lchacha20_consts(%rip),%ymm1,%ymm1
+	vpaddd	0+64(%rbp),%ymm5,%ymm5
+	vpaddd	0+96(%rbp),%ymm9,%ymm9
+	vpaddd	0+192(%rbp),%ymm13,%ymm13
+	vpaddd	.Lchacha20_consts(%rip),%ymm0,%ymm0
+	vpaddd	0+64(%rbp),%ymm4,%ymm4
+	vpaddd	0+96(%rbp),%ymm8,%ymm8
+	vpaddd	0+160(%rbp),%ymm12,%ymm12
+
+	vmovdqa	%ymm0,0+128(%rbp)
+	add	0+60*8(%rsi),%r10
+	adc	8+60*8(%rsi),%r11
+	adc	$1,%r12
+	vperm2i128	$0x02,%ymm3,%ymm7,%ymm0
+	vperm2i128	$0x13,%ymm3,%ymm7,%ymm7
+	vperm2i128	$0x02,%ymm11,%ymm15,%ymm3
+	vperm2i128	$0x13,%ymm11,%ymm15,%ymm11
+	vpxor	0+0(%rsi),%ymm0,%ymm0
+	vpxor	32+0(%rsi),%ymm3,%ymm3
+	vpxor	64+0(%rsi),%ymm7,%ymm7
+	vpxor	96+0(%rsi),%ymm11,%ymm11
+	vmovdqu	%ymm0,0+0(%rdi)
+	vmovdqu	%ymm3,32+0(%rdi)
+	vmovdqu	%ymm7,64+0(%rdi)
+	vmovdqu	%ymm11,96+0(%rdi)
+
+	vmovdqa	0+128(%rbp),%ymm0
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	vperm2i128	$0x02,%ymm2,%ymm6,%ymm3
+	vperm2i128	$0x13,%ymm2,%ymm6,%ymm6
+	vperm2i128	$0x02,%ymm10,%ymm14,%ymm2
+	vperm2i128	$0x13,%ymm10,%ymm14,%ymm10
+	vpxor	0+128(%rsi),%ymm3,%ymm3
+	vpxor	32+128(%rsi),%ymm2,%ymm2
+	vpxor	64+128(%rsi),%ymm6,%ymm6
+	vpxor	96+128(%rsi),%ymm10,%ymm10
+	vmovdqu	%ymm3,0+128(%rdi)
+	vmovdqu	%ymm2,32+128(%rdi)
+	vmovdqu	%ymm6,64+128(%rdi)
+	vmovdqu	%ymm10,96+128(%rdi)
+	add	0+60*8+16(%rsi),%r10
+	adc	8+60*8+16(%rsi),%r11
+	adc	$1,%r12
+	vperm2i128	$0x02,%ymm1,%ymm5,%ymm3
+	vperm2i128	$0x13,%ymm1,%ymm5,%ymm5
+	vperm2i128	$0x02,%ymm9,%ymm13,%ymm1
+	vperm2i128	$0x13,%ymm9,%ymm13,%ymm9
+	vpxor	0+256(%rsi),%ymm3,%ymm3
+	vpxor	32+256(%rsi),%ymm1,%ymm1
+	vpxor	64+256(%rsi),%ymm5,%ymm5
+	vpxor	96+256(%rsi),%ymm9,%ymm9
+	vmovdqu	%ymm3,0+256(%rdi)
+	vmovdqu	%ymm1,32+256(%rdi)
+	vmovdqu	%ymm5,64+256(%rdi)
+	vmovdqu	%ymm9,96+256(%rdi)
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	vperm2i128	$0x02,%ymm0,%ymm4,%ymm3
+	vperm2i128	$0x13,%ymm0,%ymm4,%ymm4
+	vperm2i128	$0x02,%ymm8,%ymm12,%ymm0
+	vperm2i128	$0x13,%ymm8,%ymm12,%ymm8
+	vpxor	0+384(%rsi),%ymm3,%ymm3
+	vpxor	32+384(%rsi),%ymm0,%ymm0
+	vpxor	64+384(%rsi),%ymm4,%ymm4
+	vpxor	96+384(%rsi),%ymm8,%ymm8
+	vmovdqu	%ymm3,0+384(%rdi)
+	vmovdqu	%ymm0,32+384(%rdi)
+	vmovdqu	%ymm4,64+384(%rdi)
+	vmovdqu	%ymm8,96+384(%rdi)
+
+	lea	512(%rsi),%rsi
+	lea	512(%rdi),%rdi
+	sub	$512,%rbx
+	jmp	.Lopen_avx2_main_loop
+.Lopen_avx2_main_loop_done:
+	test	%rbx,%rbx
+	vzeroupper
+	je	.Lopen_sse_finalize
+
+	cmp	$384,%rbx
+	ja	.Lopen_avx2_tail_512
+	cmp	$256,%rbx
+	ja	.Lopen_avx2_tail_384
+	cmp	$128,%rbx
+	ja	.Lopen_avx2_tail_256
+	vmovdqa	.Lchacha20_consts(%rip),%ymm0
+	vmovdqa	0+64(%rbp),%ymm4
+	vmovdqa	0+96(%rbp),%ymm8
+	vmovdqa	.Lavx2_inc(%rip),%ymm12
+	vpaddd	0+160(%rbp),%ymm12,%ymm12
+	vmovdqa	%ymm12,0+160(%rbp)
+
+	xor	%r8,%r8
+	mov	%rbx,%rcx
+	and	$-16,%rcx
+	test	%rcx,%rcx
+	je	.Lopen_avx2_tail_128_rounds  // Have nothing to hash
+.Lopen_avx2_tail_128_rounds_and_x1hash:
+	add	0+0(%rsi,%r8,1),%r10
+	adc	8+0(%rsi,%r8,1),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+.Lopen_avx2_tail_128_rounds:
+	add	$16,%r8
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$12,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$4,%ymm4,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$4,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$12,%ymm4,%ymm4,%ymm4
+
+	cmp	%rcx,%r8
+	jb	.Lopen_avx2_tail_128_rounds_and_x1hash
+	cmp	$160,%r8
+	jne	.Lopen_avx2_tail_128_rounds
+	vpaddd	.Lchacha20_consts(%rip),%ymm0,%ymm0
+	vpaddd	0+64(%rbp),%ymm4,%ymm4
+	vpaddd	0+96(%rbp),%ymm8,%ymm8
+	vpaddd	0+160(%rbp),%ymm12,%ymm12
+	vperm2i128	$0x13,%ymm0,%ymm4,%ymm3
+	vperm2i128	$0x02,%ymm0,%ymm4,%ymm0
+	vperm2i128	$0x02,%ymm8,%ymm12,%ymm4
+	vperm2i128	$0x13,%ymm8,%ymm12,%ymm12
+	vmovdqa	%ymm3,%ymm8
+
+	jmp	.Lopen_avx2_tail_128_xor
+// ############################################################################# 
+.Lopen_avx2_tail_256:
+	vmovdqa	.Lchacha20_consts(%rip),%ymm0
+	vmovdqa	0+64(%rbp),%ymm4
+	vmovdqa	0+96(%rbp),%ymm8
+	vmovdqa	%ymm0,%ymm1
+	vmovdqa	%ymm4,%ymm5
+	vmovdqa	%ymm8,%ymm9
+	vmovdqa	.Lavx2_inc(%rip),%ymm12
+	vpaddd	0+160(%rbp),%ymm12,%ymm13
+	vpaddd	%ymm13,%ymm12,%ymm12
+	vmovdqa	%ymm12,0+160(%rbp)
+	vmovdqa	%ymm13,0+192(%rbp)
+
+	mov	%rbx,0+128(%rbp)
+	mov	%rbx,%rcx
+	sub	$128,%rcx
+	shrq	$4,%rcx
+	mov	$10,%r8
+	cmp	$10,%rcx
+	cmovgq	%r8,%rcx
+	mov	%rsi,%rbx
+	xor	%r8,%r8
+.Lopen_avx2_tail_256_rounds_and_x1hash:
+	add	0+0(%rbx),%r10
+	adc	8+0(%rbx),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	add	%rax,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	16(%rbx),%rbx
+.Lopen_avx2_tail_256_rounds:
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$12,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$4,%ymm4,%ymm4,%ymm4
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol16(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpsrld	$20,%ymm5,%ymm3
+	vpslld	$12,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol8(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpslld	$7,%ymm5,%ymm3
+	vpsrld	$25,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpalignr	$12,%ymm13,%ymm13,%ymm13
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$4,%ymm5,%ymm5,%ymm5
+
+	incq	%r8
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$4,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$12,%ymm4,%ymm4,%ymm4
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol16(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpsrld	$20,%ymm5,%ymm3
+	vpslld	$12,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol8(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpslld	$7,%ymm5,%ymm3
+	vpsrld	$25,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpalignr	$4,%ymm13,%ymm13,%ymm13
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$12,%ymm5,%ymm5,%ymm5
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpshufb	.Lrol16(%rip),%ymm14,%ymm14
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpsrld	$20,%ymm6,%ymm3
+	vpslld	$12,%ymm6,%ymm6
+	vpxor	%ymm3,%ymm6,%ymm6
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpshufb	.Lrol8(%rip),%ymm14,%ymm14
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpslld	$7,%ymm6,%ymm3
+	vpsrld	$25,%ymm6,%ymm6
+	vpxor	%ymm3,%ymm6,%ymm6
+	vpalignr	$4,%ymm14,%ymm14,%ymm14
+	vpalignr	$8,%ymm10,%ymm10,%ymm10
+	vpalignr	$12,%ymm6,%ymm6,%ymm6
+
+	cmp	%rcx,%r8
+	jb	.Lopen_avx2_tail_256_rounds_and_x1hash
+	cmp	$10,%r8
+	jne	.Lopen_avx2_tail_256_rounds
+	mov	%rbx,%r8
+	sub	%rsi,%rbx
+	mov	%rbx,%rcx
+	mov	0+128(%rbp),%rbx
+.Lopen_avx2_tail_256_hash:
+	add	$16,%rcx
+	cmp	%rbx,%rcx
+	jg	.Lopen_avx2_tail_256_done
+	add	0+0(%r8),%r10
+	adc	8+0(%r8),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	add	%rax,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	16(%r8),%r8
+	jmp	.Lopen_avx2_tail_256_hash
+.Lopen_avx2_tail_256_done:
+	vpaddd	.Lchacha20_consts(%rip),%ymm1,%ymm1
+	vpaddd	0+64(%rbp),%ymm5,%ymm5
+	vpaddd	0+96(%rbp),%ymm9,%ymm9
+	vpaddd	0+192(%rbp),%ymm13,%ymm13
+	vpaddd	.Lchacha20_consts(%rip),%ymm0,%ymm0
+	vpaddd	0+64(%rbp),%ymm4,%ymm4
+	vpaddd	0+96(%rbp),%ymm8,%ymm8
+	vpaddd	0+160(%rbp),%ymm12,%ymm12
+	vperm2i128	$0x02,%ymm1,%ymm5,%ymm3
+	vperm2i128	$0x13,%ymm1,%ymm5,%ymm5
+	vperm2i128	$0x02,%ymm9,%ymm13,%ymm1
+	vperm2i128	$0x13,%ymm9,%ymm13,%ymm9
+	vpxor	0+0(%rsi),%ymm3,%ymm3
+	vpxor	32+0(%rsi),%ymm1,%ymm1
+	vpxor	64+0(%rsi),%ymm5,%ymm5
+	vpxor	96+0(%rsi),%ymm9,%ymm9
+	vmovdqu	%ymm3,0+0(%rdi)
+	vmovdqu	%ymm1,32+0(%rdi)
+	vmovdqu	%ymm5,64+0(%rdi)
+	vmovdqu	%ymm9,96+0(%rdi)
+	vperm2i128	$0x13,%ymm0,%ymm4,%ymm3
+	vperm2i128	$0x02,%ymm0,%ymm4,%ymm0
+	vperm2i128	$0x02,%ymm8,%ymm12,%ymm4
+	vperm2i128	$0x13,%ymm8,%ymm12,%ymm12
+	vmovdqa	%ymm3,%ymm8
+
+	lea	128(%rsi),%rsi
+	lea	128(%rdi),%rdi
+	sub	$128,%rbx
+	jmp	.Lopen_avx2_tail_128_xor
+// ############################################################################# 
+.Lopen_avx2_tail_384:
+	vmovdqa	.Lchacha20_consts(%rip),%ymm0
+	vmovdqa	0+64(%rbp),%ymm4
+	vmovdqa	0+96(%rbp),%ymm8
+	vmovdqa	%ymm0,%ymm1
+	vmovdqa	%ymm4,%ymm5
+	vmovdqa	%ymm8,%ymm9
+	vmovdqa	%ymm0,%ymm2
+	vmovdqa	%ymm4,%ymm6
+	vmovdqa	%ymm8,%ymm10
+	vmovdqa	.Lavx2_inc(%rip),%ymm12
+	vpaddd	0+160(%rbp),%ymm12,%ymm14
+	vpaddd	%ymm14,%ymm12,%ymm13
+	vpaddd	%ymm13,%ymm12,%ymm12
+	vmovdqa	%ymm12,0+160(%rbp)
+	vmovdqa	%ymm13,0+192(%rbp)
+	vmovdqa	%ymm14,0+224(%rbp)
+
+	mov	%rbx,0+128(%rbp)
+	mov	%rbx,%rcx
+	sub	$256,%rcx
+	shrq	$4,%rcx
+	add	$6,%rcx
+	mov	$10,%r8
+	cmp	$10,%rcx
+	cmovgq	%r8,%rcx
+	mov	%rsi,%rbx
+	xor	%r8,%r8
+.Lopen_avx2_tail_384_rounds_and_x2hash:
+	add	0+0(%rbx),%r10
+	adc	8+0(%rbx),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	add	%rax,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	16(%rbx),%rbx
+.Lopen_avx2_tail_384_rounds_and_x1hash:
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpshufb	.Lrol16(%rip),%ymm14,%ymm14
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpsrld	$20,%ymm6,%ymm3
+	vpslld	$12,%ymm6,%ymm6
+	vpxor	%ymm3,%ymm6,%ymm6
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpshufb	.Lrol8(%rip),%ymm14,%ymm14
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpslld	$7,%ymm6,%ymm3
+	vpsrld	$25,%ymm6,%ymm6
+	vpxor	%ymm3,%ymm6,%ymm6
+	vpalignr	$12,%ymm14,%ymm14,%ymm14
+	vpalignr	$8,%ymm10,%ymm10,%ymm10
+	vpalignr	$4,%ymm6,%ymm6,%ymm6
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol16(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpsrld	$20,%ymm5,%ymm3
+	vpslld	$12,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol8(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpslld	$7,%ymm5,%ymm3
+	vpsrld	$25,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpalignr	$12,%ymm13,%ymm13,%ymm13
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$4,%ymm5,%ymm5,%ymm5
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$12,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$4,%ymm4,%ymm4,%ymm4
+	add	0+0(%rbx),%r10
+	adc	8+0(%rbx),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	16(%rbx),%rbx
+	incq	%r8
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpshufb	.Lrol16(%rip),%ymm14,%ymm14
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpsrld	$20,%ymm6,%ymm3
+	vpslld	$12,%ymm6,%ymm6
+	vpxor	%ymm3,%ymm6,%ymm6
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpshufb	.Lrol8(%rip),%ymm14,%ymm14
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpslld	$7,%ymm6,%ymm3
+	vpsrld	$25,%ymm6,%ymm6
+	vpxor	%ymm3,%ymm6,%ymm6
+	vpalignr	$4,%ymm14,%ymm14,%ymm14
+	vpalignr	$8,%ymm10,%ymm10,%ymm10
+	vpalignr	$12,%ymm6,%ymm6,%ymm6
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol16(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpsrld	$20,%ymm5,%ymm3
+	vpslld	$12,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol8(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpslld	$7,%ymm5,%ymm3
+	vpsrld	$25,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpalignr	$4,%ymm13,%ymm13,%ymm13
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$12,%ymm5,%ymm5,%ymm5
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$4,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$12,%ymm4,%ymm4,%ymm4
+
+	cmp	%rcx,%r8
+	jb	.Lopen_avx2_tail_384_rounds_and_x2hash
+	cmp	$10,%r8
+	jne	.Lopen_avx2_tail_384_rounds_and_x1hash
+	mov	%rbx,%r8
+	sub	%rsi,%rbx
+	mov	%rbx,%rcx
+	mov	0+128(%rbp),%rbx
+.Lopen_avx2_384_tail_hash:
+	add	$16,%rcx
+	cmp	%rbx,%rcx
+	jg	.Lopen_avx2_384_tail_done
+	add	0+0(%r8),%r10
+	adc	8+0(%r8),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	add	%rax,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	16(%r8),%r8
+	jmp	.Lopen_avx2_384_tail_hash
+.Lopen_avx2_384_tail_done:
+	vpaddd	.Lchacha20_consts(%rip),%ymm2,%ymm2
+	vpaddd	0+64(%rbp),%ymm6,%ymm6
+	vpaddd	0+96(%rbp),%ymm10,%ymm10
+	vpaddd	0+224(%rbp),%ymm14,%ymm14
+	vpaddd	.Lchacha20_consts(%rip),%ymm1,%ymm1
+	vpaddd	0+64(%rbp),%ymm5,%ymm5
+	vpaddd	0+96(%rbp),%ymm9,%ymm9
+	vpaddd	0+192(%rbp),%ymm13,%ymm13
+	vpaddd	.Lchacha20_consts(%rip),%ymm0,%ymm0
+	vpaddd	0+64(%rbp),%ymm4,%ymm4
+	vpaddd	0+96(%rbp),%ymm8,%ymm8
+	vpaddd	0+160(%rbp),%ymm12,%ymm12
+	vperm2i128	$0x02,%ymm2,%ymm6,%ymm3
+	vperm2i128	$0x13,%ymm2,%ymm6,%ymm6
+	vperm2i128	$0x02,%ymm10,%ymm14,%ymm2
+	vperm2i128	$0x13,%ymm10,%ymm14,%ymm10
+	vpxor	0+0(%rsi),%ymm3,%ymm3
+	vpxor	32+0(%rsi),%ymm2,%ymm2
+	vpxor	64+0(%rsi),%ymm6,%ymm6
+	vpxor	96+0(%rsi),%ymm10,%ymm10
+	vmovdqu	%ymm3,0+0(%rdi)
+	vmovdqu	%ymm2,32+0(%rdi)
+	vmovdqu	%ymm6,64+0(%rdi)
+	vmovdqu	%ymm10,96+0(%rdi)
+	vperm2i128	$0x02,%ymm1,%ymm5,%ymm3
+	vperm2i128	$0x13,%ymm1,%ymm5,%ymm5
+	vperm2i128	$0x02,%ymm9,%ymm13,%ymm1
+	vperm2i128	$0x13,%ymm9,%ymm13,%ymm9
+	vpxor	0+128(%rsi),%ymm3,%ymm3
+	vpxor	32+128(%rsi),%ymm1,%ymm1
+	vpxor	64+128(%rsi),%ymm5,%ymm5
+	vpxor	96+128(%rsi),%ymm9,%ymm9
+	vmovdqu	%ymm3,0+128(%rdi)
+	vmovdqu	%ymm1,32+128(%rdi)
+	vmovdqu	%ymm5,64+128(%rdi)
+	vmovdqu	%ymm9,96+128(%rdi)
+	vperm2i128	$0x13,%ymm0,%ymm4,%ymm3
+	vperm2i128	$0x02,%ymm0,%ymm4,%ymm0
+	vperm2i128	$0x02,%ymm8,%ymm12,%ymm4
+	vperm2i128	$0x13,%ymm8,%ymm12,%ymm12
+	vmovdqa	%ymm3,%ymm8
+
+	lea	256(%rsi),%rsi
+	lea	256(%rdi),%rdi
+	sub	$256,%rbx
+	jmp	.Lopen_avx2_tail_128_xor
+// ############################################################################# 
+.Lopen_avx2_tail_512:
+	vmovdqa	.Lchacha20_consts(%rip),%ymm0
+	vmovdqa	0+64(%rbp),%ymm4
+	vmovdqa	0+96(%rbp),%ymm8
+	vmovdqa	%ymm0,%ymm1
+	vmovdqa	%ymm4,%ymm5
+	vmovdqa	%ymm8,%ymm9
+	vmovdqa	%ymm0,%ymm2
+	vmovdqa	%ymm4,%ymm6
+	vmovdqa	%ymm8,%ymm10
+	vmovdqa	%ymm0,%ymm3
+	vmovdqa	%ymm4,%ymm7
+	vmovdqa	%ymm8,%ymm11
+	vmovdqa	.Lavx2_inc(%rip),%ymm12
+	vpaddd	0+160(%rbp),%ymm12,%ymm15
+	vpaddd	%ymm15,%ymm12,%ymm14
+	vpaddd	%ymm14,%ymm12,%ymm13
+	vpaddd	%ymm13,%ymm12,%ymm12
+	vmovdqa	%ymm15,0+256(%rbp)
+	vmovdqa	%ymm14,0+224(%rbp)
+	vmovdqa	%ymm13,0+192(%rbp)
+	vmovdqa	%ymm12,0+160(%rbp)
+
+	xor	%rcx,%rcx
+	mov	%rsi,%r8
+.Lopen_avx2_tail_512_rounds_and_x2hash:
+	add	0+0(%r8),%r10
+	adc	8+0(%r8),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	16(%r8),%r8
+.Lopen_avx2_tail_512_rounds_and_x1hash:
+	vmovdqa	%ymm8,0+128(%rbp)
+	vmovdqa	.Lrol16(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$20,%ymm7,%ymm8
+	vpslld	$32-20,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$20,%ymm6,%ymm8
+	vpslld	$32-20,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	vpsrld	$20,%ymm5,%ymm8
+	vpslld	$32-20,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$20,%ymm4,%ymm8
+	vpslld	$32-20,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	.Lrol8(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	add	0+0(%r8),%r10
+	adc	8+0(%r8),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	add	%rax,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$25,%ymm7,%ymm8
+	vpslld	$32-25,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$25,%ymm6,%ymm8
+	vpslld	$32-25,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	vpsrld	$25,%ymm5,%ymm8
+	vpslld	$32-25,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$25,%ymm4,%ymm8
+	vpslld	$32-25,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	0+128(%rbp),%ymm8
+	vpalignr	$4,%ymm7,%ymm7,%ymm7
+	vpalignr	$8,%ymm11,%ymm11,%ymm11
+	vpalignr	$12,%ymm15,%ymm15,%ymm15
+	vpalignr	$4,%ymm6,%ymm6,%ymm6
+	vpalignr	$8,%ymm10,%ymm10,%ymm10
+	vpalignr	$12,%ymm14,%ymm14,%ymm14
+	vpalignr	$4,%ymm5,%ymm5,%ymm5
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$12,%ymm13,%ymm13,%ymm13
+	vpalignr	$4,%ymm4,%ymm4,%ymm4
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$12,%ymm12,%ymm12,%ymm12
+	vmovdqa	%ymm8,0+128(%rbp)
+	vmovdqa	.Lrol16(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	add	0+16(%r8),%r10
+	adc	8+16(%r8),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	add	%rax,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	32(%r8),%r8
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$20,%ymm7,%ymm8
+	vpslld	$32-20,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$20,%ymm6,%ymm8
+	vpslld	$32-20,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	vpsrld	$20,%ymm5,%ymm8
+	vpslld	$32-20,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$20,%ymm4,%ymm8
+	vpslld	$32-20,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	.Lrol8(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$25,%ymm7,%ymm8
+	vpslld	$32-25,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$25,%ymm6,%ymm8
+	vpslld	$32-25,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	vpsrld	$25,%ymm5,%ymm8
+	vpslld	$32-25,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$25,%ymm4,%ymm8
+	vpslld	$32-25,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	0+128(%rbp),%ymm8
+	vpalignr	$12,%ymm7,%ymm7,%ymm7
+	vpalignr	$8,%ymm11,%ymm11,%ymm11
+	vpalignr	$4,%ymm15,%ymm15,%ymm15
+	vpalignr	$12,%ymm6,%ymm6,%ymm6
+	vpalignr	$8,%ymm10,%ymm10,%ymm10
+	vpalignr	$4,%ymm14,%ymm14,%ymm14
+	vpalignr	$12,%ymm5,%ymm5,%ymm5
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$4,%ymm13,%ymm13,%ymm13
+	vpalignr	$12,%ymm4,%ymm4,%ymm4
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$4,%ymm12,%ymm12,%ymm12
+
+	incq	%rcx
+	cmp	$4,%rcx
+	jl	.Lopen_avx2_tail_512_rounds_and_x2hash
+	cmp	$10,%rcx
+	jne	.Lopen_avx2_tail_512_rounds_and_x1hash
+	mov	%rbx,%rcx
+	sub	$384,%rcx
+	and	$-16,%rcx
+.Lopen_avx2_tail_512_hash:
+	test	%rcx,%rcx
+	je	.Lopen_avx2_tail_512_done
+	add	0+0(%r8),%r10
+	adc	8+0(%r8),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	add	%rax,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	16(%r8),%r8
+	sub	$16,%rcx
+	jmp	.Lopen_avx2_tail_512_hash
+.Lopen_avx2_tail_512_done:
+	vpaddd	.Lchacha20_consts(%rip),%ymm3,%ymm3
+	vpaddd	0+64(%rbp),%ymm7,%ymm7
+	vpaddd	0+96(%rbp),%ymm11,%ymm11
+	vpaddd	0+256(%rbp),%ymm15,%ymm15
+	vpaddd	.Lchacha20_consts(%rip),%ymm2,%ymm2
+	vpaddd	0+64(%rbp),%ymm6,%ymm6
+	vpaddd	0+96(%rbp),%ymm10,%ymm10
+	vpaddd	0+224(%rbp),%ymm14,%ymm14
+	vpaddd	.Lchacha20_consts(%rip),%ymm1,%ymm1
+	vpaddd	0+64(%rbp),%ymm5,%ymm5
+	vpaddd	0+96(%rbp),%ymm9,%ymm9
+	vpaddd	0+192(%rbp),%ymm13,%ymm13
+	vpaddd	.Lchacha20_consts(%rip),%ymm0,%ymm0
+	vpaddd	0+64(%rbp),%ymm4,%ymm4
+	vpaddd	0+96(%rbp),%ymm8,%ymm8
+	vpaddd	0+160(%rbp),%ymm12,%ymm12
+
+	vmovdqa	%ymm0,0+128(%rbp)
+	vperm2i128	$0x02,%ymm3,%ymm7,%ymm0
+	vperm2i128	$0x13,%ymm3,%ymm7,%ymm7
+	vperm2i128	$0x02,%ymm11,%ymm15,%ymm3
+	vperm2i128	$0x13,%ymm11,%ymm15,%ymm11
+	vpxor	0+0(%rsi),%ymm0,%ymm0
+	vpxor	32+0(%rsi),%ymm3,%ymm3
+	vpxor	64+0(%rsi),%ymm7,%ymm7
+	vpxor	96+0(%rsi),%ymm11,%ymm11
+	vmovdqu	%ymm0,0+0(%rdi)
+	vmovdqu	%ymm3,32+0(%rdi)
+	vmovdqu	%ymm7,64+0(%rdi)
+	vmovdqu	%ymm11,96+0(%rdi)
+
+	vmovdqa	0+128(%rbp),%ymm0
+	vperm2i128	$0x02,%ymm2,%ymm6,%ymm3
+	vperm2i128	$0x13,%ymm2,%ymm6,%ymm6
+	vperm2i128	$0x02,%ymm10,%ymm14,%ymm2
+	vperm2i128	$0x13,%ymm10,%ymm14,%ymm10
+	vpxor	0+128(%rsi),%ymm3,%ymm3
+	vpxor	32+128(%rsi),%ymm2,%ymm2
+	vpxor	64+128(%rsi),%ymm6,%ymm6
+	vpxor	96+128(%rsi),%ymm10,%ymm10
+	vmovdqu	%ymm3,0+128(%rdi)
+	vmovdqu	%ymm2,32+128(%rdi)
+	vmovdqu	%ymm6,64+128(%rdi)
+	vmovdqu	%ymm10,96+128(%rdi)
+	vperm2i128	$0x02,%ymm1,%ymm5,%ymm3
+	vperm2i128	$0x13,%ymm1,%ymm5,%ymm5
+	vperm2i128	$0x02,%ymm9,%ymm13,%ymm1
+	vperm2i128	$0x13,%ymm9,%ymm13,%ymm9
+	vpxor	0+256(%rsi),%ymm3,%ymm3
+	vpxor	32+256(%rsi),%ymm1,%ymm1
+	vpxor	64+256(%rsi),%ymm5,%ymm5
+	vpxor	96+256(%rsi),%ymm9,%ymm9
+	vmovdqu	%ymm3,0+256(%rdi)
+	vmovdqu	%ymm1,32+256(%rdi)
+	vmovdqu	%ymm5,64+256(%rdi)
+	vmovdqu	%ymm9,96+256(%rdi)
+	vperm2i128	$0x13,%ymm0,%ymm4,%ymm3
+	vperm2i128	$0x02,%ymm0,%ymm4,%ymm0
+	vperm2i128	$0x02,%ymm8,%ymm12,%ymm4
+	vperm2i128	$0x13,%ymm8,%ymm12,%ymm12
+	vmovdqa	%ymm3,%ymm8
+
+	lea	384(%rsi),%rsi
+	lea	384(%rdi),%rdi
+	sub	$384,%rbx
+.Lopen_avx2_tail_128_xor:
+	cmp	$32,%rbx
+	jb	.Lopen_avx2_tail_32_xor
+	sub	$32,%rbx
+	vpxor	(%rsi),%ymm0,%ymm0
+	vmovdqu	%ymm0,(%rdi)
+	lea	32(%rsi),%rsi
+	lea	32(%rdi),%rdi
+	vmovdqa	%ymm4,%ymm0
+	vmovdqa	%ymm8,%ymm4
+	vmovdqa	%ymm12,%ymm8
+	jmp	.Lopen_avx2_tail_128_xor
+.Lopen_avx2_tail_32_xor:
+	cmp	$16,%rbx
+	vmovdqa	%xmm0,%xmm1
+	jb	.Lopen_avx2_exit
+	sub	$16,%rbx
+// load for decryption
+	vpxor	(%rsi),%xmm0,%xmm1
+	vmovdqu	%xmm1,(%rdi)
+	lea	16(%rsi),%rsi
+	lea	16(%rdi),%rdi
+	vperm2i128	$0x11,%ymm0,%ymm0,%ymm0
+	vmovdqa	%xmm0,%xmm1
+.Lopen_avx2_exit:
+	vzeroupper
+	jmp	.Lopen_sse_tail_16
+// ############################################################################# 
+.Lopen_avx2_192:
+	vmovdqa	%ymm0,%ymm1
+	vmovdqa	%ymm0,%ymm2
+	vmovdqa	%ymm4,%ymm5
+	vmovdqa	%ymm4,%ymm6
+	vmovdqa	%ymm8,%ymm9
+	vmovdqa	%ymm8,%ymm10
+	vpaddd	.Lavx2_inc(%rip),%ymm12,%ymm13
+	vmovdqa	%ymm12,%ymm11
+	vmovdqa	%ymm13,%ymm15
+	mov	$10,%r10
+.Lopen_avx2_192_rounds:
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$12,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$4,%ymm4,%ymm4,%ymm4
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol16(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpsrld	$20,%ymm5,%ymm3
+	vpslld	$12,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol8(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpslld	$7,%ymm5,%ymm3
+	vpsrld	$25,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpalignr	$12,%ymm13,%ymm13,%ymm13
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$4,%ymm5,%ymm5,%ymm5
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$4,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$12,%ymm4,%ymm4,%ymm4
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol16(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpsrld	$20,%ymm5,%ymm3
+	vpslld	$12,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol8(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpslld	$7,%ymm5,%ymm3
+	vpsrld	$25,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpalignr	$4,%ymm13,%ymm13,%ymm13
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$12,%ymm5,%ymm5,%ymm5
+
+	decq	%r10
+	jne	.Lopen_avx2_192_rounds
+	vpaddd	%ymm2,%ymm0,%ymm0
+	vpaddd	%ymm2,%ymm1,%ymm1
+	vpaddd	%ymm6,%ymm4,%ymm4
+	vpaddd	%ymm6,%ymm5,%ymm5
+	vpaddd	%ymm10,%ymm8,%ymm8
+	vpaddd	%ymm10,%ymm9,%ymm9
+	vpaddd	%ymm11,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm13,%ymm13
+	vperm2i128	$0x02,%ymm0,%ymm4,%ymm3
+// Clamp and store the key
+	vpand	.Lclamp(%rip),%ymm3,%ymm3
+	vmovdqa	%ymm3,0+0(%rbp)
+// Stream for up to 192 bytes
+	vperm2i128	$0x13,%ymm0,%ymm4,%ymm0
+	vperm2i128	$0x13,%ymm8,%ymm12,%ymm4
+	vperm2i128	$0x02,%ymm1,%ymm5,%ymm8
+	vperm2i128	$0x02,%ymm9,%ymm13,%ymm12
+	vperm2i128	$0x13,%ymm1,%ymm5,%ymm1
+	vperm2i128	$0x13,%ymm9,%ymm13,%ymm5
+.Lopen_avx2_short:
+	mov	%r8,%r8
+	call	poly_hash_ad_internal
+.Lopen_avx2_short_hash_and_xor_loop:
+	cmp	$32,%rbx
+	jb	.Lopen_avx2_short_tail_32
+	sub	$32,%rbx
+	add	0+0(%rsi),%r10
+	adc	8+0(%rsi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	add	0+16(%rsi),%r10
+	adc	8+16(%rsi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+// Load + decrypt
+	vpxor	(%rsi),%ymm0,%ymm0
+	vmovdqu	%ymm0,(%rdi)
+	lea	32(%rsi),%rsi
+	lea	32(%rdi),%rdi
+// Shift stream
+	vmovdqa	%ymm4,%ymm0
+	vmovdqa	%ymm8,%ymm4
+	vmovdqa	%ymm12,%ymm8
+	vmovdqa	%ymm1,%ymm12
+	vmovdqa	%ymm5,%ymm1
+	vmovdqa	%ymm9,%ymm5
+	vmovdqa	%ymm13,%ymm9
+	vmovdqa	%ymm2,%ymm13
+	vmovdqa	%ymm6,%ymm2
+	jmp	.Lopen_avx2_short_hash_and_xor_loop
+.Lopen_avx2_short_tail_32:
+	cmp	$16,%rbx
+	vmovdqa	%xmm0,%xmm1
+	jb	.Lopen_avx2_short_tail_32_exit
+	sub	$16,%rbx
+	add	0+0(%rsi),%r10
+	adc	8+0(%rsi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	vpxor	(%rsi),%xmm0,%xmm3
+	vmovdqu	%xmm3,(%rdi)
+	lea	16(%rsi),%rsi
+	lea	16(%rdi),%rdi
+	vextracti128	$1,%ymm0,%xmm1
+.Lopen_avx2_short_tail_32_exit:
+	vzeroupper
+	jmp	.Lopen_sse_tail_16
+// ############################################################################# 
+.Lopen_avx2_320:
+	vmovdqa	%ymm0,%ymm1
+	vmovdqa	%ymm0,%ymm2
+	vmovdqa	%ymm4,%ymm5
+	vmovdqa	%ymm4,%ymm6
+	vmovdqa	%ymm8,%ymm9
+	vmovdqa	%ymm8,%ymm10
+	vpaddd	.Lavx2_inc(%rip),%ymm12,%ymm13
+	vpaddd	.Lavx2_inc(%rip),%ymm13,%ymm14
+	vmovdqa	%ymm4,%ymm7
+	vmovdqa	%ymm8,%ymm11
+	vmovdqa	%ymm12,0+160(%rbp)
+	vmovdqa	%ymm13,0+192(%rbp)
+	vmovdqa	%ymm14,0+224(%rbp)
+	mov	$10,%r10
+.Lopen_avx2_320_rounds:
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$12,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$4,%ymm4,%ymm4,%ymm4
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol16(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpsrld	$20,%ymm5,%ymm3
+	vpslld	$12,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol8(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpslld	$7,%ymm5,%ymm3
+	vpsrld	$25,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpalignr	$12,%ymm13,%ymm13,%ymm13
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$4,%ymm5,%ymm5,%ymm5
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpshufb	.Lrol16(%rip),%ymm14,%ymm14
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpsrld	$20,%ymm6,%ymm3
+	vpslld	$12,%ymm6,%ymm6
+	vpxor	%ymm3,%ymm6,%ymm6
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpshufb	.Lrol8(%rip),%ymm14,%ymm14
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpslld	$7,%ymm6,%ymm3
+	vpsrld	$25,%ymm6,%ymm6
+	vpxor	%ymm3,%ymm6,%ymm6
+	vpalignr	$12,%ymm14,%ymm14,%ymm14
+	vpalignr	$8,%ymm10,%ymm10,%ymm10
+	vpalignr	$4,%ymm6,%ymm6,%ymm6
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$4,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$12,%ymm4,%ymm4,%ymm4
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol16(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpsrld	$20,%ymm5,%ymm3
+	vpslld	$12,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol8(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpslld	$7,%ymm5,%ymm3
+	vpsrld	$25,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpalignr	$4,%ymm13,%ymm13,%ymm13
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$12,%ymm5,%ymm5,%ymm5
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpshufb	.Lrol16(%rip),%ymm14,%ymm14
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpsrld	$20,%ymm6,%ymm3
+	vpslld	$12,%ymm6,%ymm6
+	vpxor	%ymm3,%ymm6,%ymm6
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpshufb	.Lrol8(%rip),%ymm14,%ymm14
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpslld	$7,%ymm6,%ymm3
+	vpsrld	$25,%ymm6,%ymm6
+	vpxor	%ymm3,%ymm6,%ymm6
+	vpalignr	$4,%ymm14,%ymm14,%ymm14
+	vpalignr	$8,%ymm10,%ymm10,%ymm10
+	vpalignr	$12,%ymm6,%ymm6,%ymm6
+
+	decq	%r10
+	jne	.Lopen_avx2_320_rounds
+	vpaddd	.Lchacha20_consts(%rip),%ymm0,%ymm0
+	vpaddd	.Lchacha20_consts(%rip),%ymm1,%ymm1
+	vpaddd	.Lchacha20_consts(%rip),%ymm2,%ymm2
+	vpaddd	%ymm7,%ymm4,%ymm4
+	vpaddd	%ymm7,%ymm5,%ymm5
+	vpaddd	%ymm7,%ymm6,%ymm6
+	vpaddd	%ymm11,%ymm8,%ymm8
+	vpaddd	%ymm11,%ymm9,%ymm9
+	vpaddd	%ymm11,%ymm10,%ymm10
+	vpaddd	0+160(%rbp),%ymm12,%ymm12
+	vpaddd	0+192(%rbp),%ymm13,%ymm13
+	vpaddd	0+224(%rbp),%ymm14,%ymm14
+	vperm2i128	$0x02,%ymm0,%ymm4,%ymm3
+// Clamp and store the key
+	vpand	.Lclamp(%rip),%ymm3,%ymm3
+	vmovdqa	%ymm3,0+0(%rbp)
+// Stream for up to 320 bytes
+	vperm2i128	$0x13,%ymm0,%ymm4,%ymm0
+	vperm2i128	$0x13,%ymm8,%ymm12,%ymm4
+	vperm2i128	$0x02,%ymm1,%ymm5,%ymm8
+	vperm2i128	$0x02,%ymm9,%ymm13,%ymm12
+	vperm2i128	$0x13,%ymm1,%ymm5,%ymm1
+	vperm2i128	$0x13,%ymm9,%ymm13,%ymm5
+	vperm2i128	$0x02,%ymm2,%ymm6,%ymm9
+	vperm2i128	$0x02,%ymm10,%ymm14,%ymm13
+	vperm2i128	$0x13,%ymm2,%ymm6,%ymm2
+	vperm2i128	$0x13,%ymm10,%ymm14,%ymm6
+	jmp	.Lopen_avx2_short
+.size	chacha20_poly1305_open_avx2, .-chacha20_poly1305_open_avx2
+.cfi_endproc	
+// ############################################################################# 
+// ############################################################################# 
+.globl	chacha20_poly1305_seal_avx2
+.hidden chacha20_poly1305_seal_avx2
+.type	chacha20_poly1305_seal_avx2,@function
+.align	64
+chacha20_poly1305_seal_avx2:
+.cfi_startproc	
+.byte	0xf3,0x0f,0x1e,0xfa
+	pushq	%rbp
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%rbp,-16
+	pushq	%rbx
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%rbx,-24
+	pushq	%r12
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%r12,-32
+	pushq	%r13
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%r13,-40
+	pushq	%r14
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%r14,-48
+	pushq	%r15
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%r15,-56
+// We write the calculated authenticator back to keyp at the end, so save
+// the pointer on the stack too.
+	pushq	%r9
+.cfi_adjust_cfa_offset	8
+.cfi_offset	%r9,-64
+	sub	$288 + 0 + 32,%rsp
+.cfi_adjust_cfa_offset	288 + 32
+	lea	32(%rsp),%rbp
+	and	$-32,%rbp
+
+	mov	56(%r9),%rbx  // extra_in_len
+	add	%rdx,%rbx
+	mov	%r8,0+0+32(%rbp)
+	mov	%rbx,8+0+32(%rbp)
+	mov	%rdx,%rbx
+
+	vzeroupper
+	vmovdqa	.Lchacha20_consts(%rip),%ymm0
+	vbroadcasti128	0(%r9),%ymm4
+	vbroadcasti128	16(%r9),%ymm8
+	vbroadcasti128	32(%r9),%ymm12
+	vpaddd	.Lavx2_init(%rip),%ymm12,%ymm12
+	cmp	$192,%rbx
+	jbe	.Lseal_avx2_192
+	cmp	$320,%rbx
+	jbe	.Lseal_avx2_320
+	vmovdqa	%ymm0,%ymm1
+	vmovdqa	%ymm0,%ymm2
+	vmovdqa	%ymm0,%ymm3
+	vmovdqa	%ymm4,%ymm5
+	vmovdqa	%ymm4,%ymm6
+	vmovdqa	%ymm4,%ymm7
+	vmovdqa	%ymm4,0+64(%rbp)
+	vmovdqa	%ymm8,%ymm9
+	vmovdqa	%ymm8,%ymm10
+	vmovdqa	%ymm8,%ymm11
+	vmovdqa	%ymm8,0+96(%rbp)
+	vmovdqa	%ymm12,%ymm15
+	vpaddd	.Lavx2_inc(%rip),%ymm15,%ymm14
+	vpaddd	.Lavx2_inc(%rip),%ymm14,%ymm13
+	vpaddd	.Lavx2_inc(%rip),%ymm13,%ymm12
+	vmovdqa	%ymm12,0+160(%rbp)
+	vmovdqa	%ymm13,0+192(%rbp)
+	vmovdqa	%ymm14,0+224(%rbp)
+	vmovdqa	%ymm15,0+256(%rbp)
+	mov	$10,%r10
+.Lseal_avx2_init_rounds:
+	vmovdqa	%ymm8,0+128(%rbp)
+	vmovdqa	.Lrol16(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$20,%ymm7,%ymm8
+	vpslld	$32-20,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$20,%ymm6,%ymm8
+	vpslld	$32-20,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	vpsrld	$20,%ymm5,%ymm8
+	vpslld	$32-20,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$20,%ymm4,%ymm8
+	vpslld	$32-20,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	.Lrol8(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$25,%ymm7,%ymm8
+	vpslld	$32-25,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$25,%ymm6,%ymm8
+	vpslld	$32-25,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	vpsrld	$25,%ymm5,%ymm8
+	vpslld	$32-25,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$25,%ymm4,%ymm8
+	vpslld	$32-25,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	0+128(%rbp),%ymm8
+	vpalignr	$4,%ymm7,%ymm7,%ymm7
+	vpalignr	$8,%ymm11,%ymm11,%ymm11
+	vpalignr	$12,%ymm15,%ymm15,%ymm15
+	vpalignr	$4,%ymm6,%ymm6,%ymm6
+	vpalignr	$8,%ymm10,%ymm10,%ymm10
+	vpalignr	$12,%ymm14,%ymm14,%ymm14
+	vpalignr	$4,%ymm5,%ymm5,%ymm5
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$12,%ymm13,%ymm13,%ymm13
+	vpalignr	$4,%ymm4,%ymm4,%ymm4
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$12,%ymm12,%ymm12,%ymm12
+	vmovdqa	%ymm8,0+128(%rbp)
+	vmovdqa	.Lrol16(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$20,%ymm7,%ymm8
+	vpslld	$32-20,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$20,%ymm6,%ymm8
+	vpslld	$32-20,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	vpsrld	$20,%ymm5,%ymm8
+	vpslld	$32-20,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$20,%ymm4,%ymm8
+	vpslld	$32-20,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	.Lrol8(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$25,%ymm7,%ymm8
+	vpslld	$32-25,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$25,%ymm6,%ymm8
+	vpslld	$32-25,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	vpsrld	$25,%ymm5,%ymm8
+	vpslld	$32-25,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$25,%ymm4,%ymm8
+	vpslld	$32-25,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	0+128(%rbp),%ymm8
+	vpalignr	$12,%ymm7,%ymm7,%ymm7
+	vpalignr	$8,%ymm11,%ymm11,%ymm11
+	vpalignr	$4,%ymm15,%ymm15,%ymm15
+	vpalignr	$12,%ymm6,%ymm6,%ymm6
+	vpalignr	$8,%ymm10,%ymm10,%ymm10
+	vpalignr	$4,%ymm14,%ymm14,%ymm14
+	vpalignr	$12,%ymm5,%ymm5,%ymm5
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$4,%ymm13,%ymm13,%ymm13
+	vpalignr	$12,%ymm4,%ymm4,%ymm4
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$4,%ymm12,%ymm12,%ymm12
+
+	decq	%r10
+	jnz	.Lseal_avx2_init_rounds
+	vpaddd	.Lchacha20_consts(%rip),%ymm3,%ymm3
+	vpaddd	0+64(%rbp),%ymm7,%ymm7
+	vpaddd	0+96(%rbp),%ymm11,%ymm11
+	vpaddd	0+256(%rbp),%ymm15,%ymm15
+	vpaddd	.Lchacha20_consts(%rip),%ymm2,%ymm2
+	vpaddd	0+64(%rbp),%ymm6,%ymm6
+	vpaddd	0+96(%rbp),%ymm10,%ymm10
+	vpaddd	0+224(%rbp),%ymm14,%ymm14
+	vpaddd	.Lchacha20_consts(%rip),%ymm1,%ymm1
+	vpaddd	0+64(%rbp),%ymm5,%ymm5
+	vpaddd	0+96(%rbp),%ymm9,%ymm9
+	vpaddd	0+192(%rbp),%ymm13,%ymm13
+	vpaddd	.Lchacha20_consts(%rip),%ymm0,%ymm0
+	vpaddd	0+64(%rbp),%ymm4,%ymm4
+	vpaddd	0+96(%rbp),%ymm8,%ymm8
+	vpaddd	0+160(%rbp),%ymm12,%ymm12
+
+	vperm2i128	$0x13,%ymm11,%ymm15,%ymm11
+	vperm2i128	$0x02,%ymm3,%ymm7,%ymm15
+	vperm2i128	$0x13,%ymm3,%ymm7,%ymm3
+	vpand	.Lclamp(%rip),%ymm15,%ymm15
+	vmovdqa	%ymm15,0+0(%rbp)
+	mov	%r8,%r8
+	call	poly_hash_ad_internal
+// Safely store 320 bytes (otherwise would handle with optimized call)
+	vpxor	0(%rsi),%ymm3,%ymm3
+	vpxor	32(%rsi),%ymm11,%ymm11
+	vmovdqu	%ymm3,0(%rdi)
+	vmovdqu	%ymm11,32(%rdi)
+	vperm2i128	$0x02,%ymm2,%ymm6,%ymm15
+	vperm2i128	$0x13,%ymm2,%ymm6,%ymm6
+	vperm2i128	$0x02,%ymm10,%ymm14,%ymm2
+	vperm2i128	$0x13,%ymm10,%ymm14,%ymm10
+	vpxor	0+64(%rsi),%ymm15,%ymm15
+	vpxor	32+64(%rsi),%ymm2,%ymm2
+	vpxor	64+64(%rsi),%ymm6,%ymm6
+	vpxor	96+64(%rsi),%ymm10,%ymm10
+	vmovdqu	%ymm15,0+64(%rdi)
+	vmovdqu	%ymm2,32+64(%rdi)
+	vmovdqu	%ymm6,64+64(%rdi)
+	vmovdqu	%ymm10,96+64(%rdi)
+	vperm2i128	$0x02,%ymm1,%ymm5,%ymm15
+	vperm2i128	$0x13,%ymm1,%ymm5,%ymm5
+	vperm2i128	$0x02,%ymm9,%ymm13,%ymm1
+	vperm2i128	$0x13,%ymm9,%ymm13,%ymm9
+	vpxor	0+192(%rsi),%ymm15,%ymm15
+	vpxor	32+192(%rsi),%ymm1,%ymm1
+	vpxor	64+192(%rsi),%ymm5,%ymm5
+	vpxor	96+192(%rsi),%ymm9,%ymm9
+	vmovdqu	%ymm15,0+192(%rdi)
+	vmovdqu	%ymm1,32+192(%rdi)
+	vmovdqu	%ymm5,64+192(%rdi)
+	vmovdqu	%ymm9,96+192(%rdi)
+	vperm2i128	$0x13,%ymm0,%ymm4,%ymm15
+	vperm2i128	$0x02,%ymm0,%ymm4,%ymm0
+	vperm2i128	$0x02,%ymm8,%ymm12,%ymm4
+	vperm2i128	$0x13,%ymm8,%ymm12,%ymm12
+	vmovdqa	%ymm15,%ymm8
+
+	lea	320(%rsi),%rsi
+	sub	$320,%rbx
+	mov	$320,%rcx
+	cmp	$128,%rbx
+	jbe	.Lseal_avx2_short_hash_remainder
+	vpxor	0(%rsi),%ymm0,%ymm0
+	vpxor	32(%rsi),%ymm4,%ymm4
+	vpxor	64(%rsi),%ymm8,%ymm8
+	vpxor	96(%rsi),%ymm12,%ymm12
+	vmovdqu	%ymm0,320(%rdi)
+	vmovdqu	%ymm4,352(%rdi)
+	vmovdqu	%ymm8,384(%rdi)
+	vmovdqu	%ymm12,416(%rdi)
+	lea	128(%rsi),%rsi
+	sub	$128,%rbx
+	mov	$8,%rcx
+	mov	$2,%r8
+	cmp	$128,%rbx
+	jbe	.Lseal_avx2_tail_128
+	cmp	$256,%rbx
+	jbe	.Lseal_avx2_tail_256
+	cmp	$384,%rbx
+	jbe	.Lseal_avx2_tail_384
+	cmp	$512,%rbx
+	jbe	.Lseal_avx2_tail_512
+	vmovdqa	.Lchacha20_consts(%rip),%ymm0
+	vmovdqa	0+64(%rbp),%ymm4
+	vmovdqa	0+96(%rbp),%ymm8
+	vmovdqa	%ymm0,%ymm1
+	vmovdqa	%ymm4,%ymm5
+	vmovdqa	%ymm8,%ymm9
+	vmovdqa	%ymm0,%ymm2
+	vmovdqa	%ymm4,%ymm6
+	vmovdqa	%ymm8,%ymm10
+	vmovdqa	%ymm0,%ymm3
+	vmovdqa	%ymm4,%ymm7
+	vmovdqa	%ymm8,%ymm11
+	vmovdqa	.Lavx2_inc(%rip),%ymm12
+	vpaddd	0+160(%rbp),%ymm12,%ymm15
+	vpaddd	%ymm15,%ymm12,%ymm14
+	vpaddd	%ymm14,%ymm12,%ymm13
+	vpaddd	%ymm13,%ymm12,%ymm12
+	vmovdqa	%ymm15,0+256(%rbp)
+	vmovdqa	%ymm14,0+224(%rbp)
+	vmovdqa	%ymm13,0+192(%rbp)
+	vmovdqa	%ymm12,0+160(%rbp)
+	vmovdqa	%ymm8,0+128(%rbp)
+	vmovdqa	.Lrol16(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$20,%ymm7,%ymm8
+	vpslld	$32-20,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$20,%ymm6,%ymm8
+	vpslld	$32-20,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	vpsrld	$20,%ymm5,%ymm8
+	vpslld	$32-20,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$20,%ymm4,%ymm8
+	vpslld	$32-20,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	.Lrol8(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$25,%ymm7,%ymm8
+	vpslld	$32-25,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$25,%ymm6,%ymm8
+	vpslld	$32-25,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	vpsrld	$25,%ymm5,%ymm8
+	vpslld	$32-25,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$25,%ymm4,%ymm8
+	vpslld	$32-25,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	0+128(%rbp),%ymm8
+	vpalignr	$4,%ymm7,%ymm7,%ymm7
+	vpalignr	$8,%ymm11,%ymm11,%ymm11
+	vpalignr	$12,%ymm15,%ymm15,%ymm15
+	vpalignr	$4,%ymm6,%ymm6,%ymm6
+	vpalignr	$8,%ymm10,%ymm10,%ymm10
+	vpalignr	$12,%ymm14,%ymm14,%ymm14
+	vpalignr	$4,%ymm5,%ymm5,%ymm5
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$12,%ymm13,%ymm13,%ymm13
+	vpalignr	$4,%ymm4,%ymm4,%ymm4
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$12,%ymm12,%ymm12,%ymm12
+	vmovdqa	%ymm8,0+128(%rbp)
+	vmovdqa	.Lrol16(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$20,%ymm7,%ymm8
+	vpslld	$32-20,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$20,%ymm6,%ymm8
+	vpslld	$32-20,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	vpsrld	$20,%ymm5,%ymm8
+	vpslld	$32-20,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$20,%ymm4,%ymm8
+	vpslld	$32-20,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	.Lrol8(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$25,%ymm7,%ymm8
+	vpslld	$32-25,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$25,%ymm6,%ymm8
+	vpslld	$32-25,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	vpsrld	$25,%ymm5,%ymm8
+	vpslld	$32-25,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$25,%ymm4,%ymm8
+	vpslld	$32-25,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	0+128(%rbp),%ymm8
+	vpalignr	$12,%ymm7,%ymm7,%ymm7
+	vpalignr	$8,%ymm11,%ymm11,%ymm11
+	vpalignr	$4,%ymm15,%ymm15,%ymm15
+	vpalignr	$12,%ymm6,%ymm6,%ymm6
+	vpalignr	$8,%ymm10,%ymm10,%ymm10
+	vpalignr	$4,%ymm14,%ymm14,%ymm14
+	vpalignr	$12,%ymm5,%ymm5,%ymm5
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$4,%ymm13,%ymm13,%ymm13
+	vpalignr	$12,%ymm4,%ymm4,%ymm4
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$4,%ymm12,%ymm12,%ymm12
+	vmovdqa	%ymm8,0+128(%rbp)
+	vmovdqa	.Lrol16(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$20,%ymm7,%ymm8
+	vpslld	$32-20,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$20,%ymm6,%ymm8
+	vpslld	$32-20,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	vpsrld	$20,%ymm5,%ymm8
+	vpslld	$32-20,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$20,%ymm4,%ymm8
+	vpslld	$32-20,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	.Lrol8(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+
+	sub	$16,%rdi
+	mov	$9,%rcx
+	jmp	.Lseal_avx2_main_loop_rounds_entry
+.align	32
+.Lseal_avx2_main_loop:
+	vmovdqa	.Lchacha20_consts(%rip),%ymm0
+	vmovdqa	0+64(%rbp),%ymm4
+	vmovdqa	0+96(%rbp),%ymm8
+	vmovdqa	%ymm0,%ymm1
+	vmovdqa	%ymm4,%ymm5
+	vmovdqa	%ymm8,%ymm9
+	vmovdqa	%ymm0,%ymm2
+	vmovdqa	%ymm4,%ymm6
+	vmovdqa	%ymm8,%ymm10
+	vmovdqa	%ymm0,%ymm3
+	vmovdqa	%ymm4,%ymm7
+	vmovdqa	%ymm8,%ymm11
+	vmovdqa	.Lavx2_inc(%rip),%ymm12
+	vpaddd	0+160(%rbp),%ymm12,%ymm15
+	vpaddd	%ymm15,%ymm12,%ymm14
+	vpaddd	%ymm14,%ymm12,%ymm13
+	vpaddd	%ymm13,%ymm12,%ymm12
+	vmovdqa	%ymm15,0+256(%rbp)
+	vmovdqa	%ymm14,0+224(%rbp)
+	vmovdqa	%ymm13,0+192(%rbp)
+	vmovdqa	%ymm12,0+160(%rbp)
+
+	mov	$10,%rcx
+.align	32
+.Lseal_avx2_main_loop_rounds:
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	vmovdqa	%ymm8,0+128(%rbp)
+	vmovdqa	.Lrol16(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$20,%ymm7,%ymm8
+	vpslld	$32-20,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$20,%ymm6,%ymm8
+	vpslld	$32-20,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	vpsrld	$20,%ymm5,%ymm8
+	vpslld	$32-20,%ymm5,%ymm5
+	add	%rax,%r15
+	adc	%rdx,%r9
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$20,%ymm4,%ymm8
+	vpslld	$32-20,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	.Lrol8(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+.Lseal_avx2_main_loop_rounds_entry:
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	add	0+16(%rdi),%r10
+	adc	8+16(%rdi),%r11
+	adc	$1,%r12
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$25,%ymm7,%ymm8
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	vpslld	$32-25,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$25,%ymm6,%ymm8
+	vpslld	$32-25,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	vpsrld	$25,%ymm5,%ymm8
+	vpslld	$32-25,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$25,%ymm4,%ymm8
+	vpslld	$32-25,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	0+128(%rbp),%ymm8
+	vpalignr	$4,%ymm7,%ymm7,%ymm7
+	vpalignr	$8,%ymm11,%ymm11,%ymm11
+	vpalignr	$12,%ymm15,%ymm15,%ymm15
+	vpalignr	$4,%ymm6,%ymm6,%ymm6
+	vpalignr	$8,%ymm10,%ymm10,%ymm10
+	vpalignr	$12,%ymm14,%ymm14,%ymm14
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	vpalignr	$4,%ymm5,%ymm5,%ymm5
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$12,%ymm13,%ymm13,%ymm13
+	vpalignr	$4,%ymm4,%ymm4,%ymm4
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$12,%ymm12,%ymm12,%ymm12
+	vmovdqa	%ymm8,0+128(%rbp)
+	vmovdqa	.Lrol16(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	add	%rax,%r15
+	adc	%rdx,%r9
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$20,%ymm7,%ymm8
+	vpslld	$32-20,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$20,%ymm6,%ymm8
+	vpslld	$32-20,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	add	0+32(%rdi),%r10
+	adc	8+32(%rdi),%r11
+	adc	$1,%r12
+
+	lea	48(%rdi),%rdi
+	vpsrld	$20,%ymm5,%ymm8
+	vpslld	$32-20,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$20,%ymm4,%ymm8
+	vpslld	$32-20,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	.Lrol8(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$25,%ymm7,%ymm8
+	vpslld	$32-25,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$25,%ymm6,%ymm8
+	vpslld	$32-25,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	add	%rax,%r15
+	adc	%rdx,%r9
+	vpsrld	$25,%ymm5,%ymm8
+	vpslld	$32-25,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$25,%ymm4,%ymm8
+	vpslld	$32-25,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	0+128(%rbp),%ymm8
+	vpalignr	$12,%ymm7,%ymm7,%ymm7
+	vpalignr	$8,%ymm11,%ymm11,%ymm11
+	vpalignr	$4,%ymm15,%ymm15,%ymm15
+	vpalignr	$12,%ymm6,%ymm6,%ymm6
+	vpalignr	$8,%ymm10,%ymm10,%ymm10
+	vpalignr	$4,%ymm14,%ymm14,%ymm14
+	vpalignr	$12,%ymm5,%ymm5,%ymm5
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$4,%ymm13,%ymm13,%ymm13
+	vpalignr	$12,%ymm4,%ymm4,%ymm4
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	vpalignr	$4,%ymm12,%ymm12,%ymm12
+
+	decq	%rcx
+	jne	.Lseal_avx2_main_loop_rounds
+	vpaddd	.Lchacha20_consts(%rip),%ymm3,%ymm3
+	vpaddd	0+64(%rbp),%ymm7,%ymm7
+	vpaddd	0+96(%rbp),%ymm11,%ymm11
+	vpaddd	0+256(%rbp),%ymm15,%ymm15
+	vpaddd	.Lchacha20_consts(%rip),%ymm2,%ymm2
+	vpaddd	0+64(%rbp),%ymm6,%ymm6
+	vpaddd	0+96(%rbp),%ymm10,%ymm10
+	vpaddd	0+224(%rbp),%ymm14,%ymm14
+	vpaddd	.Lchacha20_consts(%rip),%ymm1,%ymm1
+	vpaddd	0+64(%rbp),%ymm5,%ymm5
+	vpaddd	0+96(%rbp),%ymm9,%ymm9
+	vpaddd	0+192(%rbp),%ymm13,%ymm13
+	vpaddd	.Lchacha20_consts(%rip),%ymm0,%ymm0
+	vpaddd	0+64(%rbp),%ymm4,%ymm4
+	vpaddd	0+96(%rbp),%ymm8,%ymm8
+	vpaddd	0+160(%rbp),%ymm12,%ymm12
+
+	vmovdqa	%ymm0,0+128(%rbp)
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	add	%rax,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	add	0+16(%rdi),%r10
+	adc	8+16(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	add	%rax,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	32(%rdi),%rdi
+	vperm2i128	$0x02,%ymm3,%ymm7,%ymm0
+	vperm2i128	$0x13,%ymm3,%ymm7,%ymm7
+	vperm2i128	$0x02,%ymm11,%ymm15,%ymm3
+	vperm2i128	$0x13,%ymm11,%ymm15,%ymm11
+	vpxor	0+0(%rsi),%ymm0,%ymm0
+	vpxor	32+0(%rsi),%ymm3,%ymm3
+	vpxor	64+0(%rsi),%ymm7,%ymm7
+	vpxor	96+0(%rsi),%ymm11,%ymm11
+	vmovdqu	%ymm0,0+0(%rdi)
+	vmovdqu	%ymm3,32+0(%rdi)
+	vmovdqu	%ymm7,64+0(%rdi)
+	vmovdqu	%ymm11,96+0(%rdi)
+
+	vmovdqa	0+128(%rbp),%ymm0
+	vperm2i128	$0x02,%ymm2,%ymm6,%ymm3
+	vperm2i128	$0x13,%ymm2,%ymm6,%ymm6
+	vperm2i128	$0x02,%ymm10,%ymm14,%ymm2
+	vperm2i128	$0x13,%ymm10,%ymm14,%ymm10
+	vpxor	0+128(%rsi),%ymm3,%ymm3
+	vpxor	32+128(%rsi),%ymm2,%ymm2
+	vpxor	64+128(%rsi),%ymm6,%ymm6
+	vpxor	96+128(%rsi),%ymm10,%ymm10
+	vmovdqu	%ymm3,0+128(%rdi)
+	vmovdqu	%ymm2,32+128(%rdi)
+	vmovdqu	%ymm6,64+128(%rdi)
+	vmovdqu	%ymm10,96+128(%rdi)
+	vperm2i128	$0x02,%ymm1,%ymm5,%ymm3
+	vperm2i128	$0x13,%ymm1,%ymm5,%ymm5
+	vperm2i128	$0x02,%ymm9,%ymm13,%ymm1
+	vperm2i128	$0x13,%ymm9,%ymm13,%ymm9
+	vpxor	0+256(%rsi),%ymm3,%ymm3
+	vpxor	32+256(%rsi),%ymm1,%ymm1
+	vpxor	64+256(%rsi),%ymm5,%ymm5
+	vpxor	96+256(%rsi),%ymm9,%ymm9
+	vmovdqu	%ymm3,0+256(%rdi)
+	vmovdqu	%ymm1,32+256(%rdi)
+	vmovdqu	%ymm5,64+256(%rdi)
+	vmovdqu	%ymm9,96+256(%rdi)
+	vperm2i128	$0x02,%ymm0,%ymm4,%ymm3
+	vperm2i128	$0x13,%ymm0,%ymm4,%ymm4
+	vperm2i128	$0x02,%ymm8,%ymm12,%ymm0
+	vperm2i128	$0x13,%ymm8,%ymm12,%ymm8
+	vpxor	0+384(%rsi),%ymm3,%ymm3
+	vpxor	32+384(%rsi),%ymm0,%ymm0
+	vpxor	64+384(%rsi),%ymm4,%ymm4
+	vpxor	96+384(%rsi),%ymm8,%ymm8
+	vmovdqu	%ymm3,0+384(%rdi)
+	vmovdqu	%ymm0,32+384(%rdi)
+	vmovdqu	%ymm4,64+384(%rdi)
+	vmovdqu	%ymm8,96+384(%rdi)
+
+	lea	512(%rsi),%rsi
+	sub	$512,%rbx
+	cmp	$512,%rbx
+	jg	.Lseal_avx2_main_loop
+
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	add	%rax,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	add	0+16(%rdi),%r10
+	adc	8+16(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	add	%rax,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	32(%rdi),%rdi
+	mov	$10,%rcx
+	xor	%r8,%r8
+
+	cmp	$384,%rbx
+	ja	.Lseal_avx2_tail_512
+	cmp	$256,%rbx
+	ja	.Lseal_avx2_tail_384
+	cmp	$128,%rbx
+	ja	.Lseal_avx2_tail_256
+// ############################################################################# 
+.Lseal_avx2_tail_128:
+	vmovdqa	.Lchacha20_consts(%rip),%ymm0
+	vmovdqa	0+64(%rbp),%ymm4
+	vmovdqa	0+96(%rbp),%ymm8
+	vmovdqa	.Lavx2_inc(%rip),%ymm12
+	vpaddd	0+160(%rbp),%ymm12,%ymm12
+	vmovdqa	%ymm12,0+160(%rbp)
+
+.Lseal_avx2_tail_128_rounds_and_3xhash:
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	add	%rax,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	16(%rdi),%rdi
+.Lseal_avx2_tail_128_rounds_and_2xhash:
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$12,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$4,%ymm4,%ymm4,%ymm4
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	add	%rax,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$4,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$12,%ymm4,%ymm4,%ymm4
+	add	0+16(%rdi),%r10
+	adc	8+16(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	add	%rax,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	32(%rdi),%rdi
+	decq	%rcx
+	jg	.Lseal_avx2_tail_128_rounds_and_3xhash
+	decq	%r8
+	jge	.Lseal_avx2_tail_128_rounds_and_2xhash
+	vpaddd	.Lchacha20_consts(%rip),%ymm0,%ymm0
+	vpaddd	0+64(%rbp),%ymm4,%ymm4
+	vpaddd	0+96(%rbp),%ymm8,%ymm8
+	vpaddd	0+160(%rbp),%ymm12,%ymm12
+	vperm2i128	$0x13,%ymm0,%ymm4,%ymm3
+	vperm2i128	$0x02,%ymm0,%ymm4,%ymm0
+	vperm2i128	$0x02,%ymm8,%ymm12,%ymm4
+	vperm2i128	$0x13,%ymm8,%ymm12,%ymm12
+	vmovdqa	%ymm3,%ymm8
+
+	jmp	.Lseal_avx2_short_loop
+// ############################################################################# 
+.Lseal_avx2_tail_256:
+	vmovdqa	.Lchacha20_consts(%rip),%ymm0
+	vmovdqa	0+64(%rbp),%ymm4
+	vmovdqa	0+96(%rbp),%ymm8
+	vmovdqa	%ymm0,%ymm1
+	vmovdqa	%ymm4,%ymm5
+	vmovdqa	%ymm8,%ymm9
+	vmovdqa	.Lavx2_inc(%rip),%ymm12
+	vpaddd	0+160(%rbp),%ymm12,%ymm13
+	vpaddd	%ymm13,%ymm12,%ymm12
+	vmovdqa	%ymm12,0+160(%rbp)
+	vmovdqa	%ymm13,0+192(%rbp)
+
+.Lseal_avx2_tail_256_rounds_and_3xhash:
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	16(%rdi),%rdi
+.Lseal_avx2_tail_256_rounds_and_2xhash:
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$12,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$4,%ymm4,%ymm4,%ymm4
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol16(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpsrld	$20,%ymm5,%ymm3
+	vpslld	$12,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol8(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpslld	$7,%ymm5,%ymm3
+	vpsrld	$25,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpalignr	$12,%ymm13,%ymm13,%ymm13
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$4,%ymm5,%ymm5,%ymm5
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$4,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$12,%ymm4,%ymm4,%ymm4
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol16(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpsrld	$20,%ymm5,%ymm3
+	vpslld	$12,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol8(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpslld	$7,%ymm5,%ymm3
+	vpsrld	$25,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpalignr	$4,%ymm13,%ymm13,%ymm13
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$12,%ymm5,%ymm5,%ymm5
+	add	0+16(%rdi),%r10
+	adc	8+16(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	32(%rdi),%rdi
+	decq	%rcx
+	jg	.Lseal_avx2_tail_256_rounds_and_3xhash
+	decq	%r8
+	jge	.Lseal_avx2_tail_256_rounds_and_2xhash
+	vpaddd	.Lchacha20_consts(%rip),%ymm1,%ymm1
+	vpaddd	0+64(%rbp),%ymm5,%ymm5
+	vpaddd	0+96(%rbp),%ymm9,%ymm9
+	vpaddd	0+192(%rbp),%ymm13,%ymm13
+	vpaddd	.Lchacha20_consts(%rip),%ymm0,%ymm0
+	vpaddd	0+64(%rbp),%ymm4,%ymm4
+	vpaddd	0+96(%rbp),%ymm8,%ymm8
+	vpaddd	0+160(%rbp),%ymm12,%ymm12
+	vperm2i128	$0x02,%ymm1,%ymm5,%ymm3
+	vperm2i128	$0x13,%ymm1,%ymm5,%ymm5
+	vperm2i128	$0x02,%ymm9,%ymm13,%ymm1
+	vperm2i128	$0x13,%ymm9,%ymm13,%ymm9
+	vpxor	0+0(%rsi),%ymm3,%ymm3
+	vpxor	32+0(%rsi),%ymm1,%ymm1
+	vpxor	64+0(%rsi),%ymm5,%ymm5
+	vpxor	96+0(%rsi),%ymm9,%ymm9
+	vmovdqu	%ymm3,0+0(%rdi)
+	vmovdqu	%ymm1,32+0(%rdi)
+	vmovdqu	%ymm5,64+0(%rdi)
+	vmovdqu	%ymm9,96+0(%rdi)
+	vperm2i128	$0x13,%ymm0,%ymm4,%ymm3
+	vperm2i128	$0x02,%ymm0,%ymm4,%ymm0
+	vperm2i128	$0x02,%ymm8,%ymm12,%ymm4
+	vperm2i128	$0x13,%ymm8,%ymm12,%ymm12
+	vmovdqa	%ymm3,%ymm8
+
+	mov	$128,%rcx
+	lea	128(%rsi),%rsi
+	sub	$128,%rbx
+	jmp	.Lseal_avx2_short_hash_remainder
+// ############################################################################# 
+.Lseal_avx2_tail_384:
+	vmovdqa	.Lchacha20_consts(%rip),%ymm0
+	vmovdqa	0+64(%rbp),%ymm4
+	vmovdqa	0+96(%rbp),%ymm8
+	vmovdqa	%ymm0,%ymm1
+	vmovdqa	%ymm4,%ymm5
+	vmovdqa	%ymm8,%ymm9
+	vmovdqa	%ymm0,%ymm2
+	vmovdqa	%ymm4,%ymm6
+	vmovdqa	%ymm8,%ymm10
+	vmovdqa	.Lavx2_inc(%rip),%ymm12
+	vpaddd	0+160(%rbp),%ymm12,%ymm14
+	vpaddd	%ymm14,%ymm12,%ymm13
+	vpaddd	%ymm13,%ymm12,%ymm12
+	vmovdqa	%ymm12,0+160(%rbp)
+	vmovdqa	%ymm13,0+192(%rbp)
+	vmovdqa	%ymm14,0+224(%rbp)
+
+.Lseal_avx2_tail_384_rounds_and_3xhash:
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	16(%rdi),%rdi
+.Lseal_avx2_tail_384_rounds_and_2xhash:
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$12,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$4,%ymm4,%ymm4,%ymm4
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol16(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpsrld	$20,%ymm5,%ymm3
+	vpslld	$12,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol8(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpslld	$7,%ymm5,%ymm3
+	vpsrld	$25,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpalignr	$12,%ymm13,%ymm13,%ymm13
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$4,%ymm5,%ymm5,%ymm5
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpshufb	.Lrol16(%rip),%ymm14,%ymm14
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpsrld	$20,%ymm6,%ymm3
+	vpslld	$12,%ymm6,%ymm6
+	vpxor	%ymm3,%ymm6,%ymm6
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpshufb	.Lrol8(%rip),%ymm14,%ymm14
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpslld	$7,%ymm6,%ymm3
+	vpsrld	$25,%ymm6,%ymm6
+	vpxor	%ymm3,%ymm6,%ymm6
+	vpalignr	$12,%ymm14,%ymm14,%ymm14
+	vpalignr	$8,%ymm10,%ymm10,%ymm10
+	vpalignr	$4,%ymm6,%ymm6,%ymm6
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$4,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$12,%ymm4,%ymm4,%ymm4
+	add	0+16(%rdi),%r10
+	adc	8+16(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol16(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpsrld	$20,%ymm5,%ymm3
+	vpslld	$12,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol8(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpslld	$7,%ymm5,%ymm3
+	vpsrld	$25,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpalignr	$4,%ymm13,%ymm13,%ymm13
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$12,%ymm5,%ymm5,%ymm5
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpshufb	.Lrol16(%rip),%ymm14,%ymm14
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpsrld	$20,%ymm6,%ymm3
+	vpslld	$12,%ymm6,%ymm6
+	vpxor	%ymm3,%ymm6,%ymm6
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpshufb	.Lrol8(%rip),%ymm14,%ymm14
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpslld	$7,%ymm6,%ymm3
+	vpsrld	$25,%ymm6,%ymm6
+	vpxor	%ymm3,%ymm6,%ymm6
+	vpalignr	$4,%ymm14,%ymm14,%ymm14
+	vpalignr	$8,%ymm10,%ymm10,%ymm10
+	vpalignr	$12,%ymm6,%ymm6,%ymm6
+
+	lea	32(%rdi),%rdi
+	decq	%rcx
+	jg	.Lseal_avx2_tail_384_rounds_and_3xhash
+	decq	%r8
+	jge	.Lseal_avx2_tail_384_rounds_and_2xhash
+	vpaddd	.Lchacha20_consts(%rip),%ymm2,%ymm2
+	vpaddd	0+64(%rbp),%ymm6,%ymm6
+	vpaddd	0+96(%rbp),%ymm10,%ymm10
+	vpaddd	0+224(%rbp),%ymm14,%ymm14
+	vpaddd	.Lchacha20_consts(%rip),%ymm1,%ymm1
+	vpaddd	0+64(%rbp),%ymm5,%ymm5
+	vpaddd	0+96(%rbp),%ymm9,%ymm9
+	vpaddd	0+192(%rbp),%ymm13,%ymm13
+	vpaddd	.Lchacha20_consts(%rip),%ymm0,%ymm0
+	vpaddd	0+64(%rbp),%ymm4,%ymm4
+	vpaddd	0+96(%rbp),%ymm8,%ymm8
+	vpaddd	0+160(%rbp),%ymm12,%ymm12
+	vperm2i128	$0x02,%ymm2,%ymm6,%ymm3
+	vperm2i128	$0x13,%ymm2,%ymm6,%ymm6
+	vperm2i128	$0x02,%ymm10,%ymm14,%ymm2
+	vperm2i128	$0x13,%ymm10,%ymm14,%ymm10
+	vpxor	0+0(%rsi),%ymm3,%ymm3
+	vpxor	32+0(%rsi),%ymm2,%ymm2
+	vpxor	64+0(%rsi),%ymm6,%ymm6
+	vpxor	96+0(%rsi),%ymm10,%ymm10
+	vmovdqu	%ymm3,0+0(%rdi)
+	vmovdqu	%ymm2,32+0(%rdi)
+	vmovdqu	%ymm6,64+0(%rdi)
+	vmovdqu	%ymm10,96+0(%rdi)
+	vperm2i128	$0x02,%ymm1,%ymm5,%ymm3
+	vperm2i128	$0x13,%ymm1,%ymm5,%ymm5
+	vperm2i128	$0x02,%ymm9,%ymm13,%ymm1
+	vperm2i128	$0x13,%ymm9,%ymm13,%ymm9
+	vpxor	0+128(%rsi),%ymm3,%ymm3
+	vpxor	32+128(%rsi),%ymm1,%ymm1
+	vpxor	64+128(%rsi),%ymm5,%ymm5
+	vpxor	96+128(%rsi),%ymm9,%ymm9
+	vmovdqu	%ymm3,0+128(%rdi)
+	vmovdqu	%ymm1,32+128(%rdi)
+	vmovdqu	%ymm5,64+128(%rdi)
+	vmovdqu	%ymm9,96+128(%rdi)
+	vperm2i128	$0x13,%ymm0,%ymm4,%ymm3
+	vperm2i128	$0x02,%ymm0,%ymm4,%ymm0
+	vperm2i128	$0x02,%ymm8,%ymm12,%ymm4
+	vperm2i128	$0x13,%ymm8,%ymm12,%ymm12
+	vmovdqa	%ymm3,%ymm8
+
+	mov	$256,%rcx
+	lea	256(%rsi),%rsi
+	sub	$256,%rbx
+	jmp	.Lseal_avx2_short_hash_remainder
+// ############################################################################# 
+.Lseal_avx2_tail_512:
+	vmovdqa	.Lchacha20_consts(%rip),%ymm0
+	vmovdqa	0+64(%rbp),%ymm4
+	vmovdqa	0+96(%rbp),%ymm8
+	vmovdqa	%ymm0,%ymm1
+	vmovdqa	%ymm4,%ymm5
+	vmovdqa	%ymm8,%ymm9
+	vmovdqa	%ymm0,%ymm2
+	vmovdqa	%ymm4,%ymm6
+	vmovdqa	%ymm8,%ymm10
+	vmovdqa	%ymm0,%ymm3
+	vmovdqa	%ymm4,%ymm7
+	vmovdqa	%ymm8,%ymm11
+	vmovdqa	.Lavx2_inc(%rip),%ymm12
+	vpaddd	0+160(%rbp),%ymm12,%ymm15
+	vpaddd	%ymm15,%ymm12,%ymm14
+	vpaddd	%ymm14,%ymm12,%ymm13
+	vpaddd	%ymm13,%ymm12,%ymm12
+	vmovdqa	%ymm15,0+256(%rbp)
+	vmovdqa	%ymm14,0+224(%rbp)
+	vmovdqa	%ymm13,0+192(%rbp)
+	vmovdqa	%ymm12,0+160(%rbp)
+
+.Lseal_avx2_tail_512_rounds_and_3xhash:
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	add	%rax,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	16(%rdi),%rdi
+.Lseal_avx2_tail_512_rounds_and_2xhash:
+	vmovdqa	%ymm8,0+128(%rbp)
+	vmovdqa	.Lrol16(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$20,%ymm7,%ymm8
+	vpslld	$32-20,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$20,%ymm6,%ymm8
+	vpslld	$32-20,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	vpsrld	$20,%ymm5,%ymm8
+	vpslld	$32-20,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$20,%ymm4,%ymm8
+	vpslld	$32-20,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	.Lrol8(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$25,%ymm7,%ymm8
+	vpslld	$32-25,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	vpsrld	$25,%ymm6,%ymm8
+	vpslld	$32-25,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	vpsrld	$25,%ymm5,%ymm8
+	vpslld	$32-25,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$25,%ymm4,%ymm8
+	vpslld	$32-25,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	0+128(%rbp),%ymm8
+	vpalignr	$4,%ymm7,%ymm7,%ymm7
+	vpalignr	$8,%ymm11,%ymm11,%ymm11
+	vpalignr	$12,%ymm15,%ymm15,%ymm15
+	vpalignr	$4,%ymm6,%ymm6,%ymm6
+	vpalignr	$8,%ymm10,%ymm10,%ymm10
+	vpalignr	$12,%ymm14,%ymm14,%ymm14
+	vpalignr	$4,%ymm5,%ymm5,%ymm5
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$12,%ymm13,%ymm13,%ymm13
+	vpalignr	$4,%ymm4,%ymm4,%ymm4
+	add	%rax,%r15
+	adc	%rdx,%r9
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$12,%ymm12,%ymm12,%ymm12
+	vmovdqa	%ymm8,0+128(%rbp)
+	vmovdqa	.Lrol16(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$20,%ymm7,%ymm8
+	vpslld	$32-20,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$20,%ymm6,%ymm8
+	vpslld	$32-20,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	vpsrld	$20,%ymm5,%ymm8
+	vpslld	$32-20,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$20,%ymm4,%ymm8
+	vpslld	$32-20,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	.Lrol8(%rip),%ymm8
+	vpaddd	%ymm7,%ymm3,%ymm3
+	vpaddd	%ymm6,%ymm2,%ymm2
+	add	0+16(%rdi),%r10
+	adc	8+16(%rdi),%r11
+	adc	$1,%r12
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm3,%ymm15,%ymm15
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	%ymm8,%ymm15,%ymm15
+	vpshufb	%ymm8,%ymm14,%ymm14
+	vpshufb	%ymm8,%ymm13,%ymm13
+	vpshufb	%ymm8,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm11,%ymm11
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpaddd	0+128(%rbp),%ymm12,%ymm8
+	vpxor	%ymm11,%ymm7,%ymm7
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	%ymm8,0+128(%rbp)
+	vpsrld	$25,%ymm7,%ymm8
+	mov	0+0+0(%rbp),%rdx
+	mov	%rdx,%r15
+	mulxq	%r10,%r13,%r14
+	mulxq	%r11,%rax,%rdx
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	vpslld	$32-25,%ymm7,%ymm7
+	vpxor	%ymm8,%ymm7,%ymm7
+	vpsrld	$25,%ymm6,%ymm8
+	vpslld	$32-25,%ymm6,%ymm6
+	vpxor	%ymm8,%ymm6,%ymm6
+	vpsrld	$25,%ymm5,%ymm8
+	vpslld	$32-25,%ymm5,%ymm5
+	vpxor	%ymm8,%ymm5,%ymm5
+	vpsrld	$25,%ymm4,%ymm8
+	vpslld	$32-25,%ymm4,%ymm4
+	vpxor	%ymm8,%ymm4,%ymm4
+	vmovdqa	0+128(%rbp),%ymm8
+	vpalignr	$12,%ymm7,%ymm7,%ymm7
+	vpalignr	$8,%ymm11,%ymm11,%ymm11
+	vpalignr	$4,%ymm15,%ymm15,%ymm15
+	vpalignr	$12,%ymm6,%ymm6,%ymm6
+	vpalignr	$8,%ymm10,%ymm10,%ymm10
+	vpalignr	$4,%ymm14,%ymm14,%ymm14
+	vpalignr	$12,%ymm5,%ymm5,%ymm5
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	mov	8+0+0(%rbp),%rdx
+	mulxq	%r10,%r10,%rax
+	add	%r10,%r14
+	mulxq	%r11,%r11,%r9
+	adc	%r11,%r15
+	adc	$0,%r9
+	imul	%r12,%rdx
+	vpalignr	$4,%ymm13,%ymm13,%ymm13
+	vpalignr	$12,%ymm4,%ymm4,%ymm4
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$4,%ymm12,%ymm12,%ymm12
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	add	%rax,%r15
+	adc	%rdx,%r9
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	32(%rdi),%rdi
+	decq	%rcx
+	jg	.Lseal_avx2_tail_512_rounds_and_3xhash
+	decq	%r8
+	jge	.Lseal_avx2_tail_512_rounds_and_2xhash
+	vpaddd	.Lchacha20_consts(%rip),%ymm3,%ymm3
+	vpaddd	0+64(%rbp),%ymm7,%ymm7
+	vpaddd	0+96(%rbp),%ymm11,%ymm11
+	vpaddd	0+256(%rbp),%ymm15,%ymm15
+	vpaddd	.Lchacha20_consts(%rip),%ymm2,%ymm2
+	vpaddd	0+64(%rbp),%ymm6,%ymm6
+	vpaddd	0+96(%rbp),%ymm10,%ymm10
+	vpaddd	0+224(%rbp),%ymm14,%ymm14
+	vpaddd	.Lchacha20_consts(%rip),%ymm1,%ymm1
+	vpaddd	0+64(%rbp),%ymm5,%ymm5
+	vpaddd	0+96(%rbp),%ymm9,%ymm9
+	vpaddd	0+192(%rbp),%ymm13,%ymm13
+	vpaddd	.Lchacha20_consts(%rip),%ymm0,%ymm0
+	vpaddd	0+64(%rbp),%ymm4,%ymm4
+	vpaddd	0+96(%rbp),%ymm8,%ymm8
+	vpaddd	0+160(%rbp),%ymm12,%ymm12
+
+	vmovdqa	%ymm0,0+128(%rbp)
+	vperm2i128	$0x02,%ymm3,%ymm7,%ymm0
+	vperm2i128	$0x13,%ymm3,%ymm7,%ymm7
+	vperm2i128	$0x02,%ymm11,%ymm15,%ymm3
+	vperm2i128	$0x13,%ymm11,%ymm15,%ymm11
+	vpxor	0+0(%rsi),%ymm0,%ymm0
+	vpxor	32+0(%rsi),%ymm3,%ymm3
+	vpxor	64+0(%rsi),%ymm7,%ymm7
+	vpxor	96+0(%rsi),%ymm11,%ymm11
+	vmovdqu	%ymm0,0+0(%rdi)
+	vmovdqu	%ymm3,32+0(%rdi)
+	vmovdqu	%ymm7,64+0(%rdi)
+	vmovdqu	%ymm11,96+0(%rdi)
+
+	vmovdqa	0+128(%rbp),%ymm0
+	vperm2i128	$0x02,%ymm2,%ymm6,%ymm3
+	vperm2i128	$0x13,%ymm2,%ymm6,%ymm6
+	vperm2i128	$0x02,%ymm10,%ymm14,%ymm2
+	vperm2i128	$0x13,%ymm10,%ymm14,%ymm10
+	vpxor	0+128(%rsi),%ymm3,%ymm3
+	vpxor	32+128(%rsi),%ymm2,%ymm2
+	vpxor	64+128(%rsi),%ymm6,%ymm6
+	vpxor	96+128(%rsi),%ymm10,%ymm10
+	vmovdqu	%ymm3,0+128(%rdi)
+	vmovdqu	%ymm2,32+128(%rdi)
+	vmovdqu	%ymm6,64+128(%rdi)
+	vmovdqu	%ymm10,96+128(%rdi)
+	vperm2i128	$0x02,%ymm1,%ymm5,%ymm3
+	vperm2i128	$0x13,%ymm1,%ymm5,%ymm5
+	vperm2i128	$0x02,%ymm9,%ymm13,%ymm1
+	vperm2i128	$0x13,%ymm9,%ymm13,%ymm9
+	vpxor	0+256(%rsi),%ymm3,%ymm3
+	vpxor	32+256(%rsi),%ymm1,%ymm1
+	vpxor	64+256(%rsi),%ymm5,%ymm5
+	vpxor	96+256(%rsi),%ymm9,%ymm9
+	vmovdqu	%ymm3,0+256(%rdi)
+	vmovdqu	%ymm1,32+256(%rdi)
+	vmovdqu	%ymm5,64+256(%rdi)
+	vmovdqu	%ymm9,96+256(%rdi)
+	vperm2i128	$0x13,%ymm0,%ymm4,%ymm3
+	vperm2i128	$0x02,%ymm0,%ymm4,%ymm0
+	vperm2i128	$0x02,%ymm8,%ymm12,%ymm4
+	vperm2i128	$0x13,%ymm8,%ymm12,%ymm12
+	vmovdqa	%ymm3,%ymm8
+
+	mov	$384,%rcx
+	lea	384(%rsi),%rsi
+	sub	$384,%rbx
+	jmp	.Lseal_avx2_short_hash_remainder
+// ############################################################################## 
+.Lseal_avx2_320:
+	vmovdqa	%ymm0,%ymm1
+	vmovdqa	%ymm0,%ymm2
+	vmovdqa	%ymm4,%ymm5
+	vmovdqa	%ymm4,%ymm6
+	vmovdqa	%ymm8,%ymm9
+	vmovdqa	%ymm8,%ymm10
+	vpaddd	.Lavx2_inc(%rip),%ymm12,%ymm13
+	vpaddd	.Lavx2_inc(%rip),%ymm13,%ymm14
+	vmovdqa	%ymm4,%ymm7
+	vmovdqa	%ymm8,%ymm11
+	vmovdqa	%ymm12,0+160(%rbp)
+	vmovdqa	%ymm13,0+192(%rbp)
+	vmovdqa	%ymm14,0+224(%rbp)
+	mov	$10,%r10
+.Lseal_avx2_320_rounds:
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$12,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$4,%ymm4,%ymm4,%ymm4
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol16(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpsrld	$20,%ymm5,%ymm3
+	vpslld	$12,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol8(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpslld	$7,%ymm5,%ymm3
+	vpsrld	$25,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpalignr	$12,%ymm13,%ymm13,%ymm13
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$4,%ymm5,%ymm5,%ymm5
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpshufb	.Lrol16(%rip),%ymm14,%ymm14
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpsrld	$20,%ymm6,%ymm3
+	vpslld	$12,%ymm6,%ymm6
+	vpxor	%ymm3,%ymm6,%ymm6
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpshufb	.Lrol8(%rip),%ymm14,%ymm14
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpslld	$7,%ymm6,%ymm3
+	vpsrld	$25,%ymm6,%ymm6
+	vpxor	%ymm3,%ymm6,%ymm6
+	vpalignr	$12,%ymm14,%ymm14,%ymm14
+	vpalignr	$8,%ymm10,%ymm10,%ymm10
+	vpalignr	$4,%ymm6,%ymm6,%ymm6
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$4,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$12,%ymm4,%ymm4,%ymm4
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol16(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpsrld	$20,%ymm5,%ymm3
+	vpslld	$12,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol8(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpslld	$7,%ymm5,%ymm3
+	vpsrld	$25,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpalignr	$4,%ymm13,%ymm13,%ymm13
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$12,%ymm5,%ymm5,%ymm5
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpshufb	.Lrol16(%rip),%ymm14,%ymm14
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpsrld	$20,%ymm6,%ymm3
+	vpslld	$12,%ymm6,%ymm6
+	vpxor	%ymm3,%ymm6,%ymm6
+	vpaddd	%ymm6,%ymm2,%ymm2
+	vpxor	%ymm2,%ymm14,%ymm14
+	vpshufb	.Lrol8(%rip),%ymm14,%ymm14
+	vpaddd	%ymm14,%ymm10,%ymm10
+	vpxor	%ymm10,%ymm6,%ymm6
+	vpslld	$7,%ymm6,%ymm3
+	vpsrld	$25,%ymm6,%ymm6
+	vpxor	%ymm3,%ymm6,%ymm6
+	vpalignr	$4,%ymm14,%ymm14,%ymm14
+	vpalignr	$8,%ymm10,%ymm10,%ymm10
+	vpalignr	$12,%ymm6,%ymm6,%ymm6
+
+	decq	%r10
+	jne	.Lseal_avx2_320_rounds
+	vpaddd	.Lchacha20_consts(%rip),%ymm0,%ymm0
+	vpaddd	.Lchacha20_consts(%rip),%ymm1,%ymm1
+	vpaddd	.Lchacha20_consts(%rip),%ymm2,%ymm2
+	vpaddd	%ymm7,%ymm4,%ymm4
+	vpaddd	%ymm7,%ymm5,%ymm5
+	vpaddd	%ymm7,%ymm6,%ymm6
+	vpaddd	%ymm11,%ymm8,%ymm8
+	vpaddd	%ymm11,%ymm9,%ymm9
+	vpaddd	%ymm11,%ymm10,%ymm10
+	vpaddd	0+160(%rbp),%ymm12,%ymm12
+	vpaddd	0+192(%rbp),%ymm13,%ymm13
+	vpaddd	0+224(%rbp),%ymm14,%ymm14
+	vperm2i128	$0x02,%ymm0,%ymm4,%ymm3
+// Clamp and store the key
+	vpand	.Lclamp(%rip),%ymm3,%ymm3
+	vmovdqa	%ymm3,0+0(%rbp)
+// Stream for up to 320 bytes
+	vperm2i128	$0x13,%ymm0,%ymm4,%ymm0
+	vperm2i128	$0x13,%ymm8,%ymm12,%ymm4
+	vperm2i128	$0x02,%ymm1,%ymm5,%ymm8
+	vperm2i128	$0x02,%ymm9,%ymm13,%ymm12
+	vperm2i128	$0x13,%ymm1,%ymm5,%ymm1
+	vperm2i128	$0x13,%ymm9,%ymm13,%ymm5
+	vperm2i128	$0x02,%ymm2,%ymm6,%ymm9
+	vperm2i128	$0x02,%ymm10,%ymm14,%ymm13
+	vperm2i128	$0x13,%ymm2,%ymm6,%ymm2
+	vperm2i128	$0x13,%ymm10,%ymm14,%ymm6
+	jmp	.Lseal_avx2_short
+// ############################################################################## 
+.Lseal_avx2_192:
+	vmovdqa	%ymm0,%ymm1
+	vmovdqa	%ymm0,%ymm2
+	vmovdqa	%ymm4,%ymm5
+	vmovdqa	%ymm4,%ymm6
+	vmovdqa	%ymm8,%ymm9
+	vmovdqa	%ymm8,%ymm10
+	vpaddd	.Lavx2_inc(%rip),%ymm12,%ymm13
+	vmovdqa	%ymm12,%ymm11
+	vmovdqa	%ymm13,%ymm15
+	mov	$10,%r10
+.Lseal_avx2_192_rounds:
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$12,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$4,%ymm4,%ymm4,%ymm4
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol16(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpsrld	$20,%ymm5,%ymm3
+	vpslld	$12,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol8(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpslld	$7,%ymm5,%ymm3
+	vpsrld	$25,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpalignr	$12,%ymm13,%ymm13,%ymm13
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$4,%ymm5,%ymm5,%ymm5
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol16(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpsrld	$20,%ymm4,%ymm3
+	vpslld	$12,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpaddd	%ymm4,%ymm0,%ymm0
+	vpxor	%ymm0,%ymm12,%ymm12
+	vpshufb	.Lrol8(%rip),%ymm12,%ymm12
+	vpaddd	%ymm12,%ymm8,%ymm8
+	vpxor	%ymm8,%ymm4,%ymm4
+	vpslld	$7,%ymm4,%ymm3
+	vpsrld	$25,%ymm4,%ymm4
+	vpxor	%ymm3,%ymm4,%ymm4
+	vpalignr	$4,%ymm12,%ymm12,%ymm12
+	vpalignr	$8,%ymm8,%ymm8,%ymm8
+	vpalignr	$12,%ymm4,%ymm4,%ymm4
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol16(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpsrld	$20,%ymm5,%ymm3
+	vpslld	$12,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpaddd	%ymm5,%ymm1,%ymm1
+	vpxor	%ymm1,%ymm13,%ymm13
+	vpshufb	.Lrol8(%rip),%ymm13,%ymm13
+	vpaddd	%ymm13,%ymm9,%ymm9
+	vpxor	%ymm9,%ymm5,%ymm5
+	vpslld	$7,%ymm5,%ymm3
+	vpsrld	$25,%ymm5,%ymm5
+	vpxor	%ymm3,%ymm5,%ymm5
+	vpalignr	$4,%ymm13,%ymm13,%ymm13
+	vpalignr	$8,%ymm9,%ymm9,%ymm9
+	vpalignr	$12,%ymm5,%ymm5,%ymm5
+
+	decq	%r10
+	jne	.Lseal_avx2_192_rounds
+	vpaddd	%ymm2,%ymm0,%ymm0
+	vpaddd	%ymm2,%ymm1,%ymm1
+	vpaddd	%ymm6,%ymm4,%ymm4
+	vpaddd	%ymm6,%ymm5,%ymm5
+	vpaddd	%ymm10,%ymm8,%ymm8
+	vpaddd	%ymm10,%ymm9,%ymm9
+	vpaddd	%ymm11,%ymm12,%ymm12
+	vpaddd	%ymm15,%ymm13,%ymm13
+	vperm2i128	$0x02,%ymm0,%ymm4,%ymm3
+// Clamp and store the key
+	vpand	.Lclamp(%rip),%ymm3,%ymm3
+	vmovdqa	%ymm3,0+0(%rbp)
+// Stream for up to 192 bytes
+	vperm2i128	$0x13,%ymm0,%ymm4,%ymm0
+	vperm2i128	$0x13,%ymm8,%ymm12,%ymm4
+	vperm2i128	$0x02,%ymm1,%ymm5,%ymm8
+	vperm2i128	$0x02,%ymm9,%ymm13,%ymm12
+	vperm2i128	$0x13,%ymm1,%ymm5,%ymm1
+	vperm2i128	$0x13,%ymm9,%ymm13,%ymm5
+.Lseal_avx2_short:
+	mov	%r8,%r8
+	call	poly_hash_ad_internal
+	xor	%rcx,%rcx
+.Lseal_avx2_short_hash_remainder:
+	cmp	$16,%rcx
+	jb	.Lseal_avx2_short_loop
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	sub	$16,%rcx
+	add	$16,%rdi
+	jmp	.Lseal_avx2_short_hash_remainder
+.Lseal_avx2_short_loop:
+	cmp	$32,%rbx
+	jb	.Lseal_avx2_short_tail
+	sub	$32,%rbx
+// Encrypt
+	vpxor	(%rsi),%ymm0,%ymm0
+	vmovdqu	%ymm0,(%rdi)
+	lea	32(%rsi),%rsi
+// Load + hash
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+	add	0+16(%rdi),%r10
+	adc	8+16(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	32(%rdi),%rdi
+// Shift stream
+	vmovdqa	%ymm4,%ymm0
+	vmovdqa	%ymm8,%ymm4
+	vmovdqa	%ymm12,%ymm8
+	vmovdqa	%ymm1,%ymm12
+	vmovdqa	%ymm5,%ymm1
+	vmovdqa	%ymm9,%ymm5
+	vmovdqa	%ymm13,%ymm9
+	vmovdqa	%ymm2,%ymm13
+	vmovdqa	%ymm6,%ymm2
+	jmp	.Lseal_avx2_short_loop
+.Lseal_avx2_short_tail:
+	cmp	$16,%rbx
+	jb	.Lseal_avx2_exit
+	sub	$16,%rbx
+	vpxor	(%rsi),%xmm0,%xmm3
+	vmovdqu	%xmm3,(%rdi)
+	lea	16(%rsi),%rsi
+	add	0+0(%rdi),%r10
+	adc	8+0(%rdi),%r11
+	adc	$1,%r12
+	mov	0+0+0(%rbp),%rax
+	mov	%rax,%r15
+	mulq	%r10
+	mov	%rax,%r13
+	mov	%rdx,%r14
+	mov	0+0+0(%rbp),%rax
+	mulq	%r11
+	imul	%r12,%r15
+	add	%rax,%r14
+	adc	%rdx,%r15
+	mov	8+0+0(%rbp),%rax
+	mov	%rax,%r9
+	mulq	%r10
+	add	%rax,%r14
+	adc	$0,%rdx
+	mov	%rdx,%r10
+	mov	8+0+0(%rbp),%rax
+	mulq	%r11
+	add	%rax,%r15
+	adc	$0,%rdx
+	imul	%r12,%r9
+	add	%r10,%r15
+	adc	%rdx,%r9
+	mov	%r13,%r10
+	mov	%r14,%r11
+	mov	%r15,%r12
+	and	$3,%r12  // At this point acc2 is 2 bits at most (value of 3)
+	mov	%r15,%r13
+	and	$-4,%r13
+	mov	%r9,%r14
+	shrdq	$2,%r9,%r15
+	shrq	$2,%r9
+	add	%r13,%r15
+	adc	%r14,%r9  // No carry out since t3 is 61 bits and t1 is 63 bits
+	add	%r15,%r10
+	adc	%r9,%r11
+	adc	$0,%r12
+
+	lea	16(%rdi),%rdi
+	vextracti128	$1,%ymm0,%xmm0
+.Lseal_avx2_exit:
+	vzeroupper
+	jmp	.Lseal_sse_tail_16
+.cfi_endproc	
+.size	chacha20_poly1305_seal_avx2, .-chacha20_poly1305_seal_avx2
+#endif
+`;
+
+export default translateAssembly(code);
