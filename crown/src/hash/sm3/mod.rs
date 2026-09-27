@@ -325,7 +325,7 @@ impl HashUser for Sm3 {
     }
 
     fn block_size(&self) -> usize {
-        256
+        Self::SM3_CBLOCK
     }
 }
 

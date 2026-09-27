@@ -1,0 +1,86 @@
+{
+  "type": "object",
+  "definitions": {
+    "MacWithIvTestFile": {
+      "type": "object",
+      "properties": {
+        "algorithm": {
+          "type": "string"
+        },
+        "testGroups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MacWithIvTestGroup"
+          }
+        }
+      }
+    },
+    "MacWithIvTestGroup": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": ["MacWithIvTest"]
+        },
+        "ivSize": {
+          "type": "integer",
+          "description": "the IV size in bits"
+        },
+        "keySize": {
+          "type": "integer",
+          "description": "the keySize in bits"
+        },
+        "tagSize": {
+          "type": "integer",
+          "description": "the expected size of the tag in bits"
+        },
+        "source": {
+          "type": "object"
+        },
+        "tests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MacWithIvTestVector"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "MacWithIvTestVector": {
+      "type": "object",
+      "properties": {
+        "tcId": {
+          "type": "integer"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string",
+          "format": "HexBytes"
+        },
+        "iv": {
+          "type": "string",
+          "format": "HexBytes"
+        },
+        "msg": {
+          "type": "string",
+          "format": "HexBytes"
+        },
+        "tag": {
+          "type": "string",
+          "format": "HexBytes"
+        },
+        "result": {
+          "enum": ["valid", "invalid", "acceptable"]
+        },
+        "flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
