@@ -8,6 +8,7 @@ mod wycheproof;
 fn test_wycheproof_hmac_test() {
     let builder = |alg: &str, key: &[u8]| -> Option<EvpHash> {
         match alg {
+            "SHA1" => EvpHash::new_sha1_hmac(key),
             "SHA224" => EvpHash::new_sha224_hmac(key),
             "SHA256" => EvpHash::new_sha256_hmac(key),
             "SHA384" => EvpHash::new_sha384_hmac(key),
@@ -89,10 +90,10 @@ fn test_wycheproof_hmac_test() {
 fn test_pyca_hmac_vectors() {
     const BASE_DIR: &str = "tests/cryptography/vectors/cryptography_vectors/HMAC";
     #[allow(clippy::type_complexity)]
-    let files: [(&str, fn(&[u8]) -> CryptoResult<EvpHash>); 6] = [
+    let files: [(&str, fn(&[u8]) -> CryptoResult<EvpHash>); 7] = [
         ("rfc-2202-md5.txt", EvpHash::new_md5_hmac),
         ("rfc-2202-sha1.txt", EvpHash::new_sha1_hmac),
-        // "rfc-2286-ripemd160.txt",
+        ("rfc-2286-ripemd160.txt", EvpHash::new_ripemd160_hmac),
         ("rfc-4231-sha224.txt", EvpHash::new_sha224_hmac),
         ("rfc-4231-sha256.txt", EvpHash::new_sha256_hmac),
         ("rfc-4231-sha384.txt", EvpHash::new_sha384_hmac),

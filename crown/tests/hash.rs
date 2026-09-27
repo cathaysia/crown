@@ -1,11 +1,14 @@
+mod utils;
+
 use crown::{core::CoreWrite, envelope::EvpHash, error::CryptoResult};
 
 #[test]
 fn test_pyca_hash_vectors() {
     const BASE_DIR: &str = "tests/cryptography/vectors/cryptography_vectors/hashes";
     #[allow(clippy::type_complexity)]
-    const FILES: [(&str, fn() -> CryptoResult<EvpHash>); 40] = [
+    const FILES: [(&str, fn() -> CryptoResult<EvpHash>); 43] = [
         ("MD5/rfc-1321.txt", EvpHash::new_md5),
+        ("SM3/oscca.txt", EvpHash::new_sm3),
         ("SHA1/SHA1LongMsg.rsp", EvpHash::new_sha1),
         ("SHA1/SHA1Monte.rsp", EvpHash::new_sha1),
         ("SHA1/SHA1ShortMsg.rsp", EvpHash::new_sha1),
@@ -42,13 +45,11 @@ fn test_pyca_hash_vectors() {
         ("SHAKE/SHAKE128LongMsg.rsp", EvpHash::new_shake128),
         ("SHAKE/SHAKE128Monte.rsp", EvpHash::new_shake128),
         ("SHAKE/SHAKE128ShortMsg.rsp", EvpHash::new_shake128),
-        // ("SHAKE/SHAKE128VariableOut.rsp", EvpHash::new_shake128),
         ("SHAKE/SHAKE256LongMsg.rsp", EvpHash::new_shake256),
         ("SHAKE/SHAKE256Monte.rsp", EvpHash::new_shake256),
         ("SHAKE/SHAKE256ShortMsg.rsp", EvpHash::new_shake256),
-        // // ("SHAKE/SHAKE256VariableOut.rsp", EvpHash::new_shake128),
-        // ("blake2/blake2b.txt", EvpHash::new_blake2b),
-        // ("blake2/blake2s.txt", EvpHash::new_blake2s),
+        ("blake2/blake2b.txt", || EvpHash::new_blake2b(None, 64)),
+        ("blake2/blake2s.txt", || EvpHash::new_blake2s(None, 32)),
     ];
 
     for (filename, hash_constructor) in FILES {
@@ -114,4 +115,54 @@ fn test_pyca_hash_vectors() {
             }
         }
     }
+}
+
+/// The `VariableOut` files drive SHAKE with a per-case output length, so they
+/// need the XOF interface (`CoreRead`) rather than `EvpHash`.
+#[test]
+fn test_pyca_shake_variable_out() {
+    use crown::core::CoreRead;
+    use crown::hash::sha3;
+
+    const BASE_DIR: &str = "tests/cryptography/vectors/cryptography_vectors/hashes";
+    let files = [
+        ("SHAKE/SHAKE128VariableOut.rsp", true),
+        ("SHAKE/SHAKE256VariableOut.rsp", false),
+    ];
+
+    let mut checked = 0usize;
+    for (filename, use_128) in files {
+        let content = std::fs::read_to_string(format!("{BASE_DIR}/{filename}")).unwrap();
+        for v in utils::parse_vectors(&content) {
+            let (Some(msg), Some(output), Some(out_len)) = (
+                v.field(&["msg"]),
+                v.field(&["output"]),
+                v.int_field(&["outputlen"]),
+            ) else {
+                continue;
+            };
+            let out_len = out_len as usize / 8;
+            assert_eq!(output.len(), out_len, "{filename}: Outputlen mismatch");
+
+            let mut out = vec![0u8; out_len];
+            if use_128 {
+                let mut h = sha3::new_shake128();
+                h.write_all(msg).unwrap();
+                h.read_exact(&mut out).unwrap();
+            } else {
+                let mut h = sha3::new_shake256();
+                h.write_all(msg).unwrap();
+                h.read_exact(&mut out).unwrap();
+            }
+            assert_eq!(
+                hex::encode(&out),
+                hex::encode(output),
+                "{filename}: SHAKE output for {}",
+                hex::encode(msg)
+            );
+            checked += 1;
+        }
+    }
+
+    assert!(checked > 2000, "only {checked} variable-output vectors");
 }

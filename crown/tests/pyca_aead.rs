@@ -1,106 +1,108 @@
 mod utils;
-use crown::{envelope::EvpAeadCipher, error::CryptoResult};
 
-use crate::utils::parse_response_line;
+use crown::{envelope::EvpAeadCipher, error::CryptoResult};
+use utils::{parse_vectors, read_pyca, Vector};
+
+type Aead = fn(&[u8]) -> CryptoResult<EvpAeadCipher>;
+
+#[rustfmt::skip]
+const FILES: &[(Aead, &str)] = &[
+    (EvpAeadCipher::new_chacha20_poly1305, "ciphers/ChaCha20Poly1305/boringssl.txt"),
+    (EvpAeadCipher::new_chacha20_poly1305, "ciphers/ChaCha20Poly1305/openssl.txt"),
+    (EvpAeadCipher::new_aes_ocb3::<16, 12>, "ciphers/AES/OCB3/rfc7253.txt"),
+    (EvpAeadCipher::new_aes_ocb3::<16, 13>, "ciphers/AES/OCB3/test-vector-1-nonce104.txt"),
+    (EvpAeadCipher::new_aes_gcm, "ciphers/AES/GCM/gcmDecrypt128.rsp"),
+    (EvpAeadCipher::new_aes_gcm, "ciphers/AES/GCM/gcmDecrypt192.rsp"),
+    (EvpAeadCipher::new_aes_gcm, "ciphers/AES/GCM/gcmDecrypt256.rsp"),
+    (EvpAeadCipher::new_aes_gcm, "ciphers/AES/GCM/gcmEncryptExtIV128.rsp"),
+    (EvpAeadCipher::new_aes_gcm, "ciphers/AES/GCM/gcmEncryptExtIV192.rsp"),
+    (EvpAeadCipher::new_aes_gcm, "ciphers/AES/GCM/gcmEncryptExtIV256.rsp"),
+];
+
+/// The tag is a separate field in most files; OCB3 appends it to the
+/// ciphertext instead.
+fn tag_of(v: &Vector) -> Option<Vec<u8>> {
+    v.field(&["tag"]).map(|v| v.to_vec())
+}
 
 #[test]
 fn test_pyca_aead_vectors() {
-    const BASE_DIR: &str = "tests/cryptography/vectors/cryptography_vectors/";
-    #[allow(clippy::type_complexity)]
-    #[rustfmt::skip]
-    const FILES: [(fn(key: &[u8]) -> CryptoResult<EvpAeadCipher>, &str); 10] = [
-        (EvpAeadCipher::new_chacha20_poly1305, "ciphers/ChaCha20Poly1305/boringssl.txt"),
-        (EvpAeadCipher::new_chacha20_poly1305, "ciphers/ChaCha20Poly1305/openssl.txt"),
-        (EvpAeadCipher::new_aes_ocb3::<16, 12>, "ciphers/AES/OCB3/rfc7253.txt"),
-        (EvpAeadCipher::new_aes_ocb3::<16, 13>, "ciphers/AES/OCB3/test-vector-1-nonce104.txt"),
-        (EvpAeadCipher::new_aes_gcm, "ciphers/AES/GCM/gcmDecrypt128.rsp"),
-        (EvpAeadCipher::new_aes_gcm, "ciphers/AES/GCM/gcmDecrypt192.rsp"),
-        (EvpAeadCipher::new_aes_gcm, "ciphers/AES/GCM/gcmDecrypt256.rsp"),
-        (EvpAeadCipher::new_aes_gcm, "ciphers/AES/GCM/gcmEncryptExtIV128.rsp"),
-        (EvpAeadCipher::new_aes_gcm, "ciphers/AES/GCM/gcmEncryptExtIV192.rsp"),
-        (EvpAeadCipher::new_aes_gcm, "ciphers/AES/GCM/gcmEncryptExtIV256.rsp"),
-    ];
+    let mut checked = 0usize;
+    let mut rejected = 0usize;
 
     for (newer, filename) in FILES {
-        let content = std::fs::read_to_string(format!("{BASE_DIR}/{filename}")).unwrap();
-        let mut lines = content.lines();
+        for v in parse_vectors(&read_pyca(filename)) {
+            let (Some(key), Some(nonce)) = (v.field(&["key"]), v.field(&["iv", "nonce"])) else {
+                continue;
+            };
+            let aad = v.field(&["aad", "ad"]).unwrap_or_default().to_vec();
+            let Some(mut pt) = v.field(&["plaintext", "pt", "in"]).map(|v| v.to_vec()) else {
+                continue;
+            };
+            let ct = match v.field(&["ciphertext", "ct"]) {
+                Some(ct) => ct.to_vec(),
+                None => continue,
+            };
 
-        while let Some(line) = lines.next() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
+            let Ok(cipher) = newer(key) else {
+                continue;
+            };
+            if nonce.len() != cipher.nonce_size() {
                 continue;
             }
 
-            if line.starts_with("COUNT = ") {
-                let mut key = None;
-                let mut nonce = None;
-                let mut aad = None;
-                let mut plaintext = None;
-                let mut expected_ciphertext = None;
+            let expected = match tag_of(&v) {
+                Some(tag) => [ct.clone(), tag].concat(),
+                None => ct.clone(),
+            };
 
-                for line in lines.by_ref() {
-                    let line = line.trim();
-                    if line.is_empty() {
-                        break;
-                    }
-                    if line.starts_with('#') {
-                        continue;
-                    }
+            let tag = cipher
+                .seal_in_place_separate_tag(&mut pt, nonce, &aad)
+                .unwrap_or_else(|err| panic!("{filename}: seal: {err:?}"));
+            let sealed = [pt.clone(), tag].concat();
 
-                    let Ok((rkey, value)) = parse_response_line(line) else {
-                        eprintln!("parse response line failed: {line}");
-                        continue;
-                    };
-
-                    match rkey.as_str() {
-                        "key" => {
-                            key = Some(value);
-                        }
-                        "plaintext" => {
-                            plaintext = Some(value);
-                        }
-                        "ciphertext" => {
-                            expected_ciphertext = Some(value);
-                        }
-                        "nonce" => {
-                            nonce = Some(value);
-                        }
-                        "aad" => {
-                            aad = Some(value);
-                        }
-                        _ => {
-                            eprintln!("unexpected key: {rkey}");
-                        }
-                    }
-                }
-
-                if let (
-                    Some(key),
-                    Some(nonce),
-                    Some(aad),
-                    Some(mut plaintext),
-                    Some(expected_ciphertext),
-                ) = (key, nonce, aad, plaintext, expected_ciphertext)
-                {
-                    let cipher = newer(&key).unwrap();
-
-                    let tag = cipher
-                        .seal_in_place_separate_tag(&mut plaintext, &nonce, &aad)
-                        .unwrap();
-
-                    let mut result_ciphertext = plaintext;
-                    result_ciphertext.extend_from_slice(&tag);
-
-                    assert_eq!(
-                        result_ciphertext,
-                        expected_ciphertext,
-                        "OCB3 test failed for {}: expected {}, got {}",
-                        filename,
-                        hex::encode(&expected_ciphertext),
-                        hex::encode(&result_ciphertext)
+            // Negative cases: CAVS marks them with `FAIL`, and a few files
+            // (OpenSSL's ChaCha20-Poly1305 set) only flip a bit of the tag.
+            let negative = v.has("fail") || (sealed != expected && sealed[..ct.len()] == ct[..]);
+            if negative {
+                // An incomplete tag is trivially invalid; otherwise the AEAD
+                // must reject it.
+                if expected.len() >= cipher.tag_size() {
+                    let mut buf = expected.clone();
+                    assert!(
+                        cipher.open_in_place(&mut buf, nonce, &aad).is_err(),
+                        "{filename}: negative vector accepted (nonce {})",
+                        hex::encode(nonce)
                     );
                 }
+                rejected += 1;
+                continue;
             }
+
+            assert_eq!(
+                hex::encode(&sealed),
+                hex::encode(&expected),
+                "{filename}: seal with nonce {}",
+                hex::encode(nonce)
+            );
+
+            // And the sealed message must open back to the plaintext.
+            let mut buf = expected.clone();
+            let opened = cipher
+                .open_in_place(&mut buf, nonce, &aad)
+                .unwrap_or_else(|err| panic!("{filename}: open: {err:?}"));
+            assert_eq!(
+                hex::encode(&opened[..]),
+                hex::encode(&v.field(&["plaintext", "pt", "in"]).unwrap()),
+                "{filename}: open"
+            );
+            checked += 1;
         }
     }
+
+    assert!(checked > 400, "only {checked} AEAD vectors were verified");
+    assert!(
+        rejected > 3000,
+        "only {rejected} negative AEAD vectors were verified"
+    );
 }
