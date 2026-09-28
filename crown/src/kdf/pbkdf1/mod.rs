@@ -49,5 +49,6 @@ pub fn derive(
         t = h.sum();
     }
 
-    Ok(t[..key_len].to_vec())
+    t.truncate(key_len);
+    Ok(t)
 }

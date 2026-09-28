@@ -26,7 +26,8 @@ fn mr_rounds(bits: usize) -> usize {
 fn small_primes() -> Vec<u64> {
     const LIMIT: usize = 17864;
     let mut sieve = alloc::vec![true; LIMIT];
-    let mut out = Vec::new();
+    // π(20000) = 2262 bounds the prime count below LIMIT.
+    let mut out = Vec::with_capacity(2262);
     for i in 2..LIMIT {
         if sieve[i] {
             out.push(i as u64);
@@ -95,6 +96,12 @@ pub fn is_probable_prime(n: &Bn, rounds: usize, rng: &mut impl Rng) -> CryptoRes
     // Witness range: [2, n - 2].
     let range = n1.sub(&Bn::one())?.sub(&Bn::one())?; // n - 3
 
+    // Montgomery setup depends only on the public modulus, so it is
+    // hoisted out of the witness loop.
+    let mont = crate::bn::Montgomery::new(n)?;
+    let one_m = mont.to_mont(&Bn::one());
+    let n1_m = mont.to_mont(&n1);
+
     'rounds: for _ in 0..rounds {
         let mut buf = alloc::vec![0u8; n.byte_len() + 8];
         rng.fill_bytes(&mut buf);
@@ -104,9 +111,6 @@ pub fn is_probable_prime(n: &Bn, rounds: usize, rng: &mut impl Rng) -> CryptoRes
 
         // Run the whole exponentiation in Montgomery form so the
         // squarings avoid general division.
-        let mont = crate::bn::Montgomery::new(n)?;
-        let one_m = mont.to_mont(&Bn::one());
-        let n1_m = mont.to_mont(&n1);
         let mut x = mont.pow(&mont.to_mont(&witness), &d);
         if x == one_m || x == n1_m {
             continue;

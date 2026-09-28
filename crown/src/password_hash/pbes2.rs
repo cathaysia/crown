@@ -7,7 +7,6 @@
 
 use crate::block::aes::Aes;
 use crate::block::des::TripleDes;
-use crate::block::BlockCipher;
 use crate::error::{CryptoError, CryptoResult};
 use crate::hash::sha1::new as new_sha1;
 use crate::hash::sha256::new256;
@@ -86,7 +85,7 @@ fn derive_key_iv(
     let iv_len = cipher.block_size();
     let total = key_len + iv_len;
 
-    let dk = match kdf {
+    let mut dk = match kdf {
         Pbes2Kdf::Pbkdf2 { hash, iterations } => {
             if *iterations == 0 {
                 return Err(CryptoError::InvalidParameterStr("iterations must be > 0"));
@@ -100,20 +99,13 @@ fn derive_key_iv(
         }
     };
 
-    Ok((dk[..key_len].to_vec(), dk[key_len..total].to_vec()))
+    // One `split_off` moves the IV into its own allocation while the key
+    // keeps the original buffer; two range `to_vec`s would copy both halves.
+    let iv = dk.split_off(key_len);
+    Ok((dk, iv))
 }
 
-fn pkcs7_pad(pt: &[u8], block_size: usize) -> Vec<u8> {
-    let pad_len = block_size - (pt.len() % block_size);
-    let mut out = pt.to_vec();
-    out.resize(pt.len() + pad_len, 0);
-    // Pkcs7::pad fills the last pad_len bytes with pad_len
-    let len = pt.len();
-    Pkcs7.pad(&mut out, len);
-    out
-}
-
-fn pkcs7_unpad(buf: &[u8]) -> CryptoResult<Vec<u8>> {
+fn pkcs7_unpad_len(buf: &[u8]) -> CryptoResult<usize> {
     // Unpad the whole buffer; Pkcs7::unpad expects a single block-ish slice
     // but our impl validates the trailing pad bytes across the whole buffer.
     if buf.is_empty() {
@@ -127,7 +119,7 @@ fn pkcs7_unpad(buf: &[u8]) -> CryptoResult<Vec<u8>> {
     if buf[s..].iter().any(|&v| v != n) {
         return Err(CryptoError::UnpadError);
     }
-    Ok(buf[..s].to_vec())
+    Ok(s)
 }
 
 fn cbc_encrypt(key: &[u8], iv: &[u8], cipher: Pbes2Cipher, buf: &mut [u8]) {
@@ -173,12 +165,19 @@ pub fn pbes2_encrypt(
     cipher: Pbes2Cipher,
     pt: &[u8],
 ) -> CryptoResult<Vec<u8>> {
+    let iv_len = cipher.block_size();
+    let pad_len = iv_len - (pt.len() % iv_len);
     let (key, iv) = derive_key_iv(pass, salt, kdf, cipher)?;
-    let mut buf = pkcs7_pad(pt, cipher.block_size());
-    cbc_encrypt(&key, &iv, cipher, &mut buf);
 
-    let mut out = iv.clone();
-    out.extend_from_slice(&buf);
+    // Build iv || pt in a single buffer, then pad and CBC-encrypt the
+    // ciphertext region in place.
+    let mut out = iv;
+    out.reserve(pt.len() + pad_len);
+    out.extend_from_slice(pt);
+    out.resize(out.len() + pad_len, 0);
+    let (iv_prefix, ct) = out.split_at_mut(iv_len);
+    Pkcs7.pad(ct, pt.len());
+    cbc_encrypt(&key, iv_prefix, cipher, ct);
     Ok(out)
 }
 
@@ -203,7 +202,9 @@ pub fn pbes2_decrypt(
     let iv = &ct[..iv_len];
     let mut buf = ct[iv_len..].to_vec();
     cbc_decrypt(&key, iv, cipher, &mut buf);
-    pkcs7_unpad(&buf)
+    let unpadded = pkcs7_unpad_len(&buf)?;
+    buf.truncate(unpadded);
+    Ok(buf)
 }
 
 #[cfg(test)]
