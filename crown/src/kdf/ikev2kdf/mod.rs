@@ -77,7 +77,7 @@ pub fn seedkey_gen(
 
     let mut h = hmac(&nonce)?;
     h.write(&secret)?;
-    Ok(h.sum().to_vec())
+    Ok(h.sum())
 }
 
 /// Regenerate the SKEYSEED for rekeying: `HMAC(SK_d, secret || Ni || Nr)`.
@@ -106,7 +106,7 @@ pub fn seedkey_rekey(
     h.write(&secret)?;
     h.write(ni)?;
     h.write(nr)?;
-    Ok(h.sum().to_vec())
+    Ok(h.sum())
 }
 
 /// Derive keying material for child SAs. Exactly one of the two call

@@ -91,10 +91,9 @@ impl<B: BlockCipher> Cts<B> {
         if ct.len() < bs {
             return Err(CryptoError::InvalidLength);
         }
-        let mut out = ct.to_vec();
-
         if ct.len() % bs == 0 {
             // Full blocks: swap last two, then plain CBC decrypt.
+            let mut out = ct.to_vec();
             let n = out.len();
             if n >= 2 * bs {
                 for i in 0..bs {
@@ -240,8 +239,11 @@ impl<B: BlockCipher> Cts<B> {
     fn cbc_decrypt_blocks(&self, buf: &mut [u8]) {
         let bs = self.block_size();
         let mut prev = self.iv.clone();
+        // One scratch block for the ciphertext side, instead of a fresh
+        // allocation per block.
+        let mut cur = vec![0u8; bs];
         for chunk in buf.chunks_exact_mut(bs) {
-            let cur = chunk.to_vec();
+            cur.copy_from_slice(chunk);
             self.b.decrypt_block(chunk);
             for i in 0..bs {
                 chunk[i] ^= prev[i];

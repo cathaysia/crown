@@ -73,8 +73,9 @@ impl CBCDecrypter {
 
             if start > 0 {
                 let prev = start - Aes::BLOCK_SIZE;
-                let src = inout.to_vec();
-                xor_bytes(&mut inout[start..end], &src[prev..start]);
+                let mut prev_ct = [0u8; Aes::BLOCK_SIZE];
+                prev_ct.copy_from_slice(&inout[prev..start]);
+                xor_bytes(&mut inout[start..end], &prev_ct);
             } else {
                 // The first block is special because it uses the saved iv
                 xor_bytes(&mut inout[start..end], &iv);
