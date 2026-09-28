@@ -120,14 +120,16 @@ Digest parameters are runtime-selectable via `kdf::{HashFactory, HmacFactory}`
 EVP_KDF's digest option. HKDF/PBKDF2/scrypt/argon2 already existed
 (`kdf/hkdf`, `password_hash`).
 
-### crown gaps — asymmetric — partially closed 2026-09-27 (software)
+### crown gaps — asymmetric — partially closed 2026-09-28 (software)
 
 | algorithm | openssl source | crown status |
 |---|---|---|
 | Ed25519 | `crypto/ec/curve25519.c` | implemented (`ed25519`): 51-bit-limb field arithmetic, ref10 invert/pow22523 chains, extended-coordinate group ops, constant-time 4-bit-window scalar mult; RFC 8032 section 7.1 vectors, CLI cross-checked |
+| Ed448 | `crypto/ec/curve448/` | implemented (`ed448` + shared `curve448::fe`): untwisted Edwards edwards448 (a=1, d=-39081) in extended coordinates, RFC 8032 §5.2.4 complete add/dbl, dom4/SHAKE256 sign-verify with required context; RFC 8032 §7.4 vectors (blank, 1/11/12/13/64/256/1023 octets, 1 octet with context) |
 | RSA | `crypto/rsa` + `crypto/bn` | implemented (`rsa` on `bn`): raw/PKCS#1 v1.5/OAEP encryption, PKCS#1 v1.5/PSS signatures, CRT private path, key generation (top-two-bit primes, small-prime sieve, 64 MR rounds, FIPS 186-4 distance), PKCS#1 DER + PKCS#8 parse; all directions cross-checked against the OpenSSL 3.5.8 CLI |
 | RSA-PSS/other digests | | PSS and PKCS#1 v1.5 accept md5/sha1/sha224/sha256/sha384/sha512 (DigestInfo table) |
 | X25519 | `crypto/ec/curve25519.c` | implemented (`x25519`): Montgomery ladder over radix-2^64 field ops, fe64 asm (`x25519_fe64_*`) wired in when `asm` is on; RFC 7748 §5.2/§6.1 vectors |
+| X448 | `crypto/ec/curve448/` | implemented (`x448` + shared `curve448::fe`): Montgomery ladder over radix-2^56 (8×56-bit limbs) field ops for p = 2^448-2^224-1, software only; RFC 7748 §5.2 vectors 1-2, §5.2 iterative (1 iter), §6.2 Diffie-Hellman |
 | DSA/ECDSA/SM2 | | not started |
 | ML-KEM/ML-DSA/SLH-DSA/LMS | | not started |
 | RAND | `crypto/rand` | not started; randomized RSA operations take a caller-supplied `Rng` instead |
