@@ -507,6 +507,9 @@ export function getAvailableAlgorithms(): AeadAlgorithmInfo[] {
 
     { value: 'chacha20_poly1305', label: 'ChaCha20-Poly1305', keySize: 32 },
     { value: 'xchacha20_poly1305', label: 'XChaCha20-Poly1305', keySize: 32 },
+    { value: 'aes_gcm_siv', label: 'AES-GCM-SIV', keySize: 16 },
+    { value: 'ascon_aead128', label: 'Ascon-AEAD128', keySize: 16 },
+    { value: 'aes_siv', label: 'AES-SIV', keySize: 32 },
   ];
 
   return algorithms.filter(alg => {

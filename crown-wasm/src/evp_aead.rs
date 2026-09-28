@@ -216,6 +216,42 @@ macro_rules! impl_aead_cipher {
             }
         }
     };
+    (@special aes_gcm_siv) => {
+        #[wasm_bindgen]
+        impl AeadCipher {
+            #[wasm_bindgen]
+            pub fn new_aes_gcm_siv(key: &[u8]) -> Result<AeadCipher, JsValue> {
+                match EvpAeadCipher::new_aes_gcm_siv(key) {
+                    Ok(cipher) => Ok(AeadCipher(cipher)),
+                    Err(e) => Err(JsValue::from_str(&format!("Failed to create cipher: {:?}", e))),
+                }
+            }
+        }
+    };
+    (@special ascon_aead128) => {
+        #[wasm_bindgen]
+        impl AeadCipher {
+            #[wasm_bindgen]
+            pub fn new_ascon_aead128(key: &[u8]) -> Result<AeadCipher, JsValue> {
+                match EvpAeadCipher::new_ascon_aead128(key) {
+                    Ok(cipher) => Ok(AeadCipher(cipher)),
+                    Err(e) => Err(JsValue::from_str(&format!("Failed to create cipher: {:?}", e))),
+                }
+            }
+        }
+    };
+    (@special aes_siv) => {
+        #[wasm_bindgen]
+        impl AeadCipher {
+            #[wasm_bindgen]
+            pub fn new_aes_siv(key: &[u8]) -> Result<AeadCipher, JsValue> {
+                match EvpAeadCipher::new_aes_siv(key) {
+                    Ok(cipher) => Ok(AeadCipher(cipher)),
+                    Err(e) => Err(JsValue::from_str(&format!("Failed to create cipher: {:?}", e))),
+                }
+            }
+        }
+    };
 }
 
 impl_aead_cipher!(
@@ -224,7 +260,7 @@ impl_aead_cipher!(
         Kseed, Anubis, Noekeon, Khazad, Serpent, Idea
     ],
     rounds: [Rc2, Rc5, Camellia, Multi2],
-    special: [chacha20_poly1305, xchacha20_poly1305],
+    special: [chacha20_poly1305, xchacha20_poly1305, aes_gcm_siv, ascon_aead128, aes_siv],
 );
 
 #[wasm_bindgen]
