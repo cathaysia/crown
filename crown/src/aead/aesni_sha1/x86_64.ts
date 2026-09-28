@@ -954,7 +954,7 @@ aesni_cbc_sha1_enc_ssse3:
 	mov	240-112(${S.key}),${S.rounds}
 	add	${inp},${S.len}		# end of input
 
-	lea	K_XX_XX(%rip),${S.K_XX_XX}
+	lea	aesni_sha1_K_XX_XX(%rip),${S.K_XX_XX}
 	mov	0(${S.ctx}),${S.V[0]}		# load context
 	mov	4(${S.ctx}),${S.V[1]}
 	mov	8(${S.ctx}),${S.V[2]}
@@ -1146,7 +1146,7 @@ aesni_cbc_sha1_enc_avx:
 	mov	240-112(${S.key}),${S.rounds}
 	add	${inp},${S.len}		# end of input
 
-	lea	K_XX_XX(%rip),${S.K_XX_XX}
+	lea	aesni_sha1_K_XX_XX(%rip),${S.K_XX_XX}
 	mov	0(${S.ctx}),${S.V[0]}		# load context
 	mov	4(${S.ctx}),${S.V[1]}
 	mov	8(${S.ctx}),${S.V[2]}
@@ -1295,7 +1295,7 @@ function genAvx(): void {
 function genData(): void {
   code += `.section .rodata align=64
 .align	64
-K_XX_XX:
+aesni_sha1_K_XX_XX:
 .long	0x5a827999,0x5a827999,0x5a827999,0x5a827999	# K_00_19
 .long	0x6ed9eba1,0x6ed9eba1,0x6ed9eba1,0x6ed9eba1	# K_20_39
 .long	0x8f1bbcdc,0x8f1bbcdc,0x8f1bbcdc,0x8f1bbcdc	# K_40_59
@@ -1337,7 +1337,7 @@ aesni_cbc_sha1_enc_shaext:
 	mov	8(%rsp),${S.inp}	# load 7th argument
 	movdqu	(${S.ctx}),${ABCD}
 	movd	16(${S.ctx}),${Ecur}
-	movdqa	K_XX_XX+0x50(%rip),${BSWAP}	# byte-n-word swap
+	movdqa	aesni_sha1_K_XX_XX+0x50(%rip),${BSWAP}	# byte-n-word swap
 
 	mov	240(${S.key}),${S.rounds}
 	sub	${S.in0},${S.out}
