@@ -311,10 +311,8 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     diff == 0
 }
 
-// ---------------------------------------------------------------------------
 // MGF1 and the PKCS#1 padding encodings (rsa_pkcs1.c / rsa_pss.c /
 // rsa_oaep.c).
-// ---------------------------------------------------------------------------
 
 /// MGF1 mask generation (RFC 8017 appendix B.2.1).
 fn mgf1(hash: HashFactory, seed: &[u8], mask_len: usize) -> CryptoResult<Vec<u8>> {

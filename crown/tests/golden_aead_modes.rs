@@ -19,9 +19,7 @@ fn h(s: &str) -> Vec<u8> {
     hex::decode(s).unwrap()
 }
 
-// ---------------------------------------------------------------------------
 // AES-GCM-SIV — RFC 8452 Appendix C.1
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_golden_aes_gcm_siv() {
@@ -67,9 +65,7 @@ fn test_golden_aes_gcm_siv() {
     assert!(checked >= 3, "only {checked} AES-GCM-SIV vectors verified");
 }
 
-// ---------------------------------------------------------------------------
 // Ascon-AEAD128 — NIST SP 800-232 / Ascon v1.2 KATs (key = nonce = 0)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_golden_ascon_aead128() {
@@ -117,9 +113,7 @@ fn test_golden_ascon_aead128() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // AES Key Wrap — RFC 3394 §4.1-4.3 + RFC 5649 §6
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_golden_aes_key_wrap() {
@@ -195,11 +189,9 @@ fn test_golden_aes_key_wrap() {
     assert!(checked >= 5, "only {checked} AES key-wrap vectors verified");
 }
 
-// ---------------------------------------------------------------------------
 // Ciphertext Stealing (CS3) — in-module tests are structural/roundtrip only;
 // no published RFC vector is embedded in the library. We verify the CS3
 // block-swap property (full-block case) and a partial-final-block roundtrip.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_golden_cts() {
@@ -240,9 +232,7 @@ fn test_golden_cts() {
     assert!(checked >= 2, "only {checked} CTS cases verified");
 }
 
-// ---------------------------------------------------------------------------
 // FF1 — NIST SP 800-38G sample vectors (FF1samples)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_golden_ff1() {
@@ -305,9 +295,7 @@ fn test_golden_ff1() {
     assert!(checked >= 3, "only {checked} FF1 vectors verified");
 }
 
-// ---------------------------------------------------------------------------
 // DESX — known vector + zero-whitening FIPS DES vector
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_golden_desx() {

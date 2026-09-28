@@ -12,9 +12,7 @@ use crown::password_hash::pbes2::{
     pbes2_decrypt, pbes2_encrypt, HashId, Pbes2Cipher, Pbes2Kdf,
 };
 
-// ---------------------------------------------------------------------------
 // HOTP — RFC 4226 Appendix D (SHA-1, 6 digits, counters 0..9)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_golden_hotp() {
@@ -34,9 +32,7 @@ fn test_golden_hotp() {
     assert!(checked >= 10, "only {checked} HOTP vectors verified");
 }
 
-// ---------------------------------------------------------------------------
 // TOTP — RFC 6238 Appendix B (SHA-1, 8 digits, step=30, t0=0)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_golden_totp() {
@@ -60,14 +56,12 @@ fn test_golden_totp() {
     assert!(checked >= 6, "only {checked} TOTP vectors verified");
 }
 
-// ---------------------------------------------------------------------------
 // DRBG — HMAC-DRBG + Hash-DRBG determinism and reseed behaviour.
 //
 // NOTE: the in-module tests contain no published CAVS/CAVP response-value
 // vectors, so this test asserts deterministic construction and reseed/additional
 // input sensitivity rather than a fixed output hex. Each verified property
 // counts as one vector.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_golden_drbg() {
@@ -163,10 +157,8 @@ fn test_golden_drbg() {
     assert!(checked >= 2, "only {checked} DRBG cases verified");
 }
 
-// ---------------------------------------------------------------------------
 // PBES2 — roundtrip AES-128-CBC / AES-256-CBC / 3DES-CBC + wrong-password
 // reject. In-module tests are roundtrip-only (no published ciphertext vector).
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_golden_pbes2() {
