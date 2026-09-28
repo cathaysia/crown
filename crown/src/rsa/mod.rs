@@ -251,8 +251,8 @@ impl RsaPrivateKey {
 
         let m = match (&self.p, &self.q, &self.dp, &self.dq, &self.qinv) {
             (Some(p), Some(q), Some(dp), Some(dq), Some(qinv)) => {
-                let m1 = c_bn.modulus(p).mod_pow(dp, p)?;
-                let m2 = c_bn.modulus(q).mod_pow(dq, q)?;
+                let m1 = c_bn.modulus(p).mod_pow_odd_consttime(dp, p)?;
+                let m2 = c_bn.modulus(q).mod_pow_odd_consttime(dq, q)?;
                 // h = qinv * (m1 - m2) mod p; add p to stay positive.
                 let diff = if m1.lt(&m2) {
                     let t = m2.sub(&m1)?;
@@ -263,7 +263,7 @@ impl RsaPrivateKey {
                 let h = qinv.mul(&diff).modulus(p);
                 m2.add(&h.mul(q))
             }
-            _ => c_bn.mod_pow(&self.d, &self.public.n)?,
+            _ => c_bn.mod_pow_odd_consttime(&self.d, &self.public.n)?,
         };
         m.to_be_bytes_padded(k)
     }

@@ -71,6 +71,24 @@ impl XtsCipher for Sm4 {
     }
 }
 
+impl XtsCipher for crate::block::aria::Aria {
+    fn from_xts_half(key: &[u8]) -> CryptoResult<Self> {
+        crate::block::aria::Aria::new(key)
+    }
+}
+
+impl XtsCipher for crate::block::camellia::Camellia {
+    fn from_xts_half(key: &[u8]) -> CryptoResult<Self> {
+        crate::block::camellia::Camellia::new(key, None)
+    }
+}
+
+impl XtsCipher for crate::block::kseed::Kseed {
+    fn from_xts_half(key: &[u8]) -> CryptoResult<Self> {
+        crate::block::kseed::Kseed::new(key)
+    }
+}
+
 /// XTS instance holding the two keyed ciphers.
 pub struct Xts<C: BlockCipher> {
     k1: C,

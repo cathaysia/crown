@@ -88,6 +88,11 @@ impl Aes {
                 {
                     let (enc_key, dec_key) = if aesni::supported() {
                         (aesni::set_encrypt_key(key), aesni::set_decrypt_key(key))
+                    } else if crate::block::aes::asm::vpaes_supported() {
+                        (
+                            crate::block::aes::asm::vpaes_set_encrypt_key(key),
+                            crate::block::aes::asm::vpaes_set_decrypt_key(key),
+                        )
                     } else {
                         (ttable::set_encrypt_key(key), ttable::set_decrypt_key(key))
                     };
@@ -122,12 +127,70 @@ impl Aes {
         {
             if aesni::supported() {
                 aesni::encrypt_block(inout, &self.enc_key);
+            } else if crate::block::aes::asm::vpaes_supported() {
+                crate::block::aes::asm::vpaes_encrypt_block(inout, &self.enc_key);
             } else {
                 ttable::encrypt_block(inout, &self.enc_key);
             }
         }
         #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
         encrypt_block(self, inout);
+    }
+
+    /// CBC encrypt/decrypt of full blocks in place. `enc` selects direction.
+    /// The IV is updated to the last ciphertext block. Uses the fused
+    /// aesni/bsaes CBC routines when available.
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    pub fn cbc_blocks(&self, inout: &mut [u8], iv: &mut [u8; 16], enc: bool) {
+        if aesni::supported() {
+            // aesni_cbc_encrypt runs aesdec, so it needs the *decryption*
+            // schedule when decypting (aesni_set_decrypt_key).
+            let key = if enc { &self.enc_key } else { &self.dec_key };
+            aesni::cbc_encrypt(inout, key, iv, enc);
+            return;
+        }
+        if crate::block::aes::bsaes::supported() {
+            // bsaes consumes the conventional FIPS-197 schedule (ttable
+            // format), which is what enc_key/dec_key hold when AES-NI is off.
+            let key = if enc { &self.enc_key } else { &self.dec_key };
+            let ptr = inout.as_mut_ptr();
+            let (ip, op) = unsafe {
+                (
+                    core::slice::from_raw_parts(ptr as *const u8, inout.len()),
+                    core::slice::from_raw_parts_mut(ptr, inout.len()),
+                )
+            };
+            crate::block::aes::bsaes::cbc_encrypt(ip, op, key, iv, enc);
+            return;
+        }
+        // fall through to per-block software
+        let n = inout.len() / 16;
+        if n == 0 {
+            return;
+        }
+        let mut prev_ct = *iv;
+        let mut saved = [0u8; 16];
+        if enc {
+            for i in 0..n {
+                let blk = &mut inout[i * 16..i * 16 + 16];
+                for j in 0..16 {
+                    blk[j] ^= prev_ct[j];
+                }
+                self.encrypt_block_internal(blk);
+                prev_ct.copy_from_slice(blk);
+            }
+        } else {
+            for i in 0..n {
+                saved.copy_from_slice(&inout[i * 16..i * 16 + 16]);
+                let blk = &mut inout[i * 16..i * 16 + 16];
+                self.decrypt_block(blk);
+                for j in 0..16 {
+                    blk[j] ^= prev_ct[j];
+                }
+                prev_ct = saved;
+            }
+        }
+        *iv = prev_ct;
     }
 }
 
@@ -145,6 +208,8 @@ impl BlockCipher for Aes {
         {
             if aesni::supported() {
                 aesni::encrypt_block(inout, &self.enc_key);
+            } else if crate::block::aes::asm::vpaes_supported() {
+                crate::block::aes::asm::vpaes_encrypt_block(inout, &self.enc_key);
             } else {
                 ttable::encrypt_block(inout, &self.enc_key);
             }
@@ -162,6 +227,8 @@ impl BlockCipher for Aes {
         {
             if aesni::supported() {
                 aesni::decrypt_block(inout, &self.dec_key);
+            } else if crate::block::aes::asm::vpaes_supported() {
+                crate::block::aes::asm::vpaes_decrypt_block(inout, &self.dec_key);
             } else {
                 ttable::decrypt_block(inout, &self.dec_key);
             }

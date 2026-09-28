@@ -109,6 +109,54 @@ impl StreamCipher for Ctr {
 }
 
 pub(crate) fn ctr_blocks(b: &Aes, inout: &mut [u8], mut ivlo: u64, mut ivhi: u64) {
+    // Prefer a single CTR32 run when the low 32-bit counter covers the
+    // whole buffer without wrapping into the high 96 bits.
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    {
+        let n = inout.len() / 16;
+        if n >= 1 && n <= u32::MAX as usize {
+            let lo32 = ivlo as u32;
+            if lo32.checked_add(n as u32).is_some() {
+                let mut ivec = [0u8; 16];
+                ivec[..8].copy_from_slice(&ivhi.to_be_bytes());
+                ivec[8..].copy_from_slice(&ivlo.to_be_bytes());
+                let (key, is_aesni_sched) = b.enc_schedule();
+                let n16 = n * 16;
+                let ptr = inout.as_mut_ptr();
+                let (ip, op) = unsafe {
+                    (
+                        core::slice::from_raw_parts(ptr as *const u8, n16),
+                        core::slice::from_raw_parts_mut(ptr, n16),
+                    )
+                };
+                if is_aesni_sched {
+                    crate::block::aes::aesni::ctr32_encrypt_blocks(ip, op, n, &key, &ivec);
+                } else if crate::block::aes::bsaes::supported() {
+                    crate::block::aes::bsaes::ctr32_encrypt_blocks(ip, op, &key, &ivec);
+                } else {
+                    // no accelerator: fall through
+                }
+                if is_aesni_sched || crate::block::aes::bsaes::supported() {
+                    let tail = &mut inout[n16..];
+                    if !tail.is_empty() {
+                        // finish the partial block in software
+                        let (nlo, nhi) = add128(ivlo, ivhi, n as u64);
+                        let mut mask = [0u8; 16];
+                        let mut ivlo2 = nlo;
+                        let mut ivhi2 = nhi;
+                        mask[..8].copy_from_slice(&ivhi2.to_be_bytes());
+                        mask[8..].copy_from_slice(&ivlo2.to_be_bytes());
+                        b.encrypt_block(&mut mask);
+                        let k = tail.len();
+                        for i in 0..k {
+                            tail[i] ^= mask[i];
+                        }
+                    }
+                    return;
+                }
+            }
+        }
+    }
     let mut buf = vec![0u8; inout.len()];
 
     for chunk in buf.chunks_mut(Aes::BLOCK_SIZE) {

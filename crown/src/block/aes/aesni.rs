@@ -13,6 +13,14 @@ use super::ttable::AesKey;
 use crate::utils::cpuid::ia32cap;
 
 extern "C" {
+    fn aesni_cbc_encrypt(
+        inp: *const u8,
+        out: *mut u8,
+        len: usize,
+        key: *const AesKey,
+        ivec: *mut u8,
+        enc: i32,
+    );
     fn aesni_set_encrypt_key(user_key: *const u8, bits: i32, key: *mut AesKey) -> i32;
     fn aesni_set_decrypt_key(user_key: *const u8, bits: i32, key: *mut AesKey) -> i32;
     fn aesni_encrypt(inp: *const u8, out: *mut u8, key: *const AesKey);
@@ -76,5 +84,20 @@ pub fn ctr32_encrypt_blocks(
 ) {
     unsafe {
         aesni_ctr32_encrypt_blocks(inp.as_ptr(), out.as_mut_ptr(), blocks, key, ivec.as_ptr());
+    }
+}
+
+/// In-place CBC encrypt/decrypt over full blocks (`enc != 0` encrypts).
+/// Updates `ivec` to the last ciphertext block, like OpenSSL.
+pub fn cbc_encrypt(inout: &mut [u8], key: &AesKey, ivec: &mut [u8; 16], enc: bool) {
+    unsafe {
+        aesni_cbc_encrypt(
+            inout.as_ptr(),
+            inout.as_mut_ptr(),
+            inout.len(),
+            key,
+            ivec.as_mut_ptr(),
+            enc as i32,
+        );
     }
 }

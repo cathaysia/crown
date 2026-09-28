@@ -41,6 +41,120 @@ extern "C" {
         n0: *const u64,
         num: i32,
     ) -> i32;
+    fn bn_scatter5(inp: *const u64, num: i32, tbl: *mut u64, idx: i32);
+    fn bn_gather5(out: *mut u64, num: i32, tbl: *const u64, idx: i32);
+    fn bn_mul_mont_gather5(
+        rp: *mut u64,
+        ap: *const u64,
+        tbl: *const u64,
+        np: *const u64,
+        n0: *const u64,
+        num: i32,
+        idx: i32,
+    ) -> i32;
+    fn bn_power5(
+        rp: *mut u64,
+        ap: *const u64,
+        tbl: *const u64,
+        np: *const u64,
+        n0: *const u64,
+        num: i32,
+        pwr: i32,
+    ) -> i32;
+}
+
+/// Table entry stride used by bn_scatter5 / bn_gather5 (32 slots * 8 bytes).
+pub const GATHER5_STRIDE: usize = 256;
+
+/// Store `inp` (num limbs) as table entry `idx` in the scattered power table.
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+pub fn scatter5(inp: &[u64], tbl: &mut [u64], idx: usize) {
+    let num = inp.len() as i32;
+    unsafe {
+        bn_scatter5(inp.as_ptr(), num, tbl.as_mut_ptr(), idx as i32);
+    }
+}
+
+/// Load table entry `idx` into `out` (num limbs).
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+pub fn gather5(out: &mut [u64], tbl: &[u64], idx: usize) {
+    let num = out.len() as i32;
+    unsafe {
+        bn_gather5(out.as_mut_ptr(), num, tbl.as_ptr(), idx as i32);
+    }
+}
+
+/// `rp = ap * table[idx]` (Montgomery). Returns false when the limb count
+/// is rejected.
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+pub fn mul_mont_gather5(
+    ap: &[u64],
+    tbl: &[u64],
+    n: &[u64],
+    n0: u64,
+    idx: usize,
+) -> Option<Vec<u64>> {
+    let num = n.len();
+    if ap.len() != num {
+        return None;
+    }
+    let mut rp = alloc::vec![0u64; num];
+    let n0p = [n0, 0u64];
+    let ok = unsafe {
+        bn_mul_mont_gather5(
+            rp.as_mut_ptr(),
+            ap.as_ptr(),
+            tbl.as_ptr(),
+            n.as_ptr(),
+            n0p.as_ptr(),
+            num as i32,
+            idx as i32,
+        )
+    };
+    if ok == 1 {
+        while rp.last() == Some(&0) {
+            rp.pop();
+        }
+        Some(rp)
+    } else {
+        None
+    }
+}
+
+/// `rp = ap^32 * table[pwr]` (Montgomery), the mont5 constant-time primitive.
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+pub fn power5(
+    ap: &[u64],
+    tbl: &[u64],
+    n: &[u64],
+    n0: u64,
+    pwr: usize,
+) -> Option<Vec<u64>> {
+    let num = n.len();
+    if ap.len() != num {
+        return None;
+    }
+    let mut rp = alloc::vec![0u64; num];
+    let n0p = [n0, 0u64];
+    let ok = unsafe {
+        bn_power5(
+            rp.as_mut_ptr(),
+            ap.as_ptr(),
+            tbl.as_ptr(),
+            n.as_ptr(),
+            n0p.as_ptr(),
+            num as i32,
+            pwr as i32,
+        )
+    };
+    if ok == 1 {
+        while rp.last() == Some(&0) {
+            rp.pop();
+        }
+        Some(rp)
+    } else {
+        None
+    }
 }
 
 /// Montgomery multiplication of `a` by `b` modulo `n` using the assembly

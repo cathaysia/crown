@@ -248,3 +248,35 @@ mod asm_tests {
         assert_eq!(got, want);
     }
 }
+
+/// pow_consttime must agree with the 4-bit windowed pow.
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[test]
+fn pow_consttime_matches_windowed() {
+    // 512-bit odd modulus
+    let n_be = hex_to_bn("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01")
+        .to_be_bytes_padded(64)
+        .unwrap();
+    let n = Bn::from_be_bytes(&n_be);
+    let mont = Montgomery::new(&n).unwrap();
+
+    let mut rng = 0xc0ffeeu64;
+    for case in 0..6 {
+        let mut a_be = [0u8; 64];
+        let mut e_be = [0u8; 64];
+        for b in a_be.iter_mut().chain(e_be.iter_mut()) {
+            rng = rng.wrapping_mul(0x9e3779b97f4a7c15).wrapping_add(case);
+            *b = (rng >> 24) as u8;
+        }
+        a_be[0] |= 1;
+        e_be[0] |= 1;
+
+        let a = Bn::from_be_bytes(&a_be).modulus(&n);
+        let e = Bn::from_be_bytes(&e_be);
+        let a_mont = mont.to_mont(&a);
+
+        let got = mont.pow_consttime(&a_mont, &e);
+        let want = mont.pow(&a_mont, &e);
+        assert_eq!(got, want, "case {case}");
+    }
+}
