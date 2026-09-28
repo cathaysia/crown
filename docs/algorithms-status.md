@@ -16,6 +16,8 @@ dual-licensed under the CRYPTOGAMS license for the perlasm modules).
 | `crypto/aes/asm/vpaes-x86_64.pl` | `crown/src/block/aes/vpaes/x86_64.ts` |
 | `crypto/bn/asm/x86_64-mont.pl` | `crown/src/bn/x86_64.ts` (`bn_mul_mont`; byte-identical reassembly verified) |
 | `crypto/bn/asm/x86_64-mont5.pl` | `crown/src/bn/mont5_x86_64.ts` (`bn_power5`/gather5 + the `bn_sqr8x_internal`/`bn_sqrx8x_internal` continuations mont.pl needs) |
+| `crypto/bn/asm/rsaz-x86_64.pl` | `crown/src/bn/rsaz_x86_64.ts` (512-bit RSAZ helpers; `$addx=1` pin) |
+| `crypto/bn/asm/rsaz-avx2.pl` | `crown/src/bn/rsaz_avx2_x86_64.ts` (1024-bit AVX2 RSAZ helpers; `$avx>1`/`$addx=1` pins; + NOTES.md) |
 | `crypto/camellia/asm/cmll-x86_64.pl` | `crown/src/block/camellia/x86_64.ts` |
 | `crypto/chacha/asm/chacha-x86_64.pl` | `crown/src/stream/chacha20/x86_64.ts` |
 | `boringSSL crypto/cipher/asm/chacha20_poly1305_x86_64.pl` | `crown/src/aead/chacha20poly1305/x86_64.ts` (`_CET_ENDBR` expanded, SSE4.1+AVX2 dispatch in Rust) |
@@ -47,10 +49,10 @@ dual-licensed under the CRYPTOGAMS license for the perlasm modules).
 - **no crown consumer:** `keccak1600x4-avx512vl.pl` (4-way SHA3; crown sha3 is single-stream;
   `keccak1600-avx2/avx512/avx512vl.pl` are not even referenced by this
   OpenSSL's `build.info`).
-- **not yet visited buckets:** `bn/` (`rsaz-*`, `gf2m` — mont and mont5 are
-  done), `ml_dsa/` (`ml_dsa_ntt`). `ec/` is complete: `x25519-x86_64.pl` is
-  wired; `ecp_nistz256-x86_64.pl` is translated (see Done table) and
-  unit-tested but not yet dispatched into `crate::ec` — see
+- **not yet visited buckets:** `bn/` (`gf2m` — mont, mont5, rsaz-x86_64 and
+  rsaz-avx2 are done), `ml_dsa/` (`ml_dsa_ntt`). `ec/` is complete:
+  `x25519-x86_64.pl` is wired; `ecp_nistz256-x86_64.pl` is translated (see
+  Done table) and unit-tested but not yet dispatched into `crate::ec` — see
   `crown/src/ec/nistz256/NOTES.md`.
 
 ### Wiring status of the newly ported asm
@@ -66,6 +68,14 @@ chacha20-poly1305 and aesni-gcm stitches back their AEADs; ghash's
 rc4 and aes-ctr32 are live. `wp-x86_64.pl` is ported and wired into
 `hash/whirlpool` behind `feature="asm"` (software `block_soft` remains the
 fallback and the test oracle).
+
+The RSAZ 512/1024 helpers (`rsaz-x86_64.pl` / `rsaz-avx2.pl`) are
+**translated and unit-tested but not dispatched**: `crown::bn::rsaz`
+exports the 7 + 7 primitives and the tests cross-check them against `Bn`
+Montgomery arithmetic, but `Montgomery::pow_consttime` still runs on the
+mont5 stack. Folding RSAZ in would mean a second table layout (29-bit
+digits, 320-byte scatter5 stride vs mont5's 256-byte gather5 stride) and
+is deliberately deferred — see `crown/src/bn/rsaz/NOTES.md`.
 
 ## 2. Algorithm coverage: crown vs OpenSSL (default provider)
 
