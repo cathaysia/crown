@@ -36,17 +36,21 @@ dual-licensed under the CRYPTOGAMS license for the perlasm modules).
 | `crypto/sm4/asm/sm4-x86_64.pl` | `crown/src/block/sm4/x86_64.ts` |
 | `crypto/whrlpool/asm/wp-x86_64.pl` | `crown/src/hash/whirlpool/x86_64.ts` (+ NOTES.md) |
 | `crypto/bn/asm/x86_64-gf2m.pl` | `crown/src/bn/gf2m_x86_64.ts` (+ NOTES.md; `bn_GF2m_mul_2x2` unit-tested vs portable poly mul, not dispatched) |
+| `crypto/aes/asm/aesni-sha1-x86_64.pl` | `crown/src/aead/aesni_sha1/x86_64.ts` (+ NOTES.md; `aesni_cbc_sha1_enc` byte-identical, unit-tested vs aesni CBC + portable SHA-1; TLS AEAD not wired) |
 
 ### Remaining, by bucket
 
 - **hash bucket: complete.** Everything with a crown-side consumer is translated.
   Re-generated each perl and compared exported symbols against the `.ts` files;
   all match.
-- **aead-related:** `aesni-gcm` and `chacha20_poly1305` are ported;
-  `aesni-sha1-x86_64.pl`, `aesni-sha256-x86_64.pl`, `sha1-mb-x86_64.pl`,
-  `sha256-mb-x86_64.pl` remain. Note: `sha{1,256}-multi_block` in this OpenSSL
-  version are only consumed by the TLS CBC-HMAC-SHA stitched ciphers
-  (`cipher_aes_cbc_hmac_sha{1,256}_hw.c`), so they belong to the aead round.
+- **aead-related:** `aesni-gcm`, `chacha20_poly1305` and `aesni-sha1-x86_64.pl`
+  are ported (aesni-sha1 is byte-identical and unit-tested; full TLS
+  `AES-CBC-HMAC-SHA1` integration is deferred). `aesni-sha256-x86_64.pl`
+  (4458-line default output: xop+avx+avx2+shaext), `sha1-mb-x86_64.pl` (7325
+  lines) and `sha256-mb-x86_64.pl` remain — each is a multi-thousand-line
+  software-pipelined generator and is still open. Note: `sha{1,256}-multi_block`
+  in this OpenSSL version are only consumed by the TLS CBC-HMAC-SHA stitched
+  ciphers (`cipher_aes_cbc_hmac_sha{1,256}_hw.c`), so they belong to the aead round.
 - **no crown consumer:** `keccak1600x4-avx512vl.pl` (4-way SHA3; crown sha3 is single-stream;
   `keccak1600-avx2/avx512/avx512vl.pl` are not even referenced by this
   OpenSSL's `build.info`).
