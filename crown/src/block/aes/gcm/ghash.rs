@@ -23,13 +23,46 @@ const GCM_BLOCK_SIZE: usize = 16;
 //
 // Each input is zero-padded to 128-bit before being absorbed.
 pub(crate) fn ghash(out: &mut [u8; GCM_BLOCK_SIZE], h: &[u8; GCM_BLOCK_SIZE], inputs: &[&[u8]]) {
+    let mut state = [0u8; GCM_BLOCK_SIZE];
+    ghash_absorb(&mut state, h, inputs);
+    *out = state;
+}
+
+/// GHASH `inputs` continuing from `state` (rather than from zero). On return
+/// `state` holds the accumulated value. Used to chain AAD -> stitch -> tail.
+pub(crate) fn ghash_absorb(
+    state: &mut [u8; GCM_BLOCK_SIZE],
+    h: &[u8; GCM_BLOCK_SIZE],
+    inputs: &[&[u8]],
+) {
     #[cfg(all(feature = "asm", target_arch = "x86_64"))]
     {
-        super::asm::ghash(out, h, inputs);
+        super::asm::ghash_absorb(state, h, inputs);
     }
 
     #[cfg(any(not(feature = "asm"), not(target_arch = "x86_64")))]
-    generic_ghash(out, h, inputs);
+    {
+        // product table then absorb, seeded from `state`.
+        let mut product_table = [GcmFieldElement { low: 0, high: 0 }; 16];
+        let x = GcmFieldElement {
+            low: u64::from_be_bytes([h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7]]),
+            high: u64::from_be_bytes([h[8], h[9], h[10], h[11], h[12], h[13], h[14], h[15]]),
+        };
+        product_table[reverse_bits(1)] = x;
+        for i in (2..16).step_by(2) {
+            product_table[reverse_bits(i)] = ghash_double(&product_table[reverse_bits(i / 2)]);
+            product_table[reverse_bits(i + 1)] = ghash_add(&product_table[reverse_bits(i)], &x);
+        }
+        let mut y = GcmFieldElement {
+            low: u64::from_be_bytes([state[0], state[1], state[2], state[3], state[4], state[5], state[6], state[7]]),
+            high: u64::from_be_bytes([state[8], state[9], state[10], state[11], state[12], state[13], state[14], state[15]]),
+        };
+        for input in inputs {
+            ghash_update(&product_table, &mut y, input);
+        }
+        state[0..8].copy_from_slice(&y.low.to_be_bytes());
+        state[8..16].copy_from_slice(&y.high.to_be_bytes());
+    }
 }
 
 pub(crate) fn generic_ghash(

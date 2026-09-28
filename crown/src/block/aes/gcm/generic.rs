@@ -61,7 +61,7 @@ pub fn open_generic<const N: usize, const T: usize>(
 // deriveCounterGeneric computes the initial GCM counter state from the given nonce.
 // See NIST SP 800-38D, section 7.1. This assumes that counter is filled with
 // zeros on entry.
-fn derive_counter_generic(
+pub(crate) fn derive_counter_generic(
     h: &[u8; GCM_BLOCK_SIZE],
     counter: &mut [u8; GCM_BLOCK_SIZE],
     nonce: &[u8],
@@ -86,7 +86,7 @@ fn derive_counter_generic(
 // gcmCounterCryptGeneric encrypts src using AES in counter mode with 32-bit
 // wrapping (which is different from AES-CTR) and places the result into out.
 // counter is the initial value and will be updated with the next value.
-fn gcm_counter_crypt_generic(b: &Aes, inout: &mut [u8], counter: &mut [u8; GCM_BLOCK_SIZE]) {
+pub(crate) fn gcm_counter_crypt_generic(b: &Aes, inout: &mut [u8], counter: &mut [u8; GCM_BLOCK_SIZE]) {
     let mut mask = [0u8; GCM_BLOCK_SIZE];
     let mut out = inout;
 
@@ -111,7 +111,7 @@ fn gcm_counter_crypt_generic(b: &Aes, inout: &mut [u8], counter: &mut [u8; GCM_B
 
 // gcmInc32 treats the final four bytes of counterBlock as a big-endian value
 // and increments it.
-fn gcm_inc32(counter_block: &mut [u8; GCM_BLOCK_SIZE]) {
+pub(crate) fn gcm_inc32(counter_block: &mut [u8; GCM_BLOCK_SIZE]) {
     let len = counter_block.len();
     let ctr = &mut counter_block[len - 4..];
     let current = u32::from_be_bytes([ctr[0], ctr[1], ctr[2], ctr[3]]);

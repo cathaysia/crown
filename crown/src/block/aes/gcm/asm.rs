@@ -34,7 +34,19 @@ pub(crate) fn init_avx_htable(h: &[u8; GCM_BLOCK_SIZE]) -> [u8; 256] {
 /// GHASH via gcm_init_clmul/gcm_ghash_clmul. Only complete blocks are passed
 /// to the assembly, mirroring OpenSSL's gcm128.c which zero-pads partial
 /// blocks in C.
+#[allow(dead_code)] // kept for parity with ghash_absorb
 pub(crate) fn ghash(out: &mut [u8; GCM_BLOCK_SIZE], h: &[u8; GCM_BLOCK_SIZE], inputs: &[&[u8]]) {
+    let mut state = [0u8; GCM_BLOCK_SIZE];
+    ghash_absorb(&mut state, h, inputs);
+    *out = state;
+}
+
+/// GHASH continuing from `state`. `gcm_ghash_clmul` accumulates into `xi`.
+pub(crate) fn ghash_absorb(
+    state: &mut [u8; GCM_BLOCK_SIZE],
+    h: &[u8; GCM_BLOCK_SIZE],
+    inputs: &[&[u8]],
+) {
     // gcm_init_clmul stores H^1..H^4 plus two Karatsuba salts (0x60 bytes).
     let mut htable = [0u8; 96];
     // Mirror CRYPTO_gcm128_init: H is byte-swapped per qword before the
@@ -46,7 +58,7 @@ pub(crate) fn ghash(out: &mut [u8; GCM_BLOCK_SIZE], h: &[u8; GCM_BLOCK_SIZE], in
     }
     unsafe { gcm_init_clmul(htable.as_mut_ptr(), h_swapped.as_ptr()) };
 
-    let mut xi = [0u8; GCM_BLOCK_SIZE];
+    let mut xi = *state;
     for input in inputs {
         let full = input.len() & !15;
         if full >= 16 {
@@ -65,5 +77,5 @@ pub(crate) fn ghash(out: &mut [u8; GCM_BLOCK_SIZE], h: &[u8; GCM_BLOCK_SIZE], in
         }
     }
 
-    *out = xi;
+    *state = xi;
 }

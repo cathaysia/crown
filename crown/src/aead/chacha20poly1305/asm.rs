@@ -19,7 +19,6 @@
 //! `ad || ciphertext`; `open` decrypts `in` into `out` and returns the
 //! tag for the caller to compare (BoringSSL's detached interface).
 
-#![allow(dead_code)] // compiled and tested; AEAD dispatch is pending
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 core::arch::global_asm!(
@@ -190,6 +189,79 @@ pub fn open(
     }
     // The computed tag lands at the START of the union (out.tag overlaps
     // key[0..16]).
+    let mut tag = [0u8; 16];
+    let bytes: &[u8] =
+        unsafe { core::slice::from_raw_parts(&data as *const OpenData as *const u8, 16) };
+    tag.copy_from_slice(bytes);
+    Ok(tag)
+}
+
+/// Seal in place: `inout` is both ciphertext destination and plaintext source.
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+pub fn seal_inplace(
+    inout: &mut [u8],
+    ad: &[u8],
+    key: &[u8; 32],
+    nonce: &[u8; 12],
+) -> crate::error::CryptoResult<[u8; 16]> {
+    let mut data = SealData {
+        key: *key,
+        counter: 0,
+        nonce: *nonce,
+        extra_ciphertext: core::ptr::null(),
+        extra_ciphertext_len: 0,
+    };
+    let call = if avx2_capable() {
+        chacha20_poly1305_seal_avx2
+    } else {
+        chacha20_poly1305_seal_sse41
+    };
+    unsafe {
+        call(
+            inout.as_mut_ptr(),
+            inout.as_ptr(),
+            inout.len(),
+            ad.as_ptr(),
+            ad.len(),
+            &mut data,
+        );
+    }
+    let mut tag = [0u8; 16];
+    let bytes: &[u8] =
+        unsafe { core::slice::from_raw_parts(&data as *const SealData as *const u8, 16) };
+    tag.copy_from_slice(bytes);
+    Ok(tag)
+}
+
+/// Open in place: decrypts `inout` and returns the computed tag.
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+pub fn open_inplace(
+    inout: &mut [u8],
+    ad: &[u8],
+    key: &[u8; 32],
+    nonce: &[u8; 12],
+) -> crate::error::CryptoResult<[u8; 16]> {
+    let mut data = OpenData {
+        key: *key,
+        counter: 0,
+        nonce: *nonce,
+        out_tag: [0u8; 16],
+    };
+    let call = if avx2_capable() {
+        chacha20_poly1305_open_avx2
+    } else {
+        chacha20_poly1305_open_sse41
+    };
+    unsafe {
+        call(
+            inout.as_mut_ptr(),
+            inout.as_ptr(),
+            inout.len(),
+            ad.as_ptr(),
+            ad.len(),
+            &mut data,
+        );
+    }
     let mut tag = [0u8; 16];
     let bytes: &[u8] =
         unsafe { core::slice::from_raw_parts(&data as *const OpenData as *const u8, 16) };

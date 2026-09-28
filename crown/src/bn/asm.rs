@@ -17,7 +17,6 @@
 //! path. `n0` points at `-n^-1 mod 2^64` in the low word (OpenSSL
 //! `BN_MONT_CTX::n0[0]`, a second word follows for internal use).
 
-#![allow(dead_code)] // compiled and tested; bn::Montgomery dispatch is pending
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 core::arch::global_asm!(

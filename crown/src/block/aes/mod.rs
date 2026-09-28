@@ -111,6 +111,12 @@ impl Aes {
         }
     }
 
+    /// AES-NI-format encrypt schedule (the stitch consumes this layout).
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    pub fn enc_schedule(&self) -> (ttable::AesKey, bool) {
+        (self.enc_key, aesni::supported())
+    }
+
     pub fn encrypt_block_internal(&self, inout: &mut [u8]) {
         #[cfg(all(feature = "asm", target_arch = "x86_64"))]
         {

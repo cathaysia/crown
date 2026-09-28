@@ -554,6 +554,38 @@ impl Montgomery {
     }
 
     fn mont_mul(&self, a: &Bn, b: &Bn) -> Bn {
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        {
+            if let Some(r) = self.mont_mul_asm(a, b) {
+                return r;
+            }
+        }
+        self.mont_mul_generic(a, b)
+    }
+
+    /// Montgomery mul via the x86_64-mont.pl bn_mul_mont routine.
+    /// Returns `None` only when the assembly rejects the limb count.
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    fn mont_mul_asm(&self, a: &Bn, b: &Bn) -> Option<Bn> {
+        let n = self.limbs;
+        let mut al = alloc::vec![0u64; n];
+        let mut bl = alloc::vec![0u64; n];
+        let mut nl = alloc::vec![0u64; n];
+        for i in 0..n {
+            al[i] = a.limbs.get(i).copied().unwrap_or(0);
+            bl[i] = b.limbs.get(i).copied().unwrap_or(0);
+            nl[i] = self.n.limbs.get(i).copied().unwrap_or(0);
+        }
+        let got = asm::mul_mont(&al, &bl, &nl, self.n0)?;
+        let mut res = Bn { limbs: got };
+        res.normalize();
+        if !res.lt(&self.n) {
+            res = res.sub(&self.n).unwrap_or_else(|_| Bn::zero());
+        }
+        Some(res)
+    }
+
+    fn mont_mul_generic(&self, a: &Bn, b: &Bn) -> Bn {
         let t_len = self.limbs + 1;
         let mut t = alloc::vec![0u64; t_len + 1];
 

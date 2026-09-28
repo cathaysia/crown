@@ -12,7 +12,6 @@
 //! provider passes `ctx->gcm.Xi.u` and then keeps GHASHing the remainder, so
 //! the accumulator has to line up exactly.
 
-#![allow(dead_code)] // stitch is compiled and tested; GCM dispatch is pending
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 core::arch::global_asm!(
@@ -295,5 +294,45 @@ mod tests {
         let n = decrypt(&key, &ct, &mut back, &mut yi2, &mut ctx2);
         assert_eq!(n, 384);
         assert_eq!(back, pt);
+    }
+}
+
+/// In-place fused encrypt (same buffer for input and output).
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+pub fn encrypt_inplace(
+    key: &AesKey,
+    inout: &mut [u8],
+    ivp: &mut [u8],
+    ctx: &mut GcmStitchCtx,
+) -> usize {
+    unsafe {
+        aesni_gcm_encrypt(
+            inout.as_ptr(),
+            inout.as_mut_ptr(),
+            inout.len(),
+            key,
+            ivp.as_mut_ptr(),
+            ctx,
+        )
+    }
+}
+
+/// In-place fused decrypt (same buffer for input and output).
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+pub fn decrypt_inplace(
+    key: &AesKey,
+    inout: &mut [u8],
+    ivp: &mut [u8],
+    ctx: &mut GcmStitchCtx,
+) -> usize {
+    unsafe {
+        aesni_gcm_decrypt(
+            inout.as_ptr(),
+            inout.as_mut_ptr(),
+            inout.len(),
+            key,
+            ivp.as_mut_ptr(),
+            ctx,
+        )
     }
 }

@@ -1,5 +1,5 @@
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
-mod aesni;
+pub(crate) mod aesni;
 
 #[cfg(test)]
 mod tests;

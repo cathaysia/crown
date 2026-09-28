@@ -48,13 +48,11 @@ extern "C" {
 }
 
 /// SSSE3 is CPUID leaf 1 ECX bit 9 (ia32cap[1] bit 9).
-#[allow(dead_code)]
 pub fn supported() -> bool {
     crate::utils::cpuid::ia32cap(1) & (1 << 9) != 0
 }
 
 /// CBC; `enc == 0` uses the bit-sliced fast path when `len >= 128`.
-#[allow(dead_code)]
 pub fn cbc_encrypt(inp: &[u8], out: &mut [u8], key: &AesKey, ivp: &mut [u8], enc: bool) {
     debug_assert_eq!(inp.len(), out.len());
     unsafe {
@@ -70,7 +68,6 @@ pub fn cbc_encrypt(inp: &[u8], out: &mut [u8], key: &AesKey, ivp: &mut [u8], enc
 }
 
 /// CTR32 over whole blocks; `len` is in bytes.
-#[allow(dead_code)]
 pub fn ctr32_encrypt_blocks(inp: &[u8], out: &mut [u8], key: &AesKey, ivec: &[u8; 16]) {
     debug_assert_eq!(inp.len(), out.len());
     unsafe {
@@ -84,7 +81,6 @@ pub fn ctr32_encrypt_blocks(inp: &[u8], out: &mut [u8], key: &AesKey, ivec: &[u8
     }
 }
 
-#[allow(dead_code)]
 pub fn xts_encrypt(inp: &[u8], out: &mut [u8], key1: &AesKey, key2: &AesKey, iv: &[u8; 16]) {
     debug_assert_eq!(inp.len(), out.len());
     unsafe {
@@ -99,7 +95,6 @@ pub fn xts_encrypt(inp: &[u8], out: &mut [u8], key1: &AesKey, key2: &AesKey, iv:
     }
 }
 
-#[allow(dead_code)]
 pub fn xts_decrypt(inp: &[u8], out: &mut [u8], key1: &AesKey, key2: &AesKey, iv: &[u8; 16]) {
     debug_assert_eq!(inp.len(), out.len());
     unsafe {
