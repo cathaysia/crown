@@ -19,7 +19,11 @@ export type HashAlgorithm =
   | 'shake256'
   | 'blake2s'
   | 'blake2b'
-  | 'sm3';
+  | 'sm3'
+  | 'md5_sha1'
+  | 'ripemd160'
+  | 'mdc2'
+  | 'whirlpool';
 
 export function createHash(
   algorithm: HashAlgorithm,
@@ -135,6 +139,24 @@ export function getAvailableAlgorithms(): {
 
     // SM3 (Chinese national standard)
     { value: 'sm3', label: 'SM3', supportsHmac: supportsHmac('sm3') },
+
+    // Composite / legacy hashes
+    {
+      value: 'md5_sha1',
+      label: 'MD5-SHA1',
+      supportsHmac: supportsHmac('md5_sha1'),
+    },
+    {
+      value: 'ripemd160',
+      label: 'RIPEMD-160',
+      supportsHmac: supportsHmac('ripemd160'),
+    },
+    { value: 'mdc2', label: 'MDC-2', supportsHmac: supportsHmac('mdc2') },
+    {
+      value: 'whirlpool',
+      label: 'Whirlpool',
+      supportsHmac: supportsHmac('whirlpool'),
+    },
   ];
 
   return algorithms;

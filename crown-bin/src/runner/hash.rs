@@ -90,6 +90,10 @@ pub fn create_hasher(
             (Shake128, new_shake128),
             (Shake256, new_shake256),
             (Sm3, new_sm3),
+            (Md5Sha1, new_md5_sha1),
+            (Ripemd160, new_ripemd160),
+            (Mdc2, new_mdc2),
+            (Whirlpool, new_whirlpool),
         ],
         blake_fixed: [
             (Blake2b256, new_blake2b, 32),
