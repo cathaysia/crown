@@ -31,7 +31,7 @@ dual-licensed under the CRYPTOGAMS license for the perlasm modules).
 | `crypto/sha/asm/keccak1600-x86_64.pl` | `crown/src/hash/sha3/x86_64.ts` |
 | `crypto/sm3/asm/sm3-x86_64.pl` | `crown/src/hash/sm3/x86_64.ts` |
 | `crypto/sm4/asm/sm4-x86_64.pl` | `crown/src/block/sm4/x86_64.ts` |
-| `crypto/whrlpool/asm/wp-x86_64.pl` | — (no crown whirlpool module yet) |
+| `crypto/whrlpool/asm/wp-x86_64.pl` | `crown/src/hash/whirlpool/x86_64.ts` (+ NOTES.md) |
 
 ### Remaining, by bucket
 
@@ -43,8 +43,7 @@ dual-licensed under the CRYPTOGAMS license for the perlasm modules).
   `sha256-mb-x86_64.pl` remain. Note: `sha{1,256}-multi_block` in this OpenSSL
   version are only consumed by the TLS CBC-HMAC-SHA stitched ciphers
   (`cipher_aes_cbc_hmac_sha{1,256}_hw.c`), so they belong to the aead round.
-- **no crown consumer:** `wp-x86_64.pl` (whirlpool),
-  `keccak1600x4-avx512vl.pl` (4-way SHA3; crown sha3 is single-stream;
+- **no crown consumer:** `keccak1600x4-avx512vl.pl` (4-way SHA3; crown sha3 is single-stream;
   `keccak1600-avx2/avx512/avx512vl.pl` are not even referenced by this
   OpenSSL's `build.info`).
 - **not yet visited buckets:** `bn/` (`rsaz-*`, `gf2m` — mont and mont5 are
@@ -60,7 +59,9 @@ and the mont5 `bn_power5`/gather5 family drive `Montgomery::pow_consttime`
 (RSA private-key paths); fe51/fe64 feed ed25519 and x25519; the
 chacha20-poly1305 and aesni-gcm stitches back their AEADs; ghash's
 `gcm_ghash_avx` is live; vpaes/bsaes sit in the AES block/CBC/XTS dispatch;
-rc4 and aes-ctr32 are live.
+rc4 and aes-ctr32 are live. `wp-x86_64.pl` is ported and wired into
+`hash/whirlpool` behind `feature="asm"` (software `block_soft` remains the
+fallback and the test oracle).
 
 ## 2. Algorithm coverage: crown vs OpenSSL (default provider)
 
@@ -69,7 +70,7 @@ rc4 and aes-ctr32 are live.
 | algorithm | openssl source | crown status |
 |---|---|---|
 | RIPEMD-160 | `crypto/ripemd` (no x86_64 asm upstream) | implemented (`hash/ripemd160`), RFC 2289 vectors |
-| Whirlpool | `crypto/whrlpool` + `wp-x86_64.pl` | implemented (`hash/whirlpool`), ISO/IEC 10118-3 vectors verified against a locally compiled OpenSSL reference; asm port now unblocked |
+| Whirlpool | `crypto/whrlpool` + `wp-x86_64.pl` | implemented (`hash/whirlpool`), ISO/IEC 10118-3 vectors verified against a locally compiled OpenSSL reference; `wp-x86_64.pl` ported and wired under `feature="asm"` |
 | MDC-2 | `crypto/mdc2` (DES-based) | implemented (`hash/mdc2`), both pad types (PAD_1/PAD_2) with OpenSSL vectors |
 | MD5-SHA1 | `md5_sha1_prov.c` (TLS composite) | implemented (`hash/md5_sha1`) |
 
