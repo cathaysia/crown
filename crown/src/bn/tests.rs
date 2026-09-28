@@ -280,3 +280,270 @@ fn pow_consttime_matches_windowed() {
         assert_eq!(got, want, "case {case}");
     }
 }
+
+// rsaz-x86_64.pl / rsaz-avx2.pl helpers vs Bn arithmetic.
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+mod rsaz_tests {
+    use super::*;
+    use crate::bn::rsaz;
+
+    fn to_limbs(bytes: &[u8], limbs: usize) -> Vec<u64> {
+        let mut v = vec![0u64; limbs];
+        let be = Bn::from_be_bytes(bytes)
+            .to_be_bytes_padded(limbs * 8)
+            .unwrap();
+        for i in 0..limbs {
+            v[i] = u64::from_be_bytes(
+                be[be.len() - (i + 1) * 8..be.len() - i * 8]
+                    .try_into()
+                    .unwrap(),
+            );
+        }
+        v
+    }
+
+    fn bn_from_limbs(limbs: &[u64]) -> Bn {
+        let mut v = limbs.to_vec();
+        while v.last() == Some(&0) {
+            v.pop();
+        }
+        Bn { limbs: v }
+    }
+
+    fn n0_of(n: &Bn) -> u64 {
+        let n_lo = n.limbs.first().copied().unwrap_or(0);
+        let mut inv = 1u64;
+        for _ in 0..6 {
+            inv = inv.wrapping_mul(2u64.wrapping_sub(n_lo.wrapping_mul(inv)));
+        }
+        inv.wrapping_neg()
+    }
+
+    fn has_avx2() -> bool {
+        // Architectural AVX2 bit: CPUID.7.0:EBX[5].
+        core::arch::x86_64::__cpuid_count(7, 0).ebx & (1 << 5) != 0
+    }
+
+    // Odd 512-bit modulus (primality irrelevant for Montgomery).
+    const N512: &str = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01";
+
+    #[test]
+    fn rsaz_512_mul_matches_portable() {
+        let n_be = hex_to_bn(N512).to_be_bytes_padded(64).unwrap();
+        let n = Bn::from_be_bytes(&n_be);
+        let n_limbs = to_limbs(&n_be, 8);
+        let n0 = n0_of(&n);
+        let mont = Montgomery::new(&n).unwrap();
+
+        let mut rng = 0x512u64;
+        for case in 0..4 {
+            let a_be: Vec<u8> = (0..64)
+                .map(|_| {
+                    rng = rng.wrapping_mul(0x9e3779b97f4a7c15).wrapping_add(case);
+                    (rng >> 24) as u8
+                })
+                .collect();
+            let b_be: Vec<u8> = (0..64)
+                .map(|_| {
+                    rng = rng.wrapping_mul(0xbf58476d1ce4e5b9).wrapping_add(case + 3);
+                    (rng >> 24) as u8
+                })
+                .collect();
+            let a = Bn::from_be_bytes(&a_be).modulus(&n);
+            let b = Bn::from_be_bytes(&b_be).modulus(&n);
+
+            let a_mont = to_limbs(&mont.to_mont(&a).to_be_bytes_padded(64).unwrap(), 8);
+            let b_mont = to_limbs(&mont.to_mont(&b).to_be_bytes_padded(64).unwrap(), 8);
+
+            let mut out = [0u64; 8];
+            rsaz::mul_512(&mut out, &a_mont, &b_mont, &n_limbs, n0);
+            let got = mont.from_mont(&bn_from_limbs(&out));
+            assert_eq!(got, a.modmul(&b, &n), "case {case}");
+        }
+    }
+
+    #[test]
+    fn rsaz_512_sqr_mul_by_one_roundtrip() {
+        let n_be = hex_to_bn(N512).to_be_bytes_padded(64).unwrap();
+        let n = Bn::from_be_bytes(&n_be);
+        let n_limbs = to_limbs(&n_be, 8);
+        let n0 = n0_of(&n);
+        let mont = Montgomery::new(&n).unwrap();
+
+        let a = hex_to_bn("123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0")
+            .modulus(&n);
+        let a_mont = to_limbs(&mont.to_mont(&a).to_be_bytes_padded(64).unwrap(), 8);
+
+        // One Montgomery square keeps the Montgomery form: (aR)^2 * R^-1 = a^2 R.
+        let mut sq = [0u64; 8];
+        rsaz::sqr_512(&mut sq, &a_mont, &n_limbs, n0, 1);
+        let got = mont.from_mont(&bn_from_limbs(&sq));
+        assert_eq!(got, a.modmul(&a, &n));
+
+        // Two successive squares: a^(2^2) in Montgomery form.
+        let mut sq2 = [0u64; 8];
+        rsaz::sqr_512(&mut sq2, &sq, &n_limbs, n0, 1);
+        let want2 = a.modmul(&a, &n).modmul(&a.modmul(&a, &n), &n);
+        assert_eq!(mont.from_mont(&bn_from_limbs(&sq2)), want2);
+
+        // mul_by_one is the reduction-by-1: leaves Montgomery form.
+        let mut out = [0u64; 8];
+        rsaz::mul_by_one_512(&mut out, &a_mont, &n_limbs, n0);
+        assert_eq!(bn_from_limbs(&out), a);
+    }
+
+    #[test]
+    fn rsaz_512_scatter_gather_roundtrip() {
+        let mut tbl = vec![0u64; rsaz::SCATTER4_STRIDE * rsaz::LIMBS_512];
+        let val = [1u64, 2, 3, 4, 5, 6, 7, 8];
+        rsaz::scatter4_512(&mut tbl, &val, 3);
+        let mut got = [0u64; 8];
+        rsaz::gather4_512(&mut got, &tbl, 3);
+        assert_eq!(got, val);
+
+        // Other slots stay zero.
+        rsaz::gather4_512(&mut got, &tbl, 9);
+        assert_eq!(got, [0u64; 8]);
+    }
+
+    #[test]
+    fn rsaz_512_mul_scatter_gather_consistent() {
+        let n_be = hex_to_bn(N512).to_be_bytes_padded(64).unwrap();
+        let n = Bn::from_be_bytes(&n_be);
+        let n_limbs = to_limbs(&n_be, 8);
+        let n0 = n0_of(&n);
+        let mont = Montgomery::new(&n).unwrap();
+
+        let a = hex_to_bn("1111111111111111111111111111111111111111111111111111111111111111")
+            .modulus(&n);
+        let b = hex_to_bn("2222222222222222222222222222222222222222222222222222222222222222")
+            .modulus(&n);
+        let a_mont = to_limbs(&mont.to_mont(&a).to_be_bytes_padded(64).unwrap(), 8);
+        let mut acc = to_limbs(&mont.to_mont(&b).to_be_bytes_padded(64).unwrap(), 8);
+
+        // mul_scatter4 computes acc = a * acc * R^-1 mod n and scatters it.
+        let mut tbl = vec![0u64; rsaz::SCATTER4_STRIDE * rsaz::LIMBS_512];
+        rsaz::mul_scatter4_512(&mut acc, &a_mont, &n_limbs, n0, &mut tbl, 3);
+        assert_eq!(mont.from_mont(&bn_from_limbs(&acc)), a.modmul(&b, &n));
+
+        let mut gathered = [0u64; 8];
+        rsaz::gather4_512(&mut gathered, &tbl, 3);
+        assert_eq!(&gathered[..], &acc[..]);
+
+        // mul_gather4 is the same product against a table slot: a * tbl[3] * R^-1.
+        let mut out = [0u64; 8];
+        rsaz::mul_gather4_512(&mut out, &a_mont, &tbl, &n_limbs, n0, 3);
+        // Mont(a) * Mont(a*b) * R^-1 = a^2 b R  ->  from_mont gives a^2*b mod n.
+        let want = a.modmul(&a, &n).modmul(&b, &n);
+        assert_eq!(mont.from_mont(&bn_from_limbs(&out)), want);
+    }
+
+    #[test]
+    fn rsaz_1024_norm_red_roundtrip() {
+        if !has_avx2() {
+            return;
+        }
+        let n = hex_to_bn(
+            "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01",
+        );
+        let a = hex_to_bn(
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        );
+        for (i, v) in [&n, &a].into_iter().enumerate() {
+            let norm = to_limbs(&v.to_be_bytes_padded(128).unwrap(), 16);
+            let mut red = [0u64; rsaz::RED_LEN];
+            rsaz::norm2red_1024(&mut red, &norm);
+            let mut back = [0u64; 16];
+            rsaz::red2norm_1024(&mut back, &red);
+            assert_eq!(&back[..], &norm[..], "roundtrip {i}");
+        }
+    }
+
+    #[test]
+    fn rsaz_1024_mul_avx2_montgomery() {
+        if !has_avx2() {
+            return;
+        }
+        // Odd 1024-bit modulus.
+        let n_be = hex_to_bn(
+            "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01",
+        )
+        .to_be_bytes_padded(128)
+        .unwrap();
+        let n = Bn::from_be_bytes(&n_be);
+        let n0 = n0_of(&n);
+
+        let mut rng = 0x1024u64;
+        for case in 0..3 {
+            let a_be: Vec<u8> = (0..128)
+                .map(|_| {
+                    rng = rng.wrapping_mul(0x9e3779b97f4a7c15).wrapping_add(case);
+                    (rng >> 24) as u8
+                })
+                .collect();
+            let b_be: Vec<u8> = (0..128)
+                .map(|_| {
+                    rng = rng.wrapping_mul(0xbf58476d1ce4e5b9).wrapping_add(case + 7);
+                    (rng >> 24) as u8
+                })
+                .collect();
+            let a = Bn::from_be_bytes(&a_be).modulus(&n);
+            let b = Bn::from_be_bytes(&b_be).modulus(&n);
+
+            let mut a_red = [0u64; rsaz::RED_LEN];
+            let mut b_red = [0u64; rsaz::RED_LEN];
+            let mut n_red = [0u64; rsaz::RED_LEN];
+            rsaz::norm2red_1024(&mut a_red, &to_limbs(&a.to_be_bytes_padded(128).unwrap(), 16));
+            rsaz::norm2red_1024(&mut b_red, &to_limbs(&b.to_be_bytes_padded(128).unwrap(), 16));
+            rsaz::norm2red_1024(&mut n_red, &to_limbs(&n_be, 16));
+
+            let mut r_red = [0u64; rsaz::RED_LEN];
+            rsaz::mul_1024_avx2(&mut r_red, &a_red, &b_red, &n_red, n0);
+            let mut r_norm = [0u64; 16];
+            rsaz::red2norm_1024(&mut r_norm, &r_red);
+
+            // AMM uses R = 2^(29*36) = 2^1044; the result is a*b*R^-1 mod n
+            // (possibly plus a small multiple of n from lazy reduction).
+            let mut r = Bn::zero();
+            r.set_bit(1044);
+            let rinv = r.mod_inverse(&n).unwrap();
+            let expect = a.modmul(&b, &n).modmul(&rinv, &n);
+            let got = bn_from_limbs(&r_norm).modulus(&n);
+            assert_eq!(got, expect, "case {case}");
+
+            // Single Montgomery square: a^2 * R^-1 mod n.
+            let mut s_red = [0u64; rsaz::RED_LEN];
+            rsaz::sqr_1024_avx2(&mut s_red, &a_red, &n_red, n0, 1);
+            let mut s_norm = [0u64; 16];
+            rsaz::red2norm_1024(&mut s_norm, &s_red);
+            let expect_sq = a.modmul(&a, &n).modmul(&rinv, &n);
+            let got_sq = bn_from_limbs(&s_norm).modulus(&n);
+            assert_eq!(got_sq, expect_sq, "sqr case {case}");
+        }
+    }
+
+    #[test]
+    fn rsaz_1024_scatter_gather_roundtrip() {
+        if !has_avx2() {
+            return;
+        }
+        // gather5 loads the table with vmovdqa, so the table must be
+        // 32-byte aligned (OpenSSL 64-byte-aligns its storage for this).
+        #[repr(align(64))]
+        struct Aligned<T>(T);
+        let mut tbl = Aligned([0u64; rsaz::SCATTER5_WORDS]);
+        // scatter5/gather5 move 36 digits (288 bytes); the 4 pad words at
+        // the end of the 40-word redundant form always come back zero.
+        let mut val = vec![0u64; rsaz::RED_LEN];
+        for (i, w) in val.iter_mut().take(36).enumerate() {
+            *w = i as u64 * 3 + 1;
+        }
+        rsaz::scatter5_1024_avx2(&mut tbl.0, &val, 5);
+        let mut got = vec![0u64; rsaz::RED_LEN];
+        rsaz::gather5_1024_avx2(&mut got, &tbl.0, 5);
+        assert_eq!(got, val);
+
+        rsaz::gather5_1024_avx2(&mut got, &tbl.0, 11);
+        assert_eq!(got, vec![0u64; rsaz::RED_LEN]);
+    }
+}
