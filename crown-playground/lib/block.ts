@@ -353,6 +353,13 @@ export function getAvailableAlgorithms(): BlockAlgorithmInfo[] {
       blockSize: 8,
       requiresParams: true,
     },
+    {
+      value: 'desx_cbc',
+      label: 'DESX-CBC',
+      keySize: 24,
+      ivSize: 8,
+      blockSize: 8,
+    },
   ];
 
   return algorithms.filter(alg => {

@@ -4,6 +4,8 @@ pub mod evp_aead;
 pub mod evp_block;
 pub mod evp_hash;
 pub mod evp_stream;
+pub mod evp_xts;
+pub mod evp_misc;
 
 unsafe fn slice_from_raw_parts<'a>(ptr: *const u8, len: usize) -> Option<&'a [u8]> {
     if ptr.is_null() {
