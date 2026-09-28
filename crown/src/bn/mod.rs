@@ -107,28 +107,33 @@ impl Bn {
             return Err(CryptoError::StrError("bn: value does not fit"));
         }
         let mut out = alloc::vec![0u8; len];
-        out[len - need..].copy_from_slice(&self.to_be_bytes());
+        self.write_be_bytes(&mut out[len - need..]);
         Ok(out)
     }
 
     /// Serialize into the minimal big-endian byte string (empty for zero).
     pub fn to_be_bytes(&self) -> Vec<u8> {
-        let mut out = Vec::with_capacity(self.limbs.len() * 8);
+        let mut out = alloc::vec![0u8; self.byte_len()];
+        self.write_be_bytes(&mut out);
+        out
+    }
+
+    /// Write the minimal big-endian encoding into `out`, which must be
+    /// exactly `byte_len()` bytes long.
+    fn write_be_bytes(&self, out: &mut [u8]) {
+        let mut off = 0;
         for (i, limb) in self.limbs.iter().enumerate().rev() {
             let bytes = limb.to_be_bytes();
             if i == self.limbs.len() - 1 {
                 // most significant limb: strip leading zero bytes
                 let first = bytes.iter().position(|b| *b != 0).unwrap_or(7);
-                out.extend_from_slice(&bytes[first..]);
+                out[off..off + (8 - first)].copy_from_slice(&bytes[first..]);
+                off += 8 - first;
             } else {
-                out.extend_from_slice(&bytes);
+                out[off..off + 8].copy_from_slice(&bytes);
+                off += 8;
             }
         }
-        if self.limbs.is_empty() {
-            // zero serializes to an empty string; callers wanting a byte
-            // use to_be_bytes_padded
-        }
-        out
     }
 
     pub fn byte_len(&self) -> usize {
@@ -585,13 +590,13 @@ impl Montgomery {
         let n = self.limbs;
         let mut al = alloc::vec![0u64; n];
         let mut bl = alloc::vec![0u64; n];
-        let mut nl = alloc::vec![0u64; n];
         for i in 0..n {
             al[i] = a.limbs.get(i).copied().unwrap_or(0);
             bl[i] = b.limbs.get(i).copied().unwrap_or(0);
-            nl[i] = self.n.limbs.get(i).copied().unwrap_or(0);
         }
-        let got = asm::mul_mont(&al, &bl, &nl, self.n0)?;
+        // `Montgomery::new` derives `limbs` from `n.limbs.len()`, so the
+        // stored modulus is already exactly `n` limbs for the asm routine.
+        let got = asm::mul_mont(&al, &bl, &self.n.limbs, self.n0)?;
         let mut res = Bn { limbs: got };
         res.normalize();
         if !res.lt(&self.n) {
@@ -643,9 +648,10 @@ impl Montgomery {
             t[t_len] = 0;
         }
 
-        let mut res = Bn {
-            limbs: t[..t_len].to_vec(),
-        };
+        // The per-iteration shift leaves t[t_len] zero, so the product is
+        // exactly t[..t_len] and the buffer can be moved instead of copied.
+        t.truncate(t_len);
+        let mut res = Bn { limbs: t };
         res.normalize();
 
         // res in [0, 2n): subtract n once if needed.
@@ -720,7 +726,6 @@ impl Montgomery {
             }
             v
         };
-        let n = pad(&self.n);
         let a = pad(a_mont);
         let n0 = self.n0;
 
@@ -733,13 +738,12 @@ impl Montgomery {
         asm::scatter5(&one_m, &mut powerbuf, 0);
         asm::scatter5(&a, &mut powerbuf, 1);
 
-        let mut sq = |x: &alloc::vec::Vec<u64>| -> alloc::vec::Vec<u64> {
-            let v = asm::mul_mont(x, x, &n, n0).unwrap_or_else(|| x.clone());
-            let mut o = alloc::vec![0u64; num];
-            for i in 0..num.min(v.len()) {
-                o[i] = v[i];
-            }
-            o
+        let sq = |x: &alloc::vec::Vec<u64>| -> alloc::vec::Vec<u64> {
+            // mul_mont returns at most `num` limbs with capacity `num`, so
+            // re-padding never reallocates.
+            let mut v = asm::mul_mont(x, x, &self.n.limbs, n0).unwrap_or_else(|| x.clone());
+            v.resize(num, 0);
+            v
         };
 
         let mut tmp = sq(&a);
@@ -752,13 +756,10 @@ impl Montgomery {
         }
         i = 3;
         while i < 32 {
-            let g = match asm::mul_mont_gather5(&a, &powerbuf, &n, n0, i - 1) {
-                Some(v) => {
-                    let mut o = alloc::vec![0u64; num];
-                    for j in 0..num.min(v.len()) {
-                        o[j] = v[j];
-                    }
-                    o
+            let g = match asm::mul_mont_gather5(&a, &powerbuf, &self.n.limbs, n0, i - 1) {
+                Some(mut v) => {
+                    v.resize(num, 0);
+                    v
                 }
                 None => return self.pow(a_mont, e),
             };
@@ -801,34 +802,26 @@ impl Montgomery {
                 bi -= 1;
             }
             if use_power5 {
-                let v = match asm::power5(&acc, &powerbuf, &n, n0, w) {
+                let mut v = match asm::power5(&acc, &powerbuf, &self.n.limbs, n0, w) {
                     Some(v) => v,
                     None => return self.pow(a_mont, e),
                 };
-                let mut o = alloc::vec![0u64; num];
-                for j in 0..num.min(v.len()) {
-                    o[j] = v[j];
-                }
-                acc = o;
+                v.resize(num, 0);
+                acc = v;
             } else {
                 for _ in 0..5 {
                     acc = sq(&acc);
                 }
-                let v = match asm::mul_mont_gather5(&acc, &powerbuf, &n, n0, w) {
+                let mut v = match asm::mul_mont_gather5(&acc, &powerbuf, &self.n.limbs, n0, w) {
                     Some(v) => v,
                     None => return self.pow(a_mont, e),
                 };
-                let mut o = alloc::vec![0u64; num];
-                for j in 0..num.min(v.len()) {
-                    o[j] = v[j];
-                }
-                acc = o;
+                v.resize(num, 0);
+                acc = v;
             }
         }
 
-        let mut res = Bn {
-            limbs: acc.into_iter().take(self.limbs.max(1)).collect(),
-        };
+        let mut res = Bn { limbs: acc };
         res.normalize();
         if !res.lt(&self.n) {
             res = res.sub(&self.n).unwrap_or(res);
