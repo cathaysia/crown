@@ -69,6 +69,7 @@ extern crate alloc;
 pub mod aead;
 pub mod block;
 pub mod bn;
+pub mod ec;
 pub mod ed25519;
 pub mod x25519;
 pub mod envelope;
