@@ -282,7 +282,7 @@ Notes:
 |---|---|---|---|
 | ML-KEM-512/768/1024 | FIPS 203 | `crown/src/ml_kem` | done — keygen/encaps/decaps, ACVP golden tests (13 unit tests); exposed in `crown-bin kem` |
 | ML-DSA-44/65/87 | FIPS 204 | `crown/src/ml_dsa` | done — keygen/sign/verify (pure, prehashed, mu), ACVP + Wycheproof (12 unit tests); exposed in `crown-bin sign` |
-| SLH-DSA (12 parameter sets) | FIPS 205 | `crown/src/slh_dsa` | in progress |
+| SLH-DSA (12 parameter sets) | FIPS 205 | `crown/src/slh_dsa` | done — keygen/sign/verify all 12 sets, ACVP golden tests (18 unit tests); bin `sign` exposes SHA2/SHAKE 128s/f |
 | LMS | RFC 8554 | — | not in OpenSSL 3.5.8 tree (`crypto/lms` empty); deferred |
 
 ### Exposure surface added on `second`
@@ -293,10 +293,24 @@ Notes:
 - **MAC**: SipHash, KMAC128/256, CMAC-AES, GMAC-AES → EvpMac + bin/cabi/wasm
 - **OTP**: HOTP/TOTP → bin
 - **KDF**: PBKDF1, TLS1-PRF, SSKDF, SSHKDF, PKCS12KDF, SRTP-KDF, X963KDF → bin
-- **sign**: Ed25519/Ed448/ML-DSA → bin
-- **kem**: ML-KEM → bin
+- **sign**: Ed25519/Ed448/ML-DSA/SLH-DSA → bin; Ed25519 → cabi/wasm
+- **kem**: ML-KEM → bin + cabi/wasm
 
 ### Remaining x86_64 perlasm on `second`
 
 - done this round: `x86_64-gf2m.pl`, `aesni-sha1-x86_64.pl`
-- still open: `aesni-sha256-x86_64.pl`, `sha1-mb-x86_64.pl`, `sha256-mb-x86_64.pl`, `ml_dsa_ntt` (if present)
+- still open (large software-pipelined generators, 4k–7k lines): `aesni-sha256-x86_64.pl`, `sha1-mb-x86_64.pl`, `sha256-mb-x86_64.pl`
+- `ml_dsa_ntt` perlasm: not present in OpenSSL 3.5.8 reference tree
+
+
+### Review follow-up (2026-09-28)
+
+- GMAC added to `crown-bin mac`; `sm4_xts_gb` added to cabi XTS.
+- KDF bin now covers PBKDF1/2, scrypt, argon2, bcrypt, HKDF, TLS1-PRF, SSKDF,
+  SSHKDF, PKCS12KDF, SRTP-KDF, X963KDF, X942KDF, KRB5KDF, KBKDF, IKEv2-KDF.
+- Ed25519 and ML-KEM exposed in cabi/wasm; ML-DSA/SLH-DSA sign still bin-only.
+- Playground still only has hash/block/stream/aead pages; XTS/KW/FF1/MAC/KDF/
+  OTP/sign/kem UI not added (library + bin/cabi/wasm APIs are ready).
+- Remaining perlasm: aesni-sha256, sha1-mb, sha256-mb (very large).
+- `crown-wasm` now depends on crown `std` feature (wasm target has std);
+  library remains no_std-capable for embedded via `alloc` feature.

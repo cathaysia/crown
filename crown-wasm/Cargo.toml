@@ -14,7 +14,7 @@ publish = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-crown = { path = "../crown", default-features = false, features = ["alloc"] }
+crown = { path = "../crown", default-features = false, features = ["std"] }
 wasm-bindgen = "0.2.104"
 js-sys = "0.3"
 paste.workspace = true
