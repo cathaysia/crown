@@ -93,6 +93,7 @@ All four are registered in `envelope::EvpHash` (`new_ripemd160`, `new_whirlpool`
 | AES-XTS (128/256) | `crypto/modes/xts128.c` + `cipher_aes_xts.c` | implemented (`modes/xts`), IEEE 1619-2007 vectors + ciphertext-stealing set from `evpciph_aes_common.txt`; duplicate-key and 2^20-block limits enforced |
 | SM4-XTS | `cipher_sm4_xts.c` | implemented (`modes/xts`, `Xts<Sm4>`), both IEEE and GB/T 17964-2021 (`encrypt_gb`) variants, vectors from `evpciph_sm4.txt` |
 | AES-SIV (128/192/256) | `crypto/modes/siv128.c` + `cipher_aes_siv.c` | implemented (`aead/siv`), RFC 5297 A.1/A.2 + `evpciph_aes_siv.txt` vectors; tag = SIV, nonce passed as AAD like OpenSSL |
+| FF1 (SP 800-38G) | — | implemented (`modes/ff1`): AES-CBC-MAC Feistel, 10 rounds, radix 2..=65536, AES-128/192/256 by key length, decimal helper; NIST FF1samples.pdf #1/#2/#3 (radix 10 and 36) |
 | AES-GCM-SIV | `cipher_aes_gcm_siv*.c` | not started (POLYVAL-based, separate construction) |
 | ASCON-AEAD128 | `ascon` | not started |
 | Key Wrap (KW/KWP) | `crypto/modes/wrap128.c` | not started |
@@ -125,7 +126,7 @@ EVP_KDF's digest option. HKDF/PBKDF2/scrypt/argon2 already existed
 | algorithm | openssl source | crown status |
 |---|---|---|
 | Ed25519 | `crypto/ec/curve25519.c` | implemented (`ed25519`): 51-bit-limb field arithmetic, ref10 invert/pow22523 chains, extended-coordinate group ops, constant-time 4-bit-window scalar mult; RFC 8032 section 7.1 vectors, CLI cross-checked |
-| Ed448 | `crypto/ec/curve448/` | implemented (`ed448` + shared `curve448::fe`): untwisted Edwards edwards448 (a=1, d=-39081) in extended coordinates, RFC 8032 §5.2.4 complete add/dbl, dom4/SHAKE256 sign-verify with required context; RFC 8032 §7.4 vectors (blank, 1/11/12/13/64/256/1023 octets, 1 octet with context) |
+| Ed448 | `crypto/ec/curve448/` | implemented (`ed448` + shared `curve448::fe`): untwisted Edwards edwards448 (a=1, d=-39081) in extended coordinates, RFC 8032 §5.2.4 complete add/dbl, dom4/SHAKE256 sign-verify with required context; pure Ed448 (phflag=0) + Ed448ph (phflag=1, PH=SHAKE256(.,64)); RFC 8032 §7.4 vectors (blank, 1/11/12/13/64/256/1023 octets, 1 octet with context) and §7.5 Ed448ph vectors (abc blank-context, abc context "foo") |
 | RSA | `crypto/rsa` + `crypto/bn` | implemented (`rsa` on `bn`): raw/PKCS#1 v1.5/OAEP encryption, PKCS#1 v1.5/PSS signatures, CRT private path, key generation (top-two-bit primes, small-prime sieve, 64 MR rounds, FIPS 186-4 distance), PKCS#1 DER + PKCS#8 parse; all directions cross-checked against the OpenSSL 3.5.8 CLI |
 | RSA-PSS/other digests | | PSS and PKCS#1 v1.5 accept md5/sha1/sha224/sha256/sha384/sha512 (DigestInfo table) |
 | X25519 | `crypto/ec/curve25519.c` | implemented (`x25519`): Montgomery ladder over radix-2^64 field ops, fe64 asm (`x25519_fe64_*`) wired in when `asm` is on; RFC 7748 §5.2/§6.1 vectors |
@@ -197,11 +198,12 @@ harness cannot silently degrade into skipping everything again.
 | `hash.rs` | pyca | MD5, SHA-1/2/3, SHAKE (incl. variable output), SM3, BLAKE2b/2s, HMAC-RIPEMD-160 |
 
 Not covered because crown has no implementation to test against those
-vectors: ML-KEM/ML-DSA, AEGIS, FF1,
+vectors: ML-KEM/ML-DSA, AEGIS,
 PKCS#7/PKCS#12/X.509. DSA/ECDSA/ECDH are now implemented
-and pinned by in-module RFC 6979 / RFC 5903 KATs (X448/Ed448 likewise
-have RFC 7748/8032 in-module vectors). HOTP/TOTP and PBES2 are now
-implemented with RFC 4226/6238 and PKCS#5 vectors. AES-GCM-SIV, Ascon-AEAD128 and
+and pinned by in-module RFC 6979 / RFC 5903 KATs (X448/Ed448/Ed448ph
+likewise have RFC 7748/8032 in-module vectors). HOTP/TOTP, PBES2 and FF1
+are now implemented with RFC 4226/6238, PKCS#5 and SP 800-38G vectors.
+AES-GCM-SIV, Ascon-AEAD128 and
 KW/KWP are now implemented and covered by in-module RFC/KAT vectors
 rather than the vendored vector trees. The KBKDF
 CAVS files are not consumed either: their counter-placement variants
