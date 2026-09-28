@@ -47,6 +47,14 @@ impl CBCDecrypter {
 
     /// Generic CBC decryption function
     fn crypt_blocks_dec(&mut self, inout: &mut [u8]) {
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        {
+            if inout.len() >= 16 {
+                self.block.cbc_blocks(inout, &mut self.iv, false);
+                return;
+            }
+        }
+
         // For each block, we need to xor the decrypted data with the previous
         // block's ciphertext (the iv). To avoid making a copy each time, we loop
         // over the blocks backwards.

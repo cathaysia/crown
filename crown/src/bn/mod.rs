@@ -446,6 +446,19 @@ impl Bn {
         Ok(mont.from_mont(&res))
     }
 
+    /// Constant-time modular exponentiation for odd moduli (private-key
+    /// paths). Uses the mont5 5-bit window table when the asm accepts the
+    /// limb count.
+    pub fn mod_pow_odd_consttime(&self, exp: &Bn, modulus: &Bn) -> CryptoResult<Bn> {
+        let mont = Montgomery::new(modulus)?;
+        let base = mont.to_mont(&self.modulus(modulus));
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        let res = mont.pow_consttime(&base, exp);
+        #[cfg(any(not(feature = "asm"), not(target_arch = "x86_64")))]
+        let res = mont.pow(&base, exp);
+        Ok(mont.from_mont(&res))
+    }
+
     /// Modular exponentiation for any modulus: square-and-multiply via
     /// Montgomery when the modulus is odd, plain modmul otherwise.
     pub fn mod_pow(&self, exp: &Bn, modulus: &Bn) -> CryptoResult<Bn> {
@@ -686,4 +699,139 @@ impl Montgomery {
         }
         result
     }
+
+    /// Constant-time `a^e mod n` via the mont5 5-bit-window power table
+    /// (`bn_scatter5` / `bn_power5` / `bn_mul_mont_gather5`). Falls back to
+    /// the 4-bit window when the asm is unavailable or the limb count is
+    /// unsupported.
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    pub fn pow_consttime(&self, a_mont: &Bn, e: &Bn) -> Bn {
+        let num = self.limbs;
+        if !(2..=64).contains(&num) {
+            return self.pow(a_mont, e);
+        }
+
+        let pad = |b: &Bn| -> alloc::vec::Vec<u64> {
+            let mut v = alloc::vec![0u64; num];
+            for i in 0..num.min(b.limbs.len()) {
+                v[i] = b.limbs[i];
+            }
+            v
+        };
+        let n = pad(&self.n);
+        let a = pad(a_mont);
+        let n0 = self.n0;
+
+        // scatter5 places limb i of entry idx at tbl[i*32 + idx]; the asm
+        // walks 256 bytes (=32 slots) per limb. Buffer covers num limbs.
+        let mut powerbuf = alloc::vec![0u64; num * 32 + 32];
+
+        // Montgomery 1 is R mod n = to_mont(1); a^1 = a.
+        let one_m = pad(&self.to_mont(&Bn::one()));
+        asm::scatter5(&one_m, &mut powerbuf, 0);
+        asm::scatter5(&a, &mut powerbuf, 1);
+
+        let mut sq = |x: &alloc::vec::Vec<u64>| -> alloc::vec::Vec<u64> {
+            let v = asm::mul_mont(x, x, &n, n0).unwrap_or_else(|| x.clone());
+            let mut o = alloc::vec![0u64; num];
+            for i in 0..num.min(v.len()) {
+                o[i] = v[i];
+            }
+            o
+        };
+
+        let mut tmp = sq(&a);
+        asm::scatter5(&tmp, &mut powerbuf, 2);
+        let mut i = 4;
+        while i < 32 {
+            tmp = sq(&tmp);
+            asm::scatter5(&tmp, &mut powerbuf, i);
+            i *= 2;
+        }
+        i = 3;
+        while i < 32 {
+            let g = match asm::mul_mont_gather5(&a, &powerbuf, &n, n0, i - 1) {
+                Some(v) => {
+                    let mut o = alloc::vec![0u64; num];
+                    for j in 0..num.min(v.len()) {
+                        o[j] = v[j];
+                    }
+                    o
+                }
+                None => return self.pow(a_mont, e),
+            };
+            asm::scatter5(&g, &mut powerbuf, i);
+            let mut cur = g;
+            let mut j = 2 * i;
+            while j < 32 {
+                cur = sq(&cur);
+                asm::scatter5(&cur, &mut powerbuf, j);
+                j *= 2;
+            }
+            i += 2;
+        }
+
+        let bit = |b: usize| -> bool {
+            let limb = b / 64;
+            limb < e.limbs.len() && ((e.limbs[limb] >> (b % 64)) & 1) == 1
+        };
+
+        let mut bi = e.bit_len() as i64 - 1;
+        if bi < 0 {
+            // a^0 = 1 in Montgomery form
+            return self.from_mont(&self.to_mont(&Bn::one()));
+        }
+
+        let first = (bi % 5 + 1) as usize;
+        let mut w = 0usize;
+        for _ in 0..first {
+            w = (w << 1) | (bit(bi as usize) as usize);
+            bi -= 1;
+        }
+        let mut acc = alloc::vec![0u64; num];
+        asm::gather5(&mut acc, &powerbuf, w);
+
+        let use_power5 = num % 8 == 0;
+        while bi >= 0 {
+            let mut w = 0usize;
+            for _ in 0..5 {
+                w = (w << 1) | (bit(bi as usize) as usize);
+                bi -= 1;
+            }
+            if use_power5 {
+                let v = match asm::power5(&acc, &powerbuf, &n, n0, w) {
+                    Some(v) => v,
+                    None => return self.pow(a_mont, e),
+                };
+                let mut o = alloc::vec![0u64; num];
+                for j in 0..num.min(v.len()) {
+                    o[j] = v[j];
+                }
+                acc = o;
+            } else {
+                for _ in 0..5 {
+                    acc = sq(&acc);
+                }
+                let v = match asm::mul_mont_gather5(&acc, &powerbuf, &n, n0, w) {
+                    Some(v) => v,
+                    None => return self.pow(a_mont, e),
+                };
+                let mut o = alloc::vec![0u64; num];
+                for j in 0..num.min(v.len()) {
+                    o[j] = v[j];
+                }
+                acc = o;
+            }
+        }
+
+        let mut res = Bn {
+            limbs: acc.into_iter().take(self.limbs.max(1)).collect(),
+        };
+        res.normalize();
+        if !res.lt(&self.n) {
+            res = res.sub(&self.n).unwrap_or(res);
+        }
+        res
+    }
+
 }

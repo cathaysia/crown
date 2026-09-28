@@ -21,7 +21,7 @@ dual-licensed under the CRYPTOGAMS license for the perlasm modules).
 | `boringSSL crypto/cipher/asm/chacha20_poly1305_x86_64.pl` | `crown/src/aead/chacha20poly1305/x86_64.ts` (`_CET_ENDBR` expanded, SSE4.1+AVX2 dispatch in Rust) |
 | `crypto/ec/asm/x25519-x86_64.pl` | `crown/src/ed25519/x86_64.ts` (fe51 for ed25519, fe64 for x25519; `$addx=1` pin) |
 | `crypto/md5/asm/md5-x86_64.pl` | `crown/src/hash/md5/block/x86_64.ts` |
-| `crypto/modes/asm/aesni-gcm-x86_64.pl` | `crown/src/aead/gcm/x86_64.ts` (stitch; compile+CTR/GHASH/round-trip tested, AEAD dispatch pending) |
+| `crypto/modes/asm/aesni-gcm-x86_64.pl` | `crown/src/aead/gcm/x86_64.ts` (stitch; wired into AES-GCM seal/open for the bulk) |
 | `crypto/modes/asm/ghash-x86_64.pl` | `crown/src/block/aes/gcm/x86_64.ts` (dispatch live in `block::aes::gcm::ghash`; `gcm_init_avx` + `gcm_ghash_avx` ported and wired; `gcm_gmult_avx` is the upstream alias of the clmul body) |
 | `crypto/poly1305/asm/poly1305-x86_64.pl` | `crown/src/mac/poly1305/x86_64.ts` |
 | `crypto/rc4/asm/rc4-x86_64.pl` | `crown/src/stream/rc4/xor_key_stream/x86_64.ts` |
@@ -55,22 +55,12 @@ dual-licensed under the CRYPTOGAMS license for the perlasm modules).
 Compiled and unit-tested against the portable implementations, dispatch not
 yet switched:
 
-- `bn::{x86_64,mont5_x86_64}` — `bn_mul_mont` vs `bn::Montgomery`
-  (variable path, 8-limb mul4x path, Montgomery-form conversion).
-- `ed25519/x86_64.ts` — fe51 mul/sqr/mul121666 vs `ed25519::fe`, fe64
-  ops vs bigint arithmetic mod 2^255-19.
-- `aead/chacha20poly1305/x86_64.ts` — seal/open vs the BoringSSL
-  `chacha20_poly1305_tests.txt` vectors.
-- `aead/gcm/x86_64.ts` (stitch) — CTR keystream vs software AES-CTR and
-  round-trip; consumes the AES-NI `aesni_set_encrypt_key` schedule format
-  (not the C big-endian-word format — mixing them up was the long-standing
-  "first 96 bytes untransformed" bug). The `ctx.xi` contract is asserted as
-  well: the stitch leaves the GHASH state over the ciphertext it consumed,
-  which needs the *AVX* Htable (`gcm_init_avx`, ported into
-  `block/aes/gcm/x86_64.ts`); the shorter clmul table zeroes H^5/H^6 and
-  corrupted `ctx.xi` — that, not a pipeline subtlety, was the mismatch. Both
-  the ciphertext and the resulting Xi match the perl-generated reference asm
-  byte for byte. AEAD dispatch is still pending.
+All of the previously "dispatch pending" asm is now wired: `bn_mul_mont`
+and the mont5 `bn_power5`/gather5 family drive `Montgomery::pow_consttime`
+(RSA private-key paths); fe51/fe64 feed ed25519 and x25519; the
+chacha20-poly1305 and aesni-gcm stitches back their AEADs; ghash's
+`gcm_ghash_avx` is live; vpaes/bsaes sit in the AES block/CBC/XTS dispatch;
+rc4 and aes-ctr32 are live.
 
 ## 2. Algorithm coverage: crown vs OpenSSL (default provider)
 
