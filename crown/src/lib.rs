@@ -70,6 +70,7 @@ pub mod aead;
 pub mod block;
 pub mod bn;
 pub mod ed25519;
+pub mod x25519;
 pub mod envelope;
 pub mod hash;
 pub mod kdf;

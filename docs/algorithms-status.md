@@ -137,7 +137,7 @@ EVP_KDF's digest option. HKDF/PBKDF2/scrypt/argon2 already existed
 | Ed25519 | `crypto/ec/curve25519.c` | implemented (`ed25519`): 51-bit-limb field arithmetic, ref10 invert/pow22523 chains, extended-coordinate group ops, constant-time 4-bit-window scalar mult; RFC 8032 section 7.1 vectors, CLI cross-checked |
 | RSA | `crypto/rsa` + `crypto/bn` | implemented (`rsa` on `bn`): raw/PKCS#1 v1.5/OAEP encryption, PKCS#1 v1.5/PSS signatures, CRT private path, key generation (top-two-bit primes, small-prime sieve, 64 MR rounds, FIPS 186-4 distance), PKCS#1 DER + PKCS#8 parse; all directions cross-checked against the OpenSSL 3.5.8 CLI |
 | RSA-PSS/other digests | | PSS and PKCS#1 v1.5 accept md5/sha1/sha224/sha256/sha384/sha512 (DigestInfo table) |
-| X25519 | `crypto/ec/curve25519.c` | not started (the ed25519 field arithmetic is reusable) |
+| X25519 | `crypto/ec/curve25519.c` | implemented (`x25519`): Montgomery ladder over radix-2^64 field ops, fe64 asm (`x25519_fe64_*`) wired in when `asm` is on; RFC 7748 §5.2/§6.1 vectors |
 | DSA/ECDSA/SM2 | | not started |
 | ML-KEM/ML-DSA/SLH-DSA/LMS | | not started |
 | RAND | `crypto/rand` | not started; randomized RSA operations take a caller-supplied `Rng` instead |
@@ -195,8 +195,7 @@ harness cannot silently degrade into skipping everything again.
 | `hash.rs` | pyca | MD5, SHA-1/2/3, SHAKE (incl. variable output), SM3, BLAKE2b/2s, HMAC-RIPEMD-160 |
 
 Not covered because crown has no implementation to test against those
-vectors: X25519/X448 (no public agreement API; the fe64/fe51 asm is tested
-internally), DSA/ECDSA/ECDH/Ed448, ML-KEM/ML-DSA, AES-GCM-SIV, AEGIS/ASCON,
+vectors: X448/Ed448, DSA/ECDSA/ECDH, ML-KEM/ML-DSA, AES-GCM-SIV, AEGIS/ASCON,
 KW/KWP key wrap, FF1, PBES2, PKCS#7/PKCS#12/X.509 and HOTP/TOTP. The KBKDF
 CAVS files are not consumed either: their counter-placement variants
 (`CTRLOCATION`, `RLEN`) are not expressible through `kbkdf::FixedInput`,
