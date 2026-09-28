@@ -270,3 +270,29 @@ Notes:
   prepended to the CBC of PKCS#7-padded plaintext (output = `iv || ct`).
 - Crown CBC decrypters follow the Go `BlockMode` convention: the processing
   entry point is `encrypt()`; `decrypt()` is `unreachable!()`.
+
+
+## 5. Post-quantum status (feat/second, updated 2026-09-28)
+
+| Algorithm | Spec | Module | Status |
+|---|---|---|---|
+| ML-KEM-512/768/1024 | FIPS 203 | `crown/src/ml_kem` | done — keygen/encaps/decaps, ACVP golden tests (13 unit tests); exposed in `crown-bin kem` |
+| ML-DSA-44/65/87 | FIPS 204 | `crown/src/ml_dsa` | done — keygen/sign/verify (pure, prehashed, mu), ACVP + Wycheproof (12 unit tests); exposed in `crown-bin sign` |
+| SLH-DSA (12 parameter sets) | FIPS 205 | `crown/src/slh_dsa` | in progress |
+| LMS | RFC 8554 | — | not in OpenSSL 3.5.8 tree (`crypto/lms` empty); deferred |
+
+### Exposure surface added on `second`
+
+- **hash**: md5-sha1, ripemd160, mdc2, whirlpool → bin/cabi/wasm/playground
+- **AEAD**: AES-GCM-SIV, Ascon-AEAD128, AES-SIV → envelope + bin/cabi/wasm/playground
+- **modes**: DESX-CBC, AES-XTS, SM4-XTS(+GB), AES-KW/KWP, FF1 → envelope + bin/cabi
+- **MAC**: SipHash, KMAC128/256, CMAC-AES, GMAC-AES → EvpMac + bin/cabi/wasm
+- **OTP**: HOTP/TOTP → bin
+- **KDF**: PBKDF1, TLS1-PRF, SSKDF, SSHKDF, PKCS12KDF, SRTP-KDF, X963KDF → bin
+- **sign**: Ed25519/Ed448/ML-DSA → bin
+- **kem**: ML-KEM → bin
+
+### Remaining x86_64 perlasm on `second`
+
+- done this round: `x86_64-gf2m.pl`, `aesni-sha1-x86_64.pl`
+- still open: `aesni-sha256-x86_64.pl`, `sha1-mb-x86_64.pl`, `sha256-mb-x86_64.pl`, `ml_dsa_ntt` (if present)
