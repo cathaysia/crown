@@ -294,6 +294,63 @@ macro_rules! impl_aead_cipher {
             }
         }
     };
+    (@special aes_gcm_siv) => {
+        #[unsafe(no_mangle)]
+        pub unsafe extern "C" fn aead_cipher_new_aes_gcm_siv(
+            key: *const u8,
+            key_len: usize
+        ) -> *mut Self {
+            unsafe {
+                let key_slice = match slice_from_raw_parts(key, key_len) {
+                    Some(slice) => slice,
+                    None => return std::ptr::null_mut(),
+                };
+
+                match EvpAeadCipher::new_aes_gcm_siv(key_slice) {
+                    Ok(cipher) => Box::into_raw(Box::new(Self(cipher))),
+                    Err(_) => std::ptr::null_mut(),
+                }
+            }
+        }
+    };
+    (@special ascon_aead128) => {
+        #[unsafe(no_mangle)]
+        pub unsafe extern "C" fn aead_cipher_new_ascon_aead128(
+            key: *const u8,
+            key_len: usize
+        ) -> *mut Self {
+            unsafe {
+                let key_slice = match slice_from_raw_parts(key, key_len) {
+                    Some(slice) => slice,
+                    None => return std::ptr::null_mut(),
+                };
+
+                match EvpAeadCipher::new_ascon_aead128(key_slice) {
+                    Ok(cipher) => Box::into_raw(Box::new(Self(cipher))),
+                    Err(_) => std::ptr::null_mut(),
+                }
+            }
+        }
+    };
+    (@special aes_siv) => {
+        #[unsafe(no_mangle)]
+        pub unsafe extern "C" fn aead_cipher_new_aes_siv(
+            key: *const u8,
+            key_len: usize
+        ) -> *mut Self {
+            unsafe {
+                let key_slice = match slice_from_raw_parts(key, key_len) {
+                    Some(slice) => slice,
+                    None => return std::ptr::null_mut(),
+                };
+
+                match EvpAeadCipher::new_aes_siv(key_slice) {
+                    Ok(cipher) => Box::into_raw(Box::new(Self(cipher))),
+                    Err(_) => std::ptr::null_mut(),
+                }
+            }
+        }
+    };
 }
 
 impl AeadCipher {
@@ -303,7 +360,7 @@ impl AeadCipher {
             Kseed, Anubis, Noekeon, Khazad, Serpent, Idea
         ],
         rounds: [Rc2, Rc5, Camellia, Multi2],
-        special: [chacha20_poly1305, xchacha20_poly1305],
+        special: [chacha20_poly1305, xchacha20_poly1305, aes_gcm_siv, ascon_aead128, aes_siv],
     );
 
     #[unsafe(no_mangle)]

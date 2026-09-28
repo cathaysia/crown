@@ -243,7 +243,13 @@ macro_rules! enc_algorithm {
 }
 
 enc_algorithm!(
-    aead: [(Chacha20Poly1305, chacha20_poly1305), (Xchacha20Poly1305, xchacha20_poly1305)],
+    aead: [
+        (Chacha20Poly1305, chacha20_poly1305),
+        (Xchacha20Poly1305, xchacha20_poly1305),
+        (AesGcmSiv, aes_gcm_siv),
+        (AsconAead128, ascon_aead128),
+        (AesSiv, aes_siv),
+    ],
     simple_stream: [Rc4],
     iv_stream: [Salsa20, Chacha20, Rabbit, Sosemanuk, Sober128],
     block_cipher: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Rc6, Sm4, Skipjack, Kasumi, Kseed, Anubis, Noekeon, Khazad, Serpent, Idea],
