@@ -241,7 +241,6 @@ pub fn invert(z: &Fe64) -> Fe64 {
     mul(&t1, &t0)
 }
 
-// ---- helpers (software path) ----
 
 fn fold38(h: &mut Fe64, mut extra: u64) {
     // h += 38 * extra, twice, to land mod 2^256-38.

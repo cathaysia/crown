@@ -78,10 +78,8 @@ fn fixed_k(k: &Bn, order_bytes: usize) -> FixedK {
     }
 }
 
-// ---------------------------------------------------------------------------
 // X448 — RFC 7748 §5.2 scalar_mult vectors 1-2, §6.2 Diffie-Hellman,
 // plus the §5.2 iterative one-iteration vector.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_golden_x448() {
@@ -177,9 +175,7 @@ fn test_golden_x448() {
     assert!(checked >= 3, "only {checked} X448 vectors verified");
 }
 
-// ---------------------------------------------------------------------------
 // Ed448 — RFC 8032 §7.4 (pure) + §7.5 (Ed448ph)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_golden_ed448() {
@@ -349,9 +345,7 @@ fn test_golden_ed448() {
     assert!(checked >= 6, "only {checked} Ed448 vectors verified");
 }
 
-// ---------------------------------------------------------------------------
 // ECDH — RFC 5903 §8.1/8.2/8.3 (P-256 / P-384 / P-521)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_golden_ecdh() {
@@ -453,9 +447,7 @@ fn test_golden_ecdh() {
     assert!(checked >= 3, "only {checked} ECDH vectors verified");
 }
 
-// ---------------------------------------------------------------------------
 // ECDSA — RFC 6979 A.2.5 (P-256), A.2.6 (P-384), A.2.7 (P-521)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_golden_ecdsa() {
@@ -583,9 +575,7 @@ fn test_golden_ecdsa() {
     assert!(checked >= 4, "only {checked} ECDSA vectors verified");
 }
 
-// ---------------------------------------------------------------------------
 // DSA — RFC 6979 A.2.2 (DSA 2048-bit, SHA-256)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_golden_dsa() {
@@ -674,9 +664,7 @@ fn test_golden_dsa() {
     assert!(checked >= 2, "only {checked} DSA vectors verified");
 }
 
-// ---------------------------------------------------------------------------
 // SM2 — GM/T 0003.5 sample + sign/verify roundtrip
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_golden_sm2() {
@@ -737,10 +725,8 @@ fn test_golden_sm2() {
     assert!(checked >= 1, "only {checked} SM2 vectors verified");
 }
 
-// ---------------------------------------------------------------------------
 // DH MODP-2048 — roundtrip + range rejects.
 // In-module tests are roundtrip-only (no published shared-secret vector).
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_golden_dh_modp2048() {

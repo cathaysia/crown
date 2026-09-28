@@ -25,9 +25,7 @@ const fn rotr(x: u64, n: u32) -> u64 {
 /// from the end of the 12-round constant sequence.
 fn ascon_permutation(s: &mut [u64; 5], rounds: usize) {
     for r in (12 - rounds)..12 {
-        // --- add round constant ---
         s[2] ^= 0xf0u64.wrapping_sub(r as u64 * 0x10) + r as u64;
-        // --- substitution layer ---
         s[0] ^= s[4];
         s[4] ^= s[3];
         s[2] ^= s[1];
@@ -45,7 +43,6 @@ fn ascon_permutation(s: &mut [u64; 5], rounds: usize) {
         s[0] ^= s[4];
         s[3] ^= s[2];
         s[2] = !s[2];
-        // --- linear diffusion layer ---
         s[0] ^= rotr(s[0], 19) ^ rotr(s[0], 28);
         s[1] ^= rotr(s[1], 61) ^ rotr(s[1], 39);
         s[2] ^= rotr(s[2], 1) ^ rotr(s[2], 6);

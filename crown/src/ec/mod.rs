@@ -134,7 +134,6 @@ struct Jac {
     z: Bn,
 }
 
-// ---- modular helpers -------------------------------------------------------
 
 fn madd(a: &Bn, b: &Bn, p: &Bn) -> Bn {
     a.add(b).modulus(p)
@@ -332,7 +331,6 @@ fn pad32(b: &[u8]) -> [u8; 32] {
     out
 }
 
-// ---- Jacobian arithmetic ---------------------------------------------------
 
 fn jac_is_inf(j: &Jac) -> bool {
     j.z.is_zero()
