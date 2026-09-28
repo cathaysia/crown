@@ -69,12 +69,16 @@ extern crate alloc;
 pub mod aead;
 pub mod block;
 pub mod bn;
+pub mod curve448;
+pub mod dh;
 pub mod ec;
 pub mod ecdh;
 pub mod ecdsa;
-pub mod dh;
 pub mod ed25519;
+#[cfg(feature = "alloc")]
+pub mod ed448;
 pub mod x25519;
+pub mod x448;
 pub mod envelope;
 pub mod hash;
 pub mod kdf;
