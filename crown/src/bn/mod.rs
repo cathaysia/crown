@@ -14,6 +14,8 @@
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 pub(crate) mod asm;
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+pub(crate) mod gf2m;
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
 pub(crate) mod rsaz;
 #[cfg(test)]
 mod tests;
