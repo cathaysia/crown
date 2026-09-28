@@ -38,6 +38,17 @@ pub fn run_mac(args: ArgsMac) -> anyhow::Result<()> {
             h.write(&data);
             h.sum().to_vec()
         }
+        MacAlgorithm::GmacAes => {
+            if custom.len() != 12 {
+                anyhow::bail!("GMAC IV must be 12 bytes (pass via --custom)");
+            }
+            let mut iv = [0u8; 12];
+            iv.copy_from_slice(&custom);
+            let cipher = crown::block::aes::Aes::new(&key)?;
+            let mut h = crown::mac::gmac::Gmac::new(cipher, &iv)?;
+            h.write(&data);
+            h.sum().to_vec()
+        }
     };
 
     println!("{}", hex::encode(tag));

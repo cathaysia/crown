@@ -7,6 +7,8 @@ pub mod evp_stream;
 pub mod evp_xts;
 pub mod evp_misc;
 pub mod evp_mac;
+pub mod evp_sign;
+pub mod evp_kem;
 
 unsafe fn slice_from_raw_parts<'a>(ptr: *const u8, len: usize) -> Option<&'a [u8]> {
     if ptr.is_null() {

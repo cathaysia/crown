@@ -119,6 +119,73 @@ pub fn run_kdf(args: ArgsKdf) -> anyhow::Result<()> {
             label.as_bytes(),
             length,
         )?,
+        crate::args::KdfAlgorithm::X942Kdf => {
+            use crown::kdf::x942kdf::{derive, CekAlg};
+            // password = Z (shared secret); label = empty; partyU/partyV from salt
+            let cek = match id {
+                1 => CekAlg::Aes128Wrap,
+                2 => CekAlg::Aes192Wrap,
+                3 => CekAlg::Aes256Wrap,
+                _ => CekAlg::Des3Wrap,
+            };
+            derive(
+                crown::envelope::EvpHash::new_sha256,
+                password_bytes,
+                cek,
+                salt_bytes,
+                b"",
+                b"",
+                b"",
+                true,
+                length,
+            )?
+        }
+        crate::args::KdfAlgorithm::Krb5Kdf => {
+            use crown::block::aes::Aes;
+            use crown::block::des::TripleDes;
+            use crown::kdf::krb5kdf::{derive, derive_des3};
+            // secret = cipher key; salt = constant; id: 1=AES, 2=3DES
+            match id {
+                1 => {
+                    let c = Aes::new(&secret_bytes)?;
+                    derive(&c, length, salt_bytes)?
+                }
+                _ => {
+                    let c = TripleDes::new(&secret_bytes)?;
+                    derive_des3(&c, salt_bytes)?
+                }
+            }
+        }
+        crate::args::KdfAlgorithm::Kbkdf => {
+            use crown::kdf::kbkdf::{derive_hmac, FixedInput, Mode};
+            let fi = FixedInput {
+                label: label.as_bytes(),
+                context: salt_bytes,
+                iv: &[],
+                use_l: true,
+                use_separator: true,
+                r: 32,
+            };
+            derive_hmac(
+                crown::envelope::EvpHash::new_sha256_hmac,
+                Mode::Counter,
+                &secret_bytes,
+                &fi,
+                length,
+            )?
+        }
+        crate::args::KdfAlgorithm::Ikev2Kdf => {
+            use crown::kdf::ikev2kdf::seedkey_gen;
+            // password = DH secret; salt = Ni||Nr concatenated
+            let mid = salt_bytes.len() / 2;
+            let (ni, nr) = salt_bytes.split_at(mid);
+            seedkey_gen(
+                crown::envelope::EvpHash::new_sha256_hmac,
+                password_bytes,
+                ni,
+                nr,
+            )?
+        }
     };
 
     let output = if hex {

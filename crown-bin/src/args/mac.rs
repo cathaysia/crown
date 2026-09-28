@@ -25,6 +25,7 @@ pub enum MacAlgorithm {
     Kmac128,
     Kmac256,
     CmacAes,
+    GmacAes,
 }
 
 /// One-time passwords (HOTP / TOTP).
