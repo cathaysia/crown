@@ -130,7 +130,7 @@ EVP_KDF's digest option. HKDF/PBKDF2/scrypt/argon2 already existed
 | RSA-PSS/other digests | | PSS and PKCS#1 v1.5 accept md5/sha1/sha224/sha256/sha384/sha512 (DigestInfo table) |
 | X25519 | `crypto/ec/curve25519.c` | implemented (`x25519`): Montgomery ladder over radix-2^64 field ops, fe64 asm (`x25519_fe64_*`) wired in when `asm` is on; RFC 7748 §5.2/§6.1 vectors |
 | X448 | `crypto/ec/curve448/` | implemented (`x448` + shared `curve448::fe`): Montgomery ladder over radix-2^56 (8×56-bit limbs) field ops for p = 2^448-2^224-1, software only; RFC 7748 §5.2 vectors 1-2, §5.2 iterative (1 iter), §6.2 Diffie-Hellman |
-| DSA/ECDSA/SM2 | | not started |
+| DSA/ECDSA/SM2 | | implemented — see the asymmetric table below (DSA-2048/256, ECDSA P-256/384/521, SM2) |
 | ML-KEM/ML-DSA/SLH-DSA/LMS | | not started |
 | RAND | `crypto/rand` | not started; randomized RSA operations take a caller-supplied `Rng` instead |
 
@@ -197,8 +197,10 @@ harness cannot silently degrade into skipping everything again.
 | `hash.rs` | pyca | MD5, SHA-1/2/3, SHAKE (incl. variable output), SM3, BLAKE2b/2s, HMAC-RIPEMD-160 |
 
 Not covered because crown has no implementation to test against those
-vectors: X448/Ed448, DSA/ECDSA/ECDH, ML-KEM/ML-DSA, AEGIS, FF1, PBES2,
-PKCS#7/PKCS#12/X.509 and HOTP/TOTP. AES-GCM-SIV, Ascon-AEAD128 and
+vectors: ML-KEM/ML-DSA, AEGIS, FF1, PBES2,
+PKCS#7/PKCS#12/X.509 and HOTP/TOTP. DSA/ECDSA/ECDH are now implemented
+and pinned by in-module RFC 6979 / RFC 5903 KATs (X448/Ed448 likewise
+have RFC 7748/8032 in-module vectors). AES-GCM-SIV, Ascon-AEAD128 and
 KW/KWP are now implemented and covered by in-module RFC/KAT vectors
 rather than the vendored vector trees. The KBKDF
 CAVS files are not consumed either: their counter-placement variants
@@ -223,8 +225,9 @@ which the unit tests pin against OpenSSL's EVP vectors instead.
 
 | Algorithm | Module | Status |
 |---|---|---|
-| Short-Weierstrass Jacobian EC (P-256) | `crown/src/ec` | done — FIPS 186-4 D.1.2.3 params; tests: n*G=O, G*1=G, 2G=G+G |
-| ECDH (P-256) | `crown/src/ecdh` | done — RFC 5903 §8.1 P-256 KAT + generate/agree roundtrip |
-| ECDSA (P-256/SHA-256) | `crown/src/ecdsa` | done — RFC 6979 A.2.5 P-256/SHA-256 vectors |
+| Short-Weierstrass Jacobian EC (P-256/P-384/P-521) | `crown/src/ec` | done — FIPS 186-4 D.1.2.3/4/5 params (secp256r1/secp384r1/secp521r1); group laws for all three curves; RFC 5903 §8.2/§8.3 scalar-mult KATs |
+| ECDH (P-256/P-384/P-521) | `crown/src/ecdh` | done — `generate`/`agree` take a `CurveId`; shared secret is x left-padded to 32/48/66 bytes; RFC 5903 §8.1/§8.2/§8.3 KATs |
+| ECDSA (P-256/384/521, SHA-256/384/512) | `crown/src/ecdsa` | done — `sign`/`verify` with explicit `CurveId` + `DigestId`; `sign_sha256`/`verify_sha256` kept as P-256 wrappers; RFC 6979 A.2.5 (P-256/SHA-256), A.2.6 (P-384/SHA-384), A.2.7 (P-521/SHA-512) |
+| DSA (FIPS 186-4, 2048/256) | `crown/src/dsa` | done — `dsa_2048_256()` parameter set (RFC 6979 A.2.2 / NIST), `generate`, `sign_sha256`, `verify_sha256`; g^q ≡ 1 mod p sanity + RFC 6979 A.2.2 SHA-256 sample/test KATs |
 | DH MODP 2048 (RFC 3526) | `crown/src/dh` | done — modp2048() + generate/agree with y-range checks |
 | SM2 signature (GM/T 0003.2) | `crown/src/sm2` | done — GM/T sample (d, M="message digest") r/s match |
