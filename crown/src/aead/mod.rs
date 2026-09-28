@@ -11,6 +11,11 @@ pub mod chacha20poly1305;
 pub mod eax;
 #[cfg(feature = "alloc")]
 pub mod gcm;
+
+#[cfg(feature = "alloc")]
+pub mod gcm_siv;
+
+pub mod ascon;
 pub mod ocb3;
 #[cfg(feature = "alloc")]
 pub mod siv;
