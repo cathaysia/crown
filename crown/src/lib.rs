@@ -84,6 +84,7 @@ pub mod envelope;
 pub mod hash;
 pub mod kdf;
 pub mod mac;
+pub mod otp;
 pub mod modes;
 pub mod padding;
 #[cfg(feature = "password")]
@@ -96,6 +97,7 @@ pub mod core;
 
 pub mod cuda;
 
+pub mod drbg;
 pub mod error;
 
 #[cfg(not(feature = "unstable"))]
