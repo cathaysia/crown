@@ -40,6 +40,8 @@ fn main() -> anyhow::Result<()> {
         args::Args::Kdf(args) => runner::run_kdf(args)?,
         args::Args::Wrap(args) => runner::run_wrap(args)?,
         args::Args::Ff1(args) => runner::run_ff1(args)?,
+        args::Args::Mac(args) => runner::run_mac(args)?,
+        args::Args::Otp(args) => runner::run_otp(args)?,
     }
 
     Ok(())

@@ -14,3 +14,6 @@ pub use kdf::run_kdf;
 
 mod wrap;
 pub use wrap::{run_ff1, run_wrap};
+
+mod mac;
+pub use mac::{run_mac, run_otp};
