@@ -71,6 +71,7 @@ pub mod block;
 pub mod bn;
 pub mod curve448;
 pub mod dh;
+pub mod dsa;
 pub mod ec;
 pub mod ecdh;
 pub mod ecdsa;
