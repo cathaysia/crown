@@ -106,3 +106,51 @@ fn reset_reuses_state() {
     h.write_all(b"a").unwrap();
     assert_eq!(h.sum(), sum_whirlpool(b"a"));
 }
+
+#[test]
+fn block_matches_software() {
+    // Compare the dispatching `block` against the portable implementation
+    // on the same single-block inputs (exercises the asm path when
+    // feature="asm" on x86_64).
+    let mut inputs: [[u8; 64]; 11] = [[0u8; 64]; 11];
+    inputs[1] = [0xffu8; 64];
+    inputs[2][0] = 0x80;
+    let mut prng = 0x1234_5678_9abc_def0u64;
+    for (case, b) in inputs[3..].iter_mut().enumerate() {
+        for slot in b.iter_mut() {
+            prng = prng.wrapping_mul(6364136223846793005).wrapping_add(1);
+            *slot = (prng >> 33) as u8;
+        }
+        b[63] ^= case as u8;
+    }
+
+    for data in &inputs {
+        let mut h_asm = [0u64; 8];
+        let mut h_soft = [0u64; 8];
+        super::block(&mut h_asm, data);
+        super::block_soft(&mut h_soft, data);
+        assert_eq!(h_asm, h_soft, "data[..8]={:02x?}", &data[..8]);
+    }
+}
+
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[test]
+fn asm_multiblock_matches_single() {
+    // The asm entry point accepts a block count; feeding N blocks in one
+    // call must equal N single-block software compressions chained.
+    let mut prng = 0xfeed_face_cafe_beefu64;
+    let mut data = [0u8; 64 * 5];
+    for slot in data.iter_mut() {
+        prng = prng.wrapping_mul(6364136223846793005).wrapping_add(1);
+        *slot = (prng >> 33) as u8;
+    }
+
+    let mut h_multi = [0u64; 8];
+    super::asm::block(&mut h_multi, &data);
+
+    let mut h_single = [0u64; 8];
+    for chunk in data.chunks_exact(64) {
+        super::block_soft(&mut h_single, chunk);
+    }
+    assert_eq!(h_multi, h_single);
+}
