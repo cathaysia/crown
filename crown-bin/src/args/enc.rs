@@ -1,6 +1,6 @@
 use clap::{Parser, ValueEnum};
 use crown::{
-    envelope::{EvpAeadCipher, EvpBlockCipher, EvpStreamCipher},
+    envelope::{EvpAeadCipher, EvpBlockCipher, EvpStreamCipher, EvpXts},
     error::CryptoResult,
     padding::Padding,
 };
@@ -78,6 +78,7 @@ pub enum Cipher {
     Aead(EvpAeadCipher),
     Stream(EvpStreamCipher),
     Block(EvpBlockCipher),
+    Xts(EvpXts),
 }
 
 macro_rules! new_ccm_cipher {
@@ -104,7 +105,9 @@ macro_rules! enc_algorithm {
         simple_stream: [$($simple: ident),* $(,)*],
         iv_stream: [$($iv_stream: ident),* $(,)*],
         block_cipher: [$($block: ident),* $(,)*],
-        rounds_cipher: [$($rounds: ident),* $(,)*]
+        rounds_cipher: [$($rounds: ident),* $(,)*] $(,)?
+        cbc_only: [$($cbc: ident),* $(,)*] $(,)?
+        xts: [$(($xts_enum: ident, $xts_func: ident)),* $(,)*] $(,)?
     ) => {
         paste::paste! {
             #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -137,6 +140,14 @@ macro_rules! enc_algorithm {
                     [<$block Cfb>],
                     #[doc=$block " in Ofb mode"]
                     [<$block Ofb>],
+                )*
+                $(
+                    #[doc=$cbc " in Cbc mode"]
+                    [<$cbc Cbc>],
+                )*
+                $(
+                    #[doc=$xts_enum " mode"]
+                    $xts_enum,
                 )*
                 $(
                     #[doc=$rounds " in Gcm mode"]
@@ -235,6 +246,16 @@ macro_rules! enc_algorithm {
                                 EvpBlockCipher::[<new_ $rounds:lower _cbc>](&key, &iv, rounds).map(Cipher::Block)
                             },
                         )*
+                        $(
+                            EncAlgorithm::[<$cbc Cbc>] => {
+                                EvpBlockCipher::[<new_ $cbc:lower _cbc>](&key, &iv).map(Cipher::Block)
+                            },
+                        )*
+                        $(
+                            EncAlgorithm::$xts_enum => {
+                                EvpXts::[<new_ $xts_func>](&key).map(Cipher::Xts)
+                            },
+                        )*
                     }
                 }
             }
@@ -253,5 +274,7 @@ enc_algorithm!(
     simple_stream: [Rc4],
     iv_stream: [Salsa20, Chacha20, Rabbit, Sosemanuk, Sober128],
     block_cipher: [Aes, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Rc6, Sm4, Skipjack, Kasumi, Kseed, Anubis, Noekeon, Khazad, Serpent, Idea],
-    rounds_cipher: [Rc2, Rc5, Camellia, Multi2]
+    rounds_cipher: [Rc2, Rc5, Camellia, Multi2],
+    cbc_only: [Desx],
+    xts: [(AesXts, aes_xts), (Sm4Xts, sm4_xts), (Sm4XtsGb, sm4_xts_gb)],
 );

@@ -90,6 +90,9 @@ pub mod padding;
 #[cfg(feature = "password")]
 pub mod password_hash;
 pub mod rsa;
+pub mod ml_kem;
+pub mod ml_dsa;
+pub mod slh_dsa;
 pub mod sm2;
 pub mod stream;
 

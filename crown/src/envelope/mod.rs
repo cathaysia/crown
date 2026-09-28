@@ -23,3 +23,9 @@ pub use evp_stream::*;
 
 mod evp_block;
 pub use evp_block::*;
+
+mod evp_xts;
+pub use evp_xts::*;
+
+mod evp_misc;
+pub use evp_misc::*;

@@ -44,6 +44,10 @@ pub fn run_dec(args: ArgsDec) -> anyhow::Result<()> {
             cipher.decrypt_alloc(&mut infile).unwrap();
             std::fs::write(out_file, infile)?;
         }
+        Cipher::Xts(cipher) => {
+            cipher.decrypt(&iv, &mut infile)?;
+            std::fs::write(out_file, infile)?;
+        }
     }
 
     Ok(())

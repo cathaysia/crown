@@ -43,7 +43,7 @@ macro_rules! impl_block_cipher {
 impl_block_cipher!(
     basic: [
         Aes, Aria, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack,
-        Kasumi, Kseed, Anubis, Noekeon, Khazad, Serpent
+        Kasumi, Kseed, Anubis, Noekeon, Khazad, Serpent, Desx
     ],
     rounds: [Rc2, Rc5, Camellia, Multi2],
 );

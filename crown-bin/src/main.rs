@@ -38,6 +38,8 @@ fn main() -> anyhow::Result<()> {
         args::Args::Enc(args) => runner::run_enc(args)?,
         args::Args::Dec(args) => runner::run_dec(args)?,
         args::Args::Kdf(args) => runner::run_kdf(args)?,
+        args::Args::Wrap(args) => runner::run_wrap(args)?,
+        args::Args::Ff1(args) => runner::run_ff1(args)?,
     }
 
     Ok(())
