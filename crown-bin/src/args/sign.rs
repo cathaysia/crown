@@ -24,4 +24,7 @@ pub struct ArgsSign {
 pub enum SignAlgorithm {
     Ed25519,
     Ed448,
+    MlDsa44,
+    MlDsa65,
+    MlDsa87,
 }
