@@ -13,6 +13,9 @@ pub use jsasm::*;
 mod wrap;
 pub use wrap::*;
 
+mod mac;
+pub use mac::*;
+
 use clap::Parser;
 
 #[derive(Debug, Parser)]
@@ -26,6 +29,10 @@ pub enum Args {
     Wrap(ArgsWrap),
     /// FF1 format-preserving encryption (decimal).
     Ff1(ArgsFf1),
+    /// Message authentication codes.
+    Mac(ArgsMac),
+    /// HOTP / TOTP one-time passwords.
+    Otp(ArgsOtp),
 }
 
 #[derive(Debug, Parser)]
