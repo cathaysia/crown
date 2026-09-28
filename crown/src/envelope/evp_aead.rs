@@ -1,7 +1,10 @@
+use crate::aead::ascon::AsconAead128;
 use crate::aead::ccm::Ccm;
 use crate::aead::eax::Eax;
 use crate::aead::gcm::Gcm;
+use crate::aead::gcm_siv::AesGcmSiv;
 use crate::aead::ocb3::Ocb3;
+use crate::aead::siv::AesSiv;
 use crate::block::aes::Aes;
 use crate::block::anubis::Anubis;
 use crate::block::aria::Aria;
@@ -100,13 +103,39 @@ macro_rules! impl_aead_cipher {
             Ok(Self::new_impl(crate::aead::chacha20poly1305::XChaCha20Poly1305::new(key)?))
         }
     };
+    (@special aes_gcm_siv) => {
+        pub fn new_aes_gcm_siv(key: &[u8]) -> CryptoResult<Self> {
+            Ok(Self::new_impl(AesGcmSiv::new(key)?))
+        }
+    };
+    (@special ascon_aead128) => {
+        pub fn new_ascon_aead128(key: &[u8]) -> CryptoResult<Self> {
+            if key.len() != 16 {
+                return Err(crate::error::CryptoError::InvalidKeySize {
+                    expected: "16",
+                    actual: key.len(),
+                });
+            }
+            let mut k = [0u8; 16];
+            k.copy_from_slice(key);
+            Ok(Self::new_impl(AsconAead128::new(&k)))
+        }
+    };
+    (@special aes_siv) => {
+        /// AES-SIV (RFC 5297). The `nonce` is passed as the first S2V
+        /// associated-data component, matching OpenSSL; `additional_data`
+        /// becomes the second component when non-empty.
+        pub fn new_aes_siv(key: &[u8]) -> CryptoResult<Self> {
+            Ok(Self::new_siv_impl(AesSiv::new(key)?))
+        }
+    };
 }
 
 impl EvpAeadCipher {
     impl_aead_cipher!(
         basic: [Aes, Aria, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack, Kasumi, Kseed, Anubis, Noekeon, Khazad, Serpent],
         rounds: [Rc2, Rc5, Camellia, Multi2],
-        special: [chacha20_poly1305, xchacha20_poly1305],
+        special: [chacha20_poly1305, xchacha20_poly1305, aes_gcm_siv, ascon_aead128, aes_siv],
     );
 
     fn new_impl<const N: usize>(aead: impl Aead<N> + 'static) -> Self {
@@ -147,6 +176,60 @@ impl EvpAeadCipher {
             }
         }
         Self(Box::new(Wrapper(aead)))
+    }
+
+    fn new_siv_impl(siv: AesSiv) -> Self {
+        use alloc::rc::Rc;
+        use core::cell::RefCell;
+
+        struct SivWrapper(Rc<RefCell<AesSiv>>);
+
+        impl ErasedAeadInner for SivWrapper {
+            fn nonce_size(&self) -> usize {
+                // SIV has no fixed nonce size; any non-negative length works.
+                0
+            }
+
+            fn tag_size(&self) -> usize {
+                AesSiv::tag_size()
+            }
+
+            fn open_in_place_separate_tag(
+                &self,
+                inout: &mut [u8],
+                tag: &[u8],
+                nonce: &[u8],
+                additional_data: &[u8],
+            ) -> CryptoResult<()> {
+                let mut aads: Vec<&[u8]> = Vec::new();
+                if !nonce.is_empty() {
+                    aads.push(nonce);
+                }
+                if !additional_data.is_empty() {
+                    aads.push(additional_data);
+                }
+                self.0.borrow_mut().open_in_place(inout, tag, &aads)
+            }
+
+            fn seal_in_place_separate_tag(
+                &self,
+                inout: &mut [u8],
+                nonce: &[u8],
+                additional_data: &[u8],
+            ) -> CryptoResult<Vec<u8>> {
+                let mut aads: Vec<&[u8]> = Vec::new();
+                if !nonce.is_empty() {
+                    aads.push(nonce);
+                }
+                if !additional_data.is_empty() {
+                    aads.push(additional_data);
+                }
+                let tag = self.0.borrow_mut().seal_in_place(inout, &aads)?;
+                Ok(tag.to_vec())
+            }
+        }
+
+        Self(Box::new(SivWrapper(Rc::new(RefCell::new(siv)))))
     }
 
     pub fn nonce_size(&self) -> usize {
