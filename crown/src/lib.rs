@@ -71,6 +71,7 @@ pub mod block;
 pub mod bn;
 pub mod ec;
 pub mod ecdh;
+pub mod ecdsa;
 pub mod ed25519;
 pub mod x25519;
 pub mod envelope;
