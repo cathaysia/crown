@@ -44,6 +44,10 @@ pub fn run_enc(args: ArgsEnc) -> anyhow::Result<()> {
             cipher.encrypt_alloc(&mut infile).unwrap();
             std::fs::write(out_file, infile)?;
         }
+        Cipher::Xts(cipher) => {
+            cipher.encrypt(&iv, &mut infile)?;
+            std::fs::write(out_file, infile)?;
+        }
     }
 
     Ok(())

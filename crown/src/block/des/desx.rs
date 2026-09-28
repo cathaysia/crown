@@ -7,7 +7,9 @@
 //! construction and is **not** recommended for new designs.
 
 use crate::block::des::Des;
-use crate::block::BlockCipher;
+use crate::block::{BlockCipher, BlockCipherMarker};
+
+impl BlockCipherMarker for Desx {}
 use crate::error::CryptoResult;
 
 /// DES-X block cipher: 8-byte blocks, three 8-byte keys.

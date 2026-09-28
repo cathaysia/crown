@@ -22,7 +22,7 @@ use crate::{
     block::blowfish::Blowfish,
     block::camellia::Camellia,
     block::cast5::Cast5,
-    block::des::{Des, TripleDes},
+    block::des::{Des, Desx, TripleDes},
     block::rc2::Rc2,
     block::rc5::Rc5,
     block::rc6::Rc6,
@@ -105,6 +105,25 @@ impl EvpBlockCipher {
             iv,
             Box::new(Pkcs7),
         )
+    }
+
+    /// DES-X CBC. Key is 24 bytes: k1 (8) || k2 (8) || DES key (8).
+    pub fn new_desx_cbc(key: &[u8], iv: &[u8]) -> CryptoResult<Self> {
+        if key.len() != 24 {
+            return Err(CryptoError::InvalidKeySize {
+                expected: "24",
+                actual: key.len(),
+            });
+        }
+        let mut k1 = [0u8; 8];
+        let mut k2 = [0u8; 8];
+        let mut dk = [0u8; 8];
+        k1.copy_from_slice(&key[0..8]);
+        k2.copy_from_slice(&key[8..16]);
+        dk.copy_from_slice(&key[16..24]);
+        let enc = Desx::new(&k1, &k2, &dk)?;
+        let dec = Desx::new(&k1, &k2, &dk)?;
+        Self::new_impl(enc, dec, iv, Box::new(Pkcs7))
     }
 
     fn new_impl<D: BlockCipher>(
