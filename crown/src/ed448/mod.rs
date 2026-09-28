@@ -1,9 +1,10 @@
 //! Ed448 digital signatures (RFC 8032 §5.2), software only.
 //!
-//! Pure Ed448 (phflag = 0) with a required context string (possibly
-//! empty), the `dom4` domain prefix, SHAKE256 hashing, and the
-//! edwards448 group from [`ge`]. Signatures are 114 bytes (`R || S`
-//! with 57 bytes each); public keys and secret seeds are 57 bytes.
+//! Pure Ed448 (phflag = 0) and Ed448ph (phflag = 1) with a required
+//! context string (possibly empty), the `dom4` domain prefix,
+//! SHAKE256 hashing, and the edwards448 group from [`ge`]. Signatures
+//! are 114 bytes (`R || S` with 57 bytes each); public keys and secret
+//! seeds are 57 bytes.
 
 #[cfg(test)]
 mod tests;
@@ -17,6 +18,9 @@ use crate::hash::sha3::new_shake256;
 pub const SIGNATURE_SIZE: usize = 114;
 pub const PUBLIC_KEY_SIZE: usize = 57;
 pub const SECRET_KEY_SIZE: usize = 57;
+
+/// SHAKE256 prehash size used by Ed448ph (RFC 8032 §5.2, PH(x) = SHAKE256(x, 64)).
+pub const PREHASH_SIZE: usize = 64;
 
 /// Maximum context length accepted by RFC 8032 §5.2.
 pub const MAX_CONTEXT_SIZE: usize = 255;
@@ -32,10 +36,10 @@ fn shake256(parts: &[&[u8]]) -> [u8; 114] {
     out
 }
 
-/// The middle two bytes of `dom4(0, context)`: the phflag octet `0`
-/// and the one-octet context length (RFC 8032 §5.2).
-fn dom4_len_byte(context: &[u8]) -> [u8; 2] {
-    [0, context.len() as u8]
+/// `dom4(phflag, context) = "SigEd448" || phflag || context_len || context`.
+/// Returns the two middle octets so callers can splice in `context`.
+fn dom4_len_byte(phflag: u8, context: &[u8]) -> [u8; 2] {
+    [phflag, context.len() as u8]
 }
 
 /// Clamp the first 57 bytes of the SHAKE256 of the secret seed into the
@@ -67,12 +71,20 @@ pub fn public_from_secret(secret: &[u8; SECRET_KEY_SIZE]) -> [u8; PUBLIC_KEY_SIZ
     ge::to_bytes(&ge::scalarmult_base(&s))
 }
 
-/// Sign `msg` with the 57-byte secret seed under `context` (at most
-/// 255 octets, may be empty). Returns the 114-byte `R || S` signature.
-pub fn sign(
+/// SHAKE256(msg) squeezed to 64 bytes — the Ed448ph prehash PH(M).
+pub fn prehash(msg: &[u8]) -> [u8; PREHASH_SIZE] {
+    let mut h = new_shake256();
+    h.write_all(msg).expect("hash write cannot fail");
+    let mut out = [0u8; PREHASH_SIZE];
+    h.read_exact(&mut out).expect("shake read cannot fail");
+    out
+}
+
+fn sign_inner(
     secret: &[u8; SECRET_KEY_SIZE],
     msg: &[u8],
     context: &[u8],
+    phflag: u8,
 ) -> [u8; SIGNATURE_SIZE] {
     assert!(
         context.len() <= MAX_CONTEXT_SIZE,
@@ -81,7 +93,7 @@ pub fn sign(
 
     let (s, prefix) = expand_seed(secret);
     let public = ge::to_bytes(&ge::scalarmult_base(&s));
-    let dom_len = dom4_len_byte(context);
+    let dom_len = dom4_len_byte(phflag, context);
 
     // r = SHAKE256(dom4 || prefix || M) as a little-endian integer.
     let hash = shake256(&[b"SigEd448", &dom_len, context, &prefix, msg]);
@@ -101,13 +113,12 @@ pub fn sign(
     sig
 }
 
-/// Verify `sig` over `msg` under `context` with the 57-byte compressed
-/// public key.
-pub fn verify(
+fn verify_inner(
     public: &[u8; PUBLIC_KEY_SIZE],
     sig: &[u8; SIGNATURE_SIZE],
     msg: &[u8],
     context: &[u8],
+    phflag: u8,
 ) -> bool {
     if context.len() > MAX_CONTEXT_SIZE {
         return false;
@@ -128,7 +139,7 @@ pub fn verify(
     };
 
     // k = SHAKE256(dom4 || R || A || M)
-    let dom_len = dom4_len_byte(context);
+    let dom_len = dom4_len_byte(phflag, context);
     let hash = shake256(&[b"SigEd448", &dom_len, context, &r_bytes, public, msg]);
     let k = sc::reduce_wide(&hash);
 
@@ -142,4 +153,45 @@ pub fn verify(
         diff |= lhs[i] ^ rhs[i];
     }
     diff == 0
+}
+
+/// Sign `msg` with the 57-byte secret seed under `context` (at most
+/// 255 octets, may be empty). Returns the 114-byte `R || S` signature.
+pub fn sign(
+    secret: &[u8; SECRET_KEY_SIZE],
+    msg: &[u8],
+    context: &[u8],
+) -> [u8; SIGNATURE_SIZE] {
+    sign_inner(secret, msg, context, 0)
+}
+
+/// Verify `sig` over `msg` under `context` with the 57-byte compressed
+/// public key.
+pub fn verify(
+    public: &[u8; PUBLIC_KEY_SIZE],
+    sig: &[u8; SIGNATURE_SIZE],
+    msg: &[u8],
+    context: &[u8],
+) -> bool {
+    verify_inner(public, sig, msg, context, 0)
+}
+
+/// Sign a prehashed message (SHAKE256(msg) → 64 bytes) with Ed448ph
+/// (RFC 8032 §5.2, phflag = 1).
+pub fn sign_ph(
+    secret: &[u8; SECRET_KEY_SIZE],
+    prehashed_msg: &[u8; PREHASH_SIZE],
+    context: &[u8],
+) -> [u8; SIGNATURE_SIZE] {
+    sign_inner(secret, prehashed_msg, context, 1)
+}
+
+/// Verify an Ed448ph signature over a prehashed message (phflag = 1).
+pub fn verify_ph(
+    public: &[u8; PUBLIC_KEY_SIZE],
+    sig: &[u8; SIGNATURE_SIZE],
+    prehashed_msg: &[u8; PREHASH_SIZE],
+    context: &[u8],
+) -> bool {
+    verify_inner(public, sig, prehashed_msg, context, 1)
 }

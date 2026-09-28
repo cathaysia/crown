@@ -325,3 +325,93 @@ fn oversized_context_fails() {
     let sig = sign(&secret, b"hello", b"");
     assert!(!verify(&public, &sig, b"hello", &big));
 }
+
+// ---------------------------------------------------------------------------
+// Ed448ph (RFC 8032 §5.2, phflag = 1).  §7.5 vectors.
+// ---------------------------------------------------------------------------
+
+fn to114(s: &str) -> [u8; 114] {
+    let v = hex(s);
+    let mut out = [0u8; 114];
+    out.copy_from_slice(&v);
+    out
+}
+
+// RFC 8032 §7.5 TEST abc (empty context).
+#[test]
+fn rfc8032_ed448ph_blank_context() {
+    let secret = to57(concat!(
+        "833fe62409237b9d62ec77587520911e9a759cec1d19755b7da901b96dca3d42",
+        "ef7822e0d5104127dc05d6dbefde69e3ab2cec7c867c6e2c49"
+    ));
+    let public = to57(concat!(
+        "259b71c19f83ef77a7abd26524cbdb3161b590a48f7d17de3ee0ba9c52beb743",
+        "c09428a131d6b1b57303d90d8132c276d5ed3d5d01c0f53880"
+    ));
+    let msg = b"abc";
+    let context = b"";
+    let expected = to114(concat!(
+        "822f6901f7480f3d5f562c592994d9693602875614483256505600bbc281ae38",
+        "1f54d6bce2ea911574932f52a4e6cadd78769375ec3ffd1b801a0d9b3f4030cd",
+        "433964b6457ea39476511214f97469b57dd32dbc560a9a94d00bff07620464a3",
+        "ad203df7dc7ce360c3cd3696d9d9fab90f00"
+    ));
+
+    assert_eq!(public_from_secret(&secret), public);
+    let ph = prehash(msg);
+    let sig = sign_ph(&secret, &ph, context);
+    assert_eq!(sig[..], expected[..]);
+    assert!(verify_ph(&public, &sig, &ph, context));
+}
+
+// RFC 8032 §7.5 TEST abc (with context "foo").
+#[test]
+fn rfc8032_ed448ph_foo_context() {
+    let secret = to57(concat!(
+        "833fe62409237b9d62ec77587520911e9a759cec1d19755b7da901b96dca3d42",
+        "ef7822e0d5104127dc05d6dbefde69e3ab2cec7c867c6e2c49"
+    ));
+    let public = to57(concat!(
+        "259b71c19f83ef77a7abd26524cbdb3161b590a48f7d17de3ee0ba9c52beb743",
+        "c09428a131d6b1b57303d90d8132c276d5ed3d5d01c0f53880"
+    ));
+    let msg = b"abc";
+    let context = b"foo";
+    let expected = to114(concat!(
+        "c32299d46ec8ff02b54540982814dce9a05812f81962b649d528095916a2aa48",
+        "1065b1580423ef927ecf0af5888f90da0f6a9a85ad5dc3f280d91224ba9911a3",
+        "653d00e484e2ce232521481c8658df304bb7745a73514cdb9bf3e15784ab7128",
+        "4f8d0704a608c54a6b62d97beb511d132100"
+    ));
+
+    assert_eq!(public_from_secret(&secret), public);
+    let ph = prehash(msg);
+    let sig = sign_ph(&secret, &ph, context);
+    assert_eq!(sig[..], expected[..]);
+    assert!(verify_ph(&public, &sig, &ph, context));
+    // Context must match.
+    assert!(!verify_ph(&public, &sig, &ph, b""));
+    assert!(!verify_ph(&public, &sig, &ph, b"bar"));
+}
+
+#[test]
+fn ed448ph_roundtrip_and_tamper() {
+    let secret = [7u8; SECRET_KEY_SIZE];
+    let public = public_from_secret(&secret);
+    let msg = b"bar";
+    let ph = prehash(msg);
+    let sig = sign_ph(&secret, &ph, b"f");
+    assert!(verify_ph(&public, &sig, &ph, b"f"));
+    let mut bad = sig;
+    bad[0] ^= 1;
+    assert!(!verify_ph(&public, &bad, &ph, b"f"));
+}
+
+#[test]
+fn ed448ph_prehash_matches_shake256() {
+    let msg = b"hello world";
+    let ph = prehash(msg);
+    assert_eq!(ph.len(), PREHASH_SIZE);
+    // Determinism.
+    assert_eq!(ph, prehash(msg));
+}
