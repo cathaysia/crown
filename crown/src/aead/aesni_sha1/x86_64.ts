@@ -67,12 +67,15 @@ function and_(dst: string, src: string): void {
 // ---------------------------------------------------------------------------
 type Mode = 'ssse3' | 'avx' | 'shaext';
 
+// $sn is file-scope in the perl and is NOT reset between the ssse3, avx
+// and shaext bodies (Laesenclast labels are numbered across all of them).
+let SN = 0;
+
 interface GenState {
   Xi: number;
   j: number;
   jj: number;
   r: number;
-  sn: number;
   rx: number;
   X: string[];
   Tx: string[];
@@ -103,7 +106,6 @@ function makeState(mode: Mode): GenState {
     j: 0,
     jj: 0,
     r: 0,
-    sn: 0,
     rx: 0,
     X: [],
     Tx: [],
@@ -128,9 +130,10 @@ function makeState(mode: Mode): GenState {
   if (mode === 'avx') {
     st.X = ['%xmm4', '%xmm5', '%xmm6', '%xmm7', '%xmm0', '%xmm1', '%xmm2', '%xmm3'];
     st.Tx = ['%xmm8', '%xmm9', '%xmm10'];
-    st.iv = '%xmm11';
-    st.in = '%xmm12';
-    st.rndkey0 = '%xmm13';
+    // perl: ($rndkey0,$iv,$in)=map("%xmm$_",(11..13))
+    st.rndkey0 = '%xmm11';
+    st.iv = '%xmm12';
+    st.in = '%xmm13';
     st.rndkey = ['%xmm14', '%xmm15'];
     st.Kx = st.Tx[2];
   } else {
@@ -167,14 +170,15 @@ function rotateX(): void {
 function rotateTx(): void {
   S.Tx.push(S.Tx.shift() as string);
 }
+// perl: unshift(@V,pop(@V)) / unshift(@T,pop(@T)) / unshift(@rndkey,pop(@rndkey))
 function rotateV(): void {
-  S.V.push(S.V.shift() as string);
+  S.V.unshift(S.V.pop() as string);
 }
 function rotateT(): void {
-  S.T.push(S.T.shift() as string);
+  S.T.unshift(S.T.pop() as string);
 }
 function rotateRndkey(): void {
-  S.rndkey.push(S.rndkey.shift() as string);
+  S.rndkey.unshift(S.rndkey.pop() as string);
 }
 
 // ---------------------------------------------------------------------------
@@ -205,8 +209,8 @@ function aesencSsse3(): void {
 	aesenc		${rndkey[0]},${iv}
 `;
   } else if (k === 9) {
-    S.sn++;
-    const sn = S.sn;
+    SN++;
+    const sn = SN;
     code += `	cmp		$11,${rounds}
 	jb		.Laesenclast${sn}
 	movups		${32 + 16 * (k + 0) - 112}(${key}),${rndkey[1]}
@@ -255,8 +259,8 @@ function aesencAvx(): void {
 	vmovups		${32 + 16 * k - 112}(${key}),${rndkey[1]}
 `;
   } else if (k === 9) {
-    S.sn++;
-    const sn = S.sn;
+    SN++;
+    const sn = SN;
     code += `	cmp		$11,${rounds}
 	jb		.Lvaesenclast${sn}
 	vaesenc		${rndkey[0]},${iv},${iv}
@@ -311,11 +315,12 @@ function body00_19(): Insn[] {
     return body20_39();
   }
   S.rx++;
+  // perl concatenates the @V assignment onto the ror (". " operator)
   const r: Insn[] = [
     insn(() => {
       [A, B, C, D, E] = S.V;
-    }, { isAssign: true }),
-    insn(() => ror(B, S.j ? 7 : 2), { isRor: true }),
+      ror(B, S.j ? 7 : 2);
+    }, { isRor: true }),
     insn(() => xor(S.T[0], D)),
     insn(() => mov(S.T[1], A)),
     insn(() => add(E, `${4 * (S.j & 15)}(%rsp)`)),
@@ -333,11 +338,8 @@ function body00_19(): Insn[] {
   ];
   const n = r.length;
   // integer division, perl `use integer`
-  const k = ((((S.jj + 1) * 12) | 0) / 20) | 0;
-  const kk = ((((k * 20 * n) | 0) / 12) | 0) | 0;
   const kFinal = ((((((S.jj + 1) * 12) / 20) | 0) * 20 * n) / 12) | 0;
-  void kk;
-  if (S.jj === (kFinal / n) | 0) {
+  if (S.jj === ((kFinal / n) | 0)) {
     const idx = kFinal % n;
     const orig = r[idx];
     r[idx] = insn(() => {
@@ -354,15 +356,14 @@ function body20_39(): Insn[] {
     return body40_59();
   }
   S.rx++;
+  // perl: assign+add concatenated; the two T[0] xors concatenated
   const r: Insn[] = [
     insn(() => {
       [A, B, C, D, E] = S.V;
-    }, { isAssign: true }),
-    insn(() => add(E, `${4 * (S.j & 15)}(%rsp)`)),
-    insn(() => {
-      if (S.j === 19) xor(S.T[0], D);
+      add(E, `${4 * (S.j & 15)}(%rsp)`);
     }),
     insn(() => {
+      if (S.j === 19) xor(S.T[0], D);
       if (S.j > 19) xor(S.T[0], C);
     }),
     insn(() => mov(S.T[1], A)),
@@ -381,7 +382,7 @@ function body20_39(): Insn[] {
   ];
   const n = r.length;
   const kFinal = ((((((S.jj + 1) * 8) / 20) | 0) * 20 * n) / 8) | 0;
-  if (S.jj === (kFinal / n) | 0 && S.rx !== 20) {
+  if (S.jj === ((kFinal / n) | 0) && S.rx !== 20) {
     const idx = kFinal % n;
     const orig = r[idx];
     r[idx] = insn(() => {
@@ -395,11 +396,12 @@ function body20_39(): Insn[] {
 
 function body40_59(): Insn[] {
   S.rx++;
+  // perl: assign+add concatenated; the two T[1] xors concatenated
   const r: Insn[] = [
     insn(() => {
       [A, B, C, D, E] = S.V;
-    }, { isAssign: true }),
-    insn(() => add(E, `${4 * (S.j & 15)}(%rsp)`)),
+      add(E, `${4 * (S.j & 15)}(%rsp)`);
+    }),
     insn(() => {
       if (S.j >= 40) and_(S.T[0], C);
     }),
@@ -413,8 +415,6 @@ function body40_59(): Insn[] {
     insn(() => add(E, S.T[0])),
     insn(() => {
       if (S.j === 59) xor(S.T[1], C);
-    }),
-    insn(() => {
       if (S.j < 59) xor(S.T[1], B);
     }),
     insn(() => {
@@ -429,7 +429,7 @@ function body40_59(): Insn[] {
   ];
   const n = r.length;
   const kFinal = ((((((S.jj + 1) * 12) / 20) | 0) * 20 * n) / 12) | 0;
-  if (S.jj === (kFinal / n) | 0 && S.rx !== 40) {
+  if (S.jj === ((kFinal / n) | 0) && S.rx !== 40) {
     const idx = kFinal % n;
     const orig = r[idx];
     r[idx] = insn(() => {
@@ -463,7 +463,7 @@ function xupdateSsse3_16_31(body: BodyFn): void {
   const shift = () => insns.shift();
 
   doEval(shift());
-  AUTOLOAD('pshufd', X(0), X(-4), '0xee');
+  AUTOLOAD('pshufd', X(0), X(-4), '238');
   doEval(shift());
   AUTOLOAD('movdqa', Tx(0), X(-1));
   AUTOLOAD('paddd', Tx(1), X(-1));
@@ -516,7 +516,6 @@ function xupdateSsse3_16_31(body: BodyFn): void {
   AUTOLOAD('psrld', Tx(2), '30');
   doEval(shift());
   doEval(shift());
-  doEval(shift());
   AUTOLOAD('por', X(0), Tx(0));
   doEval(shift());
   doEval(shift());
@@ -532,7 +531,7 @@ function xupdateSsse3_16_31(body: BodyFn): void {
 
   AUTOLOAD('pxor', X(0), Tx(1));
   if (S.Xi === 7) {
-    AUTOLOAD('pshufd', Tx(1), X(-1), '0xee');
+    AUTOLOAD('pshufd', Tx(1), X(-1), '238');
   }
 
   for (let t = shift(); t; t = shift()) doEval(t);
@@ -550,7 +549,6 @@ function xupdateSsse3_32_79(body: BodyFn): void {
   if (S.Xi === 8) doEval(shift());
   AUTOLOAD('pxor', X(0), X(-4));
   if (S.Xi === 8) doEval(shift());
-  doEval(shift());
   doEval(shift());
   doEval(shift());
   if (peek(1) && peek(1).isRor) doEval(shift());
@@ -598,11 +596,10 @@ function xupdateSsse3_32_79(body: BodyFn): void {
   AUTOLOAD('por', X(0), Tx(0));
   doEval(shift());
   doEval(shift());
-  doEval(shift());
   if (peek(1) && peek(1).isRol) doEval(shift());
   if (peek(0) && peek(0).isRol) doEval(shift());
   if (S.Xi < 19) {
-    AUTOLOAD('pshufd', Tx(1), X(-1), '0xee');
+    AUTOLOAD('pshufd', Tx(1), X(-1), '238');
   }
   doEval(shift());
   doEval(shift());
@@ -766,7 +763,6 @@ function xupdateAvx_16_31(body: BodyFn): void {
 function xupdateAvx_32_79(body: BodyFn): void {
   const insns = gather(body);
   const shift = () => insns.shift();
-  const peek = (i: number) => insns[i];
   // perl: @insns[0] !~ /&ro[rl]/  — body strings carry $_rol/$_ror, which
   // never match &rol/&ror, so this guard is always true. Ported as such.
   const notRolRor = true;
@@ -809,6 +805,7 @@ function xupdateAvx_32_79(body: BodyFn): void {
   doEval(shift());
   doEval(shift());
   doEval(shift());
+  doEval(shift());
 
   AUTOLOAD('vpor', X(0), X(0), Tx(0));
   doEval(shift());
@@ -818,9 +815,9 @@ function xupdateAvx_32_79(body: BodyFn): void {
   doEval(shift());
   doEval(shift());
   doEval(shift());
+  doEval(shift());
 
   for (let t = shift(); t; t = shift()) doEval(t);
-  void peek;
 
   S.Xi++;
   rotateX();
@@ -995,8 +992,7 @@ aesni_cbc_sha1_enc_ssse3:
 }
 
 function genSsse3Epilogue(): void {
-  code += `
-	lea	104(%rsp),%rsi
+  code += `	lea	104(%rsp),%rsi
 .cfi_def_cfa	%rsi,56
 	mov	0(%rsi),%r15
 .cfi_restore	%r15
@@ -1076,6 +1072,8 @@ function genSsse3(): void {
 .Ldone_ssse3:
 `;
   // restore
+  // perl: $jj=$j=$saved_j; @V=@saved_V; $r=$saved_r; @rndkey=@saved_rndkey
+  S.jj = saved_j;
   S.j = saved_j;
   S.V = saved_V;
   S.r = saved_r;
@@ -1183,8 +1181,7 @@ aesni_cbc_sha1_enc_avx:
 }
 
 function genAvxEpilogue(): void {
-  code += `
-	lea	104(%rsp),%rsi
+  code += `	lea	104(%rsp),%rsi
 .cfi_def_cfa	%rsi,56
 	mov	0(%rsi),%r15
 .cfi_restore	%r15
@@ -1262,6 +1259,8 @@ function genAvx(): void {
 
 .Ldone_avx:
 `;
+  // perl: $jj=$j=$saved_j; @V=@saved_V; $r=$saved_r; @rndkey=@saved_rndkey
+  S.jj = saved_j;
   S.j = saved_j;
   S.V = saved_V;
   S.r = saved_r;
@@ -1347,8 +1346,8 @@ aesni_cbc_sha1_enc_shaext:
 	movups	16(${S.key}),${S.rndkey[0]}		# forward reference
 	lea	112(${S.key}),${S.key}			# size optimization
 
-	pshufd	$0b00011011,${ABCD},${ABCD}	# flip word order
-	pshufd	$0b00011011,${Ecur},${Ecur}		# flip word order
+	pshufd	$27,${ABCD},${ABCD}	# flip word order
+	pshufd	$27,${Ecur},${Ecur}		# flip word order
 	jmp	.Loop_shaext
 
 .align	16
@@ -1443,8 +1442,8 @@ aesni_cbc_sha1_enc_shaext:
 	lea		64(${S.in0}),${S.in0}
 	jnz		.Loop_shaext
 
-	pshufd	$0b00011011,${ABCD},${ABCD}
-	pshufd	$0b00011011,${Ecur},${Ecur}
+	pshufd	$27,${ABCD},${ABCD}
+	pshufd	$27,${Ecur},${Ecur}
 	movups	${S.iv},(${S.ivp})			# write IV
 	movdqu	${ABCD},(${S.ctx})
 	movd	${Ecur},16(${S.ctx})
