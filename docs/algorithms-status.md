@@ -134,9 +134,19 @@ EVP_KDF's digest option. HKDF/PBKDF2/scrypt/argon2 already existed
 
 ### crown gaps — other buckets (not started)
 
-- AEAD/modes: AES-GCM-SIV, ASCON-AEAD128, Key Wrap (KW/KWP), CTS, DES-X(EX).
-  ARIA/SM4/Camellia GCM/CCM need only marker wiring — `aead/gcm` and
+- ARIA/SM4/Camellia GCM/CCM need only marker wiring — `aead/gcm` and
   `aead/ccm` are already generic.
+
+### AEAD/modes additions (this round, software only)
+
+| Algorithm | Spec | crown module | Tests |
+|---|---|---|---|
+| AES Key Wrap | RFC 3394 | `modes::kw::{key_wrap, key_unwrap}` | RFC 3394 §4.1–4.3 |
+| AES Key Wrap with Padding | RFC 5649 | `modes::kw::{key_wrap_padded, key_unwrap_padded}` | RFC 5649 §6 (192-bit KEK, 20- and 7-octet keys) |
+| DES-X | — | `block::des::Desx` (`k1 ⊕ DES_k(x ⊕ k2)`) | roundtrip + known DESX vector + zero-whitening ≡ DES |
+| CBC-CS3 (ciphertext stealing) | NIST SP 800-38A addendum / RFC 3962 | `modes::cts::Cts` | full-block swap, partial-block steal, length/IV validation |
+| AES-GCM-SIV | RFC 8452 | `aead::gcm_siv::AesGcmSiv` (`Aead<16>`) | RFC 8452 App. C.1 (empty/empty, 8-byte PT, 1-byte AAD + 8-byte PT) |
+| Ascon-AEAD128 | NIST SP 800-232 | `aead::ascon::AsconAead128` (`Aead<16>`) | 3 KATs vs Ascon v1.2 reference (empty/empty, empty/8-byte PT, 8-byte AAD + 8-byte PT) |
 
 ### crown extras (OpenSSL has none)
 
@@ -185,8 +195,10 @@ harness cannot silently degrade into skipping everything again.
 | `hash.rs` | pyca | MD5, SHA-1/2/3, SHAKE (incl. variable output), SM3, BLAKE2b/2s, HMAC-RIPEMD-160 |
 
 Not covered because crown has no implementation to test against those
-vectors: X448/Ed448, DSA/ECDSA/ECDH, ML-KEM/ML-DSA, AES-GCM-SIV, AEGIS/ASCON,
-KW/KWP key wrap, FF1, PBES2, PKCS#7/PKCS#12/X.509 and HOTP/TOTP. The KBKDF
+vectors: X448/Ed448, DSA/ECDSA/ECDH, ML-KEM/ML-DSA, AEGIS, FF1, PBES2,
+PKCS#7/PKCS#12/X.509 and HOTP/TOTP. AES-GCM-SIV, Ascon-AEAD128 and
+KW/KWP are now implemented and covered by in-module RFC/KAT vectors
+rather than the vendored vector trees. The KBKDF
 CAVS files are not consumed either: their counter-placement variants
 (`CTRLOCATION`, `RLEN`) are not expressible through `kbkdf::FixedInput`,
 which the unit tests pin against OpenSSL's EVP vectors instead.
