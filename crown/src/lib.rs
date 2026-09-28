@@ -72,6 +72,7 @@ pub mod bn;
 pub mod ec;
 pub mod ecdh;
 pub mod ecdsa;
+pub mod dh;
 pub mod ed25519;
 pub mod x25519;
 pub mod envelope;
@@ -83,6 +84,7 @@ pub mod padding;
 #[cfg(feature = "password")]
 pub mod password_hash;
 pub mod rsa;
+pub mod sm2;
 pub mod stream;
 
 pub mod core;
