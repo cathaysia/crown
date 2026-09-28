@@ -20,6 +20,7 @@ dual-licensed under the CRYPTOGAMS license for the perlasm modules).
 | `crypto/chacha/asm/chacha-x86_64.pl` | `crown/src/stream/chacha20/x86_64.ts` |
 | `boringSSL crypto/cipher/asm/chacha20_poly1305_x86_64.pl` | `crown/src/aead/chacha20poly1305/x86_64.ts` (`_CET_ENDBR` expanded, SSE4.1+AVX2 dispatch in Rust) |
 | `crypto/ec/asm/x25519-x86_64.pl` | `crown/src/ed25519/x86_64.ts` (fe51 for ed25519, fe64 for x25519; `$addx=1` pin) |
+| `crypto/ec/asm/ecp_nistz256-x86_64.pl` | `crown/src/ec/nistz256/x86_64.ts` (+ NOTES.md; translated, not yet dispatched) |
 | `crypto/md5/asm/md5-x86_64.pl` | `crown/src/hash/md5/block/x86_64.ts` |
 | `crypto/modes/asm/aesni-gcm-x86_64.pl` | `crown/src/aead/gcm/x86_64.ts` (stitch; wired into AES-GCM seal/open for the bulk) |
 | `crypto/modes/asm/ghash-x86_64.pl` | `crown/src/block/aes/gcm/x86_64.ts` (dispatch live in `block::aes::gcm::ghash`; `gcm_init_avx` + `gcm_ghash_avx` ported and wired; `gcm_gmult_avx` is the upstream alias of the clmul body) |
@@ -47,7 +48,10 @@ dual-licensed under the CRYPTOGAMS license for the perlasm modules).
   `keccak1600-avx2/avx512/avx512vl.pl` are not even referenced by this
   OpenSSL's `build.info`).
 - **not yet visited buckets:** `bn/` (`rsaz-*`, `gf2m` — mont and mont5 are
-  done), `ec/` (`ecp_nistz256`; x25519 is done), `ml_dsa/` (`ml_dsa_ntt`).
+  done), `ml_dsa/` (`ml_dsa_ntt`). `ec/` is complete: `x25519-x86_64.pl` is
+  wired; `ecp_nistz256-x86_64.pl` is translated (see Done table) and
+  unit-tested but not yet dispatched into `crate::ec` — see
+  `crown/src/ec/nistz256/NOTES.md`.
 
 ### Wiring status of the newly ported asm
 
