@@ -139,7 +139,7 @@ pub fn run_sign(args: ArgsSign) -> anyhow::Result<()> {
             | SignAlgorithm::SlhDsaShake128f,
             "keygen",
         ) => {
-            use crown::slh_dsa::{keygen, SlhDsaVariant};
+            use crown::slh_dsa::keygen;
             let variant = slh_variant(args.algorithm);
             let mut seed = [0u8; 48]; // 3n for n=16
             getrandom_fill(&mut seed);

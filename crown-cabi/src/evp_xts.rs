@@ -19,6 +19,20 @@ impl Xts {
     }
 
     #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn xts_new_sm4_gb(key: *const u8, key_len: usize) -> *mut Self {
+        unsafe {
+            let key_slice = match slice_from_raw_parts(key, key_len) {
+                Some(s) => s,
+                None => return std::ptr::null_mut(),
+            };
+            match EvpXts::new_sm4_xts_gb(key_slice) {
+                Ok(x) => Box::into_raw(Box::new(Self(x))),
+                Err(_) => std::ptr::null_mut(),
+            }
+        }
+    }
+
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn xts_new_sm4(key: *const u8, key_len: usize) -> *mut Self {
         unsafe {
             let key_slice = match slice_from_raw_parts(key, key_len) {

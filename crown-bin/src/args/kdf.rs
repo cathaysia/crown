@@ -49,4 +49,8 @@ pub enum KdfAlgorithm {
     Pkcs12Kdf,
     SrtpKdf,
     X963Kdf,
+    X942Kdf,
+    Krb5Kdf,
+    Kbkdf,
+    Ikev2Kdf,
 }
