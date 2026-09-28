@@ -16,6 +16,9 @@ pub use wrap::*;
 mod mac;
 pub use mac::*;
 
+mod sign;
+pub use sign::*;
+
 use clap::Parser;
 
 #[derive(Debug, Parser)]
@@ -33,6 +36,8 @@ pub enum Args {
     Mac(ArgsMac),
     /// HOTP / TOTP one-time passwords.
     Otp(ArgsOtp),
+    /// Digital signatures (Ed25519/Ed448).
+    Sign(ArgsSign),
 }
 
 #[derive(Debug, Parser)]
