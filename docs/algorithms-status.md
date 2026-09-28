@@ -222,7 +222,7 @@ which the unit tests pin against OpenSSL's EVP vectors instead.
 | Algorithm | Module | Status |
 |---|---|---|
 | Short-Weierstrass Jacobian EC (P-256) | `crown/src/ec` | done — FIPS 186-4 D.1.2.3 params; tests: n*G=O, G*1=G, 2G=G+G |
-| ECDH (P-256) | `crown/src/ecdh` | in progress |
+| ECDH (P-256) | `crown/src/ecdh` | done — RFC 5903 §8.1 P-256 KAT + generate/agree roundtrip |
 | ECDSA (P-256/SHA-256) | `crown/src/ecdsa` | planned |
 | DH MODP 2048 (RFC 3526) | `crown/src/dh` | planned |
 | SM2 signature (GM/T 0003.2) | `crown/src/sm2` | planned |
