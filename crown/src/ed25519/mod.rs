@@ -13,7 +13,7 @@
 mod tests;
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
-mod asm;
+pub(crate) mod asm;
 mod fe;
 mod ge;
 mod sc;
