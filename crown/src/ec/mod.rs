@@ -6,6 +6,9 @@
 use crate::bn::Bn;
 use crate::error::{CryptoError, CryptoResult};
 
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+pub mod nistz256;
+
 /// Supported curve identifiers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CurveId {
