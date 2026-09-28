@@ -55,7 +55,8 @@ impl_hash_methods!(
     normal: [
         md2, md4, md5, sha1, sha224, sha256, sha384, sha512,
         sha512_224, sha512_256, sha3_224, sha3_256, sha3_384,
-        sha3_512, shake128, shake256, sm3
+        sha3_512, shake128, shake256, sm3,
+        md5_sha1, ripemd160, mdc2, whirlpool
     ],
     variant: [blake2s, blake2b],
 );
