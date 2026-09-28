@@ -6,6 +6,7 @@ pub mod evp_hash;
 pub mod evp_stream;
 pub mod evp_xts;
 pub mod evp_misc;
+pub mod evp_mac;
 
 #[wasm_bindgen]
 extern "C" {

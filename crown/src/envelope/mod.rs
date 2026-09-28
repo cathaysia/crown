@@ -29,3 +29,6 @@ pub use evp_xts::*;
 
 mod evp_misc;
 pub use evp_misc::*;
+
+mod evp_mac;
+pub use evp_mac::*;
