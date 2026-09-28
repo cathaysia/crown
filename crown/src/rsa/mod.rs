@@ -454,7 +454,10 @@ fn emsa_pss_encode(
         digest(hash, &[&zeros, &m_hash, &salt])?
     };
 
-    let mut db = alloc::vec![0u8; em_len - h_len - 1];
+    // Capacity covers the whole EM so `db` can be moved into `em` without
+    // a reallocating copy.
+    let mut db = Vec::with_capacity(em_len);
+    db.resize(em_len - h_len - 1, 0);
     let db_len = db.len();
     db[db_len - salt_len - 1] = 0x01;
     db[db_len - salt_len..].copy_from_slice(&salt);
@@ -469,8 +472,7 @@ fn emsa_pss_encode(
         db[0] &= 0xff >> top_bits;
     }
 
-    let mut em = Vec::with_capacity(em_len);
-    em.extend_from_slice(&db);
+    let mut em = db;
     em.extend_from_slice(&m_prime_hash);
     em.push(0xbc);
     Ok(em)
@@ -547,28 +549,26 @@ fn eme_oaep_encode(
     }
 
     let l_hash = digest(hash, &[label])?;
-    let mut db = alloc::vec![0u8; k - h_len - 1];
+
+    // Build EM = 0x00 || maskedSeed || maskedDB in a single buffer; the
+    // seed and DB regions are masked in place.
+    let mut em = alloc::vec![0u8; k];
+    let (seed, db) = em[1..].split_at_mut(h_len);
     let db_len = db.len();
     db[..h_len].copy_from_slice(&l_hash);
     db[db_len - msg.len() - 1] = 0x01;
     db[db_len - msg.len()..].copy_from_slice(msg);
 
-    let mut seed = alloc::vec![0u8; h_len];
-    rng.fill_bytes(&mut seed);
+    rng.fill_bytes(seed);
 
-    let db_mask = mgf1(hash, &seed, db.len())?;
+    let db_mask = mgf1(hash, seed, db_len)?;
     for (b, m) in db.iter_mut().zip(db_mask.iter()) {
         *b ^= m;
     }
-    let seed_mask = mgf1(hash, &db, h_len)?;
+    let seed_mask = mgf1(hash, db, h_len)?;
     for (b, m) in seed.iter_mut().zip(seed_mask.iter()) {
         *b ^= m;
     }
-
-    let mut em = Vec::with_capacity(k);
-    em.push(0x00);
-    em.extend_from_slice(&seed);
-    em.extend_from_slice(&db);
     Ok(em)
 }
 
@@ -604,5 +604,6 @@ fn eme_oaep_decode(hash: HashFactory, em: &[u8], label: &[u8]) -> CryptoResult<V
     if db[h_len..h_len + idx].iter().any(|b| *b != 0x00) {
         return Err(CryptoError::StrError("rsa: decryption error"));
     }
-    Ok(db[h_len + idx + 1..].to_vec())
+    db.drain(..h_len + idx + 1);
+    Ok(db)
 }

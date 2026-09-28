@@ -140,10 +140,9 @@ pub fn key_wrap_padded(c: &Aes, pt: &[u8]) -> CryptoResult<Vec<u8>> {
         return Err(CryptoError::InvalidLength);
     }
     let mli = pt.len() as u32;
-    let mut padded = pt.to_vec();
-    while padded.len() % 8 != 0 {
-        padded.push(0);
-    }
+    let padded_len = pt.len().div_ceil(8) * 8;
+    let mut padded = vec![0u8; padded_len];
+    padded[..pt.len()].copy_from_slice(pt);
     let aiv = make_aiv(mli);
 
     if padded.len() == 8 {
@@ -167,7 +166,7 @@ pub fn key_unwrap_padded(c: &Aes, ct: &[u8]) -> CryptoResult<Vec<u8>> {
     // Number of padded plaintext blocks.
     let n = ct.len() / 8 - 1;
 
-    let (a, padded) = if ct.len() == 16 {
+    let (a, mut padded) = if ct.len() == 16 {
         let mut block = [0u8; 16];
         block.copy_from_slice(ct);
         let b = dec(c, &block);
@@ -191,7 +190,8 @@ pub fn key_unwrap_padded(c: &Aes, ct: &[u8]) -> CryptoResult<Vec<u8>> {
     if padded[mli..].iter().any(|&x| x != 0) {
         return Err(CryptoError::AuthenticationFailed);
     }
-    Ok(padded[..mli].to_vec())
+    padded.truncate(mli);
+    Ok(padded)
 }
 
 #[cfg(test)]
