@@ -1029,10 +1029,33 @@ gcm_ghash_clmul:
 `;
 }
 
-function genAvxStubs(): void {
-  // gcm_init_avx is the real AVX body (genInitAvx), because the aesni-gcm
-  // stitch reads the AVX table layout. The gmult/ghash AVX entry points are
-  // not ported and stay stubs jumping to their clmul counterparts.
+function genGhashAvx(): void {
+  // my ($Xip,$Htbl,$inp,$len)=@_4args;
+  const cXip = _4args[0];
+  const cHtbl = _4args[1];
+  const cinp = _4args[2];
+  const clen = _4args[3];
+  // perl: map("%xmm$_",(0..15))
+  const Xlo = '%xmm0';
+  const Xhi = '%xmm1';
+  const Xmi = '%xmm2';
+  const Zlo = '%xmm3';
+  const Zhi = '%xmm4';
+  const Zmi = '%xmm5';
+  const Hkey = '%xmm6';
+  const HK = '%xmm7';
+  const T1 = '%xmm8';
+  const T2 = '%xmm9';
+  const Xi = '%xmm10';
+  const Xo = '%xmm11';
+  const Tred = '%xmm12';
+  const bswap = '%xmm13';
+  const Ii = '%xmm14';
+  const Ij = '%xmm15';
+  const polyptr = '%r10';
+
+  // gcm_gmult_avx is an alias of the clmul body even in upstream
+  // (ghash-x86_64.pl: gcm_gmult_avx always jmps to .L_gmult_clmul).
   code += `.globl	gcm_gmult_avx
 .type	gcm_gmult_avx,@abi-omnipotent
 .align	32
@@ -1050,7 +1073,377 @@ gcm_gmult_avx:
 gcm_ghash_avx:
 .cfi_startproc
 	endbranch
-	jmp	.L_ghash_clmul
+	vzeroupper
+
+	vmovdqu		(${cXip}),${Xi}		# load $Xi
+	lea		.L0x1c2_polynomial(%rip),${polyptr}
+	lea		0x40(${cHtbl}),${cHtbl}	# size optimization
+	vmovdqu		.Lbswap_mask(%rip),${bswap}
+	vpshufb		${bswap},${Xi},${Xi}
+	cmp		$0x80,${clen}
+	jb		.Lshort_avx
+	sub		$0x80,${clen}
+
+	vmovdqu		0x70(${cinp}),${Ii}		# I[7]
+	vmovdqu		0x00-0x40(${cHtbl}),${Hkey}	# $Hkey^1
+	vpshufb		${bswap},${Ii},${Ii}
+	vmovdqu		0x20-0x40(${cHtbl}),${HK}
+
+	vpunpckhqdq	${Ii},${Ii},${T2}
+	 vmovdqu	0x60(${cinp}),${Ij}		# I[6]
+	vpclmulqdq	$0x00,${Hkey},${Ii},${Xlo}
+	vpxor		${Ii},${T2},${T2}
+	 vpshufb	${bswap},${Ij},${Ij}
+	vpclmulqdq	$0x11,${Hkey},${Ii},${Xhi}
+	 vmovdqu	0x10-0x40(${cHtbl}),${Hkey}	# $Hkey^2
+	 vpunpckhqdq	${Ij},${Ij},${T1}
+	 vmovdqu	0x50(${cinp}),${Ii}		# I[5]
+	vpclmulqdq	$0x00,${HK},${T2},${Xmi}
+	 vpxor		${Ij},${T1},${T1}
+
+	 vpshufb	${bswap},${Ii},${Ii}
+	vpclmulqdq	$0x00,${Hkey},${Ij},${Zlo}
+	 vpunpckhqdq	${Ii},${Ii},${T2}
+	vpclmulqdq	$0x11,${Hkey},${Ij},${Zhi}
+	 vmovdqu	0x30-0x40(${cHtbl}),${Hkey}	# $Hkey^3
+	 vpxor		${Ii},${T2},${T2}
+	 vmovdqu	0x40(${cinp}),${Ij}		# I[4]
+	vpclmulqdq	$0x10,${HK},${T1},${Zmi}
+	 vmovdqu	0x50-0x40(${cHtbl}),${HK}
+
+	 vpshufb	${bswap},${Ij},${Ij}
+	vpxor		${Xlo},${Zlo},${Zlo}
+	vpclmulqdq	$0x00,${Hkey},${Ii},${Xlo}
+	vpxor		${Xhi},${Zhi},${Zhi}
+	 vpunpckhqdq	${Ij},${Ij},${T1}
+	vpclmulqdq	$0x11,${Hkey},${Ii},${Xhi}
+	 vmovdqu	0x40-0x40(${cHtbl}),${Hkey}	# $Hkey^4
+	vpxor		${Xmi},${Zmi},${Zmi}
+	vpclmulqdq	$0x00,${HK},${T2},${Xmi}
+	 vpxor		${Ij},${T1},${T1}
+
+	 vmovdqu	0x30(${cinp}),${Ii}		# I[3]
+	vpxor		${Zlo},${Xlo},${Xlo}
+	vpclmulqdq	$0x00,${Hkey},${Ij},${Zlo}
+	vpxor		${Zhi},${Xhi},${Xhi}
+	 vpshufb	${bswap},${Ii},${Ii}
+	vpclmulqdq	$0x11,${Hkey},${Ij},${Zhi}
+	 vmovdqu	0x60-0x40(${cHtbl}),${Hkey}	# $Hkey^5
+	vpxor		${Zmi},${Xmi},${Xmi}
+	 vpunpckhqdq	${Ii},${Ii},${T2}
+	vpclmulqdq	$0x10,${HK},${T1},${Zmi}
+	 vmovdqu	0x80-0x40(${cHtbl}),${HK}
+	 vpxor		${Ii},${T2},${T2}
+
+	 vmovdqu	0x20(${cinp}),${Ij}		# I[2]
+	vpxor		${Xlo},${Zlo},${Zlo}
+	vpclmulqdq	$0x00,${Hkey},${Ii},${Xlo}
+	vpxor		${Xhi},${Zhi},${Zhi}
+	 vpshufb	${bswap},${Ij},${Ij}
+	vpclmulqdq	$0x11,${Hkey},${Ii},${Xhi}
+	 vmovdqu	0x70-0x40(${cHtbl}),${Hkey}	# $Hkey^6
+	vpxor		${Xmi},${Zmi},${Zmi}
+	 vpunpckhqdq	${Ij},${Ij},${T1}
+	vpclmulqdq	$0x00,${HK},${T2},${Xmi}
+	 vpxor		${Ij},${T1},${T1}
+
+	 vmovdqu	0x10(${cinp}),${Ii}		# I[1]
+	vpxor		${Zlo},${Xlo},${Xlo}
+	vpclmulqdq	$0x00,${Hkey},${Ij},${Zlo}
+	vpxor		${Zhi},${Xhi},${Xhi}
+	 vpshufb	${bswap},${Ii},${Ii}
+	vpclmulqdq	$0x11,${Hkey},${Ij},${Zhi}
+	 vmovdqu	0x90-0x40(${cHtbl}),${Hkey}	# $Hkey^7
+	vpxor		${Zmi},${Xmi},${Xmi}
+	 vpunpckhqdq	${Ii},${Ii},${T2}
+	vpclmulqdq	$0x10,${HK},${T1},${Zmi}
+	 vmovdqu	0xb0-0x40(${cHtbl}),${HK}
+	 vpxor		${Ii},${T2},${T2}
+
+	 vmovdqu	(${cinp}),${Ij}		# I[0]
+	vpxor		${Xlo},${Zlo},${Zlo}
+	vpclmulqdq	$0x00,${Hkey},${Ii},${Xlo}
+	vpxor		${Xhi},${Zhi},${Zhi}
+	 vpshufb	${bswap},${Ij},${Ij}
+	vpclmulqdq	$0x11,${Hkey},${Ii},${Xhi}
+	 vmovdqu	0xa0-0x40(${cHtbl}),${Hkey}	# $Hkey^8
+	vpxor		${Xmi},${Zmi},${Zmi}
+	vpclmulqdq	$0x10,${HK},${T2},${Xmi}
+
+	lea		0x80(${cinp}),${cinp}
+	cmp		$0x80,${clen}
+	jb		.Ltail_avx
+
+	vpxor		${Xi},${Ij},${Ij}		# accumulate $Xi
+	sub		$0x80,${clen}
+	jmp		.Loop8x_avx
+
+.align	32
+.Loop8x_avx:
+	vpunpckhqdq	${Ij},${Ij},${T1}
+	 vmovdqu	0x70(${cinp}),${Ii}		# I[7]
+	vpxor		${Xlo},${Zlo},${Zlo}
+	vpxor		${Ij},${T1},${T1}
+	vpclmulqdq	$0x00,${Hkey},${Ij},${Xi}
+	 vpshufb	${bswap},${Ii},${Ii}
+	vpxor		${Xhi},${Zhi},${Zhi}
+	vpclmulqdq	$0x11,${Hkey},${Ij},${Xo}
+	 vmovdqu	0x00-0x40(${cHtbl}),${Hkey}	# $Hkey^1
+	 vpunpckhqdq	${Ii},${Ii},${T2}
+	vpxor		${Xmi},${Zmi},${Zmi}
+	vpclmulqdq	$0x00,${HK},${T1},${Tred}
+	 vmovdqu	0x20-0x40(${cHtbl}),${HK}
+	 vpxor		${Ii},${T2},${T2}
+
+	  vmovdqu	0x60(${cinp}),${Ij}		# I[6]
+	 vpclmulqdq	$0x00,${Hkey},${Ii},${Xlo}
+	vpxor		${Zlo},${Xi},${Xi}		# collect result
+	  vpshufb	${bswap},${Ij},${Ij}
+	 vpclmulqdq	$0x11,${Hkey},${Ii},${Xhi}
+	vxorps		${Zhi},${Xo},${Xo}
+	  vmovdqu	0x10-0x40(${cHtbl}),${Hkey}	# $Hkey^2
+	 vpunpckhqdq	${Ij},${Ij},${T1}
+	 vpclmulqdq	$0x00,${HK},  ${T2},${Xmi}
+	vpxor		${Zmi},${Tred},${Tred}
+	 vxorps		${Ij},${T1},${T1}
+
+	  vmovdqu	0x50(${cinp}),${Ii}		# I[5]
+	vpxor		${Xi},${Tred},${Tred}		# aggregated Karatsuba post-processing
+	 vpclmulqdq	$0x00,${Hkey},${Ij},${Zlo}
+	vpxor		${Xo},${Tred},${Tred}
+	vpslldq		$8,${Tred},${T2}
+	 vpxor		${Xlo},${Zlo},${Zlo}
+	 vpclmulqdq	$0x11,${Hkey},${Ij},${Zhi}
+	vpsrldq		$8,${Tred},${Tred}
+	vpxor		${T2}, ${Xi}, ${Xi}
+	  vmovdqu	0x30-0x40(${cHtbl}),${Hkey}	# $Hkey^3
+	  vpshufb	${bswap},${Ii},${Ii}
+	vxorps		${Tred},${Xo}, ${Xo}
+	 vpxor		${Xhi},${Zhi},${Zhi}
+	 vpunpckhqdq	${Ii},${Ii},${T2}
+	 vpclmulqdq	$0x10,${HK},  ${T1},${Zmi}
+	  vmovdqu	0x50-0x40(${cHtbl}),${HK}
+	 vpxor		${Ii},${T2},${T2}
+	 vpxor		${Xmi},${Zmi},${Zmi}
+
+	  vmovdqu	0x40(${cinp}),${Ij}		# I[4]
+	vpalignr	$8,${Xi},${Xi},${Tred}	# 1st phase
+	 vpclmulqdq	$0x00,${Hkey},${Ii},${Xlo}
+	  vpshufb	${bswap},${Ij},${Ij}
+	 vpxor		${Zlo},${Xlo},${Xlo}
+	 vpclmulqdq	$0x11,${Hkey},${Ii},${Xhi}
+	  vmovdqu	0x40-0x40(${cHtbl}),${Hkey}	# $Hkey^4
+	 vpunpckhqdq	${Ij},${Ij},${T1}
+	 vpxor		${Zhi},${Xhi},${Xhi}
+	 vpclmulqdq	$0x00,${HK},  ${T2},${Xmi}
+	 vxorps		${Ij},${T1},${T1}
+	 vpxor		${Zmi},${Xmi},${Xmi}
+
+	  vmovdqu	0x30(${cinp}),${Ii}		# I[3]
+	vpclmulqdq	$0x10,(${polyptr}),${Xi},${Xi}
+	 vpclmulqdq	$0x00,${Hkey},${Ij},${Zlo}
+	  vpshufb	${bswap},${Ii},${Ii}
+	 vpxor		${Xlo},${Zlo},${Zlo}
+	 vpclmulqdq	$0x11,${Hkey},${Ij},${Zhi}
+	  vmovdqu	0x60-0x40(${cHtbl}),${Hkey}	# $Hkey^5
+	 vpunpckhqdq	${Ii},${Ii},${T2}
+	 vpxor		${Xhi},${Zhi},${Zhi}
+	 vpclmulqdq	$0x10,${HK},  ${T1},${Zmi}
+	  vmovdqu	0x80-0x40(${cHtbl}),${HK}
+	 vpxor		${Ii},${T2},${T2}
+	 vpxor		${Xmi},${Zmi},${Zmi}
+
+	  vmovdqu	0x20(${cinp}),${Ij}		# I[2]
+	 vpclmulqdq	$0x00,${Hkey},${Ii},${Xlo}
+	  vpshufb	${bswap},${Ij},${Ij}
+	 vpxor		${Zlo},${Xlo},${Xlo}
+	 vpclmulqdq	$0x11,${Hkey},${Ii},${Xhi}
+	  vmovdqu	0x70-0x40(${cHtbl}),${Hkey}	# $Hkey^6
+	 vpunpckhqdq	${Ij},${Ij},${T1}
+	 vpxor		${Zhi},${Xhi},${Xhi}
+	 vpclmulqdq	$0x00,${HK},  ${T2},${Xmi}
+	 vpxor		${Ij},${T1},${T1}
+	 vpxor		${Zmi},${Xmi},${Xmi}
+	vxorps		${Tred},${Xi},${Xi}
+
+	  vmovdqu	0x10(${cinp}),${Ii}		# I[1]
+	vpalignr	$8,${Xi},${Xi},${Tred}	# 2nd phase
+	 vpclmulqdq	$0x00,${Hkey},${Ij},${Zlo}
+	  vpshufb	${bswap},${Ii},${Ii}
+	 vpxor		${Xlo},${Zlo},${Zlo}
+	 vpclmulqdq	$0x11,${Hkey},${Ij},${Zhi}
+	  vmovdqu	0x90-0x40(${cHtbl}),${Hkey}	# $Hkey^7
+	vpclmulqdq	$0x10,(${polyptr}),${Xi},${Xi}
+	vxorps		${Xo},${Tred},${Tred}
+	 vpunpckhqdq	${Ii},${Ii},${T2}
+	 vpxor		${Xhi},${Zhi},${Zhi}
+	 vpclmulqdq	$0x10,${HK},  ${T1},${Zmi}
+	  vmovdqu	0xb0-0x40(${cHtbl}),${HK}
+	 vpxor		${Ii},${T2},${T2}
+	 vpxor		${Xmi},${Zmi},${Zmi}
+
+	  vmovdqu	(${cinp}),${Ij}		# I[0]
+	 vpclmulqdq	$0x00,${Hkey},${Ii},${Xlo}
+	  vpshufb	${bswap},${Ij},${Ij}
+	 vpclmulqdq	$0x11,${Hkey},${Ii},${Xhi}
+	  vmovdqu	0xa0-0x40(${cHtbl}),${Hkey}	# $Hkey^8
+	vpxor		${Tred},${Ij},${Ij}
+	 vpclmulqdq	$0x10,${HK},  ${T2},${Xmi}
+	vpxor		${Xi},${Ij},${Ij}		# accumulate $Xi
+
+	lea		0x80(${cinp}),${cinp}
+	sub		$0x80,${clen}
+	jnc		.Loop8x_avx
+
+	add		$0x80,${clen}
+	jmp		.Ltail_no_xor_avx
+
+.align	32
+.Lshort_avx:
+	vmovdqu		-0x10(${cinp},${clen}),${Ii}	# very last word
+	lea		(${cinp},${clen}),${cinp}
+	vmovdqu		0x00-0x40(${cHtbl}),${Hkey}	# $Hkey^1
+	vmovdqu		0x20-0x40(${cHtbl}),${HK}
+	vpshufb		${bswap},${Ii},${Ij}
+
+	vmovdqa		${Xlo},${Zlo}		# subtle way to zero $Zlo,
+	vmovdqa		${Xhi},${Zhi}		# $Zhi and
+	vmovdqa		${Xmi},${Zmi}		# $Zmi
+	sub		$0x10,${clen}
+	jz		.Ltail_avx
+
+	vpunpckhqdq	${Ij},${Ij},${T1}
+	vpxor		${Xlo},${Zlo},${Zlo}
+	vpclmulqdq	$0x00,${Hkey},${Ij},${Xlo}
+	vpxor		${Ij},${T1},${T1}
+	 vmovdqu	-0x20(${cinp}),${Ii}
+	vpxor		${Xhi},${Zhi},${Zhi}
+	vpclmulqdq	$0x11,${Hkey},${Ij},${Xhi}
+	vmovdqu		0x10-0x40(${cHtbl}),${Hkey}	# $Hkey^2
+	 vpshufb	${bswap},${Ii},${Ij}
+	vpxor		${Xmi},${Zmi},${Zmi}
+	vpclmulqdq	$0x00,${HK},${T1},${Xmi}
+	vpsrldq		$8,${HK},${HK}
+	sub		$0x10,${clen}
+	jz		.Ltail_avx
+
+	vpunpckhqdq	${Ij},${Ij},${T1}
+	vpxor		${Xlo},${Zlo},${Zlo}
+	vpclmulqdq	$0x00,${Hkey},${Ij},${Xlo}
+	vpxor		${Ij},${T1},${T1}
+	 vmovdqu	-0x30(${cinp}),${Ii}
+	vpxor		${Xhi},${Zhi},${Zhi}
+	vpclmulqdq	$0x11,${Hkey},${Ij},${Xhi}
+	vmovdqu		0x30-0x40(${cHtbl}),${Hkey}	# $Hkey^3
+	 vpshufb	${bswap},${Ii},${Ij}
+	vpxor		${Xmi},${Zmi},${Zmi}
+	vpclmulqdq	$0x00,${HK},${T1},${Xmi}
+	vmovdqu		0x50-0x40(${cHtbl}),${HK}
+	sub		$0x10,${clen}
+	jz		.Ltail_avx
+
+	vpunpckhqdq	${Ij},${Ij},${T1}
+	vpxor		${Xlo},${Zlo},${Zlo}
+	vpclmulqdq	$0x00,${Hkey},${Ij},${Xlo}
+	vpxor		${Ij},${T1},${T1}
+	 vmovdqu	-0x40(${cinp}),${Ii}
+	vpxor		${Xhi},${Zhi},${Zhi}
+	vpclmulqdq	$0x11,${Hkey},${Ij},${Xhi}
+	vmovdqu		0x40-0x40(${cHtbl}),${Hkey}	# $Hkey^4
+	 vpshufb	${bswap},${Ii},${Ij}
+	vpxor		${Xmi},${Zmi},${Zmi}
+	vpclmulqdq	$0x00,${HK},${T1},${Xmi}
+	vpsrldq		$8,${HK},${HK}
+	sub		$0x10,${clen}
+	jz		.Ltail_avx
+
+	vpunpckhqdq	${Ij},${Ij},${T1}
+	vpxor		${Xlo},${Zlo},${Zlo}
+	vpclmulqdq	$0x00,${Hkey},${Ij},${Xlo}
+	vpxor		${Ij},${T1},${T1}
+	 vmovdqu	-0x50(${cinp}),${Ii}
+	vpxor		${Xhi},${Zhi},${Zhi}
+	vpclmulqdq	$0x11,${Hkey},${Ij},${Xhi}
+	vmovdqu		0x60-0x40(${cHtbl}),${Hkey}	# $Hkey^5
+	 vpshufb	${bswap},${Ii},${Ij}
+	vpxor		${Xmi},${Zmi},${Zmi}
+	vpclmulqdq	$0x00,${HK},${T1},${Xmi}
+	vmovdqu		0x80-0x40(${cHtbl}),${HK}
+	sub		$0x10,${clen}
+	jz		.Ltail_avx
+
+	vpunpckhqdq	${Ij},${Ij},${T1}
+	vpxor		${Xlo},${Zlo},${Zlo}
+	vpclmulqdq	$0x00,${Hkey},${Ij},${Xlo}
+	vpxor		${Ij},${T1},${T1}
+	 vmovdqu	-0x60(${cinp}),${Ii}
+	vpxor		${Xhi},${Zhi},${Zhi}
+	vpclmulqdq	$0x11,${Hkey},${Ij},${Xhi}
+	vmovdqu		0x70-0x40(${cHtbl}),${Hkey}	# $Hkey^6
+	 vpshufb	${bswap},${Ii},${Ij}
+	vpxor		${Xmi},${Zmi},${Zmi}
+	vpclmulqdq	$0x00,${HK},${T1},${Xmi}
+	vpsrldq		$8,${HK},${HK}
+	sub		$0x10,${clen}
+	jz		.Ltail_avx
+
+	vpunpckhqdq	${Ij},${Ij},${T1}
+	vpxor		${Xlo},${Zlo},${Zlo}
+	vpclmulqdq	$0x00,${Hkey},${Ij},${Xlo}
+	vpxor		${Ij},${T1},${T1}
+	 vmovdqu	-0x70(${cinp}),${Ii}
+	vpxor		${Xhi},${Zhi},${Zhi}
+	vpclmulqdq	$0x11,${Hkey},${Ij},${Xhi}
+	vmovdqu		0x90-0x40(${cHtbl}),${Hkey}	# $Hkey^7
+	 vpshufb	${bswap},${Ii},${Ij}
+	vpxor		${Xmi},${Zmi},${Zmi}
+	vpclmulqdq	$0x00,${HK},${T1},${Xmi}
+	vmovq		0xb8-0x40(${cHtbl}),${HK}
+	sub		$0x10,${clen}
+	jmp		.Ltail_avx
+
+.align	32
+.Ltail_avx:
+	vpxor		${Xi},${Ij},${Ij}		# accumulate $Xi
+.Ltail_no_xor_avx:
+	vpunpckhqdq	${Ij},${Ij},${T1}
+	vpxor		${Xlo},${Zlo},${Zlo}
+	vpclmulqdq	$0x00,${Hkey},${Ij},${Xlo}
+	vpxor		${Ij},${T1},${T1}
+	vpxor		${Xhi},${Zhi},${Zhi}
+	vpclmulqdq	$0x11,${Hkey},${Ij},${Xhi}
+	vpxor		${Xmi},${Zmi},${Zmi}
+	vpclmulqdq	$0x00,${HK},${T1},${Xmi}
+
+	vmovdqu		(${polyptr}),${Tred}
+
+	vpxor		${Xlo},${Zlo},${Xi}
+	vpxor		${Xhi},${Zhi},${Xo}
+	vpxor		${Xmi},${Zmi},${Zmi}
+
+	vpxor		${Xi}, ${Zmi},${Zmi}		# aggregated Karatsuba post-processing
+	vpxor		${Xo}, ${Zmi},${Zmi}
+	vpslldq		$8, ${Zmi},${T2}
+	vpsrldq		$8, ${Zmi},${Zmi}
+	vpxor		${T2}, ${Xi}, ${Xi}
+	vpxor		${Zmi},${Xo}, ${Xo}
+
+	vpclmulqdq	$0x10,${Tred},${Xi},${T2}	# 1st phase
+	vpalignr	$8,${Xi},${Xi},${Xi}
+	vpxor		${T2},${Xi},${Xi}
+
+	vpclmulqdq	$0x10,${Tred},${Xi},${T2}	# 2nd phase
+	vpalignr	$8,${Xi},${Xi},${Xi}
+	vpxor		${Xo},${Xi},${Xi}
+	vpxor		${T2},${Xi},${Xi}
+
+	cmp		$0,${clen}
+	jne		.Lshort_avx
+
+	vpshufb		${bswap},${Xi},${Xi}
+	vmovdqu		${Xi},(${cXip})
+	vzeroupper
+	ret
 .cfi_endproc
 .size	gcm_ghash_avx,.-gcm_ghash_avx
 `;
@@ -1121,7 +1514,7 @@ genInitClmul();
 genGmultClmul();
 genGhashClmul();
 genInitAvx();
-genAvxStubs();
+genGhashAvx();
 genData();
 
 export default translateAssembly(code);
