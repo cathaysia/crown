@@ -132,9 +132,72 @@ pub fn run_sign(args: ArgsSign) -> anyhow::Result<()> {
                 std::process::exit(1);
             }
         }
+        (
+            SignAlgorithm::SlhDsaSha2128s
+            | SignAlgorithm::SlhDsaSha2128f
+            | SignAlgorithm::SlhDsaShake128s
+            | SignAlgorithm::SlhDsaShake128f,
+            "keygen",
+        ) => {
+            use crown::slh_dsa::{keygen, SlhDsaVariant};
+            let variant = slh_variant(args.algorithm);
+            let mut seed = [0u8; 48]; // 3n for n=16
+            getrandom_fill(&mut seed);
+            let (pk, sk) = keygen(variant, &seed)?;
+            println!("seed={}", hex::encode(seed));
+            println!("public={}", hex::encode(pk.to_bytes()));
+            println!("secret={}", hex::encode(sk.to_bytes()));
+        }
+        (
+            SignAlgorithm::SlhDsaSha2128s
+            | SignAlgorithm::SlhDsaSha2128f
+            | SignAlgorithm::SlhDsaShake128s
+            | SignAlgorithm::SlhDsaShake128f,
+            "sign",
+        ) => {
+            use crown::slh_dsa::{sign, SlhDsaPrivateKey};
+            let variant = slh_variant(args.algorithm);
+            let sk_bytes = hex::decode(&args.key)?;
+            let sk = SlhDsaPrivateKey::from_bytes(variant, &sk_bytes)?;
+            let msg = std::fs::read(args.input.as_ref().expect("--input required"))?;
+            let sig = sign(&sk, &msg, b"", false)?;
+            match &args.signature {
+                Some(path) => std::fs::write(path, sig)?,
+                None => println!("{}", hex::encode(sig)),
+            }
+        }
+        (
+            SignAlgorithm::SlhDsaSha2128s
+            | SignAlgorithm::SlhDsaSha2128f
+            | SignAlgorithm::SlhDsaShake128s
+            | SignAlgorithm::SlhDsaShake128f,
+            "verify",
+        ) => {
+            use crown::slh_dsa::{verify, SlhDsaPublicKey};
+            let variant = slh_variant(args.algorithm);
+            let pk_bytes = hex::decode(&args.key)?;
+            let pk = SlhDsaPublicKey::from_bytes(variant, &pk_bytes)?;
+            let msg = std::fs::read(args.input.as_ref().expect("--input required"))?;
+            let sig = std::fs::read(args.signature.as_ref().expect("--signature required"))?;
+            let ok = verify(&pk, &msg, b"", &sig, false)?;
+            println!("{}", if ok { "OK" } else { "FAILURE" });
+            if !ok {
+                std::process::exit(1);
+            }
+        }
         _ => anyhow::bail!("unsupported algorithm/op"),
     }
     Ok(())
+}
+
+fn slh_variant(a: crate::args::SignAlgorithm) -> crown::slh_dsa::SlhDsaVariant {
+    use crown::slh_dsa::SlhDsaVariant;
+    match a {
+        crate::args::SignAlgorithm::SlhDsaSha2128s => SlhDsaVariant::Sha2_128s,
+        crate::args::SignAlgorithm::SlhDsaSha2128f => SlhDsaVariant::Sha2_128f,
+        crate::args::SignAlgorithm::SlhDsaShake128s => SlhDsaVariant::Shake_128s,
+        _ => SlhDsaVariant::Shake_128f,
+    }
 }
 
 fn getrandom_fill(buf: &mut [u8]) {

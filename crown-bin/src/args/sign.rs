@@ -27,4 +27,8 @@ pub enum SignAlgorithm {
     MlDsa44,
     MlDsa65,
     MlDsa87,
+    SlhDsaSha2128s,
+    SlhDsaSha2128f,
+    SlhDsaShake128s,
+    SlhDsaShake128f,
 }
