@@ -19,6 +19,9 @@ mod consts;
 #[cfg(test)]
 mod tests;
 
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+mod asm;
+
 use bytes::BufMut;
 use consts::TABLE;
 #[cfg(feature = "marshal")]
@@ -56,6 +59,19 @@ impl Whirlpool {
 /// One Whirlpool compression: Miyaguchi–Preneel over the ten-round
 /// permutation of `H` and the 64-byte message block.
 fn block(h: &mut [u64; 8], p: &[u8]) {
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    {
+        asm::block(h, p);
+    }
+
+    #[cfg(any(not(feature = "asm"), not(target_arch = "x86_64")))]
+    {
+        block_soft(h, p);
+    }
+}
+
+#[allow(dead_code)]
+fn block_soft(h: &mut [u64; 8], p: &[u8]) {
     let mut k = *h;
     let mut s = [0u64; 8];
     let mut m = [0u64; 8];
