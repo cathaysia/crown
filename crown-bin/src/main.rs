@@ -42,6 +42,7 @@ fn main() -> anyhow::Result<()> {
         args::Args::Ff1(args) => runner::run_ff1(args)?,
         args::Args::Mac(args) => runner::run_mac(args)?,
         args::Args::Otp(args) => runner::run_otp(args)?,
+        args::Args::Sign(args) => runner::run_sign(args)?,
     }
 
     Ok(())
