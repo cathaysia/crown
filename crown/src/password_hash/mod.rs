@@ -12,3 +12,5 @@ pub mod bcrypt;
 pub mod pbkdf2;
 #[cfg(feature = "alloc")]
 pub mod scrypt;
+#[cfg(feature = "alloc")]
+pub mod pbes2;

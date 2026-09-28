@@ -197,10 +197,11 @@ harness cannot silently degrade into skipping everything again.
 | `hash.rs` | pyca | MD5, SHA-1/2/3, SHAKE (incl. variable output), SM3, BLAKE2b/2s, HMAC-RIPEMD-160 |
 
 Not covered because crown has no implementation to test against those
-vectors: ML-KEM/ML-DSA, AEGIS, FF1, PBES2,
-PKCS#7/PKCS#12/X.509 and HOTP/TOTP. DSA/ECDSA/ECDH are now implemented
+vectors: ML-KEM/ML-DSA, AEGIS, FF1,
+PKCS#7/PKCS#12/X.509. DSA/ECDSA/ECDH are now implemented
 and pinned by in-module RFC 6979 / RFC 5903 KATs (X448/Ed448 likewise
-have RFC 7748/8032 in-module vectors). AES-GCM-SIV, Ascon-AEAD128 and
+have RFC 7748/8032 in-module vectors). HOTP/TOTP and PBES2 are now
+implemented with RFC 4226/6238 and PKCS#5 vectors. AES-GCM-SIV, Ascon-AEAD128 and
 KW/KWP are now implemented and covered by in-module RFC/KAT vectors
 rather than the vendored vector trees. The KBKDF
 CAVS files are not consumed either: their counter-placement variants
@@ -231,3 +232,20 @@ which the unit tests pin against OpenSSL's EVP vectors instead.
 | DSA (FIPS 186-4, 2048/256) | `crown/src/dsa` | done — `dsa_2048_256()` parameter set (RFC 6979 A.2.2 / NIST), `generate`, `sign_sha256`, `verify_sha256`; g^q ≡ 1 mod p sanity + RFC 6979 A.2.2 SHA-256 sample/test KATs |
 | DH MODP 2048 (RFC 3526) | `crown/src/dh` | done — modp2048() + generate/agree with y-range checks |
 | SM2 signature (GM/T 0003.2) | `crown/src/sm2` | done — GM/T sample (d, M="message digest") r/s match |
+
+## 3. DRBG / OTP / PBES2 status (feat/rand-otp)
+
+| Algorithm | Module | Status |
+|---|---|---|
+| HMAC_DRBG (SP 800-90A §10.1.2, SHA-256) | `crown/src/drbg` | done — HMAC_DRBG_Update per spec; tests: determinism, reseed/additional change output, distinct entropy |
+| Hash_DRBG (SP 800-90A §10.1.1, SHA-256, seedlen 440) | `crown/src/drbg` | done — Hash_df/Hashgen + V update; tests: determinism, reseed/additional change output |
+| HOTP (RFC 4226) | `crown/src/otp` | done — dynamic truncation; tests: RFC 4226 Appendix D counters 0..9 |
+| TOTP (RFC 6238) | `crown/src/otp` | done — step/t0 parameters; tests: RFC 6238 Appendix B SHA-1 8-digit times 59..20000000000 |
+| PBES2 (PKCS #5 v2.1 / RFC 8018 §6.2) | `crown/src/password_hash/pbes2` | done — PBKDF2+AES-128/256-CBC + 3DES-EDE-CBC, IV from KDF output prepended to CT; tests: roundtrips, wrong-password reject, PBKDF2 split KAT. HKDF variant returns `InvalidParameterStr` (not implemented). |
+
+Notes:
+- `HMAC::new(hash_fn, key)` + `CoreWrite::write_all` + `Hash::sum` is the
+  one-shot MAC pattern; PBES2 IV = `dk[key_len..key_len+block_size]` and is
+  prepended to the CBC of PKCS#7-padded plaintext (output = `iv || ct`).
+- Crown CBC decrypters follow the Go `BlockMode` convention: the processing
+  entry point is `encrypt()`; `decrypt()` is `unreachable!()`.
