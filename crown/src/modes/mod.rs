@@ -16,6 +16,12 @@ pub mod ecb;
 #[cfg(feature = "alloc")]
 pub mod ofb;
 
+#[cfg(feature = "alloc")]
+pub mod kw;
+
+#[cfg(feature = "alloc")]
+pub mod cts;
+
 pub mod xts;
 
 #[cfg(test)]
