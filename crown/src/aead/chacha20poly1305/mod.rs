@@ -43,13 +43,22 @@ impl ChaCha20Poly1305 {
         Ok(Self { key: cipher_key })
     }
 
-    // Placeholder implementations - these would call the actual crypto functions
     fn seal_impl(
         &self,
         inout: &mut [u8],
         nonce: &[u8],
         additional_data: &[u8],
     ) -> CryptoResult<[u8; 16]> {
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        {
+            if asm::sse41_capable() {
+                let n: [u8; 12] = nonce.try_into().map_err(|_| CryptoError::InvalidNonceSize {
+                    expected: "12",
+                    actual: nonce.len(),
+                })?;
+                return asm::seal_inplace(inout, additional_data, &self.key, &n);
+            }
+        }
         self.seal_generic(inout, nonce, additional_data)
     }
 
@@ -60,6 +69,26 @@ impl ChaCha20Poly1305 {
         nonce: &[u8],
         additional_data: &[u8],
     ) -> CryptoResult<()> {
+        if tag.len() != 16 {
+            return Err(CryptoError::InvalidTagSize {
+                expected: "16",
+                actual: tag.len(),
+            });
+        }
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        {
+            if asm::sse41_capable() {
+                let n: [u8; 12] = nonce.try_into().map_err(|_| CryptoError::InvalidNonceSize {
+                    expected: "12",
+                    actual: nonce.len(),
+                })?;
+                let computed = asm::open_inplace(inout, additional_data, &self.key, &n)?;
+                if !crate::utils::subtle::constant_time_eq(&computed, tag) {
+                    return Err(CryptoError::AuthenticationFailed);
+                }
+                return Ok(());
+            }
+        }
         self.open_generic(inout, tag, nonce, additional_data)
     }
 }

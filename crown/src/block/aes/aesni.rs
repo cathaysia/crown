@@ -67,7 +67,6 @@ pub fn decrypt_block(inout: &mut [u8], key: &AesKey) {
 /// Encrypt `blocks` 16-byte blocks in CTR32 mode. `ivec` is the 16-byte
 /// counter block; the 32-bit counter is in the last four bytes (big-endian
 /// order as in OpenSSL). Does not write back the updated counter.
-#[allow(dead_code)] // mode accelerator; CTR dispatch is pending
 pub fn ctr32_encrypt_blocks(
     inp: &[u8],
     out: &mut [u8],

@@ -47,9 +47,10 @@ impl Rc4State {
         rc4.s.copy_from_slice(&self.s);
     }
 
-    /// Get pointer to s array (dat parameter for RC4 function)
+    /// Pointer to the start of the state. The assembly does `lea 8(dat), dat`
+    /// to reach `s`, then reads `i`/`j` from `dat-8`/`dat-4`.
     fn dat_ptr(&mut self) -> *mut u8 {
-        self.s.as_mut_ptr() as *mut u8
+        self as *mut Self as *mut u8
     }
 }
 

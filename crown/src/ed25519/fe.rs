@@ -66,6 +66,16 @@ fn propagate(t: &mut [i64; 5]) {
 
 /// h = f * g.
 pub fn mul(f: &Fe, g: &Fe) -> Fe {
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    {
+        return crate::ed25519::asm::fe51_mul(f, g);
+    }
+    #[cfg(any(not(feature = "asm"), not(target_arch = "x86_64")))]
+    mul_generic(f, g)
+}
+
+#[cfg(any(not(feature = "asm"), not(target_arch = "x86_64")))]
+fn mul_generic(f: &Fe, g: &Fe) -> Fe {
     let mut r = [0u128; 5];
 
     r[0] = (f[0] as u128) * (g[0] as u128)
@@ -103,7 +113,12 @@ pub fn mul(f: &Fe, g: &Fe) -> Fe {
 }
 
 pub fn sq(f: &Fe) -> Fe {
-    mul(f, f)
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    {
+        return crate::ed25519::asm::fe51_sqr(f);
+    }
+    #[cfg(any(not(feature = "asm"), not(target_arch = "x86_64")))]
+    mul_generic(f, f)
 }
 
 /// Full carry chain including the 2^255 -> 19 fold and one extra

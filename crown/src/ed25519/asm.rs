@@ -11,10 +11,10 @@
 //!   partially reduced values allowed; only `tobytes` fully reduces).
 //!
 //! The symbols are compiled and unit-tested against the portable
-//! implementations; wiring `fe::mul`/`fe::sq` to the assembly mirrors
-//! OpenSSL's `#define fe51_mul x25519_fe51_mul` and is pending.
-
-#![allow(dead_code)] // compiled and tested; dispatch wiring is pending
+//! implementations. `fe::mul`/`fe::sq` dispatch to the fe51 helpers when
+//! the `asm` feature is enabled, mirroring OpenSSL
+//! `#define fe51_mul x25519_fe51_mul`. fe64 helpers stay available for
+//! the future X25519 ladder.
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 core::arch::global_asm!(
