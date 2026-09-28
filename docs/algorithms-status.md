@@ -35,6 +35,7 @@ dual-licensed under the CRYPTOGAMS license for the perlasm modules).
 | `crypto/sm3/asm/sm3-x86_64.pl` | `crown/src/hash/sm3/x86_64.ts` |
 | `crypto/sm4/asm/sm4-x86_64.pl` | `crown/src/block/sm4/x86_64.ts` |
 | `crypto/whrlpool/asm/wp-x86_64.pl` | `crown/src/hash/whirlpool/x86_64.ts` (+ NOTES.md) |
+| `crypto/bn/asm/x86_64-gf2m.pl` | `crown/src/bn/gf2m_x86_64.ts` (+ NOTES.md; `bn_GF2m_mul_2x2` unit-tested vs portable poly mul, not dispatched) |
 
 ### Remaining, by bucket
 
@@ -49,8 +50,11 @@ dual-licensed under the CRYPTOGAMS license for the perlasm modules).
 - **no crown consumer:** `keccak1600x4-avx512vl.pl` (4-way SHA3; crown sha3 is single-stream;
   `keccak1600-avx2/avx512/avx512vl.pl` are not even referenced by this
   OpenSSL's `build.info`).
-- **not yet visited buckets:** `bn/` (`gf2m` — mont, mont5, rsaz-x86_64 and
-  rsaz-avx2 are done), `ml_dsa/` (`ml_dsa_ntt`). `ec/` is complete:
+- **not yet visited buckets:** `ml_dsa/` (`ml_dsa_ntt`) — note: no
+  `ml_dsa_ntt*.pl` exists in `crown-ref/openssl` (only `ml_dsa_ntt.c`);
+  the bucket is empty unless a perlasm source appears elsewhere.
+  `bn/` is complete (mont, mont5, rsaz-x86_64, rsaz-avx2 and now `gf2m`).
+  `ec/` is complete:
   `x25519-x86_64.pl` is wired; `ecp_nistz256-x86_64.pl` is translated (see
   Done table) and unit-tested but not yet dispatched into `crate::ec` — see
   `crown/src/ec/nistz256/NOTES.md`.

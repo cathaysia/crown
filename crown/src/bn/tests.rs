@@ -547,3 +547,64 @@ mod rsaz_tests {
         assert_eq!(got, vec![0u64; rsaz::RED_LEN]);
     }
 }
+
+// x86_64-gf2m.pl bn_GF2m_mul_2x2 vs a portable shift-and-xor reference.
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+mod gf2m_tests {
+    use crate::bn::gf2m;
+
+    #[test]
+    fn gf2m_mul_2x2_matches_portable() {
+        let mut rng = 0x676d326du64;
+        let mut next = || {
+            rng = rng
+                .wrapping_mul(0x9e3779b97f4a7c15)
+                .wrapping_add(0x165667b19e3779f9);
+            rng ^ (rng >> 29)
+        };
+
+        // Deterministic edge cases first.
+        let mut cases: alloc::vec::Vec<(u64, u64, u64, u64)> = alloc::vec![
+            (0, 0, 0, 0),
+            (1, 0, 0, 0),
+            (0, 1, 0, 0),
+            (0, 0, 1, 0),
+            (0, 0, 0, 1),
+            (u64::MAX, u64::MAX, u64::MAX, u64::MAX),
+            (u64::MAX, 0, 0, u64::MAX),
+            (1, u64::MAX, u64::MAX, 1),
+            (0x8000_0000_0000_0000, 0x8000_0000_0000_0000, 1, 1),
+        ];
+        for _ in 0..32 {
+            cases.push((next(), next(), next(), next()));
+        }
+
+        for &(a1, a0, b1, b0) in &cases {
+            let mut r = [0u64; 4];
+            gf2m::mul_2x2(&mut r, a1, a0, b1, b0);
+            let expect = gf2m::poly_mul2x2(a1, a0, b1, b0);
+            assert_eq!(r, expect, "a1={a1:#x} a0={a0:#x} b1={b1:#x} b0={b0:#x}");
+        }
+    }
+
+    #[test]
+    fn gf2m_mul_2x2_square_cancels_cross_terms() {
+        // (x^63 + 1)(x^63 + 1) = x^126 + 1 in GF(2)[x] (cross terms cancel).
+        // bit 126 lives in r[1] bit 62.
+        let mut r = [0u64; 4];
+        let a1 = 0u64;
+        let a0 = (1u64 << 63) | 1;
+        gf2m::mul_2x2(&mut r, a1, a0, a1, a0);
+        assert_eq!(r, [1, 1u64 << 62, 0, 0]);
+    }
+
+    #[test]
+    fn gf2m_poly_mul64_identity() {
+        // 1 * p == p; x^5 * x^5 == x^10.
+        assert_eq!(gf2m::poly_mul64(1, 0xdeadbeefcafebabe), [0xdeadbeefcafebabe, 0]);
+        assert_eq!(gf2m::poly_mul64(1 << 5, 1 << 5), [1 << 10, 0]);
+        assert_eq!(gf2m::poly_mul64(u64::MAX, 1), [u64::MAX, 0]);
+        // x^63 * x^63 = x^126 -> high limb bit 62.
+        assert_eq!(gf2m::poly_mul64(1 << 63, 1 << 63), [0, 1 << 62]);
+    }
+}
