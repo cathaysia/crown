@@ -24,6 +24,10 @@ pub mod cts;
 
 pub mod xts;
 
+/// FF1 format-preserving encryption (NIST SP 800-38G).
+#[cfg(feature = "alloc")]
+pub mod ff1;
+
 #[cfg(test)]
 pub mod common_test;
 
