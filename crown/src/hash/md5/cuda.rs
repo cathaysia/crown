@@ -1,5 +1,7 @@
 use core::ptr::null_mut;
 
+use alloc::vec;
+
 use crate::cuda::{
     self,
     error::{CudaError, CudaResult},

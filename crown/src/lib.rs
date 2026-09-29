@@ -63,7 +63,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::needless_range_loop)]
 
-#[cfg(feature = "alloc")]
 extern crate alloc;
 
 pub mod aead;
@@ -89,9 +88,13 @@ pub mod modes;
 pub mod padding;
 #[cfg(feature = "password")]
 pub mod password_hash;
+#[cfg(feature = "alloc")]
 pub mod rsa;
+#[cfg(feature = "alloc")]
 pub mod ml_kem;
+#[cfg(feature = "alloc")]
 pub mod ml_dsa;
+#[cfg(feature = "alloc")]
 pub mod slh_dsa;
 pub mod sm2;
 pub mod stream;
@@ -100,8 +103,10 @@ pub mod core;
 
 pub mod cuda;
 
+#[cfg(feature = "alloc")]
 pub mod drbg;
 pub mod error;
+pub mod rng;
 
 #[cfg(not(feature = "unstable"))]
 mod utils;

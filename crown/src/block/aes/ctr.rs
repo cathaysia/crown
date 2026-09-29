@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports)]
 mod noasm;
 pub use noasm::*;
 
@@ -142,8 +143,8 @@ pub(crate) fn ctr_blocks(b: &Aes, inout: &mut [u8], mut ivlo: u64, mut ivhi: u64
                         // finish the partial block in software
                         let (nlo, nhi) = add128(ivlo, ivhi, n as u64);
                         let mut mask = [0u8; 16];
-                        let mut ivlo2 = nlo;
-                        let mut ivhi2 = nhi;
+                        let ivlo2 = nlo;
+                        let ivhi2 = nhi;
                         mask[..8].copy_from_slice(&ivhi2.to_be_bytes());
                         mask[8..].copy_from_slice(&ivlo2.to_be_bytes());
                         b.encrypt_block(&mut mask);

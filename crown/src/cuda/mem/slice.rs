@@ -1,3 +1,5 @@
+use alloc::vec;
+
 use crate::cuda::{
     error::{CudaError, CudaResult},
     mem::{device_memory::DeviceMemory, pined_memory::PinedMemory},

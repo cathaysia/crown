@@ -178,7 +178,7 @@ pub unsafe extern "C" fn ff1_decrypt_decimal(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn crown_free_buf(p: *mut u8, len: usize) {
+pub unsafe extern "C" fn crown_free_buf(p: *mut u8, len: usize) {
     if !p.is_null() {
         unsafe { drop(Vec::from_raw_parts(p, len, len)) };
     }

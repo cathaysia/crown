@@ -5,8 +5,12 @@
 
 use crate::bn::Bn;
 use crate::error::{CryptoError, CryptoResult};
-use crate::rsa::Rng;
+use alloc::vec;
 
+use crate::rng::Rng;
+
+use alloc::vec::Vec;
+use alloc::string::String;
 /// RFC 3526 §3 — 2048-bit MODP Group. Returns `(p, g)` with `g = 2`.
 pub fn modp2048() -> (Bn, Bn) {
     let p_hex = "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3DC2007CB8A163BF0598DA48361C55D39A69163FA8FD24CF5F83655D23DCA3AD961C62F356208552BB9ED529077096966D670C354E4ABC9804F1746C08CA18217C32905E462E36CE3BE39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9DE2BCBF6955817183995497CEA956AE515D2261898FA051015728E5A8AACAA68FFFFFFFFFFFFFFFF";
@@ -17,7 +21,7 @@ pub fn modp2048() -> (Bn, Bn) {
 
 fn bn_hex(s: &str) -> Bn {
     let s: String = s.chars().filter(|c| c.is_ascii_hexdigit()).collect();
-    assert!(s.len() % 2 == 0, "odd hex length");
+    assert!(s.len().is_multiple_of(2), "odd hex length");
     let bytes: Vec<u8> = (0..s.len())
         .step_by(2)
         .map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap())
@@ -50,7 +54,7 @@ pub fn generate(p: &Bn, g: &Bn, rng: &mut impl Rng) -> CryptoResult<(Bn, Bn)> {
     }
     let one = Bn::one();
     let pm2 = p.sub(&one)?.sub(&one)?;
-    let bytes = (p.bit_len() + 7) / 8;
+    let bytes = p.bit_len().div_ceil(8);
     let mut buf = alloc_zeroes(bytes);
     let mut x = Bn::zero();
     for _ in 0..256 {
@@ -87,8 +91,7 @@ pub fn agree(p: &Bn, private: &Bn, peer: &Bn) -> CryptoResult<Bn> {
 }
 
 fn alloc_zeroes(n: usize) -> Vec<u8> {
-    let mut v = Vec::with_capacity(n);
-    v.resize(n, 0);
+    let v = vec![0; n];
     v
 }
 

@@ -19,12 +19,7 @@ pub fn pbkdf2(
 
 /// HKDF-Extract + Expand with SHA-256. `info` may be empty.
 #[wasm_bindgen]
-pub fn hkdf(
-    ikm: &[u8],
-    salt: &[u8],
-    info: &[u8],
-    length: usize,
-) -> Result<Vec<u8>, JsValue> {
+pub fn hkdf(ikm: &[u8], salt: &[u8], info: &[u8], length: usize) -> Result<Vec<u8>, JsValue> {
     use crown::core::CoreRead;
     let prk = crown::kdf::hkdf::extract(crown::hash::sha256::new256, ikm, salt);
     let mut exp = crown::kdf::hkdf::expand(crown::hash::sha256::new256, &prk, info);
@@ -49,25 +44,15 @@ pub fn tls1_prf(secret: &[u8], seed: &[u8], length: usize) -> Result<Vec<u8>, Js
 /// SSKDF (hash-based) with SHA-256.
 #[wasm_bindgen]
 pub fn sskdf(secret: &[u8], info: &[u8], length: usize) -> Result<Vec<u8>, JsValue> {
-    crown::kdf::sskdf::derive_hash(
-        crown::envelope::EvpHash::new_sha256,
-        secret,
-        info,
-        length,
-    )
-    .map_err(|e| JsValue::from_str(&format!("{:?}", e)))
+    crown::kdf::sskdf::derive_hash(crown::envelope::EvpHash::new_sha256, secret, info, length)
+        .map_err(|e| JsValue::from_str(&format!("{:?}", e)))
 }
 
 /// X963KDF with SHA-256.
 #[wasm_bindgen]
 pub fn x963_kdf(secret: &[u8], info: &[u8], length: usize) -> Result<Vec<u8>, JsValue> {
-    crown::kdf::sskdf::x963_derive_hash(
-        crown::envelope::EvpHash::new_sha256,
-        secret,
-        info,
-        length,
-    )
-    .map_err(|e| JsValue::from_str(&format!("{:?}", e)))
+    crown::kdf::sskdf::x963_derive_hash(crown::envelope::EvpHash::new_sha256, secret, info, length)
+        .map_err(|e| JsValue::from_str(&format!("{:?}", e)))
 }
 
 /// HOTP (RFC 4226).

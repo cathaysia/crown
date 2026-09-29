@@ -6,6 +6,7 @@
 pub mod cmac;
 pub mod gmac;
 pub mod hmac;
+#[cfg(feature = "alloc")]
 pub mod kmac;
 pub mod poly1305;
 pub mod siphash;

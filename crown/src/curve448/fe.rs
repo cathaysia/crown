@@ -169,9 +169,7 @@ pub fn mul(f: &Fe, g: &Fe) -> Fe {
     for j in 0..8 {
         v[j] = t[j] + t[j + 8] + if j >= 4 { t[j + 4] } else { 0 };
     }
-    for j in 8..12 {
-        v[j] = t[j + 4];
-    }
+    v[8..12].copy_from_slice(&t[12..16]);
     // Fold lanes 8..12 with 2^448 = 2^224 + 1 (into lanes j-8 and j-4).
     for j in 8..12 {
         let x = v[j];

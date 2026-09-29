@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Field arithmetic modulo `p = 2^255 - 19` with five 51-bit limbs.
 //!
 //! Portable radix-2^51 representation (u64 limbs, u128 intermediates),
@@ -68,7 +69,7 @@ fn propagate(t: &mut [i64; 5]) {
 pub fn mul(f: &Fe, g: &Fe) -> Fe {
     #[cfg(all(feature = "asm", target_arch = "x86_64"))]
     {
-        return crate::ed25519::asm::fe51_mul(f, g);
+        crate::ed25519::asm::fe51_mul(f, g)
     }
     #[cfg(any(not(feature = "asm"), not(target_arch = "x86_64")))]
     mul_generic(f, g)
@@ -115,7 +116,7 @@ fn mul_generic(f: &Fe, g: &Fe) -> Fe {
 pub fn sq(f: &Fe) -> Fe {
     #[cfg(all(feature = "asm", target_arch = "x86_64"))]
     {
-        return crate::ed25519::asm::fe51_sqr(f);
+        crate::ed25519::asm::fe51_sqr(f)
     }
     #[cfg(any(not(feature = "asm"), not(target_arch = "x86_64")))]
     mul_generic(f, f)

@@ -10,6 +10,7 @@ pub struct EvpXts {
     inner: XtsInner,
 }
 
+#[allow(clippy::large_enum_variant)]
 enum XtsInner {
     Aes(Xts<Aes>),
     Sm4(Xts<Sm4>),

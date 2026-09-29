@@ -23,6 +23,7 @@
 //! shift-and-xor reference. See `gf2m/NOTES.md` for config pins and
 //! re-verification.
 
+#![allow(dead_code, unused_imports)]
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 core::arch::global_asm!(
     crown_derive::jsasm_file!("crown/src/bn/gf2m_x86_64.ts"),

@@ -19,8 +19,8 @@ pub fn ml_dsa_keygen(variant: u32, seed: &[u8]) -> Result<Vec<u8>, JsValue> {
     }
     let mut s = [0u8; 32];
     s.copy_from_slice(seed);
-    let (pk, sk) = crown::ml_dsa::keygen(var, &s)
-        .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+    let (pk, sk) =
+        crown::ml_dsa::keygen(var, &s).map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
     let mut out = pk.to_bytes().to_vec();
     out.extend_from_slice(&sk.to_bytes());
     Ok(out)
@@ -36,8 +36,7 @@ pub fn ml_dsa_sign(
     let var = variant_mldsa(variant)?;
     let sk = crown::ml_dsa::MlDsaPrivateKey::from_bytes(var, private)
         .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
-    crown::ml_dsa::sign(&sk, msg, ctx, None)
-        .map_err(|e| JsValue::from_str(&format!("{:?}", e)))
+    crown::ml_dsa::sign(&sk, msg, ctx, None).map_err(|e| JsValue::from_str(&format!("{:?}", e)))
 }
 
 #[wasm_bindgen]
@@ -51,8 +50,7 @@ pub fn ml_dsa_verify(
     let var = variant_mldsa(variant)?;
     let pk = crown::ml_dsa::MlDsaPublicKey::from_bytes(var, public)
         .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
-    crown::ml_dsa::verify(&pk, msg, ctx, sig)
-        .map_err(|e| JsValue::from_str(&format!("{:?}", e)))
+    crown::ml_dsa::verify(&pk, msg, ctx, sig).map_err(|e| JsValue::from_str(&format!("{:?}", e)))
 }
 
 /// Returns `public || private`.
@@ -60,10 +58,10 @@ pub fn ml_dsa_verify(
 pub fn slh_dsa_keygen(name: &str, seed: &[u8]) -> Result<Vec<u8>, JsValue> {
     let var = crown::slh_dsa::SlhDsaVariant::from_name(name)
         .ok_or_else(|| JsValue::from_str("unknown SLH-DSA variant"))?;
-    let (pk, sk) = crown::slh_dsa::keygen(var, seed)
-        .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+    let (pk, sk) =
+        crown::slh_dsa::keygen(var, seed).map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
     let mut out = pk.to_bytes().to_vec();
-    out.extend_from_slice(&sk.to_bytes());
+    out.extend_from_slice(sk.to_bytes());
     Ok(out)
 }
 
@@ -78,8 +76,7 @@ pub fn slh_dsa_sign(
         .ok_or_else(|| JsValue::from_str("unknown SLH-DSA variant"))?;
     let sk = crown::slh_dsa::SlhDsaPrivateKey::from_bytes(var, private)
         .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
-    crown::slh_dsa::sign(&sk, msg, ctx, false)
-        .map_err(|e| JsValue::from_str(&format!("{:?}", e)))
+    crown::slh_dsa::sign(&sk, msg, ctx, false).map_err(|e| JsValue::from_str(&format!("{:?}", e)))
 }
 
 #[wasm_bindgen]

@@ -74,6 +74,7 @@ impl From<PaddingMode> for Box<dyn Padding> {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum Cipher {
     Aead(EvpAeadCipher),
     Stream(EvpStreamCipher),

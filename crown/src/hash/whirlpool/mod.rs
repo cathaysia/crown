@@ -22,10 +22,13 @@ mod tests;
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 mod asm;
 
-use bytes::BufMut;
 use consts::TABLE;
 #[cfg(feature = "marshal")]
 use crown_derive::Marshal;
+
+
+#[allow(unused_imports)]
+use bytes::BufMut;
 
 use crate::{
     core::CoreWrite,

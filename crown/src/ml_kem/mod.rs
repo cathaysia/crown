@@ -455,7 +455,7 @@ fn k_pke_encrypt(ek: &[u8], m: &[u8; 32], r: &[u8; 32], p: &Params) -> Vec<u8> {
     let mu = decode_poly(m, 1);
     for i in 0..N {
         let mask = 0u16.wrapping_sub(mu[i] & 1); // 0xffff if bit set
-        v[i] = ntt::add(v[i], mask & ((Q + 1) / 2));
+        v[i] = ntt::add(v[i], mask & Q.div_ceil(2));
     }
 
     let mut ct = vec![0u8; p.du as usize * 32 * k + p.dv as usize * 32];

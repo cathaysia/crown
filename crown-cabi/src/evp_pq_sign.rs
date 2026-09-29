@@ -26,7 +26,9 @@ pub unsafe extern "C" fn ml_dsa_keygen(
     private: *mut u8,
     private_len: *mut usize,
 ) -> i32 {
-    let Some(var) = variant_mldsa(variant) else { return -1 };
+    let Some(var) = variant_mldsa(variant) else {
+        return -1;
+    };
     unsafe {
         let seed = match slice_from_raw_parts(seed, seed_len) {
             Some(s) if s.len() == 32 => s,
@@ -73,7 +75,9 @@ pub unsafe extern "C" fn ml_dsa_sign(
     sig: *mut u8,
     sig_len: *mut usize,
 ) -> i32 {
-    let Some(var) = variant_mldsa(variant) else { return -1 };
+    let Some(var) = variant_mldsa(variant) else {
+        return -1;
+    };
     use crown::ml_dsa::{sign, MlDsaPrivateKey};
     unsafe {
         let skb = match slice_from_raw_parts(private, private_len) {
@@ -130,7 +134,9 @@ pub unsafe extern "C" fn ml_dsa_verify(
     sig: *const u8,
     sig_len: usize,
 ) -> i32 {
-    let Some(var) = variant_mldsa(variant) else { return -1 };
+    let Some(var) = variant_mldsa(variant) else {
+        return -1;
+    };
     use crown::ml_dsa::{verify, MlDsaPublicKey};
     unsafe {
         let pkb = match slice_from_raw_parts(public, public_len) {
@@ -190,7 +196,9 @@ pub unsafe extern "C" fn slh_dsa_keygen(
             None => return -1,
         }
     };
-    let Some(var) = variant_slh(name) else { return -1 };
+    let Some(var) = variant_slh(name) else {
+        return -1;
+    };
     unsafe {
         let seed = match slice_from_raw_parts(seed, seed_len) {
             Some(s) => s,
@@ -245,7 +253,9 @@ pub unsafe extern "C" fn slh_dsa_sign(
             None => return -1,
         }
     };
-    let Some(var) = variant_slh(name) else { return -1 };
+    let Some(var) = variant_slh(name) else {
+        return -1;
+    };
     use crown::slh_dsa::{sign, SlhDsaPrivateKey};
     unsafe {
         let skb = match slice_from_raw_parts(private, private_len) {
@@ -312,7 +322,9 @@ pub unsafe extern "C" fn slh_dsa_verify(
             None => return -1,
         }
     };
-    let Some(var) = variant_slh(name) else { return -1 };
+    let Some(var) = variant_slh(name) else {
+        return -1;
+    };
     use crown::slh_dsa::{verify, SlhDsaPublicKey};
     unsafe {
         let pkb = match slice_from_raw_parts(public, public_len) {

@@ -6,6 +6,7 @@
 //! (`x25519_fe64_*`); the ladder itself is the constant-time bit loop from
 //! the reference implementation.
 
+#![allow(dead_code)]
 mod fe64;
 
 use fe64::{add, cswap, from_bytes, invert, mul, mul121666, sq, sub, to_bytes, Fe64};
@@ -110,7 +111,7 @@ pub fn x25519(
 /// (crown has no ambient `RAND`); the 32-byte seed is clamped before use
 /// as usual.
 pub fn keypair(
-    rng: &mut impl crate::rsa::Rng,
+    rng: &mut impl crate::rng::Rng,
 ) -> ([u8; PRIVATE_KEY_SIZE], [u8; PUBLIC_KEY_SIZE]) {
     let mut private = [0u8; PRIVATE_KEY_SIZE];
     rng.fill_bytes(&mut private);

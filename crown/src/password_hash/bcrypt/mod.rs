@@ -8,13 +8,15 @@ use base64::*;
 #[cfg(test)]
 mod tests;
 
+use alloc::vec;
+use alloc::vec::Vec;
+
 use crate::{
     block::blowfish::{expand_key, Blowfish as BlowfishCipher},
     block::BlockCipher,
     error::{CryptoError, CryptoResult},
     utils::subtle::constant_time_eq,
 };
-use alloc::vec::Vec;
 
 // Constants
 pub const MIN_COST: u32 = 4;

@@ -1,5 +1,7 @@
 use super::*;
-use crown::ml_kem::{decapsulate, encapsulate, keygen, MlKemPrivateKey, MlKemPublicKey, MlKemVariant};
+use crown::ml_kem::{
+    decapsulate, encapsulate, keygen, MlKemPrivateKey, MlKemPublicKey, MlKemVariant,
+};
 
 fn variant_of(v: u32) -> Option<MlKemVariant> {
     match v {
@@ -22,7 +24,9 @@ pub unsafe extern "C" fn ml_kem_keygen(
     private: *mut u8,
     private_len: *mut usize,
 ) -> i32 {
-    let Some(var) = variant_of(variant) else { return -1 };
+    let Some(var) = variant_of(variant) else {
+        return -1;
+    };
     unsafe {
         let seed = match slice_from_raw_parts(seed, seed_len) {
             Some(s) if s.len() == 64 => s,
@@ -68,7 +72,9 @@ pub unsafe extern "C" fn ml_kem_encapsulate(
     ciphertext_len: *mut usize,
     shared: *mut u8,
 ) -> i32 {
-    let Some(var) = variant_of(variant) else { return -1 };
+    let Some(var) = variant_of(variant) else {
+        return -1;
+    };
     unsafe {
         let pkb = match slice_from_raw_parts(public, public_len) {
             Some(s) => s,
@@ -111,7 +117,9 @@ pub unsafe extern "C" fn ml_kem_decapsulate(
     ciphertext_len: usize,
     shared: *mut u8,
 ) -> i32 {
-    let Some(var) = variant_of(variant) else { return -1 };
+    let Some(var) = variant_of(variant) else {
+        return -1;
+    };
     unsafe {
         let skb = match slice_from_raw_parts(private, private_len) {
             Some(s) => s,

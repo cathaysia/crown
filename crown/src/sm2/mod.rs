@@ -9,14 +9,16 @@ use crate::bn::Bn;
 use crate::ec::{coord32, Curve, Point};
 use crate::error::{CryptoError, CryptoResult};
 use crate::hash::sm3::sum_sm3;
-use crate::rsa::Rng;
+use crate::rng::Rng;
 
+use alloc::vec::Vec;
+use alloc::string::String;
 /// Default user identity used for ZA in the GM/T sample vectors.
 pub const DEFAULT_ID: &[u8] = b"1234567812345678";
 
 fn hex_to_bytes(s: &str) -> Vec<u8> {
     let s: String = s.chars().filter(|c| c.is_ascii_hexdigit()).collect();
-    assert!(s.len() % 2 == 0, "odd hex length");
+    assert!(s.len().is_multiple_of(2), "odd hex length");
     (0..s.len())
         .step_by(2)
         .map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap())

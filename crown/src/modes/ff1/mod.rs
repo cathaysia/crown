@@ -8,6 +8,9 @@ use crate::block::aes::Aes;
 use crate::block::BlockCipher;
 use crate::error::{CryptoError, CryptoResult};
 
+use alloc::vec::Vec;
+use alloc::vec;
+use alloc::string::String;
 const ROUNDS: usize = 10;
 
 /// Encrypt a numeral string (digits in `radix`) under FF1.
@@ -106,9 +109,9 @@ fn num_bytes(radix: u32, num_digits: usize) -> usize {
 
 /// AES-CBC-MAC over `data` (a multiple of 16 bytes), IV = 0.
 fn cbc_mac(aes: &Aes, data: &[u8]) -> [u8; 16] {
-    debug_assert!(data.len() % 16 == 0 && !data.is_empty());
+    debug_assert!(data.len().is_multiple_of(16) && !data.is_empty());
     let mut state = [0u8; 16];
-    for chunk in data.chunks_exact(16) {
+    for chunk in data.as_chunks::<16>().0 {
         let mut block = [0u8; 16];
         for i in 0..16 {
             block[i] = state[i] ^ chunk[i];
@@ -218,6 +221,7 @@ fn mod_sub(a: &[u32], y: &[u32], radix: u32) -> Vec<u32> {
 }
 
 /// Round PRF: y = NUM(PR F(B)) mod radix^m, as little-endian digits.
+#[allow(clippy::too_many_arguments)]
 fn round_y(
     aes: &Aes,
     p: &[u8; 16],
@@ -232,7 +236,7 @@ fn round_y(
     // Q = T || 0^pad || [i] || [B] as b_bytes
     let mut q = Vec::with_capacity(tweak.len() + pad + 1 + b_bytes);
     q.extend_from_slice(tweak);
-    q.extend(core::iter::repeat(0u8).take(pad));
+    q.extend(core::iter::repeat_n(0u8, pad));
     q.push(i as u8);
     let b_be: Vec<u32> = b_le.iter().rev().copied().collect();
     q.extend_from_slice(&digits_to_bytes_be(&b_be, radix, b_bytes));

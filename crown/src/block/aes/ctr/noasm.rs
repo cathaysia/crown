@@ -1,5 +1,4 @@
 // Re-exports feed `ctr.rs` (`pub use noasm::*` supplies Aes, CryptoResult, ...).
-pub use super::*;
 pub use crate::block::aes::*;
 
 /// CTR32 multi-block XOR. The generic mode increments a 128-bit counter;

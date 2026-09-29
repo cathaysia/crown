@@ -7,8 +7,11 @@
 use crate::bn::Bn;
 use crate::error::{CryptoError, CryptoResult};
 use crate::hash::sha256::sum256;
-use crate::rsa::Rng;
+use crate::rng::Rng;
 
+use alloc::vec::Vec;
+use alloc::vec;
+use alloc::string::String;
 /// DSA domain parameters: prime modulus `p`, subgroup order `q`, base `g`.
 #[derive(Debug, Clone)]
 pub struct DsaParams {
@@ -27,7 +30,7 @@ pub struct DsaKeyPair {
 
 fn hex_to_bytes(s: &str) -> Vec<u8> {
     let s: String = s.chars().filter(|c| c.is_ascii_hexdigit()).collect();
-    assert!(s.len() % 2 == 0, "odd hex length");
+    assert!(s.len().is_multiple_of(2), "odd hex length");
     (0..s.len())
         .step_by(2)
         .map(|i| u8::from_str_radix(&s[i..i + 2], 16).expect("hex digit"))
@@ -85,7 +88,7 @@ fn hash_to_int(hash: &[u8], q: &Bn) -> Bn {
 /// Sample `k` uniformly in `[1, q-1]`.
 fn sample_k(q: &Bn, rng: &mut impl Rng) -> Bn {
     let q_bits = q.bit_len();
-    let buf_len = (q_bits + 7) / 8;
+    let buf_len = q_bits.div_ceil(8);
     let excess_bits = buf_len * 8 - q_bits;
     let mut buf = vec![0u8; buf_len];
     for _ in 0..128 {

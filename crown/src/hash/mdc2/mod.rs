@@ -21,9 +21,12 @@
 #[cfg(test)]
 mod tests;
 
-use bytes::BufMut;
 #[cfg(feature = "marshal")]
 use crown_derive::Marshal;
+
+
+#[allow(unused_imports)]
+use bytes::BufMut;
 
 use crate::{
     block::{des::Des, BlockCipher},

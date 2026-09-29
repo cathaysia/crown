@@ -45,7 +45,7 @@ impl<B: BlockCipher> Cts<B> {
         }
         let mut out = pt.to_vec();
 
-        if pt.len() % bs == 0 {
+        if pt.len().is_multiple_of(bs) {
             // Full blocks: plain CBC, then swap the last two ciphertext blocks.
             self.cbc_blocks(&mut out);
             let n = out.len();
@@ -91,7 +91,7 @@ impl<B: BlockCipher> Cts<B> {
         if ct.len() < bs {
             return Err(CryptoError::InvalidLength);
         }
-        if ct.len() % bs == 0 {
+        if ct.len().is_multiple_of(bs) {
             // Full blocks: swap last two, then plain CBC decrypt.
             let mut out = ct.to_vec();
             let n = out.len();

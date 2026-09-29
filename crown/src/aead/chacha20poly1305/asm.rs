@@ -20,6 +20,7 @@
 //! tag for the caller to compare (BoringSSL's detached interface).
 
 
+#![allow(dead_code, unused_imports)]
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 core::arch::global_asm!(
     crown_derive::jsasm_file!("crown/src/aead/chacha20poly1305/x86_64.ts"),

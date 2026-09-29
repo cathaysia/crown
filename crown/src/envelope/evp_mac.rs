@@ -6,7 +6,6 @@ use crate::mac::cmac::Cmac;
 use crate::mac::gmac::Gmac;
 use crate::mac::kmac::{Kmac128, Kmac256};
 use crate::mac::siphash::SipHash;
-use crate::core::CoreWrite;
 use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;

@@ -9,6 +9,9 @@ use crate::error::{CryptoError, CryptoResult};
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 pub mod nistz256;
 
+use alloc::vec::Vec;
+use alloc::vec;
+use alloc::string::String;
 /// Supported curve identifiers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CurveId {
@@ -30,7 +33,7 @@ pub struct Curve {
 
 fn hex_to_bytes(s: &str) -> Vec<u8> {
     let s: String = s.chars().filter(|c| c.is_ascii_hexdigit()).collect();
-    assert!(s.len() % 2 == 0, "odd hex length");
+    assert!(s.len().is_multiple_of(2), "odd hex length");
     (0..s.len())
         .step_by(2)
         .map(|i| u8::from_str_radix(&s[i..i + 2], 16).expect("hex digit"))
@@ -118,7 +121,7 @@ pub fn curve(id: CurveId) -> Curve {
 
 /// Byte length of field elements / coordinates for `c` (32 / 48 / 66).
 pub fn field_bytes(c: &Curve) -> usize {
-    (c.p.bit_len() + 7) / 8
+    c.p.bit_len().div_ceil(8)
 }
 
 /// Affine point on the curve; `infinity` is the point at infinity.

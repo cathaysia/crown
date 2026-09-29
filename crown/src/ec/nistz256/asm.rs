@@ -28,6 +28,7 @@
 //! void ecp_nistz256_gather_w5(void *val, const void *in_t, int index);
 //! void ecp_nistz256_scatter_w7(void *val, const void *in_t, int index);
 //! void ecp_nistz256_gather_w7(void *val, const void *in_t, int index);
+#![allow(dead_code, unused_imports)]
 //! void ecp_nistz256_avx2_gather_w7(void *val, const void *in_t, int index);
 //!
 //! void ecp_nistz256_point_double(uint64_t r[12], const uint64_t a[12]);
