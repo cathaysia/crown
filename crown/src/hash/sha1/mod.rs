@@ -7,6 +7,7 @@
 //! [sha512](crate::hash::sha512) or the [sha3](crate::hash::sha3).
 //!
 mod block;
+pub mod mb;
 use block::block;
 use bytes::BufMut;
 #[cfg(feature = "marshal")]
