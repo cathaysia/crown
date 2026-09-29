@@ -1,5 +1,6 @@
 'use client';
 
+import { hkdf, pbkdf2, sskdf, tls1_prf, x963_kdf } from 'crown-wasm';
 import { useEffect, useState } from 'react';
 import {
   Select,
@@ -8,17 +9,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  hkdf,
-  pbkdf2,
-  sskdf,
-  tls1_prf,
-  x963_kdf,
-} from 'crown-wasm';
-import { stringToUint8Array, uint8ArrayToString, initWasm } from '@/lib/wasm';
+import { initWasm, stringToUint8Array, uint8ArrayToString } from '@/lib/wasm';
+import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
-import { Button } from '@/ui/button';
 import { Textarea } from '@/ui/textarea';
 
 const algorithms = [

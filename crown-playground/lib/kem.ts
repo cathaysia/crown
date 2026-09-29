@@ -1,16 +1,16 @@
 import {
-  ml_kem_decapsulate,
-  ml_kem_encapsulate,
-  ml_kem_keygen,
-  ml_dsa_keygen,
-  ml_dsa_sign,
-  ml_dsa_verify,
-  slh_dsa_keygen,
-  slh_dsa_sign,
-  slh_dsa_verify,
   ed25519_keygen,
   ed25519_sign,
   ed25519_verify,
+  ml_dsa_keygen,
+  ml_dsa_sign,
+  ml_dsa_verify,
+  ml_kem_decapsulate,
+  ml_kem_encapsulate,
+  ml_kem_keygen,
+  slh_dsa_keygen,
+  slh_dsa_sign,
+  slh_dsa_verify,
 } from 'crown-wasm';
 
 export { ml_dsa_sign, ml_dsa_verify, slh_dsa_sign, slh_dsa_verify };
@@ -51,11 +51,11 @@ export function ed25519Sign(secret: Uint8Array, msg: Uint8Array) {
 }
 
 export function ed25519Verify(
-  public: Uint8Array,
+  publicKey: Uint8Array,
   msg: Uint8Array,
   sig: Uint8Array,
 ) {
-  return ed25519_verify(public, msg, sig);
+  return ed25519_verify(publicKey, msg, sig);
 }
 
 export const slhDsaVariants = [
