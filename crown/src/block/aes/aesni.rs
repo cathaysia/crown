@@ -9,7 +9,7 @@ core::arch::global_asm!(
     options(att_syntax)
 );
 
-use super::ttable::AesKey;
+pub use super::ttable::AesKey;
 use crate::utils::cpuid::ia32cap;
 
 extern "C" {

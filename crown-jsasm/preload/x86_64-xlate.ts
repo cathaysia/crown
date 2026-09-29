@@ -512,8 +512,10 @@ class EA {
     // Sign extension for 32-bit offsets (perl: $1<<32>>32 under use integer)
     label = label.replace(/\b([0-9]+)\b/g, m => String(parseInt(m) | 0));
 
-    // Optimize base/index for rbp/r13
-    if (!label && index && this.scale === 1 && base.match(/(rbp|r13)/)) {
+    // Optimize base/index for rbp/r13. Mirror perl !\$self->{label}:
+    // empty string and \"0\" are both falsy (so 0(%r13,%reg) flips).
+    const labelEmpty = !label || label === "0";
+    if (labelEmpty && index && this.scale === 1 && base.match(/(rbp|r13)/)) {
       [base, index] = [index, base];
     }
 
