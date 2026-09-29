@@ -16,17 +16,30 @@
 //! `blocks` counts **64-byte** chunks. Only `ctx->h[0..7]` is updated
 //! (the caller owns the length counters and final padding).
 //!
-//! # Implementation status
-//!
-//! The jsasm translation of the AVX body lives in `x86_64.ts` but is not
-//! yet wired into the call path — the stitched body still faults and needs
-//! further verification against the perl output (see `NOTES.md`). The
-//! public API below runs a correct software path: AES-NI CBC encryption
-//! plus portable SHA-256 compression of the plaintext, matching the
-//! stitched semantics exactly. Tests pin both the CBC output and the
-//! SHA-256 state against independent oracles.
+//! The AVX stitched body is wired via `global_asm!` when the `asm`
+//! feature is enabled. shaext/xop/avx2 tiers are not ported yet (see
+//! `NOTES.md`); the dispatcher routes to the AVX body.
 
 use crate::block::aes::aesni::AesKey;
+
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+core::arch::global_asm!(
+    crown_derive::jsasm_file!("crown/src/aead/aesni_sha256/x86_64.ts"),
+    options(att_syntax)
+);
+
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+extern "C" {
+    fn aesni_cbc_sha256_enc(
+        inp: *const u8,
+        out: *mut u8,
+        blocks: usize,
+        key: *const u8,
+        iv: *mut u8,
+        ctx: *mut u32,
+        in0: *const u8,
+    );
+}
 
 /// SHA-256 chaining value length (the only part of `SHA256_CTX` the asm touches).
 pub const SHA256_STATE_WORDS: usize = 8;
@@ -99,6 +112,31 @@ fn sha256_compress(h: &mut [u32; 8], block: &[u8]) {
 /// `iv` is updated in place to the final CBC IV. `ctx` is updated with the
 /// SHA-256 compression of `inp` (length counters are **not** touched — the
 /// caller adds `8 * inp.len()` bits). This matches `aesni_cbc_sha256_enc`.
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+pub fn cbc_sha256_enc(
+    inp: &[u8],
+    out: &mut [u8],
+    key: &AesKey,
+    iv: &mut [u8; 16],
+    ctx: &mut [u32; SHA256_STATE_WORDS],
+) {
+    let blocks = inp.len() / 64;
+    assert!(blocks > 0 && inp.len() % 64 == 0, "len must be a positive multiple of 64");
+    assert!(out.len() >= inp.len());
+    unsafe {
+        aesni_cbc_sha256_enc(
+            inp.as_ptr(),
+            out.as_mut_ptr(),
+            blocks,
+            key as *const AesKey as *const u8,
+            iv.as_mut_ptr(),
+            ctx.as_mut_ptr(),
+            inp.as_ptr(),
+        );
+    }
+}
+
+#[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
 pub fn cbc_sha256_enc(
     inp: &[u8],
     out: &mut [u8],

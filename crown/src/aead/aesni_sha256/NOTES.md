@@ -7,12 +7,13 @@ Rust wiring: `crown/src/aead/aesni_sha256/mod.rs`.
 
 ## Status
 
-The jsasm translation of the AVX body is present in `x86_64.ts` but **not
-wired into the call path** — the stitched body currently faults (SIGSEGV)
-and needs further verification against the perl output. The public API in
-`mod.rs` therefore runs a correct software path (AES-NI CBC + portable
-SHA-256 compression of the plaintext) that matches the stitched semantics.
-Tests pin both outputs against independent oracles.
+The AVX stitched body is a static translation of the perl output
+(`CC=gcc perl aesni-sha256-x86_64.pl elf`), with `aesenc`/`sha256*` mnemonics
+encoded as `.byte` and data labels prefixed `aesni_sha256_`. It is wired
+via `global_asm!` and passes the software-oracle tests.
+
+shaext / xop / avx2 tiers are **not** ported; the dispatcher routes
+unconditionally to the AVX body.
 
 ## Config pins (for the eventual asm path)
 
