@@ -1,5 +1,8 @@
 //! Bit packing / unpacking for ML-DSA keys and signatures (FIPS 204 §7.2).
 
+use alloc::vec;
+use alloc::vec::Vec;
+
 use super::ntt::mod_sub;
 use super::params::{
     ETA_4, GAMMA1_19, GAMMA2_Q_MINUS1_DIV32, RHO_BYTES, TR_BYTES, K_BYTES,
@@ -8,14 +11,14 @@ use super::poly::Poly;
 
 /// Pack 4-bit coefficients (0..15) — `w1` when γ2 = (q−1)/32 (FIPS 204 Alg 16).
 pub(crate) fn encode_4_bits(p: &Poly, out: &mut Vec<u8>) {
-    for c in p.coeff.chunks_exact(2) {
+    for c in p.coeff.as_chunks::<2>().0 {
         out.push((c[0] | (c[1] << 4)) as u8);
     }
 }
 
 /// Pack 6-bit coefficients (0..43) — `w1` when γ2 = (q−1)/88 (FIPS 204 Alg 16).
 pub(crate) fn encode_6_bits(p: &Poly, out: &mut Vec<u8>) {
-    for c in p.coeff.chunks_exact(4) {
+    for c in p.coeff.as_chunks::<4>().0 {
         out.push((c[0] | (c[1] << 6)) as u8);
         out.push(((c[1] >> 2) | (c[2] << 4)) as u8);
         out.push(((c[2] >> 4) | (c[3] << 2)) as u8);
@@ -24,7 +27,7 @@ pub(crate) fn encode_6_bits(p: &Poly, out: &mut Vec<u8>) {
 
 /// Pack 10-bit coefficients (0..1023) — `t1` (FIPS 204 Alg 16).
 pub(crate) fn encode_10_bits(p: &Poly, out: &mut Vec<u8>) {
-    for c in p.coeff.chunks_exact(4) {
+    for c in p.coeff.as_chunks::<4>().0 {
         out.push(c[0] as u8);
         out.push(((c[0] >> 8) | (c[1] << 2)) as u8);
         out.push(((c[1] >> 6) | (c[2] << 4)) as u8);
@@ -40,7 +43,7 @@ pub(crate) fn decode_10_bits(input: &[u8]) -> Option<Poly> {
     }
     let mut out = Poly::zero();
     const MASK: u32 = 0x3ff;
-    for (i, chunk) in input.chunks_exact(5).take(64).enumerate() {
+    for (i, chunk) in input.as_chunks::<5>().0.iter().take(64).enumerate() {
         let v = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
         let w = chunk[4] as u32;
         let base = i * 4;
@@ -54,7 +57,7 @@ pub(crate) fn decode_10_bits(input: &[u8]) -> Option<Poly> {
 
 /// Pack η = 4 coefficients in −4..4 (FIPS 204 Alg 17, a = b = 4).
 pub(crate) fn encode_signed_4(p: &Poly, out: &mut Vec<u8>) {
-    for c in p.coeff.chunks_exact(2) {
+    for c in p.coeff.as_chunks::<2>().0 {
         let z0 = mod_sub(4, c[0]);
         let z1 = mod_sub(4, c[1]);
         out.push((z0 | (z1 << 4)) as u8);
@@ -90,7 +93,7 @@ pub(crate) fn decode_signed_4(input: &[u8]) -> Option<Poly> {
 
 /// Pack η = 2 coefficients in −2..2 (FIPS 204 Alg 17, a = b = 2), 3 bits each.
 pub(crate) fn encode_signed_2(p: &Poly, out: &mut Vec<u8>) {
-    for c in p.coeff.chunks_exact(8) {
+    for c in p.coeff.as_chunks::<8>().0 {
         let mut z = 0u32;
         for (j, &coeff) in c.iter().enumerate() {
             z |= mod_sub(2, coeff) << (3 * j);
@@ -126,7 +129,7 @@ pub(crate) fn decode_signed_2(input: &[u8]) -> Option<Poly> {
 /// Pack 13-bit coefficients in −2^12+1..2^12 — `t0` (FIPS 204 Alg 17).
 pub(crate) fn encode_signed_2_12(p: &Poly, out: &mut Vec<u8>) {
     const RANGE: u32 = 1 << 12;
-    for c in p.coeff.chunks_exact(8) {
+    for c in p.coeff.as_chunks::<8>().0 {
         let mut a1 = 0u64;
         a1 |= mod_sub(RANGE, c[0]) as u64;
         a1 |= (mod_sub(RANGE, c[1]) as u64) << 13;
@@ -172,7 +175,7 @@ pub(crate) fn decode_signed_2_12(input: &[u8]) -> Option<Poly> {
 /// Pack 20-bit coefficients in −2^19+1..2^19 — `z` for γ1 = 2^19.
 pub(crate) fn encode_signed_2_19(p: &Poly, out: &mut Vec<u8>) {
     const RANGE: u32 = 1 << 19;
-    for c in p.coeff.chunks_exact(4) {
+    for c in p.coeff.as_chunks::<4>().0 {
         let mut z0 = mod_sub(RANGE, c[0]);
         let z1_0 = mod_sub(RANGE, c[1]);
         z0 |= z1_0 << 20;
@@ -210,7 +213,7 @@ pub(crate) fn decode_signed_2_19(input: &[u8]) -> Option<Poly> {
 /// Pack 18-bit coefficients in −2^17+1..2^17 — `z` for γ1 = 2^17.
 pub(crate) fn encode_signed_2_17(p: &Poly, out: &mut Vec<u8>) {
     const RANGE: u32 = 1 << 17;
-    for c in p.coeff.chunks_exact(4) {
+    for c in p.coeff.as_chunks::<4>().0 {
         let mut z0 = mod_sub(RANGE, c[0]);
         let z1_0 = mod_sub(RANGE, c[1]);
         z0 |= z1_0 << 18;

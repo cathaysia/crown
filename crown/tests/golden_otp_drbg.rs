@@ -8,9 +8,7 @@
 
 use crown::drbg::{HashDrbg, HmacDrbg};
 use crown::otp::{hotp, totp};
-use crown::password_hash::pbes2::{
-    pbes2_decrypt, pbes2_encrypt, HashId, Pbes2Cipher, Pbes2Kdf,
-};
+use crown::password_hash::pbes2::{pbes2_decrypt, pbes2_encrypt, HashId, Pbes2Cipher, Pbes2Kdf};
 
 // HOTP — RFC 4226 Appendix D (SHA-1, 6 digits, counters 0..9)
 
@@ -176,8 +174,7 @@ fn test_golden_pbes2() {
         let pass = b"correct horse battery staple";
         let salt = [0x11u8; 8];
         let pt = b"attack at dawn";
-        let ct =
-            pbes2_encrypt(pass, &salt, &kdf_sha256(1000), Pbes2Cipher::Aes128Cbc, pt).unwrap();
+        let ct = pbes2_encrypt(pass, &salt, &kdf_sha256(1000), Pbes2Cipher::Aes128Cbc, pt).unwrap();
         assert!(ct.len() > 16);
         let got =
             pbes2_decrypt(pass, &salt, &kdf_sha256(1000), Pbes2Cipher::Aes128Cbc, &ct).unwrap();
@@ -190,8 +187,7 @@ fn test_golden_pbes2() {
         let pass = b"password";
         let salt = [0x22u8; 16];
         let pt = b"hello world, this is a longer plaintext for AES-256-CBC!!";
-        let ct =
-            pbes2_encrypt(pass, &salt, &kdf_sha256(500), Pbes2Cipher::Aes256Cbc, pt).unwrap();
+        let ct = pbes2_encrypt(pass, &salt, &kdf_sha256(500), Pbes2Cipher::Aes256Cbc, pt).unwrap();
         let got =
             pbes2_decrypt(pass, &salt, &kdf_sha256(500), Pbes2Cipher::Aes256Cbc, &ct).unwrap();
         assert_eq!(got, pt);
@@ -203,8 +199,7 @@ fn test_golden_pbes2() {
         let pass = b"3des-pass";
         let salt = [0x33u8; 8];
         let pt = b"short";
-        let ct =
-            pbes2_encrypt(pass, &salt, &kdf_sha256(200), Pbes2Cipher::DesEde3Cbc, pt).unwrap();
+        let ct = pbes2_encrypt(pass, &salt, &kdf_sha256(200), Pbes2Cipher::DesEde3Cbc, pt).unwrap();
         let got =
             pbes2_decrypt(pass, &salt, &kdf_sha256(200), Pbes2Cipher::DesEde3Cbc, &ct).unwrap();
         assert_eq!(got, pt);
@@ -218,7 +213,14 @@ fn test_golden_pbes2() {
         let ct =
             pbes2_encrypt(b"right", &salt, &kdf_sha256(50), Pbes2Cipher::Aes128Cbc, pt).unwrap();
         assert!(
-            pbes2_decrypt(b"wrong", &salt, &kdf_sha256(50), Pbes2Cipher::Aes128Cbc, &ct).is_err(),
+            pbes2_decrypt(
+                b"wrong",
+                &salt,
+                &kdf_sha256(50),
+                Pbes2Cipher::Aes128Cbc,
+                &ct
+            )
+            .is_err(),
             "wrong password must fail"
         );
         checked += 1;

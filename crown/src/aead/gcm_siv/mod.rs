@@ -16,6 +16,7 @@ use crate::block::BlockCipher;
 use crate::error::{CryptoError, CryptoResult};
 use crate::utils::subtle::constant_time_eq;
 
+use alloc::vec::Vec;
 /// AES-128-GCM-SIV tag length.
 pub const TAG_SIZE: usize = 16;
 /// AES-128-GCM-SIV nonce length.
@@ -50,7 +51,7 @@ fn gf_mul(a: u128, b: u128) -> u128 {
 /// POLYVAL over a sequence of 16-byte blocks.
 fn polyval(h: u128, blocks: &[u8]) -> u128 {
     let mut s: u128 = 0;
-    for chunk in blocks.chunks_exact(16) {
+    for chunk in blocks.as_chunks::<16>().0 {
         let mut x = [0u8; 16];
         x.copy_from_slice(chunk);
         let x = u128::from_le_bytes(x);
@@ -108,7 +109,7 @@ impl AesGcmSiv {
 
         // padded aad || padded pt || length_block
         let mut buf = Vec::with_capacity(
-            (aad.len() + 15) / 16 * 16 + (pt.len() + 15) / 16 * 16 + 16,
+            aad.len().div_ceil(16) * 16 + pt.len().div_ceil(16) * 16 + 16,
         );
         buf.extend_from_slice(aad);
         while buf.len() % 16 != 0 {

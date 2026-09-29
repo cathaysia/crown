@@ -13,8 +13,10 @@ use crate::ec::{curve, generator, mul_base, CurveId, Point};
 use crate::error::{CryptoError, CryptoResult};
 use crate::hash::sha256::sum256;
 use crate::hash::sha512::{sum384, sum512};
-use crate::rsa::Rng;
+use crate::rng::Rng;
 
+use alloc::vec::Vec;
+use alloc::vec;
 /// Hash algorithm used to digest the message before signing/verifying.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DigestId {
@@ -51,7 +53,7 @@ fn bits2int_mod(hash: &[u8], n: &Bn) -> Bn {
 /// Sample `k` uniformly in `[1, n-1]`.
 fn sample_k(n: &Bn, rng: &mut impl Rng) -> Bn {
     let n_bits = n.bit_len();
-    let buf_len = (n_bits + 7) / 8;
+    let buf_len = n_bits.div_ceil(8);
     let excess_bits = buf_len * 8 - n_bits;
     let mut buf = vec![0u8; buf_len];
     for _ in 0..128 {
@@ -158,7 +160,7 @@ mod tests {
     use super::*;
 
     fn bn_hex(s: &str) -> Bn {
-        let mut s: String = s.chars().filter(|c| c.is_ascii_hexdigit()).collect();
+        let mut s: alloc::string::String = s.chars().filter(|c| c.is_ascii_hexdigit()).collect();
         if s.len() % 2 == 1 {
             s.insert(0, '0');
         }

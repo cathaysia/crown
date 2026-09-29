@@ -52,7 +52,7 @@ pub(crate) fn reduce_montgomery(a: u64) -> u32 {
     let t = (a as u32 as u64).wrapping_mul(Q_NEG_INV) & 0xFFFF_FFFF;
     let b = a.wrapping_add(t.wrapping_mul(Q as u64));
     let c = (b >> 32) as u32;
-    reduce_once(c as u64) as u32
+    reduce_once(c as u64)
 }
 
 /// Reduce `x` assumed `< 2q` into `0..q`, in constant time.

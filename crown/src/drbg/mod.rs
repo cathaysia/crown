@@ -6,6 +6,7 @@ use crate::hash::sha256::{new256, sum256};
 use crate::hash::Hash;
 use crate::mac::hmac::HMAC;
 
+use alloc::vec::Vec;
 const SHA256_LEN: usize = 32;
 /// SP 800-90A seedlen for SHA-256 Hash_DRBG = 440 bits.
 const HASH_SEED_LEN: usize = 55;

@@ -13,6 +13,7 @@
 //! the accumulator has to line up exactly.
 
 
+#![allow(dead_code, unused_imports)]
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 core::arch::global_asm!(
     crown_derive::jsasm_file!("crown/src/aead/gcm/x86_64.ts"),

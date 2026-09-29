@@ -18,7 +18,9 @@
 //! `BN_MONT_CTX::n0[0]`, a second word follows for internal use).
 
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#![allow(dead_code, unused_imports)]
+use alloc::vec::Vec;
+
 core::arch::global_asm!(
     crown_derive::jsasm_file!("crown/src/bn/x86_64.ts"),
     options(att_syntax)

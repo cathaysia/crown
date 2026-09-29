@@ -58,7 +58,7 @@ fn rej_ntt_poly(seed: &[u8]) -> Poly {
     let mut block = [0u8; 168];
     loop {
         shake.read_exact(&mut block).expect("shake read");
-        for b in block.chunks_exact(3) {
+        for b in block.as_chunks::<3>().0 {
             if let Some(c) = coeff_from_three_bytes(b) {
                 out.coeff[j] = c;
                 j += 1;
@@ -145,8 +145,8 @@ pub(crate) fn expand_mask(seed: &[u8], gamma1: u32) -> Poly {
     let mut shake = new_shake256();
     shake.write_all(seed).expect("shake write");
     shake.read_exact(&mut buf).expect("shake read");
-    let poly = decode_expand_mask(&buf, gamma1);
-    poly
+    
+    decode_expand_mask(&buf, gamma1)
 }
 
 /// Unpack a mask polynomial from `buf` (18 or 20 bits per coefficient).
@@ -156,7 +156,7 @@ fn decode_expand_mask(buf: &[u8], gamma1: u32) -> Poly {
         // 20 bits per coefficient, 4 coefficients per 10 bytes.
         const RANGE: u32 = 1 << 19;
         const MASK: u32 = (1 << 20) - 1;
-        for (i, chunk) in buf.chunks_exact(10).enumerate() {
+        for (i, chunk) in buf.as_chunks::<10>().0.iter().enumerate() {
             let a1 = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
             let a2 = u32::from_le_bytes([chunk[4], chunk[5], chunk[6], chunk[7]]);
             let a3 = u16::from_le_bytes([chunk[8], chunk[9]]) as u32;
@@ -170,7 +170,7 @@ fn decode_expand_mask(buf: &[u8], gamma1: u32) -> Poly {
         // 18 bits per coefficient, 4 coefficients per 9 bytes.
         const RANGE: u32 = 1 << 17;
         const MASK: u32 = (1 << 18) - 1;
-        for (i, chunk) in buf.chunks_exact(9).enumerate() {
+        for (i, chunk) in buf.as_chunks::<9>().0.iter().enumerate() {
             let a1 = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
             let a2 = u32::from_le_bytes([chunk[4], chunk[5], chunk[6], chunk[7]]);
             let a3 = chunk[8] as u32;

@@ -6,9 +6,11 @@
 //! [`crate::ed25519::asm`] implement the arithmetic; otherwise these
 //! portable routines match the same invariants.
 
+#![allow(dead_code, unused_imports)]
 pub type Fe64 = [u64; 4];
 
 pub const ZERO: Fe64 = [0, 0, 0, 0];
+#[cfg(test)]
 pub const ONE: Fe64 = [1, 0, 0, 0];
 
 /// Load a 32-byte little-endian value; the top bit is masked off, as in
@@ -26,7 +28,7 @@ pub fn from_bytes(s: &[u8; 32]) -> Fe64 {
 pub fn to_bytes(h: &Fe64) -> [u8; 32] {
     #[cfg(all(feature = "asm", target_arch = "x86_64"))]
     {
-        return crate::ed25519::asm::fe64_tobytes(h);
+        crate::ed25519::asm::fe64_tobytes(h)
     }
     #[cfg(any(not(feature = "asm"), not(target_arch = "x86_64")))]
     to_bytes_generic(h)
@@ -68,7 +70,7 @@ fn to_bytes_generic(h: &Fe64) -> [u8; 32] {
 pub fn add(f: &Fe64, g: &Fe64) -> Fe64 {
     #[cfg(all(feature = "asm", target_arch = "x86_64"))]
     {
-        return crate::ed25519::asm::fe64_add(f, g);
+        crate::ed25519::asm::fe64_add(f, g)
     }
     #[cfg(any(not(feature = "asm"), not(target_arch = "x86_64")))]
     add_generic(f, g)
@@ -90,7 +92,7 @@ fn add_generic(f: &Fe64, g: &Fe64) -> Fe64 {
 pub fn sub(f: &Fe64, g: &Fe64) -> Fe64 {
     #[cfg(all(feature = "asm", target_arch = "x86_64"))]
     {
-        return crate::ed25519::asm::fe64_sub(f, g);
+        crate::ed25519::asm::fe64_sub(f, g)
     }
     #[cfg(any(not(feature = "asm"), not(target_arch = "x86_64")))]
     sub_generic(f, g)
@@ -119,7 +121,7 @@ fn sub_generic(f: &Fe64, g: &Fe64) -> Fe64 {
 pub fn mul(f: &Fe64, g: &Fe64) -> Fe64 {
     #[cfg(all(feature = "asm", target_arch = "x86_64"))]
     {
-        return crate::ed25519::asm::fe64_mul(f, g);
+        crate::ed25519::asm::fe64_mul(f, g)
     }
     #[cfg(any(not(feature = "asm"), not(target_arch = "x86_64")))]
     mul_generic(f, g)
@@ -143,7 +145,7 @@ fn mul_generic(f: &Fe64, g: &Fe64) -> Fe64 {
 pub fn sq(f: &Fe64) -> Fe64 {
     #[cfg(all(feature = "asm", target_arch = "x86_64"))]
     {
-        return crate::ed25519::asm::fe64_sqr(f);
+        crate::ed25519::asm::fe64_sqr(f)
     }
     #[cfg(any(not(feature = "asm"), not(target_arch = "x86_64")))]
     mul_generic(f, f)
@@ -153,7 +155,7 @@ pub fn sq(f: &Fe64) -> Fe64 {
 pub fn mul121666(f: &Fe64) -> Fe64 {
     #[cfg(all(feature = "asm", target_arch = "x86_64"))]
     {
-        return crate::ed25519::asm::fe64_mul121666(f);
+        crate::ed25519::asm::fe64_mul121666(f)
     }
     #[cfg(any(not(feature = "asm"), not(target_arch = "x86_64")))]
     mul121666_generic(f)

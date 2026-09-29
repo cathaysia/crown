@@ -27,10 +27,7 @@ use crate::hash::HashUser;
 use crate::kdf::HashFactory;
 use alloc::vec::Vec;
 
-/// Random byte source used by key generation and randomized padding.
-pub trait Rng {
-    fn fill_bytes(&mut self, out: &mut [u8]);
-}
+pub use crate::rng::Rng;
 
 impl Rng for dyn FnMut(&mut [u8]) + '_ {
     fn fill_bytes(&mut self, out: &mut [u8]) {

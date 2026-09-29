@@ -149,8 +149,7 @@ fn test_golden_aes_key_wrap() {
     {
         let kek = h("000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F");
         let data = h("00112233445566778899AABBCCDDEEFF0001020304050607");
-        let expected =
-            h("A8F9BC1612C68B3FF6E6F4FBE30E71E4769C8B80A32CB8958CD5D17D6B254DA1");
+        let expected = h("A8F9BC1612C68B3FF6E6F4FBE30E71E4769C8B80A32CB8958CD5D17D6B254DA1");
         let c = Aes::new(&kek).unwrap();
         let ct = key_wrap(&c, &data).unwrap();
         assert_eq!(ct, expected, "RFC 3394 4.3 wrap");
@@ -163,8 +162,7 @@ fn test_golden_aes_key_wrap() {
     {
         let kek = h("5840df6e29b02af1ab493b705bf16ea1ae8338f4dcc176a8");
         let pt = h("c37b7e6492584340bed12207808941155068f738");
-        let expected =
-            h("138bdeaa9b8fa7fc61f97742e72248ee5ae6ae5360d1ae6a5f54f373fa543b6a");
+        let expected = h("138bdeaa9b8fa7fc61f97742e72248ee5ae6ae5360d1ae6a5f54f373fa543b6a");
         let c = Aes::new(&kek).unwrap();
         let ct = key_wrap_padded(&c, &pt).unwrap();
         assert_eq!(ct, expected, "RFC 5649 6 20-byte wrap");

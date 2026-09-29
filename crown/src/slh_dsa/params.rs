@@ -74,7 +74,7 @@ impl Params {
 
     /// Byte length of the message digest `md` consumed by FORS.
     pub(crate) fn md_len(&self) -> usize {
-        (self.k as usize * self.a as usize + 7) / 8
+        (self.k as usize * self.a as usize).div_ceil(8)
     }
 
 }

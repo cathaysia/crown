@@ -16,6 +16,7 @@
 //! `#define fe51_mul x25519_fe51_mul`. fe64 helpers stay available for
 //! the future X25519 ladder.
 
+#![allow(dead_code, unused_imports)]
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 core::arch::global_asm!(
     crown_derive::jsasm_file!("crown/src/ed25519/x86_64.ts"),

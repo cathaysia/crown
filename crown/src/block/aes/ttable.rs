@@ -3,7 +3,9 @@
 //! Exposes OpenSSL-compatible `AES_set_*_key` / `AES_encrypt` / `AES_decrypt`
 //! over the FIPS-197 round-key schedule in `AesKey`.
 
+#![allow(dead_code, unused_imports)]
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+use alloc::vec;
 core::arch::global_asm!(
     crown_derive::jsasm_file!("crown/src/block/aes/ttable.ts"),
     options(att_syntax)

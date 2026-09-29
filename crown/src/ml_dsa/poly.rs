@@ -54,8 +54,8 @@ pub(crate) fn high_bits(r: u32, gamma2: u32) -> u32 {
     } else {
         r1 = (r1 * 11275 + (1 << 23)) >> 24;
         // Zero r1 when it would exceed 43.
-        let mask = (((43 - r1) >> 31) as i32) as u32;
-        ((r1 as u32) ^ (mask & (r1 as u32))) as u32
+        let mask = ((43 - r1) >> 31) as u32;
+        (r1 as u32) ^ (mask & (r1 as u32))
     }
 }
 
@@ -130,7 +130,7 @@ pub(crate) fn poly_max_signed(p: &Poly) -> u32 {
     let mut mx = 0u32;
     for &c in &p.coeff {
         let abs = if (c as i32) < 0 {
-            (c as u32).wrapping_neg()
+            c.wrapping_neg()
         } else {
             c
         };

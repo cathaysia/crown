@@ -6,6 +6,7 @@
 //! The plain aes and aesni modules consume the standard FIPS-197 schedule
 //! (crown's BlockExpanded.enc limb) directly through an AES_KEY shim.
 
+#![allow(dead_code, unused_imports)]
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 core::arch::global_asm!(
     crown_derive::jsasm_file!("crown/src/block/aes/vpaes/x86_64.ts"),

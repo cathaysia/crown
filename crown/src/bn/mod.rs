@@ -723,6 +723,7 @@ impl Montgomery {
 
         let pad = |b: &Bn| -> alloc::vec::Vec<u64> {
             let mut v = alloc::vec![0u64; num];
+            #[allow(clippy::manual_memcpy)]
             for i in 0..num.min(b.limbs.len()) {
                 v[i] = b.limbs[i];
             }
@@ -796,7 +797,7 @@ impl Montgomery {
         let mut acc = alloc::vec![0u64; num];
         asm::gather5(&mut acc, &powerbuf, w);
 
-        let use_power5 = num % 8 == 0;
+        let use_power5 = num.is_multiple_of(8);
         while bi >= 0 {
             let mut w = 0usize;
             for _ in 0..5 {

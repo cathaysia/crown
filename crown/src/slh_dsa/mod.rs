@@ -309,8 +309,8 @@ fn encode_message(
 /// Split the trailing `m - md_len` digest bytes into tree and leaf indices
 /// (FIPS 205 Algorithm 19, steps 7–10).
 fn tree_and_leaf_ids(p: &Params, digest_tail: &[u8]) -> (u64, u32) {
-    let tree_id_len = ((p.h - p.hm + 7) / 8) as usize;
-    let leaf_id_len = ((p.hm + 7) / 8) as usize;
+    let tree_id_len = (p.h - p.hm).div_ceil(8) as usize;
+    let leaf_id_len = p.hm.div_ceil(8) as usize;
     let mut tree_id: u64 = 0;
     for &b in &digest_tail[..tree_id_len] {
         tree_id = (tree_id << 8) + b as u64;

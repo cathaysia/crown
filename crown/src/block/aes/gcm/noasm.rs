@@ -1,11 +1,12 @@
-use super::generic::derive_counter_generic;
-use super::generic::gcm_counter_crypt_generic;
-use super::generic::gcm_inc32;
+#![allow(dead_code, unused_imports)]
+use super::generic::{
+    derive_counter_generic, gcm_counter_crypt_generic, gcm_inc32,
+};
 use super::ghash::ghash_absorb;
 use super::*;
 use crate::error::CryptoResult;
-use crate::utils::subtle::xor::xor_bytes;
 use crate::utils::subtle::constant_time_eq;
+use crate::utils::subtle::xor::xor_bytes;
 
 pub fn seal<const N: usize, const T: usize>(
     inout: &mut [u8],
@@ -39,6 +40,7 @@ pub fn open<const N: usize, const T: usize>(
 }
 
 /// Length block for GHASH: ad_bits || ct_bits (big-endian u64s).
+#[allow(dead_code)]
 fn length_block(additional_data: &[u8], ct_len: usize) -> [u8; 16] {
     let mut b = [0u8; 16];
     b[..8].copy_from_slice(&((additional_data.len() as u64) * 8).to_be_bytes());

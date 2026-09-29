@@ -72,7 +72,7 @@ pub fn cbc_sha1_enc(
     ctx: &mut [u32; SHA1_STATE_WORDS],
 ) {
     let blocks = inp.len() / 64;
-    assert!(blocks > 0 && inp.len() % 64 == 0, "len must be a positive multiple of 64");
+    assert!(blocks > 0 && inp.len().is_multiple_of(64), "len must be a positive multiple of 64");
     assert!(out.len() >= inp.len());
     unsafe {
         aesni_cbc_sha1_enc(

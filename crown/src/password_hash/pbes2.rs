@@ -17,6 +17,7 @@ use crate::padding::Pkcs7;
 use crate::padding::Padding;
 use crate::password_hash::pbkdf2;
 
+use alloc::vec::Vec;
 /// Hash algorithm identifiers usable with the PBES2 KDFs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HashId {
@@ -194,7 +195,7 @@ pub fn pbes2_decrypt(
         // need at least IV + one ciphertext block
         return Err(CryptoError::InvalidLength);
     }
-    if (ct.len() - iv_len) % iv_len != 0 {
+    if !(ct.len() - iv_len).is_multiple_of(iv_len) {
         return Err(CryptoError::InvalidLength);
     }
 

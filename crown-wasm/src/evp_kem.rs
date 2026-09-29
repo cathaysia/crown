@@ -1,4 +1,6 @@
-use crown::ml_kem::{decapsulate, encapsulate, keygen, MlKemPrivateKey, MlKemPublicKey, MlKemVariant};
+use crown::ml_kem::{
+    decapsulate, encapsulate, keygen, MlKemPrivateKey, MlKemPublicKey, MlKemVariant,
+};
 use wasm_bindgen::prelude::*;
 
 fn variant_of(bits: u32) -> Result<MlKemVariant, JsValue> {
@@ -43,7 +45,11 @@ pub fn ml_kem_encapsulate(variant: u32, public: &[u8], message: &[u8]) -> Result
 }
 
 #[wasm_bindgen]
-pub fn ml_kem_decapsulate(variant: u32, private: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, JsValue> {
+pub fn ml_kem_decapsulate(
+    variant: u32,
+    private: &[u8],
+    ciphertext: &[u8],
+) -> Result<Vec<u8>, JsValue> {
     let var = variant_of(variant)?;
     let sk = MlKemPrivateKey::from_bytes(var, private)
         .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;

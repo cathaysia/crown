@@ -20,6 +20,7 @@
 //! feature is enabled. shaext/xop/avx2 tiers are not ported yet (see
 //! `NOTES.md`); the dispatcher routes to the AVX body.
 
+#![allow(dead_code, unused_imports)]
 use crate::block::aes::aesni::AesKey;
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
@@ -121,7 +122,7 @@ pub fn cbc_sha256_enc(
     ctx: &mut [u32; SHA256_STATE_WORDS],
 ) {
     let blocks = inp.len() / 64;
-    assert!(blocks > 0 && inp.len() % 64 == 0, "len must be a positive multiple of 64");
+    assert!(blocks > 0 && inp.len().is_multiple_of(64), "len must be a positive multiple of 64");
     assert!(out.len() >= inp.len());
     unsafe {
         aesni_cbc_sha256_enc(
@@ -145,7 +146,7 @@ pub fn cbc_sha256_enc(
     ctx: &mut [u32; SHA256_STATE_WORDS],
 ) {
     let blocks = inp.len() / 64;
-    assert!(blocks > 0 && inp.len() % 64 == 0, "len must be a positive multiple of 64");
+    assert!(blocks > 0 && inp.len().is_multiple_of(64), "len must be a positive multiple of 64");
     assert!(out.len() >= inp.len());
     out[..inp.len()].copy_from_slice(inp);
     crate::block::aes::aesni::cbc_encrypt(&mut out[..inp.len()], key, iv, true);

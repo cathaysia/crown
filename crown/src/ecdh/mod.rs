@@ -7,8 +7,10 @@
 use crate::bn::Bn;
 use crate::ec::{curve, field_bytes, mul_base, CurveId, Point};
 use crate::error::{CryptoError, CryptoResult};
-use crate::rsa::Rng;
+use crate::rng::Rng;
 
+use alloc::vec::Vec;
+use alloc::vec;
 /// Generate a key pair `(private, public)` on curve `id`.
 pub fn generate(id: CurveId, rng: &mut impl Rng) -> CryptoResult<(Bn, Point)> {
     let c = curve(id);
@@ -61,7 +63,7 @@ mod tests {
     use crate::bn::Bn;
 
     fn bn_hex(s: &str) -> Bn {
-        let s: String = s.chars().filter(|c| c.is_ascii_hexdigit()).collect();
+        let s: alloc::string::String = s.chars().filter(|c| c.is_ascii_hexdigit()).collect();
         let bytes: Vec<u8> = (0..s.len())
             .step_by(2)
             .map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap())

@@ -41,6 +41,7 @@ pub(crate) fn xmss_node(
 ///
 /// Appends the WOTS+ signature and the `h'`-node authentication path to `out`
 /// at `out_off`; returns the offset just past them.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn xmss_sign(
     p: &Params,
     msg: &[u8],
@@ -73,6 +74,7 @@ pub(crate) fn xmss_sign(
 ///
 /// Reads one XMSS signature from `sig` at `sig_off`; returns the offset just
 /// past it and writes the candidate node to `pk_out`.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn xmss_pk_from_sig(
     p: &Params,
     node_id: u32,

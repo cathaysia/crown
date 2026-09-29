@@ -1,8 +1,10 @@
 //! GHASH assembly implementation using PCLMULQDQ.
 
+#![allow(dead_code, unused_imports)]
 use super::GCM_BLOCK_SIZE;
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+use alloc::vec::Vec;
 core::arch::global_asm!(
     crown_derive::jsasm_file!("crown/src/block/aes/gcm/x86_64.ts"),
     options(att_syntax)

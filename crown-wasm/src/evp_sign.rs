@@ -34,6 +34,5 @@ pub fn ed25519_verify(public: &[u8], msg: &[u8], sig: &[u8]) -> Result<bool, JsV
 }
 
 fn getrandom_fill(buf: &mut [u8]) {
-    use std::io::Read;
-    let _ = std::fs::File::open("/dev/urandom").and_then(|mut f| f.read_exact(buf));
+    let _ = getrandom::fill(buf);
 }

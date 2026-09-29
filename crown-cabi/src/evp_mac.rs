@@ -135,7 +135,7 @@ impl Mac {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn mac_free(this: *mut Self) {
+    pub unsafe extern "C" fn mac_free(this: *mut Self) {
         if !this.is_null() {
             unsafe { drop(Box::from_raw(this)) };
         }

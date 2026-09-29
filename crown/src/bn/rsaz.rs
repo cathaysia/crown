@@ -28,6 +28,7 @@
 //! void rsaz_1024_sqr_avx2(void *rp, const void *ap, const void *np,
 //!                         BN_ULONG n0, int rep);
 //! void rsaz_1024_mul_avx2(void *rp, const void *ap, const void *bp,
+#![allow(dead_code, unused_mut, unused_imports)]
 //!                         const void *np, BN_ULONG n0);
 //! void rsaz_1024_norm2red_avx2(void *red, const void *norm);
 //! void rsaz_1024_red2norm_avx2(void *norm, const void *red);

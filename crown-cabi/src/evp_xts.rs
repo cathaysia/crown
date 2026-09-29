@@ -97,7 +97,7 @@ impl Xts {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn xts_free(this: *mut Self) {
+    pub unsafe extern "C" fn xts_free(this: *mut Self) {
         if !this.is_null() {
             unsafe { drop(Box::from_raw(this)) };
         }

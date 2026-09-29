@@ -4,6 +4,8 @@ use crate::block::aes::Aes;
 use crate::block::BlockCipher;
 use crate::error::{CryptoError, CryptoResult};
 
+use alloc::vec::Vec;
+use alloc::vec;
 /// Default IV for AES Key Wrap (RFC 3394 §2.2.3.1).
 const IV: [u8; 8] = [0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6];
 
@@ -23,7 +25,7 @@ fn dec(c: &Aes, block: &[u8; 16]) -> [u8; 16] {
 }
 
 fn to_blocks(data: &[u8]) -> Vec<[u8; 8]> {
-    data.chunks_exact(8)
+    data.as_chunks::<8>().0.iter()
         .map(|c| {
             let mut b = [0u8; 8];
             b.copy_from_slice(c);
@@ -34,7 +36,7 @@ fn to_blocks(data: &[u8]) -> Vec<[u8; 8]> {
 
 /// RFC 3394 wrap with a caller-supplied 8-byte initial value.
 fn wrap_iv(c: &Aes, plaintext: &[u8], iv: &[u8; 8]) -> CryptoResult<Vec<u8>> {
-    if plaintext.len() < 16 || plaintext.len() % 8 != 0 {
+    if plaintext.len() < 16 || !plaintext.len().is_multiple_of(8) {
         return Err(CryptoError::InvalidLength);
     }
     let n = plaintext.len() / 8;
@@ -67,7 +69,7 @@ fn wrap_iv(c: &Aes, plaintext: &[u8], iv: &[u8; 8]) -> CryptoResult<Vec<u8>> {
 /// RFC 3394 unwrap core: recovers the integrity register A and the data.
 /// The caller validates A against the expected initial value / AIV.
 fn unwrap_core(c: &Aes, ct: &[u8]) -> CryptoResult<([u8; 8], Vec<u8>)> {
-    if ct.len() < 24 || ct.len() % 8 != 0 {
+    if ct.len() < 24 || !ct.len().is_multiple_of(8) {
         return Err(CryptoError::InvalidLength);
     }
     let n = ct.len() / 8 - 1;
@@ -103,7 +105,7 @@ fn unwrap_core(c: &Aes, ct: &[u8]) -> CryptoResult<([u8; 8], Vec<u8>)> {
 /// `plaintext` must be at least 16 bytes and a multiple of 8 bytes.
 /// The output is `plaintext.len() + 8` bytes.
 pub fn key_wrap(c: &Aes, plaintext: &[u8]) -> CryptoResult<Vec<u8>> {
-    if plaintext.len() < 16 || plaintext.len() % 8 != 0 {
+    if plaintext.len() < 16 || !plaintext.len().is_multiple_of(8) {
         return Err(CryptoError::InvalidLength);
     }
     wrap_iv(c, plaintext, &IV)
@@ -114,7 +116,7 @@ pub fn key_wrap(c: &Aes, plaintext: &[u8]) -> CryptoResult<Vec<u8>> {
 /// `ct` must be at least 24 bytes and a multiple of 8 bytes.
 /// Fails with [`CryptoError::AuthenticationFailed`] on integrity-IV mismatch.
 pub fn key_unwrap(c: &Aes, ct: &[u8]) -> CryptoResult<Vec<u8>> {
-    if ct.len() < 24 || ct.len() % 8 != 0 {
+    if ct.len() < 24 || !ct.len().is_multiple_of(8) {
         return Err(CryptoError::InvalidLength);
     }
     let (a, data) = unwrap_core(c, ct)?;
@@ -160,7 +162,7 @@ pub fn key_wrap_padded(c: &Aes, pt: &[u8]) -> CryptoResult<Vec<u8>> {
 /// Verifies the AIV (magic, MLI bounds, and zero padding) and returns
 /// the original plaintext.
 pub fn key_unwrap_padded(c: &Aes, ct: &[u8]) -> CryptoResult<Vec<u8>> {
-    if ct.len() < 16 || ct.len() % 8 != 0 {
+    if ct.len() < 16 || !ct.len().is_multiple_of(8) {
         return Err(CryptoError::InvalidLength);
     }
     // Number of padded plaintext blocks.

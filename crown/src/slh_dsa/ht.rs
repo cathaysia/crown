@@ -13,6 +13,7 @@ use crate::utils::subtle::constant_time_eq;
 ///
 /// Appends `d` XMSS signatures to `out` at `out_off`; returns the offset just
 /// past them. The caller must size `out` for the full hypertree signature.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn ht_sign(
     p: &Params,
     msg: &[u8],
@@ -65,6 +66,7 @@ pub(crate) fn ht_sign(
 /// Reads `d` XMSS signatures from `sig` starting at `sig_off`. Returns
 /// `Some(offset)` just past them when the recomputed root equals `pk_root`,
 /// or `None` on mismatch. `sig` must have the exact parameter-set length.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn ht_verify(
     p: &Params,
     msg: &[u8],

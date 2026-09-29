@@ -7,6 +7,8 @@ use crate::aead::{Aead, AeadUser};
 use crate::error::{CryptoError, CryptoResult};
 use crate::utils::subtle::constant_time_eq;
 
+use alloc::vec::Vec;
+use alloc::vec;
 /// Tag length in bytes.
 pub const TAG_SIZE: usize = 16;
 /// Nonce length in bytes.
@@ -58,7 +60,7 @@ fn be64(b: &[u8]) -> u64 {
 fn pad(data: &[u8]) -> Vec<u8> {
     let mut out = data.to_vec();
     out.push(0x80);
-    while out.len() % RATE != 0 {
+    while !out.len().is_multiple_of(RATE) {
         out.push(0);
     }
     out
@@ -95,7 +97,7 @@ impl AsconAead128 {
     fn process_aad(&self, s: &mut [u64; 5], aad: &[u8]) {
         if !aad.is_empty() {
             let ap = pad(aad);
-            for chunk in ap.chunks_exact(RATE) {
+            for chunk in ap.as_chunks::<RATE>().0 {
                 s[0] ^= be64(chunk);
                 ascon_permutation(s, 6);
             }
@@ -127,7 +129,7 @@ impl AsconAead128 {
         } else {
             let pp = pad(pt);
             let nblocks = pp.len() / RATE;
-            for (bi, chunk) in pp.chunks_exact(RATE).enumerate() {
+            for (bi, chunk) in pp.as_chunks::<RATE>().0.iter().enumerate() {
                 let pblk = be64(chunk);
                 let cblk = s[0] ^ pblk;
                 if bi + 1 < nblocks {
@@ -159,9 +161,7 @@ impl AsconAead128 {
         // turns back into the 10* padding absorb.
         let c_lastlen = ct.len() % RATE;
         let mut c_padded = ct.to_vec();
-        for _ in 0..(RATE - c_lastlen) {
-            c_padded.push(0);
-        }
+        c_padded.resize((ct.len() / RATE + 1) * RATE, 0);
         let nblocks = c_padded.len() / RATE;
         let mut pt = vec![0u8; ct.len()];
 
