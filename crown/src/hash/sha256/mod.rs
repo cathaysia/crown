@@ -20,6 +20,7 @@ use crate::{
 mod tests;
 
 mod block;
+pub mod mb;
 #[cfg(feature = "cuda")]
 pub mod cuda;
 mod generic;
