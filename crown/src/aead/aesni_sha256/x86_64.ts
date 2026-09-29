@@ -75,12 +75,12 @@ aesni_sha256_K256:
 .long	0,0,0,0,   0,0,0,0
 .byte	65,69,83,78,73,45,67,66,67,43,83,72,65,50,53,54,32,115,116,105,116,99,104,32,102,111,114,32,120,56,54,95,54,52,44,32,67,82,89,80,84,79,71,65,77,83,32,98,121,32,60,97,112,112,114,111,64,111,112,101,110,115,115,108,46,111,114,103,62,0
 .align	64
-.previous	
+.previous
 
 	.text
 
 aesni_cbc_sha256_enc_avx:
-.cfi_startproc	
+.cfi_startproc
 .Lavx_shortcut:
 	movq	8(%rsp),%r10
 	movq	%rsp,%rax
@@ -1270,7 +1270,7 @@ aesni_cbc_sha256_enc_avx:
 .cfi_def_cfa_register	%rsp
 .Lepilogue_avx:
 	.byte	0xf3,0xc3
-.cfi_endproc	
+.cfi_endproc
 .size	aesni_cbc_sha256_enc_avx,.-aesni_cbc_sha256_enc_avx`;
 
 export default translateAssembly(code);

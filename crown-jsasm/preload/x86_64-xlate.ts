@@ -514,7 +514,7 @@ class EA {
 
     // Optimize base/index for rbp/r13. Mirror perl !\$self->{label}:
     // empty string and \"0\" are both falsy (so 0(%r13,%reg) flips).
-    const labelEmpty = !label || label === "0";
+    const labelEmpty = !label || label === '0';
     if (labelEmpty && index && this.scale === 1 && base.match(/(rbp|r13)/)) {
       [base, index] = [index, base];
     }
