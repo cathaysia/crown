@@ -19,6 +19,9 @@ pub use mac::*;
 mod sign;
 pub use sign::*;
 
+mod kem;
+pub use kem::*;
+
 use clap::Parser;
 
 #[derive(Debug, Parser)]
@@ -38,6 +41,8 @@ pub enum Args {
     Otp(ArgsOtp),
     /// Digital signatures (Ed25519/Ed448).
     Sign(ArgsSign),
+    /// ML-KEM key encapsulation.
+    Kem(ArgsKem),
 }
 
 #[derive(Debug, Parser)]

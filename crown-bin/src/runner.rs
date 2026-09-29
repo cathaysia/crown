@@ -20,3 +20,6 @@ pub use mac::{run_mac, run_otp};
 
 mod sign;
 pub use sign::run_sign;
+
+mod kem;
+pub use kem::run_kem;
