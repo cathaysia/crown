@@ -16,11 +16,19 @@ export function aesKeyUnwrap(key: Uint8Array, ct: Uint8Array, padded = false) {
   return padded ? aes_key_unwrap_padded(key, ct) : aes_key_unwrap(key, ct);
 }
 
-export function ff1EncryptDecimal(key: Uint8Array, tweak: Uint8Array, s: string) {
+export function ff1EncryptDecimal(
+  key: Uint8Array,
+  tweak: Uint8Array,
+  s: string,
+) {
   return ff1_encrypt_decimal(key, tweak, s);
 }
 
-export function ff1DecryptDecimal(key: Uint8Array, tweak: Uint8Array, s: string) {
+export function ff1DecryptDecimal(
+  key: Uint8Array,
+  tweak: Uint8Array,
+  s: string,
+) {
   return ff1_decrypt_decimal(key, tweak, s);
 }
 

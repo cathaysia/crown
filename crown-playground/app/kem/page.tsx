@@ -73,8 +73,15 @@ export default function KemPage() {
         }
       } else {
         const variant =
-          algorithm === 'mlkem512' ? 512 : algorithm === 'mlkem768' ? 768 : 1024;
-        const keys = mlKemKeygen(variant as 512 | 768 | 1024, generateRandomKey(64));
+          algorithm === 'mlkem512'
+            ? 512
+            : algorithm === 'mlkem768'
+              ? 768
+              : 1024;
+        const keys = mlKemKeygen(
+          variant as 512 | 768 | 1024,
+          generateRandomKey(64),
+        );
         // keys = public || private; public length depends on variant
         const pubLens: Record<number, number> = {
           512: 800,

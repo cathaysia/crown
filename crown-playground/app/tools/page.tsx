@@ -102,7 +102,9 @@ export default function ToolsPage() {
           </Select>
         </div>
         <div className="grid gap-2">
-          <Label>Key (hex{tool === 'xts' ? ', 32/64 bytes' : ', 16/24/32 bytes'})</Label>
+          <Label>
+            Key (hex{tool === 'xts' ? ', 32/64 bytes' : ', 16/24/32 bytes'})
+          </Label>
           <div className="flex gap-2">
             <Input value={key} onChange={e => setKey(e.target.value)} />
             <Button
