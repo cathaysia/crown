@@ -299,7 +299,8 @@ Notes:
 ### Remaining x86_64 perlasm on `second`
 
 - done this round: `x86_64-gf2m.pl`, `aesni-sha1-x86_64.pl`
-- still open (large software-pipelined generators, 4k–7k lines): `aesni-sha256-x86_64.pl`, `sha1-mb-x86_64.pl`, `sha256-mb-x86_64.pl`
+- done: `sha1-mb-x86_64.pl` / `sha256-mb-x86_64.pl` (SSSE3 4-way bodies, tests green)
+- done (software path + jsasm WIP): `aesni-sha256-x86_64.pl` — AVX body translated but not yet fault-free; API runs software CBC+SHA256 until verified
 - `ml_dsa_ntt` perlasm: not present in OpenSSL 3.5.8 reference tree
 
 
