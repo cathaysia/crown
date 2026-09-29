@@ -1,4 +1,11 @@
-import init, { AeadCipher, BlockCipher, Hash, StreamCipher } from 'crown-wasm';
+import init, {
+  AeadCipher,
+  BlockCipher,
+  Hash,
+  Mac,
+  StreamCipher,
+  Xts,
+} from 'crown-wasm';
 
 let wasmInitialized = false;
 
@@ -60,4 +67,4 @@ export function generateRandomKey(length: number): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(length));
 }
 
-export { AeadCipher, BlockCipher, Hash, StreamCipher };
+export { AeadCipher, BlockCipher, Hash, Mac, StreamCipher, Xts };
