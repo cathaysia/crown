@@ -30,7 +30,14 @@ function LL(...b: number[]): void {
 }
 
 const mm: string[] = [
-  '%r8', '%r9', '%r10', '%r11', '%r12', '%r13', '%r14', '%r15',
+  '%r8',
+  '%r9',
+  '%r10',
+  '%r11',
+  '%r12',
+  '%r13',
+  '%r14',
+  '%r15',
 ];
 function rotMm(): void {
   mm.push(mm.shift()!);
@@ -421,13 +428,9 @@ for (let i = 0; i < 8; i++) {
 
 for (let i = 0; i < 8; i++) {
   const loadEax =
-    i < 7
-      ? `	mov	64+${i}*8+8(%rsp),%eax\n`
-      : `	# 64+(7+1)*8\n`;
+    i < 7 ? `	mov	64+${i}*8+8(%rsp),%eax\n` : `	# 64+(7+1)*8\n`;
   const loadEbx =
-    i < 7
-      ? `	mov	64+${i}*8+8+4(%rsp),%ebx\n`
-      : `	# 64+(7+1)*8+4\n`;
+    i < 7 ? `	mov	64+${i}*8+8+4(%rsp),%ebx\n` : `	# 64+(7+1)*8+4\n`;
   code += `	shr	$16,%eax
 	lea	(%rcx,%rcx),%rsi
 	movz	%al,%ecx

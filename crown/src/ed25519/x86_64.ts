@@ -39,13 +39,13 @@ import { translateAssembly } from 'jsasm/x86_64-xlate';
  * reduced mod 2^256-38; only fe64_tobytes fully reduces.
  */
 
-const code = `.text	
+const code = `.text
 
 .globl	x25519_fe51_mul
 .type	x25519_fe51_mul,@function
 .align	32
 x25519_fe51_mul:
-.cfi_startproc	
+.cfi_startproc
 	pushq	%rbp
 .cfi_adjust_cfa_offset	8
 .cfi_offset	%rbp,-16
@@ -195,14 +195,14 @@ x25519_fe51_mul:
 	mov	32(%rsp),%rdi
 	jmp	.Lreduce51
 .Lfe51_mul_epilogue:
-.cfi_endproc	
+.cfi_endproc
 .size	x25519_fe51_mul,.-x25519_fe51_mul
 
 .globl	x25519_fe51_sqr
 .type	x25519_fe51_sqr,@function
 .align	32
 x25519_fe51_sqr:
-.cfi_startproc	
+.cfi_startproc
 	pushq	%rbp
 .cfi_adjust_cfa_offset	8
 .cfi_offset	%rbp,-16
@@ -381,14 +381,14 @@ x25519_fe51_sqr:
 .cfi_adjust_cfa_offset	88
 .Lfe51_sqr_epilogue:
 	.byte	0xf3,0xc3
-.cfi_endproc	
+.cfi_endproc
 .size	x25519_fe51_sqr,.-x25519_fe51_sqr
 
 .globl	x25519_fe51_mul121666
 .type	x25519_fe51_mul121666,@function
 .align	32
 x25519_fe51_mul121666:
-.cfi_startproc	
+.cfi_startproc
 	pushq	%rbp
 .cfi_adjust_cfa_offset	8
 .cfi_offset	%rbp,-16
@@ -434,28 +434,28 @@ x25519_fe51_mul121666:
 
 	jmp	.Lreduce51
 .Lfe51_mul121666_epilogue:
-.cfi_endproc	
+.cfi_endproc
 .size	x25519_fe51_mul121666,.-x25519_fe51_mul121666
 
 .globl	x25519_fe64_eligible
 .type	x25519_fe64_eligible,@function
 .align	32
 x25519_fe64_eligible:
-.cfi_startproc	
+.cfi_startproc
 	mov	OPENSSL_ia32cap_P+8(%rip),%ecx
 	xor	%eax,%eax
 	and	$0x80100,%ecx
 	cmp	$0x80100,%ecx
 	cmovel	%ecx,%eax
 	.byte	0xf3,0xc3
-.cfi_endproc	
+.cfi_endproc
 .size	x25519_fe64_eligible,.-x25519_fe64_eligible
 
 .globl	x25519_fe64_mul
 .type	x25519_fe64_mul,@function
 .align	32
 x25519_fe64_mul:
-.cfi_startproc	
+.cfi_startproc
 	pushq	%rbp
 .cfi_adjust_cfa_offset	8
 .cfi_offset	%rbp,-16
@@ -547,14 +547,14 @@ x25519_fe64_mul:
 
 	jmp	.Lreduce64
 .Lfe64_mul_epilogue:
-.cfi_endproc	
+.cfi_endproc
 .size	x25519_fe64_mul,.-x25519_fe64_mul
 
 .globl	x25519_fe64_sqr
 .type	x25519_fe64_sqr,@function
 .align	32
 x25519_fe64_sqr:
-.cfi_startproc	
+.cfi_startproc
 	pushq	%rbp
 .cfi_adjust_cfa_offset	8
 .cfi_offset	%rbp,-16
@@ -683,7 +683,7 @@ x25519_fe64_sqr:
 .cfi_adjust_cfa_offset	88
 .Lfe64_sqr_epilogue:
 	.byte	0xf3,0xc3
-.cfi_endproc	
+.cfi_endproc
 .size	x25519_fe64_sqr,.-x25519_fe64_sqr
 
 .globl	x25519_fe64_mul121666
@@ -691,7 +691,7 @@ x25519_fe64_sqr:
 .align	32
 x25519_fe64_mul121666:
 .Lfe64_mul121666_body:
-.cfi_startproc	
+.cfi_startproc
 	mov	$121666,%edx
 	mulxq	0(%rsi),%r8,%rcx
 	mulxq	8(%rsi),%r9,%rax
@@ -720,7 +720,7 @@ x25519_fe64_mul121666:
 
 .Lfe64_mul121666_epilogue:
 	.byte	0xf3,0xc3
-.cfi_endproc	
+.cfi_endproc
 .size	x25519_fe64_mul121666,.-x25519_fe64_mul121666
 
 .globl	x25519_fe64_add
@@ -728,7 +728,7 @@ x25519_fe64_mul121666:
 .align	32
 x25519_fe64_add:
 .Lfe64_add_body:
-.cfi_startproc	
+.cfi_startproc
 	mov	0(%rsi),%r8
 	mov	8(%rsi),%r9
 	mov	16(%rsi),%r10
@@ -757,7 +757,7 @@ x25519_fe64_add:
 
 .Lfe64_add_epilogue:
 	.byte	0xf3,0xc3
-.cfi_endproc	
+.cfi_endproc
 .size	x25519_fe64_add,.-x25519_fe64_add
 
 .globl	x25519_fe64_sub
@@ -765,7 +765,7 @@ x25519_fe64_add:
 .align	32
 x25519_fe64_sub:
 .Lfe64_sub_body:
-.cfi_startproc	
+.cfi_startproc
 	mov	0(%rsi),%r8
 	mov	8(%rsi),%r9
 	mov	16(%rsi),%r10
@@ -794,7 +794,7 @@ x25519_fe64_sub:
 
 .Lfe64_sub_epilogue:
 	.byte	0xf3,0xc3
-.cfi_endproc	
+.cfi_endproc
 .size	x25519_fe64_sub,.-x25519_fe64_sub
 
 .globl	x25519_fe64_tobytes
@@ -802,7 +802,7 @@ x25519_fe64_sub:
 .align	32
 x25519_fe64_tobytes:
 .Lfe64_to_body:
-.cfi_startproc	
+.cfi_startproc
 	mov	0(%rsi),%r8
 	mov	8(%rsi),%r9
 	mov	16(%rsi),%r10
@@ -838,7 +838,7 @@ x25519_fe64_tobytes:
 
 .Lfe64_to_epilogue:
 	.byte	0xf3,0xc3
-.cfi_endproc	
+.cfi_endproc
 .size	x25519_fe64_tobytes,.-x25519_fe64_tobytes
 .byte	88,50,53,53,49,57,32,112,114,105,109,105,116,105,118,101,115,32,102,111,114,32,120,56,54,95,54,52,44,32,67,82,89,80,84,79,71,65,77,83,32,98,121,32,60,104,116,116,112,115,58,47,47,103,105,116,104,117,98,46,99,111,109,47,100,111,116,45,97,115,109,62,0
 	.section ".note.gnu.property", "a"

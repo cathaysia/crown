@@ -90,12 +90,12 @@ chacha20_poly1305_constants:
 .byte	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x00,0x00
 .byte	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x00
 .byte	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff
-.text	
+.text
 
 .type	poly_hash_ad_internal,@function
 .align	64
 poly_hash_ad_internal:
-.cfi_startproc	
+.cfi_startproc
 .cfi_def_cfa	rsp, 8
 	xor	%r10,%r10
 	xor	%r11,%r11
@@ -256,7 +256,7 @@ poly_hash_ad_internal:
 // Finished AD
 .Lhash_ad_done:
 	ret
-.cfi_endproc	
+.cfi_endproc
 .size	poly_hash_ad_internal, .-poly_hash_ad_internal
 
 .globl	chacha20_poly1305_open_sse41
@@ -264,7 +264,7 @@ poly_hash_ad_internal:
 .type	chacha20_poly1305_open_sse41,@function
 .align	64
 chacha20_poly1305_open_sse41:
-.cfi_startproc	
+.cfi_startproc
 .byte	0xf3,0x0f,0x1e,0xfa
 	pushq	%rbp
 .cfi_adjust_cfa_offset	8
@@ -865,7 +865,7 @@ chacha20_poly1305_open_sse41:
 	paddd	0+96(%rbp),%xmm12
 
 	jmp	.Lopen_sse_tail_64_dec_loop
-// ############################################################################# 
+// #############################################################################
 .Lopen_sse_tail_128:
 	movdqa	.Lchacha20_consts(%rip),%xmm0
 	movdqa	0+48(%rbp),%xmm4
@@ -1041,7 +1041,7 @@ chacha20_poly1305_open_sse41:
 	lea	64(%rsi),%rsi
 	lea	64(%rdi),%rdi
 	jmp	.Lopen_sse_tail_64_dec_loop
-// ############################################################################# 
+// #############################################################################
 .Lopen_sse_tail_192:
 	movdqa	.Lchacha20_consts(%rip),%xmm0
 	movdqa	0+48(%rbp),%xmm4
@@ -1371,7 +1371,7 @@ chacha20_poly1305_open_sse41:
 	lea	128(%rsi),%rsi
 	lea	128(%rdi),%rdi
 	jmp	.Lopen_sse_tail_64_dec_loop
-// ############################################################################# 
+// #############################################################################
 .Lopen_sse_tail_256:
 	movdqa	.Lchacha20_consts(%rip),%xmm0
 	movdqa	0+48(%rbp),%xmm4
@@ -1726,7 +1726,7 @@ chacha20_poly1305_open_sse41:
 	sub	$192,%rbx
 	lea	192(%rsi),%rsi
 	lea	192(%rdi),%rdi
-// ############################################################################# 
+// #############################################################################
 // Decrypt the remaining data, 16B at a time, using existing stream
 .Lopen_sse_tail_64_dec_loop:
 	cmp	$16,%rbx
@@ -1872,7 +1872,7 @@ chacha20_poly1305_open_sse41:
 	add	0+0+16(%rbp),%r10
 	adc	8+0+16(%rbp),%r11
 
-.cfi_remember_state	
+.cfi_remember_state
 	add	$288 + 0 + 32,%rsp
 .cfi_adjust_cfa_offset	-(288 + 32)
 // The tag replaces the key on return
@@ -1900,9 +1900,9 @@ chacha20_poly1305_open_sse41:
 .cfi_adjust_cfa_offset	-8
 .cfi_restore	%rbp
 	ret
-// ############################################################################# 
+// #############################################################################
 .Lopen_sse_128:
-.cfi_restore_state	
+.cfi_restore_state
 	movdqu	.Lchacha20_consts(%rip),%xmm0
 	movdqa	%xmm0,%xmm1
 	movdqa	%xmm0,%xmm2
@@ -2132,10 +2132,10 @@ chacha20_poly1305_open_sse41:
 	movdqa	%xmm14,%xmm10
 	jmp	.Lopen_sse_128_xor_hash
 .size	chacha20_poly1305_open_sse41, .-chacha20_poly1305_open_sse41
-.cfi_endproc	
+.cfi_endproc
 
-// ############################################################################## 
-// ############################################################################## 
+// ##############################################################################
+// ##############################################################################
 // void chacha20_poly1305_seal(uint8_t *out_ciphertext, const uint8_t *plaintext,
 // size_t plaintext_len, const uint8_t *ad,
 // size_t ad_len,
@@ -2145,7 +2145,7 @@ chacha20_poly1305_open_sse41:
 .type	chacha20_poly1305_seal_sse41,@function
 .align	64
 chacha20_poly1305_seal_sse41:
-.cfi_startproc	
+.cfi_startproc
 .byte	0xf3,0x0f,0x1e,0xfa
 	pushq	%rbp
 .cfi_adjust_cfa_offset	8
@@ -2874,7 +2874,7 @@ chacha20_poly1305_seal_sse41:
 	ja	.Lseal_sse_tail_192
 	cmp	$64,%rbx
 	ja	.Lseal_sse_tail_128
-// ############################################################################# 
+// #############################################################################
 .Lseal_sse_tail_64:
 	movdqa	.Lchacha20_consts(%rip),%xmm0
 	movdqa	0+48(%rbp),%xmm4
@@ -3021,7 +3021,7 @@ chacha20_poly1305_seal_sse41:
 	paddd	0+96(%rbp),%xmm12
 
 	jmp	.Lseal_sse_128_tail_xor
-// ############################################################################# 
+// #############################################################################
 .Lseal_sse_tail_128:
 	movdqa	.Lchacha20_consts(%rip),%xmm0
 	movdqa	0+48(%rbp),%xmm4
@@ -3235,7 +3235,7 @@ chacha20_poly1305_seal_sse41:
 	sub	$64,%rbx
 	lea	64(%rsi),%rsi
 	jmp	.Lseal_sse_128_tail_hash
-// ############################################################################# 
+// #############################################################################
 .Lseal_sse_tail_192:
 	movdqa	.Lchacha20_consts(%rip),%xmm0
 	movdqa	0+48(%rbp),%xmm4
@@ -3512,7 +3512,7 @@ chacha20_poly1305_seal_sse41:
 	mov	$128,%rcx
 	sub	$128,%rbx
 	lea	128(%rsi),%rsi
-// ############################################################################# 
+// #############################################################################
 .Lseal_sse_128_tail_hash:
 	cmp	$16,%rcx
 	jb	.Lseal_sse_128_tail_xor
@@ -3655,7 +3655,7 @@ chacha20_poly1305_seal_sse41:
 // needs to be fed into the Poly1305 state. The right-most %rbx bytes of it
 // are valid. We need to fill it with extra_in bytes until full, or until we
 // run out of bytes.
-// 
+//
 // %r9 points to the tag output, which is actually a struct with the
 // extra_in pointer and length at offset 48.
 	mov	288 + 0 + 32(%rsp),%r9
@@ -3933,7 +3933,7 @@ process_extra_in_trailer:
 	add	0+0+16(%rbp),%r10
 	adc	8+0+16(%rbp),%r11
 
-.cfi_remember_state	
+.cfi_remember_state
 	add	$288 + 0 + 32,%rsp
 .cfi_adjust_cfa_offset	-(288 + 32)
 // The tag replaces the key on return
@@ -3961,9 +3961,9 @@ process_extra_in_trailer:
 .cfi_adjust_cfa_offset	-8
 .cfi_restore	%rbp
 	ret
-// ############################################################################## 
+// ##############################################################################
 .Lseal_sse_128:
-.cfi_restore_state	
+.cfi_restore_state
 	movdqu	.Lchacha20_consts(%rip),%xmm0
 	movdqa	%xmm0,%xmm1
 	movdqa	%xmm0,%xmm2
@@ -4133,15 +4133,15 @@ process_extra_in_trailer:
 	call	poly_hash_ad_internal
 	jmp	.Lseal_sse_128_tail_xor
 .size	chacha20_poly1305_seal_sse41, .-chacha20_poly1305_seal_sse41
-.cfi_endproc	
+.cfi_endproc
 
-// ############################################################################# 
+// #############################################################################
 .globl	chacha20_poly1305_open_avx2
 .hidden chacha20_poly1305_open_avx2
 .type	chacha20_poly1305_open_avx2,@function
 .align	64
 chacha20_poly1305_open_avx2:
-.cfi_startproc	
+.cfi_startproc
 .byte	0xf3,0x0f,0x1e,0xfa
 	pushq	%rbp
 .cfi_adjust_cfa_offset	8
@@ -4874,7 +4874,7 @@ chacha20_poly1305_open_avx2:
 	vmovdqa	%ymm3,%ymm8
 
 	jmp	.Lopen_avx2_tail_128_xor
-// ############################################################################# 
+// #############################################################################
 .Lopen_avx2_tail_256:
 	vmovdqa	.Lchacha20_consts(%rip),%ymm0
 	vmovdqa	0+64(%rbp),%ymm4
@@ -5111,7 +5111,7 @@ chacha20_poly1305_open_avx2:
 	lea	128(%rdi),%rdi
 	sub	$128,%rbx
 	jmp	.Lopen_avx2_tail_128_xor
-// ############################################################################# 
+// #############################################################################
 .Lopen_avx2_tail_384:
 	vmovdqa	.Lchacha20_consts(%rip),%ymm0
 	vmovdqa	0+64(%rbp),%ymm4
@@ -5430,7 +5430,7 @@ chacha20_poly1305_open_avx2:
 	lea	256(%rdi),%rdi
 	sub	$256,%rbx
 	jmp	.Lopen_avx2_tail_128_xor
-// ############################################################################# 
+// #############################################################################
 .Lopen_avx2_tail_512:
 	vmovdqa	.Lchacha20_consts(%rip),%ymm0
 	vmovdqa	0+64(%rbp),%ymm4
@@ -5874,7 +5874,7 @@ chacha20_poly1305_open_avx2:
 .Lopen_avx2_exit:
 	vzeroupper
 	jmp	.Lopen_sse_tail_16
-// ############################################################################# 
+// #############################################################################
 .Lopen_avx2_192:
 	vmovdqa	%ymm0,%ymm1
 	vmovdqa	%ymm0,%ymm2
@@ -6143,7 +6143,7 @@ chacha20_poly1305_open_avx2:
 .Lopen_avx2_short_tail_32_exit:
 	vzeroupper
 	jmp	.Lopen_sse_tail_16
-// ############################################################################# 
+// #############################################################################
 .Lopen_avx2_320:
 	vmovdqa	%ymm0,%ymm1
 	vmovdqa	%ymm0,%ymm2
@@ -6306,15 +6306,15 @@ chacha20_poly1305_open_avx2:
 	vperm2i128	$0x13,%ymm10,%ymm14,%ymm6
 	jmp	.Lopen_avx2_short
 .size	chacha20_poly1305_open_avx2, .-chacha20_poly1305_open_avx2
-.cfi_endproc	
-// ############################################################################# 
-// ############################################################################# 
+.cfi_endproc
+// #############################################################################
+// #############################################################################
 .globl	chacha20_poly1305_seal_avx2
 .hidden chacha20_poly1305_seal_avx2
 .type	chacha20_poly1305_seal_avx2,@function
 .align	64
 chacha20_poly1305_seal_avx2:
-.cfi_startproc	
+.cfi_startproc
 .byte	0xf3,0x0f,0x1e,0xfa
 	pushq	%rbp
 .cfi_adjust_cfa_offset	8
@@ -7378,7 +7378,7 @@ chacha20_poly1305_seal_avx2:
 	ja	.Lseal_avx2_tail_384
 	cmp	$128,%rbx
 	ja	.Lseal_avx2_tail_256
-// ############################################################################# 
+// #############################################################################
 .Lseal_avx2_tail_128:
 	vmovdqa	.Lchacha20_consts(%rip),%ymm0
 	vmovdqa	0+64(%rbp),%ymm4
@@ -7545,7 +7545,7 @@ chacha20_poly1305_seal_avx2:
 	vmovdqa	%ymm3,%ymm8
 
 	jmp	.Lseal_avx2_short_loop
-// ############################################################################# 
+// #############################################################################
 .Lseal_avx2_tail_256:
 	vmovdqa	.Lchacha20_consts(%rip),%ymm0
 	vmovdqa	0+64(%rbp),%ymm4
@@ -7795,7 +7795,7 @@ chacha20_poly1305_seal_avx2:
 	lea	128(%rsi),%rsi
 	sub	$128,%rbx
 	jmp	.Lseal_avx2_short_hash_remainder
-// ############################################################################# 
+// #############################################################################
 .Lseal_avx2_tail_384:
 	vmovdqa	.Lchacha20_consts(%rip),%ymm0
 	vmovdqa	0+64(%rbp),%ymm4
@@ -8104,7 +8104,7 @@ chacha20_poly1305_seal_avx2:
 	lea	256(%rsi),%rsi
 	sub	$256,%rbx
 	jmp	.Lseal_avx2_short_hash_remainder
-// ############################################################################# 
+// #############################################################################
 .Lseal_avx2_tail_512:
 	vmovdqa	.Lchacha20_consts(%rip),%ymm0
 	vmovdqa	0+64(%rbp),%ymm4
@@ -8503,7 +8503,7 @@ chacha20_poly1305_seal_avx2:
 	lea	384(%rsi),%rsi
 	sub	$384,%rbx
 	jmp	.Lseal_avx2_short_hash_remainder
-// ############################################################################## 
+// ##############################################################################
 .Lseal_avx2_320:
 	vmovdqa	%ymm0,%ymm1
 	vmovdqa	%ymm0,%ymm2
@@ -8665,7 +8665,7 @@ chacha20_poly1305_seal_avx2:
 	vperm2i128	$0x13,%ymm2,%ymm6,%ymm2
 	vperm2i128	$0x13,%ymm10,%ymm14,%ymm6
 	jmp	.Lseal_avx2_short
-// ############################################################################## 
+// ##############################################################################
 .Lseal_avx2_192:
 	vmovdqa	%ymm0,%ymm1
 	vmovdqa	%ymm0,%ymm2
@@ -8982,7 +8982,7 @@ chacha20_poly1305_seal_avx2:
 .Lseal_avx2_exit:
 	vzeroupper
 	jmp	.Lseal_sse_tail_16
-.cfi_endproc	
+.cfi_endproc
 .size	chacha20_poly1305_seal_avx2, .-chacha20_poly1305_seal_avx2
 #endif
 `;

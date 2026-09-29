@@ -89,11 +89,7 @@
           "format": "HexBytes"
         },
         "result": {
-          "enum": [
-            "valid",
-            "invalid",
-            "acceptable"
-          ]
+          "enum": ["valid", "invalid", "acceptable"]
         },
         "flags": {
           "type": "array",

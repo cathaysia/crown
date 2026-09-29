@@ -128,7 +128,16 @@ function makeState(mode: Mode): GenState {
     mode,
   };
   if (mode === 'avx') {
-    st.X = ['%xmm4', '%xmm5', '%xmm6', '%xmm7', '%xmm0', '%xmm1', '%xmm2', '%xmm3'];
+    st.X = [
+      '%xmm4',
+      '%xmm5',
+      '%xmm6',
+      '%xmm7',
+      '%xmm0',
+      '%xmm1',
+      '%xmm2',
+      '%xmm3',
+    ];
     st.Tx = ['%xmm8', '%xmm9', '%xmm10'];
     // perl: ($rndkey0,$iv,$in)=map("%xmm$_",(11..13))
     st.rndkey0 = '%xmm11';
@@ -138,7 +147,16 @@ function makeState(mode: Mode): GenState {
     st.Kx = st.Tx[2];
   } else {
     // Atom Silvermont allocation (if (1) in the perl)
-    st.X = ['%xmm8', '%xmm9', '%xmm10', '%xmm11', '%xmm4', '%xmm5', '%xmm6', '%xmm7'];
+    st.X = [
+      '%xmm8',
+      '%xmm9',
+      '%xmm10',
+      '%xmm11',
+      '%xmm4',
+      '%xmm5',
+      '%xmm6',
+      '%xmm7',
+    ];
     st.Tx = ['%xmm12', '%xmm13', '%xmm3'];
     st.iv = '%xmm2';
     st.in = '%xmm14';
@@ -317,10 +335,13 @@ function body00_19(): Insn[] {
   S.rx++;
   // perl concatenates the @V assignment onto the ror (". " operator)
   const r: Insn[] = [
-    insn(() => {
-      [A, B, C, D, E] = S.V;
-      ror(B, S.j ? 7 : 2);
-    }, { isRor: true }),
+    insn(
+      () => {
+        [A, B, C, D, E] = S.V;
+        ror(B, S.j ? 7 : 2);
+      },
+      { isRor: true },
+    ),
     insn(() => xor(S.T[0], D)),
     insn(() => mov(S.T[1], A)),
     insn(() => add(E, `${4 * (S.j & 15)}(%rsp)`)),
@@ -329,12 +350,15 @@ function body00_19(): Insn[] {
     insn(() => add(E, S.T[0])),
     insn(() => and_(S.T[1], B)),
     insn(() => xor(B, C)),
-    insn(() => {
-      add(E, A);
-      S.j++;
-      rotateV();
-      rotateT();
-    }, { isJinc: true }),
+    insn(
+      () => {
+        add(E, A);
+        S.j++;
+        rotateV();
+        rotateT();
+      },
+      { isJinc: true },
+    ),
   ];
   const n = r.length;
   // integer division, perl `use integer`
@@ -342,10 +366,18 @@ function body00_19(): Insn[] {
   if (S.jj === ((kFinal / n) | 0)) {
     const idx = kFinal % n;
     const orig = r[idx];
-    r[idx] = insn(() => {
-      orig();
-      aesenc();
-    }, { isRor: orig.isRor, isRol: orig.isRol, isJinc: orig.isJinc, isAssign: orig.isAssign });
+    r[idx] = insn(
+      () => {
+        orig();
+        aesenc();
+      },
+      {
+        isRor: orig.isRor,
+        isRol: orig.isRol,
+        isJinc: orig.isJinc,
+        isAssign: orig.isAssign,
+      },
+    );
   }
   S.jj++;
   return r;
@@ -373,22 +405,33 @@ function body20_39(): Insn[] {
       if (S.j < 79) xor(S.T[1], C);
     }),
     insn(() => ror(B, 7), { isRor: true }),
-    insn(() => {
-      add(E, A);
-      S.j++;
-      rotateV();
-      rotateT();
-    }, { isJinc: true }),
+    insn(
+      () => {
+        add(E, A);
+        S.j++;
+        rotateV();
+        rotateT();
+      },
+      { isJinc: true },
+    ),
   ];
   const n = r.length;
   const kFinal = ((((((S.jj + 1) * 8) / 20) | 0) * 20 * n) / 8) | 0;
   if (S.jj === ((kFinal / n) | 0) && S.rx !== 20) {
     const idx = kFinal % n;
     const orig = r[idx];
-    r[idx] = insn(() => {
-      orig();
-      aesenc();
-    }, { isRor: orig.isRor, isRol: orig.isRol, isJinc: orig.isJinc, isAssign: orig.isAssign });
+    r[idx] = insn(
+      () => {
+        orig();
+        aesenc();
+      },
+      {
+        isRor: orig.isRor,
+        isRol: orig.isRol,
+        isJinc: orig.isJinc,
+        isAssign: orig.isAssign,
+      },
+    );
   }
   S.jj++;
   return r;
@@ -420,22 +463,33 @@ function body40_59(): Insn[] {
     insn(() => {
       if (S.j < 59) xor(B, C);
     }),
-    insn(() => {
-      add(E, A);
-      S.j++;
-      rotateV();
-      rotateT();
-    }, { isJinc: true }),
+    insn(
+      () => {
+        add(E, A);
+        S.j++;
+        rotateV();
+        rotateT();
+      },
+      { isJinc: true },
+    ),
   ];
   const n = r.length;
   const kFinal = ((((((S.jj + 1) * 12) / 20) | 0) * 20 * n) / 12) | 0;
   if (S.jj === ((kFinal / n) | 0) && S.rx !== 40) {
     const idx = kFinal % n;
     const orig = r[idx];
-    r[idx] = insn(() => {
-      orig();
-      aesenc();
-    }, { isRor: orig.isRor, isRol: orig.isRol, isJinc: orig.isJinc, isAssign: orig.isAssign });
+    r[idx] = insn(
+      () => {
+        orig();
+        aesenc();
+      },
+      {
+        isRor: orig.isRor,
+        isRol: orig.isRol,
+        isJinc: orig.isJinc,
+        isAssign: orig.isAssign,
+      },
+    );
   }
   S.jj++;
   return r;
@@ -1476,8 +1530,14 @@ function regNum(r: string): number {
     return x ? parseInt(x[1]) : 0;
   }
   const named: Record<string, number> = {
-    '%rax': 0, '%rcx': 1, '%rdx': 2, '%rbx': 3,
-    '%rsp': 4, '%rbp': 5, '%rsi': 6, '%rdi': 7,
+    '%rax': 0,
+    '%rcx': 1,
+    '%rdx': 2,
+    '%rbx': 3,
+    '%rsp': 4,
+    '%rbp': 5,
+    '%rsi': 6,
+    '%rdi': 7,
   };
   if (named[r] !== undefined) return named[r];
   const n = r.match(/%r(\d+)/);

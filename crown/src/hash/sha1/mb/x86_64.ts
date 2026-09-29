@@ -97,7 +97,11 @@ function rotXiLeft(X: string[]): void {
 }
 
 function emitBody00_19(i: number, V: string[], X: string[]): void {
-  const a = V[0], b = V[1], c = V[2], d = V[3], e = V[4];
+  const a = V[0],
+    b = V[1],
+    c = V[2],
+    d = V[3],
+    e = V[4];
   const j = i + 1;
   const k = i + 2;
 
@@ -228,7 +232,11 @@ function emitBody00_19(i: number, V: string[], X: string[]): void {
 }
 
 function emitBody20_39(i: number, V: string[], X: string[]): void {
-  const a = V[0], b = V[1], c = V[2], d = V[3], e = V[4];
+  const a = V[0],
+    b = V[1],
+    c = V[2],
+    d = V[3],
+    e = V[4];
   const j = i + 1;
 
   if (i < 79) {
@@ -295,7 +303,11 @@ function emitBody20_39(i: number, V: string[], X: string[]): void {
 }
 
 function emitBody40_59(i: number, V: string[], X: string[]): void {
-  const a = V[0], b = V[1], c = V[2], d = V[3], e = V[4];
+  const a = V[0],
+    b = V[1],
+    c = V[2],
+    d = V[3],
+    e = V[4];
   const j = i + 1;
 
   code += `	pxor	${X[3]},${X[1]}			# "X[13]"

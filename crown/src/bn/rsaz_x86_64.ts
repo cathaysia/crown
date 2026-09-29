@@ -28,7 +28,7 @@
 
 import { translateAssembly } from 'jsasm/x86_64-xlate';
 
-const code = `.text	
+const code = `.text
 
 
 
@@ -36,7 +36,7 @@ const code = `.text
 .type	rsaz_512_sqr,@function
 .align	32
 rsaz_512_sqr:
-.cfi_startproc	
+.cfi_startproc
 	pushq	%rbx
 .cfi_adjust_cfa_offset	8
 .cfi_offset	%rbx,-16
@@ -732,13 +732,13 @@ rsaz_512_sqr:
 .cfi_def_cfa_register	%rsp
 .Lsqr_epilogue:
 	.byte	0xf3,0xc3
-.cfi_endproc	
+.cfi_endproc
 .size	rsaz_512_sqr,.-rsaz_512_sqr
 .globl	rsaz_512_mul
 .type	rsaz_512_mul,@function
 .align	32
 rsaz_512_mul:
-.cfi_startproc	
+.cfi_startproc
 	pushq	%rbx
 .cfi_adjust_cfa_offset	8
 .cfi_offset	%rbx,-16
@@ -838,13 +838,13 @@ rsaz_512_mul:
 .cfi_def_cfa_register	%rsp
 .Lmul_epilogue:
 	.byte	0xf3,0xc3
-.cfi_endproc	
+.cfi_endproc
 .size	rsaz_512_mul,.-rsaz_512_mul
 .globl	rsaz_512_mul_gather4
 .type	rsaz_512_mul_gather4,@function
 .align	32
 rsaz_512_mul_gather4:
-.cfi_startproc	
+.cfi_startproc
 	pushq	%rbx
 .cfi_adjust_cfa_offset	8
 .cfi_offset	%rbx,-16
@@ -1271,13 +1271,13 @@ rsaz_512_mul_gather4:
 .cfi_def_cfa_register	%rsp
 .Lmul_gather4_epilogue:
 	.byte	0xf3,0xc3
-.cfi_endproc	
+.cfi_endproc
 .size	rsaz_512_mul_gather4,.-rsaz_512_mul_gather4
 .globl	rsaz_512_mul_scatter4
 .type	rsaz_512_mul_scatter4,@function
 .align	32
 rsaz_512_mul_scatter4:
-.cfi_startproc	
+.cfi_startproc
 	pushq	%rbx
 .cfi_adjust_cfa_offset	8
 .cfi_offset	%rbx,-16
@@ -1391,13 +1391,13 @@ rsaz_512_mul_scatter4:
 .cfi_def_cfa_register	%rsp
 .Lmul_scatter4_epilogue:
 	.byte	0xf3,0xc3
-.cfi_endproc	
+.cfi_endproc
 .size	rsaz_512_mul_scatter4,.-rsaz_512_mul_scatter4
 .globl	rsaz_512_mul_by_one
 .type	rsaz_512_mul_by_one,@function
 .align	32
 rsaz_512_mul_by_one:
-.cfi_startproc	
+.cfi_startproc
 	pushq	%rbx
 .cfi_adjust_cfa_offset	8
 .cfi_offset	%rbx,-16
@@ -1478,12 +1478,12 @@ rsaz_512_mul_by_one:
 .cfi_def_cfa_register	%rsp
 .Lmul_by_one_epilogue:
 	.byte	0xf3,0xc3
-.cfi_endproc	
+.cfi_endproc
 .size	rsaz_512_mul_by_one,.-rsaz_512_mul_by_one
 .type	__rsaz_512_reduce,@function
 .align	32
 __rsaz_512_reduce:
-.cfi_startproc	
+.cfi_startproc
 	movq	%r8,%rbx
 	imulq	128+8(%rsp),%rbx
 	movq	0(%rbp),%rax
@@ -1563,12 +1563,12 @@ __rsaz_512_reduce:
 	jne	.Lreduction_loop
 
 	.byte	0xf3,0xc3
-.cfi_endproc	
+.cfi_endproc
 .size	__rsaz_512_reduce,.-__rsaz_512_reduce
 .type	__rsaz_512_reducex,@function
 .align	32
 __rsaz_512_reducex:
-.cfi_startproc	
+.cfi_startproc
 
 	imulq	%r8,%rdx
 	xorq	%rsi,%rsi
@@ -1621,12 +1621,12 @@ __rsaz_512_reducex:
 	jne	.Lreduction_loopx
 
 	.byte	0xf3,0xc3
-.cfi_endproc	
+.cfi_endproc
 .size	__rsaz_512_reducex,.-__rsaz_512_reducex
 .type	__rsaz_512_subtract,@function
 .align	32
 __rsaz_512_subtract:
-.cfi_startproc	
+.cfi_startproc
 	movq	%r8,(%rdi)
 	movq	%r9,8(%rdi)
 	movq	%r10,16(%rdi)
@@ -1680,12 +1680,12 @@ __rsaz_512_subtract:
 	movq	%r15,56(%rdi)
 
 	.byte	0xf3,0xc3
-.cfi_endproc	
+.cfi_endproc
 .size	__rsaz_512_subtract,.-__rsaz_512_subtract
 .type	__rsaz_512_mul,@function
 .align	32
 __rsaz_512_mul:
-.cfi_startproc	
+.cfi_startproc
 	leaq	8(%rsp),%rdi
 
 	movq	(%rsi),%rax
@@ -1824,12 +1824,12 @@ __rsaz_512_mul:
 	movq	%r15,56(%rdi)
 
 	.byte	0xf3,0xc3
-.cfi_endproc	
+.cfi_endproc
 .size	__rsaz_512_mul,.-__rsaz_512_mul
 .type	__rsaz_512_mulx,@function
 .align	32
 __rsaz_512_mulx:
-.cfi_startproc	
+.cfi_startproc
 	mulxq	(%rsi),%rbx,%r8
 	movq	$-6,%rcx
 
@@ -1946,13 +1946,13 @@ __rsaz_512_mulx:
 	movq	%r15,8+64+56(%rsp)
 
 	.byte	0xf3,0xc3
-.cfi_endproc	
+.cfi_endproc
 .size	__rsaz_512_mulx,.-__rsaz_512_mulx
 .globl	rsaz_512_scatter4
 .type	rsaz_512_scatter4,@function
 .align	16
 rsaz_512_scatter4:
-.cfi_startproc	
+.cfi_startproc
 	leaq	(%rdi,%rdx,8),%rdi
 	movl	$8,%r9d
 	jmp	.Loop_scatter
@@ -1965,14 +1965,14 @@ rsaz_512_scatter4:
 	decl	%r9d
 	jnz	.Loop_scatter
 	.byte	0xf3,0xc3
-.cfi_endproc	
+.cfi_endproc
 .size	rsaz_512_scatter4,.-rsaz_512_scatter4
 
 .globl	rsaz_512_gather4
 .type	rsaz_512_gather4,@function
 .align	16
 rsaz_512_gather4:
-.cfi_startproc	
+.cfi_startproc
 	movd	%edx,%xmm8
 	movdqa	.Linc+16(%rip),%xmm1
 	movdqa	.Linc(%rip),%xmm0
@@ -2036,7 +2036,7 @@ rsaz_512_gather4:
 	jnz	.Loop_gather
 	.byte	0xf3,0xc3
 .LSEH_end_rsaz_512_gather4:
-.cfi_endproc	
+.cfi_endproc
 .size	rsaz_512_gather4,.-rsaz_512_gather4
 
 .section	.rodata
@@ -2044,7 +2044,7 @@ rsaz_512_gather4:
 .Linc:
 .long	0,0, 1,1
 .long	2,2, 2,2
-.previous	
+.previous
 `;
 
 export default translateAssembly(code);
