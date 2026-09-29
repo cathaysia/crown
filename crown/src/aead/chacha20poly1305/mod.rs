@@ -52,10 +52,12 @@ impl ChaCha20Poly1305 {
         #[cfg(all(feature = "asm", target_arch = "x86_64"))]
         {
             if asm::sse41_capable() {
-                let n: [u8; 12] = nonce.try_into().map_err(|_| CryptoError::InvalidNonceSize {
-                    expected: "12",
-                    actual: nonce.len(),
-                })?;
+                let n: [u8; 12] = nonce
+                    .try_into()
+                    .map_err(|_| CryptoError::InvalidNonceSize {
+                        expected: "12",
+                        actual: nonce.len(),
+                    })?;
                 return asm::seal_inplace(inout, additional_data, &self.key, &n);
             }
         }
@@ -78,10 +80,12 @@ impl ChaCha20Poly1305 {
         #[cfg(all(feature = "asm", target_arch = "x86_64"))]
         {
             if asm::sse41_capable() {
-                let n: [u8; 12] = nonce.try_into().map_err(|_| CryptoError::InvalidNonceSize {
-                    expected: "12",
-                    actual: nonce.len(),
-                })?;
+                let n: [u8; 12] = nonce
+                    .try_into()
+                    .map_err(|_| CryptoError::InvalidNonceSize {
+                        expected: "12",
+                        actual: nonce.len(),
+                    })?;
                 let computed = asm::open_inplace(inout, additional_data, &self.key, &n)?;
                 if !crate::utils::subtle::constant_time_eq(&computed, tag) {
                     return Err(CryptoError::AuthenticationFailed);

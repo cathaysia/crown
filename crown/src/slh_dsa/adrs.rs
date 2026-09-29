@@ -56,27 +56,55 @@ impl Adrs {
     }
 
     fn layer_off(&self) -> usize {
-        if self.compressed { OFFC_LAYER } else { OFF_LAYER }
+        if self.compressed {
+            OFFC_LAYER
+        } else {
+            OFF_LAYER
+        }
     }
     fn type_off(&self) -> usize {
-        if self.compressed { OFFC_TYPE } else { OFF_TYPE }
+        if self.compressed {
+            OFFC_TYPE
+        } else {
+            OFF_TYPE
+        }
     }
     fn keypair_off(&self) -> usize {
-        if self.compressed { OFFC_KEYPAIR } else { OFF_KEYPAIR }
+        if self.compressed {
+            OFFC_KEYPAIR
+        } else {
+            OFF_KEYPAIR
+        }
     }
     fn chain_off(&self) -> usize {
-        if self.compressed { OFFC_CHAIN } else { OFF_CHAIN }
+        if self.compressed {
+            OFFC_CHAIN
+        } else {
+            OFF_CHAIN
+        }
     }
     fn hash_off(&self) -> usize {
-        if self.compressed { OFFC_HASH } else { OFF_HASH }
+        if self.compressed {
+            OFFC_HASH
+        } else {
+            OFF_HASH
+        }
     }
     fn type_size(&self) -> usize {
-        if self.compressed { 1 } else { 4 }
+        if self.compressed {
+            1
+        } else {
+            4
+        }
     }
 
     /// Serialized length: 22 compressed, 32 uncompressed.
     pub(crate) fn len(&self) -> usize {
-        if self.compressed { ADRSC_SIZE } else { ADRS_SIZE }
+        if self.compressed {
+            ADRSC_SIZE
+        } else {
+            ADRS_SIZE
+        }
     }
 
     /// The serialized address bytes to feed into a hash function.
@@ -108,7 +136,11 @@ impl Adrs {
     /// tree_address field. The uncompressed layout reserves 12 bytes at offset
     /// 4; only the low 8 are used (offset 8), with the high 4 left zero.
     pub(crate) fn set_tree_address(&mut self, tree: u64) {
-        let off = if self.compressed { OFFC_TREE } else { OFF_TREE + 4 };
+        let off = if self.compressed {
+            OFFC_TREE
+        } else {
+            OFF_TREE + 4
+        };
         self.buf[off..off + 8].copy_from_slice(&tree.to_be_bytes());
     }
 

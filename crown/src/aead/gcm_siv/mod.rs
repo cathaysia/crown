@@ -108,9 +108,8 @@ impl AesGcmSiv {
         len_block[8..].copy_from_slice(&((pt.len() as u64) * 8).to_le_bytes());
 
         // padded aad || padded pt || length_block
-        let mut buf = Vec::with_capacity(
-            aad.len().div_ceil(16) * 16 + pt.len().div_ceil(16) * 16 + 16,
-        );
+        let mut buf =
+            Vec::with_capacity(aad.len().div_ceil(16) * 16 + pt.len().div_ceil(16) * 16 + 16);
         buf.extend_from_slice(aad);
         while buf.len() % 16 != 0 {
             buf.push(0);
@@ -231,13 +230,12 @@ mod tests {
         let nonce = hex("030000000000000000000000");
         let c = AesGcmSiv::new(&key).unwrap();
         let mut pt: Vec<u8> = Vec::new();
-        let tag = c
-            .seal_in_place_separate_tag(&mut pt, &nonce, &[])
-            .unwrap();
+        let tag = c.seal_in_place_separate_tag(&mut pt, &nonce, &[]).unwrap();
         let expected_tag = hex("dc20e2d83f25705bb49e439eca56de25");
         assert_eq!(&tag[..], &expected_tag[..]);
         // Result is just the tag for an empty message.
-        c.open_in_place_separate_tag(&mut pt, &tag, &nonce, &[]).unwrap();
+        c.open_in_place_separate_tag(&mut pt, &tag, &nonce, &[])
+            .unwrap();
     }
 
     /// RFC 8452 Appendix C.1 — 8-byte plaintext, empty AAD.
@@ -247,14 +245,13 @@ mod tests {
         let nonce = hex("030000000000000000000000");
         let c = AesGcmSiv::new(&key).unwrap();
         let mut pt = hex("0100000000000000");
-        let tag = c
-            .seal_in_place_separate_tag(&mut pt, &nonce, &[])
-            .unwrap();
+        let tag = c.seal_in_place_separate_tag(&mut pt, &nonce, &[]).unwrap();
         let expected = hex("b5d839330ac7b786");
         let expected_tag = hex("578782fff6013b815b287c22493a364c");
         assert_eq!(&pt[..], &expected[..]);
         assert_eq!(&tag[..], &expected_tag[..]);
-        c.open_in_place_separate_tag(&mut pt, &tag, &nonce, &[]).unwrap();
+        c.open_in_place_separate_tag(&mut pt, &tag, &nonce, &[])
+            .unwrap();
         assert_eq!(&pt[..], &hex("0100000000000000")[..]);
     }
 
@@ -266,14 +263,13 @@ mod tests {
         let aad = hex("01");
         let c = AesGcmSiv::new(&key).unwrap();
         let mut pt = hex("0200000000000000");
-        let tag = c
-            .seal_in_place_separate_tag(&mut pt, &nonce, &aad)
-            .unwrap();
+        let tag = c.seal_in_place_separate_tag(&mut pt, &nonce, &aad).unwrap();
         let expected = hex("1e6daba35669f427");
         let expected_tag = hex("3b0a1a2560969cdf790d99759abd1508");
         assert_eq!(&pt[..], &expected[..]);
         assert_eq!(&tag[..], &expected_tag[..]);
-        c.open_in_place_separate_tag(&mut pt, &tag, &nonce, &aad).unwrap();
+        c.open_in_place_separate_tag(&mut pt, &tag, &nonce, &aad)
+            .unwrap();
         assert_eq!(&pt[..], &hex("0200000000000000")[..]);
     }
 
@@ -283,9 +279,7 @@ mod tests {
         let nonce = hex("030000000000000000000000");
         let c = AesGcmSiv::new(&key).unwrap();
         let mut pt = hex("0100000000000000");
-        let mut tag = c
-            .seal_in_place_separate_tag(&mut pt, &nonce, &[])
-            .unwrap();
+        let mut tag = c.seal_in_place_separate_tag(&mut pt, &nonce, &[]).unwrap();
         tag[0] ^= 1;
         assert!(c
             .open_in_place_separate_tag(&mut pt, &tag, &nonce, &[])

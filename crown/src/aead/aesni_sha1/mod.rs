@@ -52,9 +52,7 @@ extern "C" {
 pub const SHA1_STATE_WORDS: usize = 5;
 
 /// SHA-1 initialization vector (FIPS 180-4).
-pub const SHA1_IV: [u32; 5] = [
-    0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0,
-];
+pub const SHA1_IV: [u32; 5] = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0];
 
 /// AES-CBC encrypt `inp` into `out` while folding each 64-byte chunk into
 /// the SHA-1 state `ctx` (5 words).
@@ -72,7 +70,10 @@ pub fn cbc_sha1_enc(
     ctx: &mut [u32; SHA1_STATE_WORDS],
 ) {
     let blocks = inp.len() / 64;
-    assert!(blocks > 0 && inp.len().is_multiple_of(64), "len must be a positive multiple of 64");
+    assert!(
+        blocks > 0 && inp.len().is_multiple_of(64),
+        "len must be a positive multiple of 64"
+    );
     assert!(out.len() >= inp.len());
     unsafe {
         aesni_cbc_sha1_enc(

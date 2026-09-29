@@ -15,8 +15,8 @@ use crate::hash::sha256::sum256;
 use crate::hash::sha512::{sum384, sum512};
 use crate::rng::Rng;
 
-use alloc::vec::Vec;
 use alloc::vec;
+use alloc::vec::Vec;
 /// Hash algorithm used to digest the message before signing/verifying.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DigestId {

@@ -1,7 +1,5 @@
 #![allow(dead_code, unused_imports)]
-use super::generic::{
-    derive_counter_generic, gcm_counter_crypt_generic, gcm_inc32,
-};
+use super::generic::{derive_counter_generic, gcm_counter_crypt_generic, gcm_inc32};
 use super::ghash::ghash_absorb;
 use super::*;
 use crate::error::CryptoResult;

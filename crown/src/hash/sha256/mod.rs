@@ -20,10 +20,10 @@ use crate::{
 mod tests;
 
 mod block;
-pub mod mb;
 #[cfg(feature = "cuda")]
 pub mod cuda;
 mod generic;
+pub mod mb;
 
 // The size of a SHA-256 checksum in bytes.
 const SIZE: usize = 32;

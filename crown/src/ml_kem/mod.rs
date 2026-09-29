@@ -136,7 +136,9 @@ impl MlKemPublicKey {
             let chunk = &bytes[i * 384..(i + 1) * 384];
             for c in decode_poly_12(chunk)?.iter() {
                 if *c >= Q {
-                    return Err(CryptoError::StrError("ml-kem: public key coefficient out of range"));
+                    return Err(CryptoError::StrError(
+                        "ml-kem: public key coefficient out of range",
+                    ));
                 }
             }
         }
@@ -170,7 +172,9 @@ impl MlKemPrivateKey {
             let chunk = &bytes[i * 384..(i + 1) * 384];
             for c in decode_poly_12(chunk)?.iter() {
                 if *c >= Q {
-                    return Err(CryptoError::StrError("ml-kem: private key coefficient out of range"));
+                    return Err(CryptoError::StrError(
+                        "ml-kem: private key coefficient out of range",
+                    ));
                 }
             }
         }
@@ -464,7 +468,11 @@ fn k_pke_encrypt(ek: &[u8], m: &[u8; 32], r: &[u8; 32], p: &Params) -> Vec<u8> {
         for j in 0..N {
             c[j] = compress(u[i][j], p.du);
         }
-        encode_poly(&c, p.du, &mut ct[i * 32 * p.du as usize..(i + 1) * 32 * p.du as usize]);
+        encode_poly(
+            &c,
+            p.du,
+            &mut ct[i * 32 * p.du as usize..(i + 1) * 32 * p.du as usize],
+        );
     }
     let off = 32 * p.du as usize * k;
     let mut c = zero();
@@ -543,10 +551,7 @@ pub fn keygen(
     sk_bytes.extend_from_slice(&h);
     sk_bytes.extend_from_slice(&seed[32..]);
     Ok((
-        MlKemPublicKey {
-            variant,
-            bytes: ek,
-        },
+        MlKemPublicKey { variant, bytes: ek },
         MlKemPrivateKey {
             variant,
             bytes: sk_bytes,

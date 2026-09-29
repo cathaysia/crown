@@ -7,8 +7,8 @@ use crate::aead::{Aead, AeadUser};
 use crate::error::{CryptoError, CryptoResult};
 use crate::utils::subtle::constant_time_eq;
 
-use alloc::vec::Vec;
 use alloc::vec;
+use alloc::vec::Vec;
 /// Tag length in bytes.
 pub const TAG_SIZE: usize = 16;
 /// Nonce length in bytes.
@@ -86,7 +86,13 @@ impl AsconAead128 {
         buf[3] = 6;
         buf[8..24].copy_from_slice(&self.key);
         buf[24..40].copy_from_slice(nonce);
-        let mut s = [be64(&buf[0..8]), be64(&buf[8..16]), be64(&buf[16..24]), be64(&buf[24..32]), be64(&buf[32..40])];
+        let mut s = [
+            be64(&buf[0..8]),
+            be64(&buf[8..16]),
+            be64(&buf[16..24]),
+            be64(&buf[24..32]),
+            be64(&buf[32..40]),
+        ];
         ascon_permutation(&mut s, 12);
         // XOR key into S[3], S[4]
         s[3] ^= be64(&self.key[0..8]);
@@ -267,15 +273,11 @@ mod tests {
         let nonce = [0u8; 16];
         let c = AsconAead128::new(&key);
         let mut pt: Vec<u8> = Vec::new();
-        let tag = c
-            .seal_in_place_separate_tag(&mut pt, &nonce, &[])
-            .unwrap();
+        let tag = c.seal_in_place_separate_tag(&mut pt, &nonce, &[]).unwrap();
         assert!(pt.is_empty());
-        assert_eq!(
-            &tag[..],
-            &hex("42213f50a811d2d1d7e4092aa2a42ba4")[..]
-        );
-        c.open_in_place_separate_tag(&mut pt, &tag, &nonce, &[]).unwrap();
+        assert_eq!(&tag[..], &hex("42213f50a811d2d1d7e4092aa2a42ba4")[..]);
+        c.open_in_place_separate_tag(&mut pt, &tag, &nonce, &[])
+            .unwrap();
     }
 
     /// Empty AAD, 8-byte plaintext.
@@ -285,12 +287,11 @@ mod tests {
         let nonce = [0u8; 16];
         let c = AsconAead128::new(&key);
         let mut pt = hex("0011223344556677");
-        let tag = c
-            .seal_in_place_separate_tag(&mut pt, &nonce, &[])
-            .unwrap();
+        let tag = c.seal_in_place_separate_tag(&mut pt, &nonce, &[]).unwrap();
         assert_eq!(&pt[..], &hex("b8ced65849e1478f")[..]);
         assert_eq!(&tag[..], &hex("1bd7041ee5b9f9d4754313e016afcdf5")[..]);
-        c.open_in_place_separate_tag(&mut pt, &tag, &nonce, &[]).unwrap();
+        c.open_in_place_separate_tag(&mut pt, &tag, &nonce, &[])
+            .unwrap();
         assert_eq!(&pt[..], &hex("0011223344556677")[..]);
     }
 
@@ -302,12 +303,11 @@ mod tests {
         let aad = hex("0011223344556677");
         let c = AsconAead128::new(&key);
         let mut pt = hex("0011223344556677");
-        let tag = c
-            .seal_in_place_separate_tag(&mut pt, &nonce, &aad)
-            .unwrap();
+        let tag = c.seal_in_place_separate_tag(&mut pt, &nonce, &aad).unwrap();
         assert_eq!(&pt[..], &hex("4f3d43d7790affdb")[..]);
         assert_eq!(&tag[..], &hex("03d1c94596220b23edb647adfe43f4a3")[..]);
-        c.open_in_place_separate_tag(&mut pt, &tag, &nonce, &aad).unwrap();
+        c.open_in_place_separate_tag(&mut pt, &tag, &nonce, &aad)
+            .unwrap();
         assert_eq!(&pt[..], &hex("0011223344556677")[..]);
     }
 
@@ -317,9 +317,7 @@ mod tests {
         let nonce = [0u8; 16];
         let c = AsconAead128::new(&key);
         let mut pt = hex("0011223344556677");
-        let mut tag = c
-            .seal_in_place_separate_tag(&mut pt, &nonce, &[])
-            .unwrap();
+        let mut tag = c.seal_in_place_separate_tag(&mut pt, &nonce, &[]).unwrap();
         tag[0] ^= 1;
         assert!(c
             .open_in_place_separate_tag(&mut pt, &tag, &nonce, &[])

@@ -493,8 +493,14 @@ mod rsaz_tests {
             let mut a_red = [0u64; rsaz::RED_LEN];
             let mut b_red = [0u64; rsaz::RED_LEN];
             let mut n_red = [0u64; rsaz::RED_LEN];
-            rsaz::norm2red_1024(&mut a_red, &to_limbs(&a.to_be_bytes_padded(128).unwrap(), 16));
-            rsaz::norm2red_1024(&mut b_red, &to_limbs(&b.to_be_bytes_padded(128).unwrap(), 16));
+            rsaz::norm2red_1024(
+                &mut a_red,
+                &to_limbs(&a.to_be_bytes_padded(128).unwrap(), 16),
+            );
+            rsaz::norm2red_1024(
+                &mut b_red,
+                &to_limbs(&b.to_be_bytes_padded(128).unwrap(), 16),
+            );
             rsaz::norm2red_1024(&mut n_red, &to_limbs(&n_be, 16));
 
             let mut r_red = [0u64; rsaz::RED_LEN];
@@ -601,7 +607,10 @@ mod gf2m_tests {
     #[test]
     fn gf2m_poly_mul64_identity() {
         // 1 * p == p; x^5 * x^5 == x^10.
-        assert_eq!(gf2m::poly_mul64(1, 0xdeadbeefcafebabe), [0xdeadbeefcafebabe, 0]);
+        assert_eq!(
+            gf2m::poly_mul64(1, 0xdeadbeefcafebabe),
+            [0xdeadbeefcafebabe, 0]
+        );
         assert_eq!(gf2m::poly_mul64(1 << 5, 1 << 5), [1 << 10, 0]);
         assert_eq!(gf2m::poly_mul64(u64::MAX, 1), [u64::MAX, 0]);
         // x^63 * x^63 = x^126 -> high limb bit 62.

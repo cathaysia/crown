@@ -13,8 +13,8 @@ use crate::hash::sha256::new256;
 use crate::hash::sha512::{new384, new512};
 use crate::modes::cbc::{CbcDecryptor, CbcEncryptor};
 use crate::modes::BlockMode;
-use crate::padding::Pkcs7;
 use crate::padding::Padding;
+use crate::padding::Pkcs7;
 use crate::password_hash::pbkdf2;
 
 use alloc::vec::Vec;
@@ -226,7 +226,8 @@ mod tests {
         let pt = b"attack at dawn";
         let ct = pbes2_encrypt(pass, &salt, &kdf_sha256(1000), Pbes2Cipher::Aes128Cbc, pt).unwrap();
         assert!(ct.len() > 16);
-        let got = pbes2_decrypt(pass, &salt, &kdf_sha256(1000), Pbes2Cipher::Aes128Cbc, &ct).unwrap();
+        let got =
+            pbes2_decrypt(pass, &salt, &kdf_sha256(1000), Pbes2Cipher::Aes128Cbc, &ct).unwrap();
         assert_eq!(got, pt);
     }
 
@@ -236,7 +237,8 @@ mod tests {
         let salt = [0x22u8; 16];
         let pt = b"hello world, this is a longer plaintext for AES-256-CBC!!";
         let ct = pbes2_encrypt(pass, &salt, &kdf_sha256(500), Pbes2Cipher::Aes256Cbc, pt).unwrap();
-        let got = pbes2_decrypt(pass, &salt, &kdf_sha256(500), Pbes2Cipher::Aes256Cbc, &ct).unwrap();
+        let got =
+            pbes2_decrypt(pass, &salt, &kdf_sha256(500), Pbes2Cipher::Aes256Cbc, &ct).unwrap();
         assert_eq!(got, pt);
     }
 
@@ -246,7 +248,8 @@ mod tests {
         let salt = [0x33u8; 8];
         let pt = b"short";
         let ct = pbes2_encrypt(pass, &salt, &kdf_sha256(200), Pbes2Cipher::DesEde3Cbc, pt).unwrap();
-        let got = pbes2_decrypt(pass, &salt, &kdf_sha256(200), Pbes2Cipher::DesEde3Cbc, &ct).unwrap();
+        let got =
+            pbes2_decrypt(pass, &salt, &kdf_sha256(200), Pbes2Cipher::DesEde3Cbc, &ct).unwrap();
         assert_eq!(got, pt);
     }
 
@@ -268,8 +271,16 @@ mod tests {
     fn wrong_password_fails() {
         let salt = [0x44u8; 8];
         let pt = b"secret data";
-        let ct = pbes2_encrypt(b"right", &salt, &kdf_sha256(50), Pbes2Cipher::Aes128Cbc, pt).unwrap();
-        assert!(pbes2_decrypt(b"wrong", &salt, &kdf_sha256(50), Pbes2Cipher::Aes128Cbc, &ct).is_err());
+        let ct =
+            pbes2_encrypt(b"right", &salt, &kdf_sha256(50), Pbes2Cipher::Aes128Cbc, pt).unwrap();
+        assert!(pbes2_decrypt(
+            b"wrong",
+            &salt,
+            &kdf_sha256(50),
+            Pbes2Cipher::Aes128Cbc,
+            &ct
+        )
+        .is_err());
     }
 
     #[test]

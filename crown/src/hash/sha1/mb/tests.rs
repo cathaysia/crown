@@ -108,7 +108,13 @@ fn four_lanes_match_portable() {
             let mut expect = IV;
             sha1_blocks_portable(&mut expect, &data[lane]);
             assert_eq!(
-                [ctx.a[lane], ctx.b[lane], ctx.c[lane], ctx.d[lane], ctx.e[lane]],
+                [
+                    ctx.a[lane],
+                    ctx.b[lane],
+                    ctx.c[lane],
+                    ctx.d[lane],
+                    ctx.e[lane]
+                ],
                 expect,
                 "lane={lane} nblocks={nblocks}"
             );
@@ -122,10 +128,7 @@ fn mixed_block_counts() {
     // Different block counts per lane: the multi-buffer kernel must
     // keep shorter lanes unchanged once their counter hits zero.
     let counts = [3usize, 1, 4, 2];
-    let data: Vec<Vec<u8>> = counts
-        .iter()
-        .map(|&n| fill(&mut seed, n * 64))
-        .collect();
+    let data: Vec<Vec<u8>> = counts.iter().map(|&n| fill(&mut seed, n * 64)).collect();
     let mut ctx = Sha1MultiCtx {
         a: [0; 8],
         b: [0; 8],
@@ -155,7 +158,13 @@ fn mixed_block_counts() {
         let mut expect = IV;
         sha1_blocks_portable(&mut expect, &data[lane]);
         assert_eq!(
-            [ctx.a[lane], ctx.b[lane], ctx.c[lane], ctx.d[lane], ctx.e[lane]],
+            [
+                ctx.a[lane],
+                ctx.b[lane],
+                ctx.c[lane],
+                ctx.d[lane],
+                ctx.e[lane]
+            ],
             expect,
             "lane={lane} counts={counts:?}"
         );
@@ -166,7 +175,13 @@ fn mixed_block_counts() {
 fn inactive_lane_preserves_state() {
     let mut seed = 0x9999_1111u64;
     let data = fill(&mut seed, 2 * 64);
-    let sentinel = [0x1111_1111u32, 0x2222_2222, 0x3333_3333, 0x4444_4444, 0x5555_5555];
+    let sentinel = [
+        0x1111_1111u32,
+        0x2222_2222,
+        0x3333_3333,
+        0x4444_4444,
+        0x5555_5555,
+    ];
     let mut ctx = Sha1MultiCtx {
         a: [0; 8],
         b: [0; 8],
@@ -201,14 +216,17 @@ fn inactive_lane_preserves_state() {
     // Lane 0 updated correctly.
     let mut expect = IV;
     sha1_blocks_portable(&mut expect, &data);
-    assert_eq!(
-        [ctx.a[0], ctx.b[0], ctx.c[0], ctx.d[0], ctx.e[0]],
-        expect
-    );
+    assert_eq!([ctx.a[0], ctx.b[0], ctx.c[0], ctx.d[0], ctx.e[0]], expect);
     // Lanes 1-3 untouched.
     for lane in 1..4 {
         assert_eq!(
-            [ctx.a[lane], ctx.b[lane], ctx.c[lane], ctx.d[lane], ctx.e[lane]],
+            [
+                ctx.a[lane],
+                ctx.b[lane],
+                ctx.c[lane],
+                ctx.d[lane],
+                ctx.e[lane]
+            ],
             sentinel,
             "lane={lane} must be preserved"
         );

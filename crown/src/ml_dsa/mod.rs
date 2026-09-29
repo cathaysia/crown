@@ -151,14 +151,8 @@ pub fn keygen(
     let p = lookup_params(variant);
     let (pk, sk) = sign::keygen_internal(&p, seed)?;
     Ok((
-        MlDsaPublicKey {
-            variant,
-            bytes: pk,
-        },
-        MlDsaPrivateKey {
-            variant,
-            bytes: sk,
-        },
+        MlDsaPublicKey { variant, bytes: pk },
+        MlDsaPrivateKey { variant, bytes: sk },
     ))
 }
 
@@ -182,12 +176,7 @@ pub fn sign(
 ///
 /// Returns `Ok(false)` for an invalid signature; `Err` only for malformed
 /// inputs (e.g. over-long context).
-pub fn verify(
-    pk: &MlDsaPublicKey,
-    message: &[u8],
-    ctx: &[u8],
-    sig: &[u8],
-) -> CryptoResult<bool> {
+pub fn verify(pk: &MlDsaPublicKey, message: &[u8], ctx: &[u8], sig: &[u8]) -> CryptoResult<bool> {
     let m_prime = sign::encode_pure(message, ctx)?;
     verify_prehashed(pk, &m_prime, sig)
 }
@@ -208,11 +197,7 @@ pub fn sign_prehashed(
 
 /// Verify a signature over a pre-formed message representative `M'`
 /// (FIPS 204 Algorithm 8 `ML-DSA.Verify_internal`).
-pub fn verify_prehashed(
-    pk: &MlDsaPublicKey,
-    m_prime: &[u8],
-    sig: &[u8],
-) -> CryptoResult<bool> {
+pub fn verify_prehashed(pk: &MlDsaPublicKey, m_prime: &[u8], sig: &[u8]) -> CryptoResult<bool> {
     let p = lookup_params(pk.variant);
     if sig.len() != p.sig_len {
         return Ok(false);
@@ -223,11 +208,7 @@ pub fn verify_prehashed(
 
 /// Sign when the caller already holds the 64-byte message representative μ
 /// (OpenSSL `mu:1` mode): no `tr || M'` hashing is performed.
-pub fn sign_mu(
-    sk: &MlDsaPrivateKey,
-    mu: &[u8],
-    rnd: Option<&[u8; 32]>,
-) -> CryptoResult<Vec<u8>> {
+pub fn sign_mu(sk: &MlDsaPrivateKey, mu: &[u8], rnd: Option<&[u8; 32]>) -> CryptoResult<Vec<u8>> {
     let p = lookup_params(sk.variant);
     let priv_exp = sign::expand_priv(&p, &sk.bytes)?;
     let rnd = rnd.copied().unwrap_or([0u8; 32]);
@@ -236,11 +217,7 @@ pub fn sign_mu(
 
 /// Verify when the caller already holds the 64-byte message representative μ
 /// (OpenSSL `mu:1` mode).
-pub fn verify_mu(
-    pk: &MlDsaPublicKey,
-    mu: &[u8],
-    sig: &[u8],
-) -> CryptoResult<bool> {
+pub fn verify_mu(pk: &MlDsaPublicKey, mu: &[u8], sig: &[u8]) -> CryptoResult<bool> {
     let p = lookup_params(pk.variant);
     if sig.len() != p.sig_len {
         return Ok(false);

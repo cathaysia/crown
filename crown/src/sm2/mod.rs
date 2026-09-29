@@ -11,8 +11,8 @@ use crate::error::{CryptoError, CryptoResult};
 use crate::hash::sm3::sum_sm3;
 use crate::rng::Rng;
 
-use alloc::vec::Vec;
 use alloc::string::String;
+use alloc::vec::Vec;
 /// Default user identity used for ZA in the GM/T sample vectors.
 pub const DEFAULT_ID: &[u8] = b"1234567812345678";
 
@@ -253,7 +253,8 @@ mod tests {
         let d = bn_hex("3945208F7B2144B13F36E38AC6D39F95889393692860B51A42FB81EF4DF7C5B8");
         let pub_key = crate::ec::mul_base(&c, &d);
         let za = compute_za(DEFAULT_ID, &pub_key);
-        let expect = hex_to_bytes("B2E14C5C79C6DF5B85F4FE7ED8DB7A262B9DA7E07CCB0EA9F4747B8CCDA8A4F3");
+        let expect =
+            hex_to_bytes("B2E14C5C79C6DF5B85F4FE7ED8DB7A262B9DA7E07CCB0EA9F4747B8CCDA8A4F3");
         assert_eq!(&za[..], &expect[..], "ZA");
     }
 }

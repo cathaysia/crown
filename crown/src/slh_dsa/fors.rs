@@ -62,8 +62,24 @@ fn fors_node(
     } else {
         let mut lnode = [0u8; MAX_N];
         let mut rnode = [0u8; MAX_N];
-        fors_node(p, sk_seed, pk_seed, adrs, 2 * node_id, height - 1, &mut lnode);
-        fors_node(p, sk_seed, pk_seed, adrs, 2 * node_id + 1, height - 1, &mut rnode);
+        fors_node(
+            p,
+            sk_seed,
+            pk_seed,
+            adrs,
+            2 * node_id,
+            height - 1,
+            &mut lnode,
+        );
+        fors_node(
+            p,
+            sk_seed,
+            pk_seed,
+            adrs,
+            2 * node_id + 1,
+            height - 1,
+            &mut rnode,
+        );
         adrs.set_tree_height(height);
         adrs.set_tree_index(node_id);
         hash::h(p, pk_seed, adrs, &lnode, &rnode, out);

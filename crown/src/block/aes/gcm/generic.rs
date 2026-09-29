@@ -86,7 +86,11 @@ pub(crate) fn derive_counter_generic(
 // gcmCounterCryptGeneric encrypts src using AES in counter mode with 32-bit
 // wrapping (which is different from AES-CTR) and places the result into out.
 // counter is the initial value and will be updated with the next value.
-pub(crate) fn gcm_counter_crypt_generic(b: &Aes, inout: &mut [u8], counter: &mut [u8; GCM_BLOCK_SIZE]) {
+pub(crate) fn gcm_counter_crypt_generic(
+    b: &Aes,
+    inout: &mut [u8],
+    counter: &mut [u8; GCM_BLOCK_SIZE],
+) {
     let mut mask = [0u8; GCM_BLOCK_SIZE];
     let mut out = inout;
 

@@ -1,10 +1,10 @@
+#![allow(dead_code)]
 //! X448 Diffie-Hellman (RFC 7748 §5), software only.
 //!
 //! Montgomery ladder over the shared radix-2^56 field ([`crate::curve448::fe`]),
 //! shaped after [`crate::x25519`]. Scalars are clamped with
 //! `k[0] &= 252; k[55] |= 128` and the ladder runs 448 bit steps.
 
-#![allow(dead_code)]
 use crate::curve448::fe;
 
 pub const PUBLIC_KEY_SIZE: usize = 56;
@@ -108,9 +108,7 @@ pub fn x448(
 
 /// Generate a random private/public pair. The caller supplies the RNG
 /// (crown has no ambient `RAND`).
-pub fn keypair(
-    rng: &mut impl crate::rng::Rng,
-) -> ([u8; PRIVATE_KEY_SIZE], [u8; PUBLIC_KEY_SIZE]) {
+pub fn keypair(rng: &mut impl crate::rng::Rng) -> ([u8; PRIVATE_KEY_SIZE], [u8; PUBLIC_KEY_SIZE]) {
     let mut private = [0u8; PRIVATE_KEY_SIZE];
     rng.fill_bytes(&mut private);
     let public = public_from_private(&private);

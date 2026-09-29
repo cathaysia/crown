@@ -1,7 +1,7 @@
 //! Polynomial arithmetic and coefficient compression for ML-DSA.
 
 use super::ntt::{mod_sub, reduce_once};
-use super::params::{D_BITS, N, Q, Q_MINUS1_DIV2, GAMMA2_Q_MINUS1_DIV32};
+use super::params::{D_BITS, GAMMA2_Q_MINUS1_DIV32, N, Q, Q_MINUS1_DIV2};
 
 /// A degree-255 polynomial over Z_q; coefficients are stored in `0..q`.
 #[derive(Clone)]
@@ -129,11 +129,7 @@ pub(crate) fn poly_max_mod(p: &Poly) -> u32 {
 pub(crate) fn poly_max_signed(p: &Poly) -> u32 {
     let mut mx = 0u32;
     for &c in &p.coeff {
-        let abs = if (c as i32) < 0 {
-            c.wrapping_neg()
-        } else {
-            c
-        };
+        let abs = if (c as i32) < 0 { c.wrapping_neg() } else { c };
         if abs > mx {
             mx = abs;
         }

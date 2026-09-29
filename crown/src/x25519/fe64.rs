@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports)]
 //! Curve25519 field arithmetic in radix-2^64 (four 64-bit limbs).
 //!
 //! Values are little-endian limb vectors, partially reduced mod
@@ -6,7 +7,6 @@
 //! [`crate::ed25519::asm`] implement the arithmetic; otherwise these
 //! portable routines match the same invariants.
 
-#![allow(dead_code, unused_imports)]
 pub type Fe64 = [u64; 4];
 
 pub const ZERO: Fe64 = [0, 0, 0, 0];
@@ -242,7 +242,6 @@ pub fn invert(z: &Fe64) -> Fe64 {
     }
     mul(&t1, &t0)
 }
-
 
 fn fold38(h: &mut Fe64, mut extra: u64) {
     // h += 38 * extra, twice, to land mod 2^256-38.

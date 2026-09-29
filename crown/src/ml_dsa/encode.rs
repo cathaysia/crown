@@ -4,9 +4,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 
 use super::ntt::mod_sub;
-use super::params::{
-    ETA_4, GAMMA1_19, GAMMA2_Q_MINUS1_DIV32, RHO_BYTES, TR_BYTES, K_BYTES,
-};
+use super::params::{ETA_4, GAMMA1_19, GAMMA2_Q_MINUS1_DIV32, K_BYTES, RHO_BYTES, TR_BYTES};
 use super::poly::Poly;
 
 /// Pack 4-bit coefficients (0..15) — `w1` when γ2 = (q−1)/32 (FIPS 204 Alg 16).
@@ -250,7 +248,14 @@ pub(crate) fn decode_signed_2_17(input: &[u8]) -> Option<Poly> {
 
 /// FIPS 204 Algorithm 28 `w1Encode`.
 pub(crate) fn w1_encode(w1: &[Poly], gamma2: u32) -> Vec<u8> {
-    let mut out = Vec::with_capacity(w1.len() * if gamma2 == GAMMA2_Q_MINUS1_DIV32 { 128 } else { 192 });
+    let mut out = Vec::with_capacity(
+        w1.len()
+            * if gamma2 == GAMMA2_Q_MINUS1_DIV32 {
+                128
+            } else {
+                192
+            },
+    );
     for p in w1 {
         if gamma2 == GAMMA2_Q_MINUS1_DIV32 {
             encode_4_bits(p, &mut out);
@@ -297,8 +302,9 @@ pub(crate) fn sk_encode(
     eta: u32,
 ) -> Vec<u8> {
     let s_bytes = if eta == ETA_4 { 128 } else { 96 };
-    let mut out =
-        Vec::with_capacity(RHO_BYTES + K_BYTES + TR_BYTES + (s1.len() + s2.len()) * s_bytes + t0.len() * 416);
+    let mut out = Vec::with_capacity(
+        RHO_BYTES + K_BYTES + TR_BYTES + (s1.len() + s2.len()) * s_bytes + t0.len() * 416,
+    );
     out.extend_from_slice(rho);
     out.extend_from_slice(k_seed);
     out.extend_from_slice(tr);

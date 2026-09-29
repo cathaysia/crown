@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports)]
 //! bn_mul_mont assembly (x86_64-mont.pl) for x86_64.
 //!
 //! OpenSSL `crypto/bn/asm/x86_64-mont.pl` provides `bn_mul_mont`, the
@@ -17,8 +18,6 @@
 //! path. `n0` points at `-n^-1 mod 2^64` in the low word (OpenSSL
 //! `BN_MONT_CTX::n0[0]`, a second word follows for internal use).
 
-
-#![allow(dead_code, unused_imports)]
 use alloc::vec::Vec;
 
 core::arch::global_asm!(
@@ -125,13 +124,7 @@ pub fn mul_mont_gather5(
 
 /// `rp = ap^32 * table[pwr]` (Montgomery), the mont5 constant-time primitive.
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
-pub fn power5(
-    ap: &[u64],
-    tbl: &[u64],
-    n: &[u64],
-    n0: u64,
-    pwr: usize,
-) -> Option<Vec<u64>> {
+pub fn power5(ap: &[u64], tbl: &[u64], n: &[u64], n0: u64, pwr: usize) -> Option<Vec<u64>> {
     let num = n.len();
     if ap.len() != num {
         return None;

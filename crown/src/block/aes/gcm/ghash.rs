@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! gcmFieldElement represents a value in GF(2¹²⁸). In order to reflect the GCM
 // standard and make binary.BigEndian suitable for marshaling these values, the
 // bits are stored in big endian order. For example:
@@ -8,7 +9,6 @@
 //	the coefficient of x¹²⁷ can be obtained by v.high & 1.
 //
 // The generic helpers below are unused when the asm feature is enabled.
-#![allow(dead_code)]
 
 #[derive(Clone, Copy, Debug)]
 struct GcmFieldElement {
@@ -54,8 +54,13 @@ pub(crate) fn ghash_absorb(
             product_table[reverse_bits(i + 1)] = ghash_add(&product_table[reverse_bits(i)], &x);
         }
         let mut y = GcmFieldElement {
-            low: u64::from_be_bytes([state[0], state[1], state[2], state[3], state[4], state[5], state[6], state[7]]),
-            high: u64::from_be_bytes([state[8], state[9], state[10], state[11], state[12], state[13], state[14], state[15]]),
+            low: u64::from_be_bytes([
+                state[0], state[1], state[2], state[3], state[4], state[5], state[6], state[7],
+            ]),
+            high: u64::from_be_bytes([
+                state[8], state[9], state[10], state[11], state[12], state[13], state[14],
+                state[15],
+            ]),
         };
         for input in inputs {
             ghash_update(&product_table, &mut y, input);

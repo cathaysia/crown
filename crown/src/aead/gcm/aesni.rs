@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports)]
 //! AES-NI + GHASH stitch for GCM (aesni-gcm-x86_64.pl).
 //!
 //! The stitch symbols and helpers are compiled and unit-tested; hooking them
@@ -12,8 +13,6 @@
 //! provider passes `ctx->gcm.Xi.u` and then keeps GHASHing the remainder, so
 //! the accumulator has to line up exactly.
 
-
-#![allow(dead_code, unused_imports)]
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 core::arch::global_asm!(
     crown_derive::jsasm_file!("crown/src/aead/gcm/x86_64.ts"),

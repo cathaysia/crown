@@ -9,9 +9,9 @@ use crate::error::{CryptoError, CryptoResult};
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 pub mod nistz256;
 
-use alloc::vec::Vec;
-use alloc::vec;
 use alloc::string::String;
+use alloc::vec;
+use alloc::vec::Vec;
 /// Supported curve identifiers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CurveId {
@@ -139,7 +139,6 @@ struct Jac {
     y: Bn,
     z: Bn,
 }
-
 
 fn madd(a: &Bn, b: &Bn, p: &Bn) -> Bn {
     a.add(b).modulus(p)
@@ -337,7 +336,6 @@ fn pad32(b: &[u8]) -> [u8; 32] {
     out
 }
 
-
 fn jac_is_inf(j: &Jac) -> bool {
     j.z.is_zero()
 }
@@ -414,17 +412,9 @@ fn jac_add(a: &Jac, b: &Jac, c: &Curve) -> Jac {
     let h3 = mmul(&h2, &h, p);
     let u1h2 = mmul(&u1, &h2, p);
     // X3 = R^2 - H^3 - 2*U1*H^2
-    let x3 = msub(
-        &msub(&msqr(&r, p), &h3, p),
-        &madd(&u1h2, &u1h2, p),
-        p,
-    );
+    let x3 = msub(&msub(&msqr(&r, p), &h3, p), &madd(&u1h2, &u1h2, p), p);
     // Y3 = R*(U1*H^2 - X3) - S1*H^3
-    let y3 = msub(
-        &mmul(&r, &msub(&u1h2, &x3, p), p),
-        &mmul(&s1, &h3, p),
-        p,
-    );
+    let y3 = msub(&mmul(&r, &msub(&u1h2, &x3, p), p), &mmul(&s1, &h3, p), p);
     let z3 = mmul(&mmul(&a.z, &b.z, p), &h, p);
     Jac {
         x: x3,

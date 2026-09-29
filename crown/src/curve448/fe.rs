@@ -17,16 +17,7 @@ pub const ZERO: Fe = [0, 0, 0, 0, 0, 0, 0, 0];
 pub const ONE: Fe = [1, 0, 0, 0, 0, 0, 0, 0];
 
 /// `p` in limb form (limb 4 is `2^56 - 2` because bit 224 of `p` is 0).
-const P: Fe = [
-    MASK,
-    MASK,
-    MASK,
-    MASK,
-    MASK - 1,
-    MASK,
-    MASK,
-    MASK,
-];
+const P: Fe = [MASK, MASK, MASK, MASK, MASK - 1, MASK, MASK, MASK];
 
 /// `p - 2 = 2^448 - 2^224 - 3` as 56 little-endian bytes, the inversion
 /// exponent.
