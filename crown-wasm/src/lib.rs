@@ -9,6 +9,7 @@ pub mod evp_misc;
 pub mod evp_mac;
 pub mod evp_sign;
 pub mod evp_kem;
+pub mod evp_pq_sign;
 
 #[wasm_bindgen]
 extern "C" {
