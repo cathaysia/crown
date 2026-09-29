@@ -27,10 +27,7 @@ impl<B: BlockCipher> Cts<B> {
         if iv.len() != bs {
             return Err(CryptoError::InvalidIvSize(iv.len()));
         }
-        Ok(Self {
-            b,
-            iv: iv.to_vec(),
-        })
+        Ok(Self { b, iv: iv.to_vec() })
     }
 
     fn block_size(&self) -> usize {

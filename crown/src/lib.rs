@@ -1,3 +1,4 @@
+#![allow(clippy::needless_range_loop)]
 //! # crown Cryptographic Library
 //!
 //! A comprehensive cryptographic library designed to provide first-class documentation,
@@ -61,7 +62,6 @@
 //! ## Feature flags
 #![doc = document_features::document_features!()]
 #![cfg_attr(not(feature = "std"), no_std)]
-#![allow(clippy::needless_range_loop)]
 
 extern crate alloc;
 
@@ -77,27 +77,27 @@ pub mod ecdsa;
 pub mod ed25519;
 #[cfg(feature = "alloc")]
 pub mod ed448;
-pub mod x25519;
-pub mod x448;
 pub mod envelope;
 pub mod hash;
 pub mod kdf;
 pub mod mac;
-pub mod otp;
+#[cfg(feature = "alloc")]
+pub mod ml_dsa;
+#[cfg(feature = "alloc")]
+pub mod ml_kem;
 pub mod modes;
+pub mod otp;
 pub mod padding;
 #[cfg(feature = "password")]
 pub mod password_hash;
 #[cfg(feature = "alloc")]
 pub mod rsa;
 #[cfg(feature = "alloc")]
-pub mod ml_kem;
-#[cfg(feature = "alloc")]
-pub mod ml_dsa;
-#[cfg(feature = "alloc")]
 pub mod slh_dsa;
 pub mod sm2;
 pub mod stream;
+pub mod x25519;
+pub mod x448;
 
 pub mod core;
 

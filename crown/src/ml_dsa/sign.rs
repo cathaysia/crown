@@ -11,9 +11,7 @@ use crate::error::{CryptoError, CryptoResult};
 use crate::hash::sha3::{new_shake256, Shake};
 use crate::utils::subtle::constant_time_eq;
 
-use super::encode::{
-    pk_encode, sig_decode, sig_encode, sk_decode, sk_encode, w1_encode,
-};
+use super::encode::{pk_encode, sig_decode, sig_encode, sk_decode, sk_encode, w1_encode};
 use super::ntt::{ntt, ntt_inverse, ntt_mult};
 use super::params::{
     Params, K_BYTES, MU_BYTES, PRIV_SEED_BYTES, RHO_BYTES, RHO_PRIME_BYTES, SEED_BYTES, TR_BYTES,
@@ -309,7 +307,8 @@ pub(crate) fn sign_internal(
         let mut hint = vec![Poly::zero(); k];
         for i in 0..k {
             for j in 0..hint[i].coeff.len() {
-                hint[i].coeff[j] = make_hint(ct0[i].coeff[j], cs2[i].coeff[j], gamma2, w[i].coeff[j]);
+                hint[i].coeff[j] =
+                    make_hint(ct0[i].coeff[j], cs2[i].coeff[j], gamma2, w[i].coeff[j]);
             }
         }
 
@@ -427,8 +426,8 @@ pub(crate) fn expand_priv(p: &Params, sk: &[u8]) -> CryptoResult<ExpandedPriv> {
 
 /// Parse an encoded public key into expanded form; `tr = SHAKE256(pk, 64)`.
 pub(crate) fn expand_pub(p: &Params, pk: &[u8]) -> CryptoResult<ExpandedPub> {
-    let (rho, t1) =
-        super::encode::pk_decode(pk, p.k).ok_or(CryptoError::StrError("ml-dsa invalid public key"))?;
+    let (rho, t1) = super::encode::pk_decode(pk, p.k)
+        .ok_or(CryptoError::StrError("ml-dsa invalid public key"))?;
     let mut tr = [0u8; TR_BYTES];
     shake256_xof(&[pk], &mut tr);
     Ok(ExpandedPub { rho, tr, t1 })

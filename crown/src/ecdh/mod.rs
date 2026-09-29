@@ -9,8 +9,8 @@ use crate::ec::{curve, field_bytes, mul_base, CurveId, Point};
 use crate::error::{CryptoError, CryptoResult};
 use crate::rng::Rng;
 
-use alloc::vec::Vec;
 use alloc::vec;
+use alloc::vec::Vec;
 /// Generate a key pair `(private, public)` on curve `id`.
 pub fn generate(id: CurveId, rng: &mut impl Rng) -> CryptoResult<(Bn, Point)> {
     let c = curve(id);
@@ -141,10 +141,22 @@ mod tests {
 
         let pub_i = mul_base(&c, &i);
         let pub_r = mul_base(&c, &r);
-        assert_eq!(crate::ec::coord_padded(&pub_i.x, 48), crate::ec::coord_padded(&gix, 48));
-        assert_eq!(crate::ec::coord_padded(&pub_i.y, 48), crate::ec::coord_padded(&giy, 48));
-        assert_eq!(crate::ec::coord_padded(&pub_r.x, 48), crate::ec::coord_padded(&grx, 48));
-        assert_eq!(crate::ec::coord_padded(&pub_r.y, 48), crate::ec::coord_padded(&gry, 48));
+        assert_eq!(
+            crate::ec::coord_padded(&pub_i.x, 48),
+            crate::ec::coord_padded(&gix, 48)
+        );
+        assert_eq!(
+            crate::ec::coord_padded(&pub_i.y, 48),
+            crate::ec::coord_padded(&giy, 48)
+        );
+        assert_eq!(
+            crate::ec::coord_padded(&pub_r.x, 48),
+            crate::ec::coord_padded(&grx, 48)
+        );
+        assert_eq!(
+            crate::ec::coord_padded(&pub_r.y, 48),
+            crate::ec::coord_padded(&gry, 48)
+        );
 
         let shared_girx = bn_hex(
             "11187331C279962D93D604243FD592CB9D0A926F422E47187521287E7156C5C4

@@ -1,7 +1,7 @@
+#![allow(non_snake_case)]
 //! Module camellia implements the camellia block cipher
 //! algorithm as defined in RFC 3713.
 
-#![allow(non_snake_case)]
 use bytes::{Buf, BufMut};
 
 use crate::{

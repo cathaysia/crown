@@ -4,8 +4,8 @@ use crate::block::aes::Aes;
 use crate::block::BlockCipher;
 use crate::error::{CryptoError, CryptoResult};
 
-use alloc::vec::Vec;
 use alloc::vec;
+use alloc::vec::Vec;
 /// Default IV for AES Key Wrap (RFC 3394 §2.2.3.1).
 const IV: [u8; 8] = [0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6];
 
@@ -25,7 +25,9 @@ fn dec(c: &Aes, block: &[u8; 16]) -> [u8; 16] {
 }
 
 fn to_blocks(data: &[u8]) -> Vec<[u8; 8]> {
-    data.as_chunks::<8>().0.iter()
+    data.as_chunks::<8>()
+        .0
+        .iter()
         .map(|c| {
             let mut b = [0u8; 8];
             b.copy_from_slice(c);

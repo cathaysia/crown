@@ -1,10 +1,10 @@
+#![allow(dead_code, unused_imports)]
 //! Bit-sliced AES for x86_64 (bsaes-x86_64.pl).
 //!
 //! Provides CBC-decrypt / CTR32 / XTS accelerators over a conventional
 //! [`AesKey`] schedule. Falls back to `asm_AES_*` (the T-table module) for
 //! CBC encrypt and short tails.
 
-#![allow(dead_code, unused_imports)]
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 core::arch::global_asm!(
     crown_derive::jsasm_file!("crown/src/block/aes/bsaes/x86_64.ts"),

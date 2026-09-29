@@ -232,10 +232,18 @@ impl PrehashId {
     /// DER OID encoding including tag and length (FIPS 205 Algorithm 23).
     fn oid(&self) -> &'static [u8] {
         match self {
-            PrehashId::Sha256 => &[0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01],
-            PrehashId::Sha512 => &[0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03],
-            PrehashId::Shake128 => &[0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x0b],
-            PrehashId::Shake256 => &[0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x0c],
+            PrehashId::Sha256 => &[
+                0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01,
+            ],
+            PrehashId::Sha512 => &[
+                0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03,
+            ],
+            PrehashId::Shake128 => &[
+                0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x0b,
+            ],
+            PrehashId::Shake256 => &[
+                0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x0c,
+            ],
         }
     }
 }
@@ -281,12 +289,7 @@ fn prehash_digest(p: &Params, msg: &[u8]) -> Vec<u8> {
 }
 
 /// Build M' (FIPS 205 Algorithms 22 and 23).
-fn encode_message(
-    p: &Params,
-    msg: &[u8],
-    ctx: &[u8],
-    prehash: bool,
-) -> CryptoResult<Vec<u8>> {
+fn encode_message(p: &Params, msg: &[u8], ctx: &[u8], prehash: bool) -> CryptoResult<Vec<u8>> {
     if ctx.len() > MAX_CONTEXT_STRING_LEN {
         return Err(CryptoError::InvalidLength);
     }
@@ -341,7 +344,14 @@ fn sign_internal(p: &Params, sk: &SlhDsaPrivateKey, m_prime: &[u8]) -> Vec<u8> {
 
     // M_digest = H_msg(R, PK.seed, PK.root, M')
     let mut digest = [0u8; 49]; // max m across the parameter sets
-    hash::h_msg(p, &r[..n], pk_seed, sk.pk_root(), m_prime, &mut digest[..p.m]);
+    hash::h_msg(
+        p,
+        &r[..n],
+        pk_seed,
+        sk.pk_root(),
+        m_prime,
+        &mut digest[..p.m],
+    );
 
     let (tree_id, leaf_id) = tree_and_leaf_ids(p, &digest[md_len..p.m]);
 
@@ -374,7 +384,16 @@ fn sign_internal(p: &Params, sk: &SlhDsaPrivateKey, m_prime: &[u8]) -> Vec<u8> {
         &mut adrs,
         &mut pk_fors,
     );
-    ht::ht_sign(p, &pk_fors[..n], sk_seed, pk_seed, tree_id, leaf_id, &mut sig, off);
+    ht::ht_sign(
+        p,
+        &pk_fors[..n],
+        sk_seed,
+        pk_seed,
+        tree_id,
+        leaf_id,
+        &mut sig,
+        off,
+    );
     sig
 }
 
@@ -463,4 +482,3 @@ pub fn verify(
     let m_prime = encode_message(p, message, ctx, prehash)?;
     Ok(verify_internal(p, pk, &m_prime, sig))
 }
-

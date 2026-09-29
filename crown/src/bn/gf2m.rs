@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports)]
 //! GF(2^m) polynomial multiplication helpers (`x86_64-gf2m.pl`) for x86_64.
 //!
 //! OpenSSL's `crypto/bn/asm/x86_64-gf2m.pl` provides `bn_GF2m_mul_2x2`, the
@@ -23,7 +24,6 @@
 //! shift-and-xor reference. See `gf2m/NOTES.md` for config pins and
 //! re-verification.
 
-#![allow(dead_code, unused_imports)]
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 core::arch::global_asm!(
     crown_derive::jsasm_file!("crown/src/bn/gf2m_x86_64.ts"),

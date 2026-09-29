@@ -61,7 +61,11 @@ impl HmacDrbg {
         let mut k = [0u8; SHA256_LEN];
         let mut v = [0x01u8; SHA256_LEN];
         hmac_drbg_update(&seed, &mut k, &mut v);
-        HmacDrbg { k, v, reseed_counter: 1 }
+        HmacDrbg {
+            k,
+            v,
+            reseed_counter: 1,
+        }
     }
 
     /// Reseed with entropy || additional as seed material.
@@ -170,7 +174,11 @@ impl HashDrbg {
         c_in.extend_from_slice(&v);
         let mut c = [0u8; HASH_SEED_LEN];
         hash_df(&c_in, &mut c);
-        HashDrbg { v, c, reseed_counter: 1 }
+        HashDrbg {
+            v,
+            c,
+            reseed_counter: 1,
+        }
     }
 
     /// Reseed with entropy || additional as seed material.

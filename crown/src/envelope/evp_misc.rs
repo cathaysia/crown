@@ -50,11 +50,19 @@ pub fn ff1_decrypt(
 }
 
 /// FF1 encrypt a decimal digit string (radix 10).
-pub fn ff1_encrypt_decimal(key: &[u8], tweak: &[u8], s: &str) -> CryptoResult<alloc::string::String> {
+pub fn ff1_encrypt_decimal(
+    key: &[u8],
+    tweak: &[u8],
+    s: &str,
+) -> CryptoResult<alloc::string::String> {
     ff1::ff1_encrypt_decimal(key, tweak, s)
 }
 
 /// FF1 decrypt a decimal digit string (radix 10).
-pub fn ff1_decrypt_decimal(key: &[u8], tweak: &[u8], s: &str) -> CryptoResult<alloc::string::String> {
+pub fn ff1_decrypt_decimal(
+    key: &[u8],
+    tweak: &[u8],
+    s: &str,
+) -> CryptoResult<alloc::string::String> {
     ff1::ff1_decrypt_decimal(key, tweak, s)
 }

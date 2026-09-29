@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports)]
 //! ecp_nistz256 assembly (ecp_nistz256-x86_64.pl) for x86_64.
 //!
 //! OpenSSL `crypto/ec/asm/ecp_nistz256-x86_64.pl` provides the P-256
@@ -28,7 +29,6 @@
 //! void ecp_nistz256_gather_w5(void *val, const void *in_t, int index);
 //! void ecp_nistz256_scatter_w7(void *val, const void *in_t, int index);
 //! void ecp_nistz256_gather_w7(void *val, const void *in_t, int index);
-#![allow(dead_code, unused_imports)]
 //! void ecp_nistz256_avx2_gather_w7(void *val, const void *in_t, int index);
 //!
 //! void ecp_nistz256_point_double(uint64_t r[12], const uint64_t a[12]);
@@ -85,7 +85,6 @@ pub const P256_POINT_LIMBS: usize = 12;
 /// Size of an affine point in limbs (X, Y).
 pub const P256_POINT_AFFINE_LIMBS: usize = 8;
 
-
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 pub fn add(a: &[u64; 4], b: &[u64; 4]) -> [u64; 4] {
     let mut res = [0u64; 4];
@@ -128,7 +127,6 @@ pub fn mul_by_3(a: &[u64; 4]) -> [u64; 4] {
     res
 }
 
-
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 pub fn to_mont(a: &[u64; 4]) -> [u64; 4] {
     let mut res = [0u64; 4];
@@ -157,7 +155,6 @@ pub fn sqr_mont(a: &[u64; 4]) -> [u64; 4] {
     res
 }
 
-
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 pub fn ord_mul_mont(a: &[u64; 4], b: &[u64; 4]) -> [u64; 4] {
     let mut res = [0u64; 4];
@@ -171,7 +168,6 @@ pub fn ord_sqr_mont(a: &[u64; 4], rep: u64) -> [u64; 4] {
     unsafe { ecp_nistz256_ord_sqr_mont(res.as_mut_ptr(), a.as_ptr(), rep) };
     res
 }
-
 
 /// Scatter one Jacobian point (12 limbs) into a w5 table.
 ///
@@ -203,7 +199,6 @@ pub fn scatter_w7(table: &mut [u64], point: &[u64; 8], index: i32) {
 pub fn gather_w7(out: &mut [u64; 8], table: &[u64], index: i32) {
     unsafe { ecp_nistz256_gather_w7(out.as_mut_ptr(), table.as_ptr(), index) };
 }
-
 
 /// `r = 2*a` in Jacobian coordinates (inputs/outputs in Montgomery form).
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]

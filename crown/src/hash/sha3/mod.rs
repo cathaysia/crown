@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Module [sha3](crate::hash::sha3) implements the [SHA-3](https://en.wikipedia.org/wiki/SHA-3)
 //! fixed-output-length hash functions and the SHAKE variable-output-length functions
 //! defined by [FIPS 202], as well as the cSHAKE extendable-output-length
@@ -8,7 +9,6 @@
 //!
 //!
 
-#![allow(dead_code)]
 mod digest;
 mod keccakf;
 

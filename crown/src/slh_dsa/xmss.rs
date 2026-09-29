@@ -28,8 +28,24 @@ pub(crate) fn xmss_node(
     } else {
         let mut lnode = [0u8; super::params::MAX_N];
         let mut rnode = [0u8; super::params::MAX_N];
-        xmss_node(p, sk_seed, 2 * node_id, height - 1, pk_seed, adrs, &mut lnode);
-        xmss_node(p, sk_seed, 2 * node_id + 1, height - 1, pk_seed, adrs, &mut rnode);
+        xmss_node(
+            p,
+            sk_seed,
+            2 * node_id,
+            height - 1,
+            pk_seed,
+            adrs,
+            &mut lnode,
+        );
+        xmss_node(
+            p,
+            sk_seed,
+            2 * node_id + 1,
+            height - 1,
+            pk_seed,
+            adrs,
+            &mut rnode,
+        );
         adrs.set_type_and_clear(TYPE_TREE);
         adrs.set_tree_height(height);
         adrs.set_tree_index(node_id);

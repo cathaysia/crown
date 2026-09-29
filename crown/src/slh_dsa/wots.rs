@@ -88,7 +88,15 @@ pub(crate) fn wots_pk_gen(
         let s_adrs = sk_adrs(adrs, i as u32);
         hash::prf(p, pk_seed, &s_adrs, sk_seed, &mut sk[..n]);
         adrs.set_chain_address(i as u32);
-        chain(p, &sk[..n], 0, WOTS_W - 1, pk_seed, adrs, &mut tmp[(i * n)..(i + 1) * n]);
+        chain(
+            p,
+            &sk[..n],
+            0,
+            WOTS_W - 1,
+            pk_seed,
+            adrs,
+            &mut tmp[(i * n)..(i + 1) * n],
+        );
     }
 
     wots_pk_adrs.set_type_and_clear(TYPE_WOTS_PK);

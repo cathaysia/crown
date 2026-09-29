@@ -79,8 +79,6 @@ impl Params {
         }
     }
 
-
-
     /// Total `w1` encoded length.
     pub(crate) fn w1_encoded_len(&self) -> usize {
         self.k * self.w1_poly_bytes()

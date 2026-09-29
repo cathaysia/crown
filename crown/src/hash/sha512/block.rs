@@ -1,7 +1,7 @@
+#![allow(dead_code)]
 // SHA512 block step.
 // In its own file so that a faster assembly or C version
 // can be substituted easily.
-#![allow(dead_code)]
 use super::*;
 use crate::error::CryptoResult;
 

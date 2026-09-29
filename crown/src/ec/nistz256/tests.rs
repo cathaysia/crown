@@ -21,7 +21,11 @@ fn limbs_from_bn(v: &Bn) -> [u64; 4] {
     let be = v.to_be_bytes_padded(32).unwrap();
     let mut out = [0u64; 4];
     for i in 0..4 {
-        out[i] = u64::from_be_bytes(be[be.len() - (i + 1) * 8..be.len() - i * 8].try_into().unwrap());
+        out[i] = u64::from_be_bytes(
+            be[be.len() - (i + 1) * 8..be.len() - i * 8]
+                .try_into()
+                .unwrap(),
+        );
     }
     out
 }
@@ -63,7 +67,11 @@ fn field_add_sub_neg() {
     assert_eq!(bn_from_limbs(&sum), a.add(&b).modulus(p), "add");
 
     let diff = asm::sub(&al, &bl);
-    assert_eq!(bn_from_limbs(&diff), a.add(p).sub(&b).unwrap().modulus(p), "sub");
+    assert_eq!(
+        bn_from_limbs(&diff),
+        a.add(p).sub(&b).unwrap().modulus(p),
+        "sub"
+    );
 
     let neg = asm::neg(&al);
     assert_eq!(bn_from_limbs(&neg), p.sub(&a).unwrap(), "neg");
@@ -191,7 +199,11 @@ fn scatter_gather_w5_roundtrip() {
         let mut got = [0u64; 12];
         asm::gather_w5(&mut got, &table, idx);
         for (j, limb) in got.iter().enumerate() {
-            assert_eq!(*limb, (idx as u64) << 32 | j as u64, "w5 idx={idx} limb={j}");
+            assert_eq!(
+                *limb,
+                (idx as u64) << 32 | j as u64,
+                "w5 idx={idx} limb={j}"
+            );
         }
     }
 }

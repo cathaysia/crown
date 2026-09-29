@@ -157,11 +157,7 @@ fn verify_inner(
 
 /// Sign `msg` with the 57-byte secret seed under `context` (at most
 /// 255 octets, may be empty). Returns the 114-byte `R || S` signature.
-pub fn sign(
-    secret: &[u8; SECRET_KEY_SIZE],
-    msg: &[u8],
-    context: &[u8],
-) -> [u8; SIGNATURE_SIZE] {
+pub fn sign(secret: &[u8; SECRET_KEY_SIZE], msg: &[u8], context: &[u8]) -> [u8; SIGNATURE_SIZE] {
     sign_inner(secret, msg, context, 0)
 }
 

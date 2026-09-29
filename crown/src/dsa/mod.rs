@@ -9,9 +9,9 @@ use crate::error::{CryptoError, CryptoResult};
 use crate::hash::sha256::sum256;
 use crate::rng::Rng;
 
-use alloc::vec::Vec;
-use alloc::vec;
 use alloc::string::String;
+use alloc::vec;
+use alloc::vec::Vec;
 /// DSA domain parameters: prime modulus `p`, subgroup order `q`, base `g`.
 #[derive(Debug, Clone)]
 pub struct DsaParams {
@@ -125,11 +125,7 @@ pub fn generate(params: &DsaParams, rng: &mut impl Rng) -> CryptoResult<DsaKeyPa
 ///
 /// `r = (g^k mod p) mod q`, `s = k^{-1} (H(m) + x r) mod q` with `k`
 /// random in `[1, q-1]`.
-pub fn sign_sha256(
-    key: &DsaKeyPair,
-    msg: &[u8],
-    rng: &mut impl Rng,
-) -> CryptoResult<(Bn, Bn)> {
+pub fn sign_sha256(key: &DsaKeyPair, msg: &[u8], rng: &mut impl Rng) -> CryptoResult<(Bn, Bn)> {
     let params = &key.params;
     let p = &params.p;
     let q = &params.q;
@@ -165,13 +161,7 @@ pub fn sign_sha256(
 ///
 /// `w = s^{-1}`, `u1 = H w`, `u2 = r w`, `v = (g^{u1} y^{u2} mod p) mod q`,
 /// accept iff `v == r`. Rejects `r, s` outside `[1, q-1]`.
-pub fn verify_sha256(
-    params: &DsaParams,
-    y: &Bn,
-    msg: &[u8],
-    r: &Bn,
-    s: &Bn,
-) -> CryptoResult<bool> {
+pub fn verify_sha256(params: &DsaParams, y: &Bn, msg: &[u8], r: &Bn, s: &Bn) -> CryptoResult<bool> {
     let p = &params.p;
     let q = &params.q;
     // Reject r, s outside [1, q-1].
@@ -275,18 +265,17 @@ mod tests {
              74E04299F132026601638CB87AB79190D4A0986315DA8EEC6561C938996BEADF",
         );
         // y = g^x mod p
-        let y = params
-            .g
-            .mod_pow_odd_consttime(&x, &params.p)
-            .unwrap();
+        let y = params.g.mod_pow_odd_consttime(&x, &params.p).unwrap();
         assert!(!y.is_zero());
         let yb = y.to_be_bytes_padded(256).unwrap();
         let eb = expect_y.to_be_bytes_padded(256).unwrap();
         assert_eq!(yb, eb, "published y");
 
         let k = test_bn_hex("8926A27C40484216F052F4427CFD5647338B7B3939BC6573AF4333569D597C52");
-        let expect_r = test_bn_hex("EACE8BDBBE353C432A795D9EC556C6D021F7A03F42C36E9BC87E4AC7932CC809");
-        let expect_s = test_bn_hex("7081E175455F9247B812B74583E9E94F9EA79BD640DC962533B0680793A38D53");
+        let expect_r =
+            test_bn_hex("EACE8BDBBE353C432A795D9EC556C6D021F7A03F42C36E9BC87E4AC7932CC809");
+        let expect_s =
+            test_bn_hex("7081E175455F9247B812B74583E9E94F9EA79BD640DC962533B0680793A38D53");
 
         let key = DsaKeyPair {
             params: params.clone(),
@@ -299,8 +288,16 @@ mod tests {
             used: false,
         };
         let (r, s) = sign_sha256(&key, msg, &mut rng).unwrap();
-        assert_eq!(r.to_be_bytes_padded(32).unwrap(), expect_r.to_be_bytes_padded(32).unwrap(), "r");
-        assert_eq!(s.to_be_bytes_padded(32).unwrap(), expect_s.to_be_bytes_padded(32).unwrap(), "s");
+        assert_eq!(
+            r.to_be_bytes_padded(32).unwrap(),
+            expect_r.to_be_bytes_padded(32).unwrap(),
+            "r"
+        );
+        assert_eq!(
+            s.to_be_bytes_padded(32).unwrap(),
+            expect_s.to_be_bytes_padded(32).unwrap(),
+            "s"
+        );
 
         assert!(verify_sha256(&params, &key.y, msg, &r, &s).unwrap());
         assert!(!verify_sha256(&params, &key.y, b"taste", &r, &s).unwrap());
@@ -311,13 +308,12 @@ mod tests {
     fn rfc6979_dsa2048_sha256_test() {
         let params = dsa_2048_256();
         let x = test_bn_hex("69C7548C21D0DFEA6B9A51C9EAD4E27C33D3B3F180316E5BCAB92C933F0E4DBC");
-        let y = params
-            .g
-            .mod_pow_odd_consttime(&x, &params.p)
-            .unwrap();
+        let y = params.g.mod_pow_odd_consttime(&x, &params.p).unwrap();
         let k = test_bn_hex("1D6CE6DDA1C5D37307839CD03AB0A5CBB18E60D800937D67DFB4479AAC8DEAD7");
-        let expect_r = test_bn_hex("8190012A1969F9957D56FCCAAD223186F423398D58EF5B3CEFD5A4146A4476F0");
-        let expect_s = test_bn_hex("7452A53F7075D417B4B013B278D1BB8BBD21863F5E7B1CEE679CF2188E1AB19E");
+        let expect_r =
+            test_bn_hex("8190012A1969F9957D56FCCAAD223186F423398D58EF5B3CEFD5A4146A4476F0");
+        let expect_s =
+            test_bn_hex("7452A53F7075D417B4B013B278D1BB8BBD21863F5E7B1CEE679CF2188E1AB19E");
 
         let key = DsaKeyPair {
             params: params.clone(),
@@ -330,8 +326,16 @@ mod tests {
             used: false,
         };
         let (r, s) = sign_sha256(&key, msg, &mut rng).unwrap();
-        assert_eq!(r.to_be_bytes_padded(32).unwrap(), expect_r.to_be_bytes_padded(32).unwrap(), "r");
-        assert_eq!(s.to_be_bytes_padded(32).unwrap(), expect_s.to_be_bytes_padded(32).unwrap(), "s");
+        assert_eq!(
+            r.to_be_bytes_padded(32).unwrap(),
+            expect_r.to_be_bytes_padded(32).unwrap(),
+            "r"
+        );
+        assert_eq!(
+            s.to_be_bytes_padded(32).unwrap(),
+            expect_s.to_be_bytes_padded(32).unwrap(),
+            "s"
+        );
         assert!(verify_sha256(&params, &key.y, msg, &r, &s).unwrap());
     }
 

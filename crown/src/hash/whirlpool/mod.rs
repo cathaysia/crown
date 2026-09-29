@@ -26,7 +26,6 @@ use consts::TABLE;
 #[cfg(feature = "marshal")]
 use crown_derive::Marshal;
 
-
 #[allow(unused_imports)]
 use bytes::BufMut;
 

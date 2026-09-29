@@ -36,14 +36,7 @@ fn shake256_xof(parts: &[&[u8]], out: &mut [u8]) {
 }
 
 /// `Trunc_n(H(PK.seed || toByte(0, b - n) || ADRS_c || M))` (FIPS 205 §11.2).
-fn sha2_hash_padded(
-    p: &Params,
-    pk_seed: &[u8],
-    adrs: &Adrs,
-    m: &[u8],
-    b: usize,
-    out: &mut [u8],
-) {
+fn sha2_hash_padded(p: &Params, pk_seed: &[u8], adrs: &Adrs, m: &[u8], b: usize, out: &mut [u8]) {
     let n = p.n;
     debug_assert!(b >= n && b - n <= MAX_ZERO_PAD);
     let zeros = [0u8; MAX_ZERO_PAD];
@@ -117,17 +110,13 @@ pub(crate) fn f(p: &Params, pk_seed: &[u8], adrs: &Adrs, m1: &[u8], out: &mut [u
 /// `m1` and `m2` are node values of `n` bytes each; only their first `n` bytes
 /// are absorbed (FIPS 205 §11.1/11.2), so callers may pass longer scratch
 /// buffers safely.
-pub(crate) fn h(
-    p: &Params,
-    pk_seed: &[u8],
-    adrs: &Adrs,
-    m1: &[u8],
-    m2: &[u8],
-    out: &mut [u8],
-) {
+pub(crate) fn h(p: &Params, pk_seed: &[u8], adrs: &Adrs, m1: &[u8], m2: &[u8], out: &mut [u8]) {
     let n = p.n;
     if p.is_shake {
-        shake256_xof(&[pk_seed, adrs.as_bytes(), &m1[..n], &m2[..n]], &mut out[..n]);
+        shake256_xof(
+            &[pk_seed, adrs.as_bytes(), &m1[..n], &m2[..n]],
+            &mut out[..n],
+        );
     } else {
         let mut buf = [0u8; 2 * MAX_N];
         buf[..n].copy_from_slice(&m1[..n]);
@@ -137,13 +126,7 @@ pub(crate) fn h(
 }
 
 /// `PRF(PK.seed, ADRS, SK.seed)` — derive one secret element.
-pub(crate) fn prf(
-    p: &Params,
-    pk_seed: &[u8],
-    adrs: &Adrs,
-    sk_seed: &[u8],
-    out: &mut [u8],
-) {
+pub(crate) fn prf(p: &Params, pk_seed: &[u8], adrs: &Adrs, sk_seed: &[u8], out: &mut [u8]) {
     let n = p.n;
     if p.is_shake {
         shake256_xof(&[pk_seed, adrs.as_bytes(), sk_seed], &mut out[..n]);
@@ -153,13 +136,7 @@ pub(crate) fn prf(
 }
 
 /// `PRF_msg(SK.prf, opt_rand, M)` — per-message randomness `R` of `n` bytes.
-pub(crate) fn prf_msg(
-    p: &Params,
-    sk_prf: &[u8],
-    opt_rand: &[u8],
-    msg: &[u8],
-    out: &mut [u8],
-) {
+pub(crate) fn prf_msg(p: &Params, sk_prf: &[u8], opt_rand: &[u8], msg: &[u8], out: &mut [u8]) {
     let n = p.n;
     if p.is_shake {
         shake256_xof(&[sk_prf, opt_rand, msg], &mut out[..n]);
@@ -246,4 +223,3 @@ impl CoreWrite for EitherHash {
         Ok(())
     }
 }
-

@@ -150,7 +150,12 @@ pub fn from_bytes(s: &[u8; 57]) -> Option<P3> {
     };
 
     let t = fe::mul(&x, &y);
-    Some(P3 { x, y, z: fe::ONE, t })
+    Some(P3 {
+        x,
+        y,
+        z: fe::ONE,
+        t,
+    })
 }
 
 /// Branch-free selection from a 16-entry table.

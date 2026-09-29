@@ -1,6 +1,6 @@
+#![allow(dead_code, unused_imports)]
 //! GHASH assembly implementation using PCLMULQDQ.
 
-#![allow(dead_code, unused_imports)]
 use super::GCM_BLOCK_SIZE;
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]

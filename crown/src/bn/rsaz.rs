@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_mut, unused_imports)]
 //! RSAZ assembly helpers (rsaz-x86_64.pl / rsaz-avx2.pl) for x86_64.
 //!
 //! OpenSSL's `crypto/bn/asm/rsaz-x86_64.pl` provides 512-bit Montgomery
@@ -28,7 +29,6 @@
 //! void rsaz_1024_sqr_avx2(void *rp, const void *ap, const void *np,
 //!                         BN_ULONG n0, int rep);
 //! void rsaz_1024_mul_avx2(void *rp, const void *ap, const void *bp,
-#![allow(dead_code, unused_mut, unused_imports)]
 //!                         const void *np, BN_ULONG n0);
 //! void rsaz_1024_norm2red_avx2(void *red, const void *norm);
 //! void rsaz_1024_red2norm_avx2(void *norm, const void *red);
@@ -146,14 +146,7 @@ pub fn mul_by_one_512(out: &mut [u64], a: &[u64], n: &[u64], n0: u64) {
 
 /// `out = a * tbl[power] * R^-1 mod n`, gathering from a scattered table.
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
-pub fn mul_gather4_512(
-    out: &mut [u64],
-    a: &[u64],
-    tbl: &[u64],
-    n: &[u64],
-    n0: u64,
-    power: u32,
-) {
+pub fn mul_gather4_512(out: &mut [u64], a: &[u64], tbl: &[u64], n: &[u64], n0: u64, power: u32) {
     debug_assert_eq!(out.len(), LIMBS_512);
     debug_assert_eq!(a.len(), LIMBS_512);
     debug_assert_eq!(n.len(), LIMBS_512);

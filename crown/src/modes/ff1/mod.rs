@@ -8,28 +8,18 @@ use crate::block::aes::Aes;
 use crate::block::BlockCipher;
 use crate::error::{CryptoError, CryptoResult};
 
-use alloc::vec::Vec;
-use alloc::vec;
 use alloc::string::String;
+use alloc::vec;
+use alloc::vec::Vec;
 const ROUNDS: usize = 10;
 
 /// Encrypt a numeral string (digits in `radix`) under FF1.
-pub fn ff1_encrypt(
-    key: &[u8],
-    tweak: &[u8],
-    radix: u32,
-    digits: &[u32],
-) -> CryptoResult<Vec<u32>> {
+pub fn ff1_encrypt(key: &[u8], tweak: &[u8], radix: u32, digits: &[u32]) -> CryptoResult<Vec<u32>> {
     ff1_crypt(key, tweak, radix, digits, true)
 }
 
 /// Decrypt a numeral string (digits in `radix`) under FF1.
-pub fn ff1_decrypt(
-    key: &[u8],
-    tweak: &[u8],
-    radix: u32,
-    digits: &[u32],
-) -> CryptoResult<Vec<u32>> {
+pub fn ff1_decrypt(key: &[u8], tweak: &[u8], radix: u32, digits: &[u32]) -> CryptoResult<Vec<u32>> {
     ff1_crypt(key, tweak, radix, digits, false)
 }
 
@@ -287,11 +277,7 @@ fn ff1_crypt(
     let mut bb: Vec<u32> = digits[u..].iter().rev().copied().collect(); // LE
 
     for round in 0..ROUNDS {
-        let i = if encrypt {
-            round
-        } else {
-            ROUNDS - 1 - round
-        };
+        let i = if encrypt { round } else { ROUNDS - 1 - round };
         // m = |A_in| = |C| for this round.
         let m = if i % 2 == 0 { u } else { v };
 

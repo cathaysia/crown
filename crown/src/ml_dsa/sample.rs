@@ -11,9 +11,7 @@ use crate::core::{CoreRead, CoreWrite};
 use crate::hash::sha3::{new_shake128, new_shake256};
 
 use super::ntt::{mod_sub, ntt};
-use super::params::{
-    N, Q, ETA_4, GAMMA1_19, PRIV_SEED_BYTES, RHO_BYTES, RHO_PRIME_BYTES,
-};
+use super::params::{ETA_4, GAMMA1_19, N, PRIV_SEED_BYTES, Q, RHO_BYTES, RHO_PRIME_BYTES};
 use super::poly::Poly;
 
 /// FIPS 204 Algorithm 14 `CoeffFromThreeBytes`. Variable time (public input).
@@ -140,12 +138,16 @@ pub(crate) fn expand_s(
 /// with coefficients in `(-gamma1, gamma1]` from `seed` (which already embeds
 /// the nonce index).
 pub(crate) fn expand_mask(seed: &[u8], gamma1: u32) -> Poly {
-    let buf_len = if gamma1 == GAMMA1_19 { 32 * 20 } else { 32 * 18 };
+    let buf_len = if gamma1 == GAMMA1_19 {
+        32 * 20
+    } else {
+        32 * 18
+    };
     let mut buf = vec![0u8; buf_len];
     let mut shake = new_shake256();
     shake.write_all(seed).expect("shake write");
     shake.read_exact(&mut buf).expect("shake read");
-    
+
     decode_expand_mask(&buf, gamma1)
 }
 

@@ -76,7 +76,6 @@ impl Params {
     pub(crate) fn md_len(&self) -> usize {
         (self.k as usize * self.a as usize).div_ceil(8)
     }
-
 }
 
 macro_rules! params {
@@ -93,7 +92,8 @@ macro_rules! params {
             k: $k,
             m: $m,
             pk_len: 2 * $n,
-            sig_len: $n * (1 + $k as usize * (1 + $a as usize) + $d as usize * (2 * $n + 3 + $hm as usize)),
+            sig_len: $n
+                * (1 + $k as usize * (1 + $a as usize) + $d as usize * (2 * $n + 3 + $hm as usize)),
             ht_bound: $bound,
             big_hash: $big,
         }
@@ -103,29 +103,185 @@ macro_rules! params {
 /// FIPS 205 Table 2 parameter sets.
 pub(crate) static PARAMS: [Params; 12] = [
     // SLH-DSA-SHA2-128s: n=16, h=63, d=7, h'=9, a=12, k=14, m=30
-    params!(Sha2_128s, "SLH-DSA-SHA2-128s", false, 16, 63, 7, 9, 12, 14, 30, 64, false),
+    params!(
+        Sha2_128s,
+        "SLH-DSA-SHA2-128s",
+        false,
+        16,
+        63,
+        7,
+        9,
+        12,
+        14,
+        30,
+        64,
+        false
+    ),
     // SLH-DSA-SHA2-128f: n=16, h=66, d=22, h'=3, a=6, k=33, m=34
-    params!(Sha2_128f, "SLH-DSA-SHA2-128f", false, 16, 66, 22, 3, 6, 33, 34, 64, false),
+    params!(
+        Sha2_128f,
+        "SLH-DSA-SHA2-128f",
+        false,
+        16,
+        66,
+        22,
+        3,
+        6,
+        33,
+        34,
+        64,
+        false
+    ),
     // SLH-DSA-SHA2-192s: n=24, h=63, d=7, h'=9, a=14, k=17, m=39
-    params!(Sha2_192s, "SLH-DSA-SHA2-192s", false, 24, 63, 7, 9, 14, 17, 39, 128, true),
+    params!(
+        Sha2_192s,
+        "SLH-DSA-SHA2-192s",
+        false,
+        24,
+        63,
+        7,
+        9,
+        14,
+        17,
+        39,
+        128,
+        true
+    ),
     // SLH-DSA-SHA2-192f: n=24, h=66, d=22, h'=3, a=8, k=33, m=42
-    params!(Sha2_192f, "SLH-DSA-SHA2-192f", false, 24, 66, 22, 3, 8, 33, 42, 128, true),
+    params!(
+        Sha2_192f,
+        "SLH-DSA-SHA2-192f",
+        false,
+        24,
+        66,
+        22,
+        3,
+        8,
+        33,
+        42,
+        128,
+        true
+    ),
     // SLH-DSA-SHA2-256s: n=32, h=64, d=8, h'=8, a=14, k=22, m=47
-    params!(Sha2_256s, "SLH-DSA-SHA2-256s", false, 32, 64, 8, 8, 14, 22, 47, 128, true),
+    params!(
+        Sha2_256s,
+        "SLH-DSA-SHA2-256s",
+        false,
+        32,
+        64,
+        8,
+        8,
+        14,
+        22,
+        47,
+        128,
+        true
+    ),
     // SLH-DSA-SHA2-256f: n=32, h=68, d=17, h'=4, a=9, k=35, m=49
-    params!(Sha2_256f, "SLH-DSA-SHA2-256f", false, 32, 68, 17, 4, 9, 35, 49, 128, true),
+    params!(
+        Sha2_256f,
+        "SLH-DSA-SHA2-256f",
+        false,
+        32,
+        68,
+        17,
+        4,
+        9,
+        35,
+        49,
+        128,
+        true
+    ),
     // SLH-DSA-SHAKE-128s
-    params!(Shake_128s, "SLH-DSA-SHAKE-128s", true, 16, 63, 7, 9, 12, 14, 30, 0, false),
+    params!(
+        Shake_128s,
+        "SLH-DSA-SHAKE-128s",
+        true,
+        16,
+        63,
+        7,
+        9,
+        12,
+        14,
+        30,
+        0,
+        false
+    ),
     // SLH-DSA-SHAKE-128f
-    params!(Shake_128f, "SLH-DSA-SHAKE-128f", true, 16, 66, 22, 3, 6, 33, 34, 0, false),
+    params!(
+        Shake_128f,
+        "SLH-DSA-SHAKE-128f",
+        true,
+        16,
+        66,
+        22,
+        3,
+        6,
+        33,
+        34,
+        0,
+        false
+    ),
     // SLH-DSA-SHAKE-192s
-    params!(Shake_192s, "SLH-DSA-SHAKE-192s", true, 24, 63, 7, 9, 14, 17, 39, 0, true),
+    params!(
+        Shake_192s,
+        "SLH-DSA-SHAKE-192s",
+        true,
+        24,
+        63,
+        7,
+        9,
+        14,
+        17,
+        39,
+        0,
+        true
+    ),
     // SLH-DSA-SHAKE-192f
-    params!(Shake_192f, "SLH-DSA-SHAKE-192f", true, 24, 66, 22, 3, 8, 33, 42, 0, true),
+    params!(
+        Shake_192f,
+        "SLH-DSA-SHAKE-192f",
+        true,
+        24,
+        66,
+        22,
+        3,
+        8,
+        33,
+        42,
+        0,
+        true
+    ),
     // SLH-DSA-SHAKE-256s
-    params!(Shake_256s, "SLH-DSA-SHAKE-256s", true, 32, 64, 8, 8, 14, 22, 47, 0, true),
+    params!(
+        Shake_256s,
+        "SLH-DSA-SHAKE-256s",
+        true,
+        32,
+        64,
+        8,
+        8,
+        14,
+        22,
+        47,
+        0,
+        true
+    ),
     // SLH-DSA-SHAKE-256f
-    params!(Shake_256f, "SLH-DSA-SHAKE-256f", true, 32, 68, 17, 4, 9, 35, 49, 0, true),
+    params!(
+        Shake_256f,
+        "SLH-DSA-SHAKE-256f",
+        true,
+        32,
+        68,
+        17,
+        4,
+        9,
+        35,
+        49,
+        0,
+        true
+    ),
 ];
 
 impl SlhDsaVariant {

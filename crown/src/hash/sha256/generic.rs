@@ -1,10 +1,9 @@
+#![allow(dead_code)]
 // SHA-256 block step — portable software path.
 //
 // Uses a 4-word schedule + x2-round formulation (same structure as
 // RustCrypto's `sha2` soft backend): better ILP and less stack traffic
 // than the textbook expand-then-compress loop.
-
-#![allow(dead_code)]
 
 const K32: [u32; 64] = [
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
