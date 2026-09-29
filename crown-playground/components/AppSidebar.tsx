@@ -20,6 +20,10 @@ export const menuItems = [
   { id: 'block', label: 'Block Cipher', icon: Lock },
   { id: 'hash', label: 'Hash', icon: Hash },
   { id: 'stream', label: 'Stream Cipher', icon: Zap },
+  { id: 'mac', label: 'MAC', icon: Shield },
+  { id: 'kdf', label: 'Key Derivation', icon: Zap },
+  { id: 'kem', label: 'Signatures & KEM', icon: Lock },
+  { id: 'tools', label: 'Tools (XTS/KW/FF1)', icon: Hash },
 ];
 
 export function AppSidebar() {
