@@ -9,6 +9,7 @@ pub mod evp_misc;
 pub mod evp_mac;
 pub mod evp_sign;
 pub mod evp_kem;
+pub mod evp_pq_sign;
 
 unsafe fn slice_from_raw_parts<'a>(ptr: *const u8, len: usize) -> Option<&'a [u8]> {
     if ptr.is_null() {
