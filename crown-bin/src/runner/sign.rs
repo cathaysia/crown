@@ -85,6 +85,53 @@ pub fn run_sign(args: ArgsSign) -> anyhow::Result<()> {
                 std::process::exit(1);
             }
         }
+        (SignAlgorithm::MlDsa44 | SignAlgorithm::MlDsa65 | SignAlgorithm::MlDsa87, "keygen") => {
+            use crown::ml_dsa::{keygen, MlDsaVariant};
+            let variant = match args.algorithm {
+                SignAlgorithm::MlDsa44 => MlDsaVariant::MlDsa44,
+                SignAlgorithm::MlDsa65 => MlDsaVariant::MlDsa65,
+                _ => MlDsaVariant::MlDsa87,
+            };
+            let mut seed = [0u8; 32];
+            getrandom_fill(&mut seed);
+            let (pk, sk) = keygen(variant, &seed)?;
+            println!("seed={}", hex::encode(seed));
+            println!("public={}", hex::encode(pk.to_bytes()));
+            println!("secret={}", hex::encode(sk.to_bytes()));
+        }
+        (SignAlgorithm::MlDsa44 | SignAlgorithm::MlDsa65 | SignAlgorithm::MlDsa87, "sign") => {
+            use crown::ml_dsa::{sign, MlDsaPrivateKey, MlDsaVariant};
+            let variant = match args.algorithm {
+                SignAlgorithm::MlDsa44 => MlDsaVariant::MlDsa44,
+                SignAlgorithm::MlDsa65 => MlDsaVariant::MlDsa65,
+                _ => MlDsaVariant::MlDsa87,
+            };
+            let sk_bytes = hex::decode(&args.key)?;
+            let sk = MlDsaPrivateKey::from_bytes(variant, &sk_bytes)?;
+            let msg = std::fs::read(args.input.as_ref().expect("--input required"))?;
+            let sig = sign(&sk, &msg, b"", None)?;
+            match &args.signature {
+                Some(path) => std::fs::write(path, sig)?,
+                None => println!("{}", hex::encode(sig)),
+            }
+        }
+        (SignAlgorithm::MlDsa44 | SignAlgorithm::MlDsa65 | SignAlgorithm::MlDsa87, "verify") => {
+            use crown::ml_dsa::{verify, MlDsaPublicKey, MlDsaVariant};
+            let variant = match args.algorithm {
+                SignAlgorithm::MlDsa44 => MlDsaVariant::MlDsa44,
+                SignAlgorithm::MlDsa65 => MlDsaVariant::MlDsa65,
+                _ => MlDsaVariant::MlDsa87,
+            };
+            let pk_bytes = hex::decode(&args.key)?;
+            let pk = MlDsaPublicKey::from_bytes(variant, &pk_bytes)?;
+            let msg = std::fs::read(args.input.as_ref().expect("--input required"))?;
+            let sig = std::fs::read(args.signature.as_ref().expect("--signature required"))?;
+            let ok = verify(&pk, &msg, b"", &sig)?;
+            println!("{}", if ok { "OK" } else { "FAILURE" });
+            if !ok {
+                std::process::exit(1);
+            }
+        }
         _ => anyhow::bail!("unsupported algorithm/op"),
     }
     Ok(())
