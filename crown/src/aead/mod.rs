@@ -10,6 +10,7 @@ pub mod ccm;
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 pub mod aesni_sha1;
+pub mod aesni_sha256;
 pub mod chacha20poly1305;
 pub mod eax;
 #[cfg(feature = "alloc")]
