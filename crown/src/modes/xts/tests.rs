@@ -169,10 +169,8 @@ fn rejects_oversized_data_unit() {
     let key = hex_to_bytes("0101010101010101010101010101010102020202020202020202020202020202");
     let xts = Xts::<Aes>::new(&key).unwrap();
     let iv = [0u8; 16];
-    let mut buf = alloc::vec::Vec::new();
-
     // 2^20 blocks exactly is allowed.
-    buf.resize((1 << 20) * 16, 0);
+    let mut buf = alloc::vec![0u8; (1 << 20) * 16];
     assert!(xts.encrypt(&iv, &mut buf).is_ok());
 
     buf.resize((1 << 20) * 16 + 1, 0);

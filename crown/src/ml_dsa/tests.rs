@@ -110,7 +110,7 @@ fn load(name: &str) -> Vec<Block> {
 }
 
 /// Extract `Ctrl = <name>:<hex>` pairs into a map-like list.
-fn ctrl_hex<'a>(block: &'a Block, name: &str) -> Option<Vec<u8>> {
+fn ctrl_hex(block: &Block, name: &str) -> Option<Vec<u8>> {
     for key in ["Ctrl", "CtrlOut"] {
         for v in block.get_all(key) {
             if let Some(rest) = v.strip_prefix(&format!("{name}:")) {
@@ -234,9 +234,7 @@ fn collect_sign_cases(blocks: &[Block], file: &str) -> Vec<SignCase> {
                 continue;
             }
         }
-        let mut it = ref_line.splitn(2, ':');
-        let var_name = it.next().unwrap();
-        let key_name = it.next().unwrap();
+        let (var_name, key_name) = ref_line.split_once(':').unwrap();
         let (kvar, sk) = find_raw_key(blocks, "PrivateKeyRaw", key_name)
             .unwrap_or_else(|| panic!("{file}: missing PrivateKeyRaw {key_name}"));
         assert_eq!(
@@ -294,7 +292,7 @@ fn acvp_siggen_matches_known_signatures() {
     let blocks = load("evppkey_ml_dsa_siggen.txt");
     let cases = collect_sign_cases(&blocks, "siggen");
     assert!(
-        cases.len() >= 1,
+        !cases.is_empty(),
         "expected at least 1 reproducible siggen vector, got {}",
         cases.len()
     );
@@ -356,9 +354,7 @@ fn collect_verify_cases(blocks: &[Block], file: &str) -> Vec<VerifyCase> {
                 continue;
             }
         }
-        let mut it = ref_line.splitn(2, ':');
-        let var_name = it.next().unwrap();
-        let key_name = it.next().unwrap();
+        let (var_name, key_name) = ref_line.split_once(':').unwrap();
         let (kvar, pk) = find_raw_key(blocks, "PublicKeyRaw", key_name)
             .unwrap_or_else(|| panic!("{file}: missing PublicKeyRaw {key_name}"));
         assert_eq!(kvar, variant_from_name(var_name));
@@ -391,7 +387,7 @@ fn run_verify_case(c: &VerifyCase) -> bool {
 fn acvp_sigver_accept_and_reject() {
     let blocks = load("evppkey_ml_dsa_sigver.txt");
     let cases = collect_verify_cases(&blocks, "sigver");
-    assert!(cases.len() >= 1, "too few sigver vectors: {}", cases.len());
+    assert!(!cases.is_empty(), "too few sigver vectors: {}", cases.len());
     let mut accepts = 0usize;
     let mut rejects = 0usize;
     for c in &cases {

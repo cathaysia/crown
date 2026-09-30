@@ -27,7 +27,7 @@ use alloc::vec::Vec;
 /// with no trailing zero limbs.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Bn {
-    limbs: Vec<u64>,
+    pub(crate) limbs: Vec<u64>,
 }
 
 /// Ordering by numeric magnitude: normalized numbers compare by limb
@@ -174,7 +174,7 @@ impl Bn {
         self.limbs.first().is_some_and(|l| l & 1 == 1)
     }
 
-    fn normalize(&mut self) {
+    pub(crate) fn normalize(&mut self) {
         while self.limbs.last() == Some(&0) {
             self.limbs.pop();
         }
@@ -396,11 +396,15 @@ impl Bn {
         a
     }
 
-    /// Modular inverse via the extended Euclidean algorithm with
-    /// coefficients kept in `[0, modulus)`.
+    /// Modular inverse. Uses the division-free binary extended Euclidean
+    /// algorithm for odd moduli (the common case: prime fields and RSA prime
+    /// moduli) and falls back to extended Euclid otherwise.
     pub fn mod_inverse(&self, modulus: &Bn) -> CryptoResult<Bn> {
         if modulus.is_zero() || modulus.is_one() {
             return Err(CryptoError::StrError("bn: no inverse"));
+        }
+        if modulus.is_odd() {
+            return self.mod_inverse_odd(modulus);
         }
 
         let mut old_r = self.clone();
@@ -430,6 +434,55 @@ impl Bn {
             return Err(CryptoError::StrError("bn: no modular inverse"));
         }
         Ok(old_s)
+    }
+
+    /// Binary extended Euclidean inverse for an odd modulus (HAC Alg. 14.64).
+    /// Maintains `a*x1 = u` and `a*x2 = v (mod m)`; only shifts, adds and
+    /// subs, so it avoids the O(n²) division of Euclid.
+    fn mod_inverse_odd(&self, modulus: &Bn) -> CryptoResult<Bn> {
+        let m = modulus;
+        let mut u = self.modulus(m);
+        let mut v = m.clone();
+        let mut x1 = Bn::one();
+        let mut x2 = Bn::zero();
+
+        while !u.is_one() && !v.is_one() {
+            if u.is_zero() || v.is_zero() {
+                return Err(CryptoError::StrError("bn: no modular inverse"));
+            }
+            while u.is_even() {
+                u.shr1();
+                // x1 = x1 / 2 (mod m): odd x1 folds in the modulus first.
+                if x1.is_even() {
+                    x1.shr1();
+                } else {
+                    x1 = x1.add(m);
+                    x1.shr1();
+                }
+            }
+            while v.is_even() {
+                v.shr1();
+                if x2.is_even() {
+                    x2.shr1();
+                } else {
+                    x2 = x2.add(m);
+                    x2.shr1();
+                }
+            }
+            if u.lt(&v) {
+                v = v.sub(&u)?;
+                x2 = sub_mod(&x2, &x1, m);
+            } else {
+                u = u.sub(&v)?;
+                x1 = sub_mod(&x1, &x2, m);
+            }
+        }
+
+        if u.is_one() {
+            Ok(x1)
+        } else {
+            Ok(x2)
+        }
     }
 
     /// `(a * b) mod m` via mul + divrem (no parity restriction on m).
@@ -495,6 +548,15 @@ impl Bn {
     }
 }
 
+/// `(x - y) mod m` for `x, y` in `[0, m)` (no allocation beyond the result).
+fn sub_mod(x: &Bn, y: &Bn, m: &Bn) -> Bn {
+    if x.lt(y) {
+        x.add(m).sub(y).expect("x + m >= y")
+    } else {
+        x.sub(y).expect("x >= y")
+    }
+}
+
 /// Shift a little-endian limb vector left by `shift` bits (< 64).
 fn shl_limbs(limbs: &[u64], shift: u32) -> Vec<u64> {
     if shift == 0 {
@@ -537,6 +599,25 @@ pub struct Montgomery {
     /// R^2 mod n where R = 2^(64 * limbs)
     r2: Bn,
     limbs: usize,
+}
+
+impl Clone for Montgomery {
+    fn clone(&self) -> Self {
+        Montgomery {
+            n: self.n.clone(),
+            n0: self.n0,
+            r2: self.r2.clone(),
+            limbs: self.limbs,
+        }
+    }
+}
+
+impl core::fmt::Debug for Montgomery {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Montgomery")
+            .field("limbs", &self.limbs)
+            .finish()
+    }
 }
 
 impl Montgomery {
@@ -608,59 +689,121 @@ impl Montgomery {
     }
 
     fn mont_mul_generic(&self, a: &Bn, b: &Bn) -> Bn {
-        let t_len = self.limbs + 1;
-        let mut t = alloc::vec![0u64; t_len + 1];
-
-        for i in 0..self.limbs {
-            // t = t + a_i * b
-            let ai = a.limbs.get(i).copied().unwrap_or(0) as u128;
-            let mut carry = 0u128;
-            for j in 0..self.limbs {
-                let bj = b.limbs.get(j).copied().unwrap_or(0) as u128;
-                let tj = t[j] as u128;
-                let s = ai * bj + tj + carry;
-                t[j] = s as u64;
-                carry = s >> 64;
+        let s = self.limbs;
+        // Field-element sized operands (<= 1024 bits) run entirely on the
+        // stack: only the result limbs are allocated.
+        if s <= 16 {
+            let mut ap = [0u64; 16];
+            let mut bp = [0u64; 16];
+            let mut scratch = [0u64; 33]; // 2 * 16 + 1
+            for (i, &x) in a.limbs.iter().take(s).enumerate() {
+                ap[i] = x;
             }
-            let s = (t[self.limbs] as u128) + carry;
-            t[self.limbs] = s as u64;
-            if self.limbs + 1 < t.len() {
-                t[self.limbs + 1] = (s >> 64) as u64;
+            for (i, &x) in b.limbs.iter().take(s).enumerate() {
+                bp[i] = x;
             }
-
-            // m = t_0 * n0 mod 2^64; t = t + m * n; drop t_0
-            let m = t[0].wrapping_mul(self.n0);
-            let mut carry2 = 0u128;
-            for j in 0..self.limbs {
-                let nj = self.n.limbs.get(j).copied().unwrap_or(0) as u128;
-                let s = (m as u128) * nj + (t[j] as u128) + carry2;
-                t[j] = s as u64;
-                carry2 = s >> 64;
-            }
-            let s = (t[self.limbs] as u128) + carry2;
-            t[self.limbs] = s as u64;
-            if self.limbs + 1 < t.len() {
-                t[self.limbs + 1] += (s >> 64) as u64;
-            }
-
-            // shift t right by one limb
-            for j in 0..t_len {
-                t[j] = t[j + 1];
-            }
-            t[t_len] = 0;
+            self.mont_mul_core(&ap[..s], &bp[..s], &mut scratch[..2 * s + 1]);
+            return self.mont_result(&mut scratch[s..2 * s + 1]);
         }
+        let mut scratch = alloc::vec![0u64; 2 * s + 1];
+        let mut ap = alloc::vec![0u64; s];
+        let mut bp = alloc::vec![0u64; s];
+        for (i, &x) in a.limbs.iter().take(s).enumerate() {
+            ap[i] = x;
+        }
+        for (i, &x) in b.limbs.iter().take(s).enumerate() {
+            bp[i] = x;
+        }
+        self.mont_mul_core(&ap, &bp, &mut scratch);
+        self.mont_result(&mut scratch[s..2 * s + 1])
+    }
 
-        // The per-iteration shift leaves t[t_len] zero, so the product is
-        // exactly t[..t_len] and the buffer can be moved instead of copied.
-        t.truncate(t_len);
-        let mut res = Bn { limbs: t };
+    /// Normalize a raw `limbs + 1`-word CIOS result and reduce it below the
+    /// modulus.
+    fn mont_result(&self, raw: &mut [u64]) -> Bn {
+        let mut res = Bn {
+            limbs: alloc::vec::Vec::from(raw),
+        };
         res.normalize();
-
-        // res in [0, 2n): subtract n once if needed.
         if !res.lt(&self.n) {
             res = res.sub(&self.n).unwrap_or_else(|_| Bn::zero());
         }
         res
+    }
+
+    /// CIOS Montgomery multiplication over fixed-width limb slices.
+    ///
+    /// `a` and `b` must be exactly `self.limbs` limbs (values below `R`); the
+    /// `limbs + 1`-word result (< 2 * modulus) is left in
+    /// `scratch[limbs..2 * limbs + 1]`. `scratch` needs `2 * limbs + 1` words
+    /// and is used as scratch space only. Allocation-free: the classic CIOS
+    /// per-iteration whole-buffer shift is folded into a moving window base,
+    /// so iteration `i` works in place on `scratch[i..]`.
+    pub(crate) fn mont_mul_core(&self, a: &[u64], b: &[u64], scratch: &mut [u64]) {
+        let s = self.limbs;
+        debug_assert_eq!(a.len(), s);
+        debug_assert_eq!(b.len(), s);
+        debug_assert!(scratch.len() > 2 * s);
+
+        scratch[..s + 1].fill(0);
+        let n = &self.n.limbs[..s];
+
+        for i in 0..s {
+            // t = t + a_i * b (t is the window scratch[i..i+s+2])
+            let bi = b[i] as u128;
+            let mut carry = 0u128;
+            for (tj, &aj) in scratch[i..i + s].iter_mut().zip(a.iter()) {
+                let v = (*tj as u128) + (aj as u128) * bi + carry;
+                *tj = v as u64;
+                carry = v >> 64;
+            }
+            let v = (scratch[i + s] as u128) + carry;
+            scratch[i + s] = v as u64;
+            scratch[i + s + 1] = (v >> 64) as u64;
+
+            // m = t_0 * n0 mod 2^64; t = t + m * n
+            let m = scratch[i].wrapping_mul(self.n0) as u128;
+            let mut carry = 0u128;
+            for (tj, &nj) in scratch[i..i + s].iter_mut().zip(n.iter()) {
+                let v = (*tj as u128) + m * (nj as u128) + carry;
+                *tj = v as u64;
+                carry = v >> 64;
+            }
+            let v = (scratch[i + s] as u128) + carry;
+            scratch[i + s] = v as u64;
+            scratch[i + s + 1] += (v >> 64) as u64;
+
+            // the "shift t right by one limb" of the textbook CIOS is the
+            // window base bump: iteration i + 1 starts at scratch[i + 1].
+        }
+    }
+
+    /// Reduce a raw `limbs + 1`-word CIOS result in place to below the
+    /// modulus (one conditional subtract; the input is < 2n).
+    fn mont_finish_s1(&self, raw: &mut [u64]) {
+        let s = self.limbs;
+        let n = &self.n.limbs[..s];
+        // raw >= n? Equality counts (raw == n must reduce to zero).
+        let mut ge = raw[s] != 0;
+        if !ge {
+            ge = true;
+            for j in (0..s).rev() {
+                if raw[j] != n[j] {
+                    ge = raw[j] > n[j];
+                    break;
+                }
+            }
+        }
+        if ge {
+            let mut borrow = 0u64;
+            for j in 0..s {
+                let (d, b1) = raw[j].overflowing_sub(n[j]);
+                let (d, b2) = d.overflowing_sub(borrow);
+                borrow = (b1 as u64) | (b2 as u64);
+                raw[j] = d;
+            }
+            raw[s] = 0;
+        }
     }
 
     /// Convert into Montgomery form: `a * R mod n`.
@@ -678,23 +821,70 @@ impl Montgomery {
         self.mont_mul(a, b)
     }
 
-    /// `a^e mod n` with `a` in Montgomery form (4-bit windowed).
+    /// `a^e mod n` with `a` in Montgomery form.
+    ///
+    /// Pure-software path. All intermediates stay in fixed-width limb
+    /// buffers (one scratch for every multiplication, one buffer for the
+    /// window table), so a full exponentiation performs no per-multiplication
+    /// allocation. Exponents up to 64 bits use plain square-and-multiply;
+    /// wider exponents use a 4-bit window.
     pub fn pow(&self, a_mont: &Bn, e: &Bn) -> Bn {
-        let mut table = alloc::vec![Bn::zero(); 16];
-        table[0] = self.to_mont(&Bn::one());
-        table[1] = a_mont.clone();
-        for i in 2..16 {
-            table[i] = self.mul(&table[i - 1], a_mont);
+        let s = self.limbs;
+        debug_assert_eq!(self.n.limbs.len(), s);
+
+        let mut scratch = alloc::vec![0u64; 2 * s + 1];
+        let mut base = alloc::vec![0u64; s];
+        for (i, &x) in a_mont.limbs.iter().take(s).enumerate() {
+            base[i] = x;
+        }
+        let one_m = self.to_mont(&Bn::one());
+
+        let bits = e.bit_len();
+        let mut acc = alloc::vec![0u64; s];
+        if bits == 0 {
+            acc.copy_from_slice(&one_m.limbs[..s.min(one_m.limbs.len())]);
+            return Bn { limbs: acc };
         }
 
-        let mut result = table[0].clone();
-        let bits = e.bit_len();
+        if bits <= 64 {
+            // MSB-first square-and-multiply: bits/2 multiplications on
+            // average, and no window-table setup. acc starts at a^1 (the
+            // MSB is consumed by the initialization).
+            acc.copy_from_slice(&base);
+            for i in (0..bits - 1).rev() {
+                self.mont_mul_core(&acc, &acc, &mut scratch);
+                self.mont_finish_s1(&mut scratch[s..]);
+                acc.copy_from_slice(&scratch[s..2 * s]);
+                if e.bit(i) {
+                    self.mont_mul_core(&acc, &base, &mut scratch);
+                    self.mont_finish_s1(&mut scratch[s..]);
+                    acc.copy_from_slice(&scratch[s..2 * s]);
+                }
+            }
+            return Bn { limbs: acc };
+        }
+
+        // 4-bit window table of precomputed powers a^0..a^15 (Montgomery
+        // form, each reduced below the modulus).
+        let mut table = alloc::vec![0u64; 16 * s];
+        let top = &one_m.limbs[..s.min(one_m.limbs.len())];
+        table[..top.len()].copy_from_slice(top);
+        table[s..2 * s].copy_from_slice(&base);
+        for i in 2..16 {
+            self.mont_mul_core(&table[(i - 1) * s..i * s], &base, &mut scratch);
+            self.mont_finish_s1(&mut scratch[s..]);
+            table[i * s..(i + 1) * s].copy_from_slice(&scratch[s..2 * s]);
+        }
+
+        acc.copy_from_slice(&table[..s]);
         let mut i = bits;
         while i > 0 {
             // consume a 4-bit window
             let w = 4usize.min(i);
             for _ in 0..w {
-                result = self.mul(&result, &result);
+                self.mont_mul_core(&acc, &acc, &mut scratch);
+                self.mont_finish_s1(&mut scratch[s..]);
+                acc.copy_from_slice(&scratch[s..2 * s]);
             }
             let mut nib = 0u8;
             for k in 0..w {
@@ -704,10 +894,13 @@ impl Montgomery {
                     nib |= 1 << k;
                 }
             }
-            result = self.mul(&result, &table[nib as usize]);
+            let entry = &table[nib as usize * s..nib as usize * s + s];
+            self.mont_mul_core(&acc, entry, &mut scratch);
+            self.mont_finish_s1(&mut scratch[s..]);
+            acc.copy_from_slice(&scratch[s..2 * s]);
             i -= w;
         }
-        result
+        Bn { limbs: acc }
     }
 
     /// Constant-time `a^e mod n` via the mont5 5-bit-window power table

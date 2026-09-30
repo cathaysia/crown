@@ -5,6 +5,7 @@
 
 use super::fe;
 use super::fe::Fe;
+use alloc::boxed::Box;
 
 /// d = -121665/121666 as 51-bit limbs.
 pub const D: Fe = [
@@ -174,10 +175,68 @@ fn ct_select_table(table: &[P3; 16], index: u8) -> P3 {
     }
 }
 
-/// Constant-time fixed-base scalar multiplication with 4-bit windows.
+/// Constant-time fixed-base scalar multiplication.
+///
+/// The base-point table holds, for each of the 64 nibble windows of the
+/// scalar (little-endian, radix 2^16), the sixteen multiples `0*B .. 15*B`
+/// scaled by `2^(4 * window)`. One constant-time table selection and one
+/// point addition per window replaces the 4 doublings + selection of the
+/// generic ladder; the table is built once per process and shared.
 pub fn scalarmult_base(scalar: &[u8; 32]) -> P3 {
+    let table = base_table();
+    let mut r = P3::identity();
+    for w in (0..64).rev() {
+        let byte = scalar[w / 2];
+        let nibble = if w % 2 == 0 { byte & 0x0f } else { byte >> 4 };
+        let entry = ct_select_table(&table[w], nibble);
+        r = add(&r, &entry);
+    }
+    r
+}
+
+/// Lazily initialized fixed-base table (`64` windows of `16` points).
+/// The first caller builds it; concurrent builders each leak a private copy
+/// (bounded, one-time) and share the published one.
+fn base_table() -> &'static [[P3; 16]; 64] {
+    use core::sync::atomic::{AtomicPtr, Ordering};
+
+    static PTR: AtomicPtr<()> = AtomicPtr::new(core::ptr::null_mut());
+    let existing = PTR.load(Ordering::Acquire) as *const [[P3; 16]; 64];
+    if !existing.is_null() {
+        // SAFETY: the pointer is only ever set to a leaked, never-freed table.
+        return unsafe { &*existing };
+    }
+    let table: &'static [[P3; 16]; 64] = Box::leak(Box::new(build_base_table()));
+    match PTR.compare_exchange(
+        core::ptr::null_mut(),
+        table as *const _ as *mut (),
+        Ordering::AcqRel,
+        Ordering::Acquire,
+    ) {
+        Ok(_) => table,
+        Err(winner) => unsafe { &*winner.cast::<[[P3; 16]; 64]>() },
+    }
+}
+
+/// `base_table[w][d] = d * 2^(4w) * B`, built by advancing `B` through four
+/// doublings per window and chaining additions within a window.
+fn build_base_table() -> [[P3; 16]; 64] {
     let base = from_bytes(&BASE_COMPRESSED).expect("base point decodes");
-    scalarmult(&base, scalar)
+    let mut table = [[P3::identity(); 16]; 64];
+    let mut adv = base;
+    for w in 0..64 {
+        if w > 0 {
+            for _ in 0..4 {
+                adv = dbl(&adv);
+            }
+        }
+        table[w][0] = P3::identity();
+        table[w][1] = adv;
+        for d in 2..16 {
+            table[w][d] = add(&table[w][d - 1], &adv);
+        }
+    }
+    table
 }
 
 /// Constant-time scalar multiplication with 4-bit windows.

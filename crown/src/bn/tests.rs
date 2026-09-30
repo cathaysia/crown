@@ -33,7 +33,7 @@ fn divrem_basic() {
     // remainder by small divisor matches the generic path
     let r_small = a.rem_small(97);
     assert_eq!(
-        r_small as u64,
+        r_small,
         a.modulus(&Bn::from_u64(97))
             .limbs
             .first()

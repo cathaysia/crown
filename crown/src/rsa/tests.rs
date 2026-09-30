@@ -113,11 +113,6 @@ fn private_key() -> RsaPrivateKey {
     .unwrap()
 }
 
-fn public_key() -> RsaPublicKey {
-    let (n, e) = der::parse_rsa_public_key(&hex_bytes(PUB_DER)).unwrap();
-    RsaPublicKey::from_components(&n, &e).unwrap()
-}
-
 fn hex_bytes(s: &str) -> Vec<u8> {
     (0..s.len())
         .step_by(2)

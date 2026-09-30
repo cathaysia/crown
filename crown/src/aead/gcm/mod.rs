@@ -144,8 +144,7 @@ impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize> Aead<TAG_SI
         self.gcm_counter_crypt_generic(&mut tag_mask, &tag_mask_copy, &mut counter);
 
         // Encrypt data
-        let src = inout.to_vec();
-        self.gcm_counter_crypt_generic(inout, &src, &mut counter);
+        self.gcm_counter_crypt_inplace(inout, &mut counter);
 
         // Compute authentication tag
         let mut tag = [0u8; GCM_TAG_SIZE];
@@ -214,8 +213,7 @@ impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize> Aead<TAG_SI
         }
 
         // Decrypt data
-        let src = inout.to_vec();
-        self.gcm_counter_crypt_generic(inout, &src, &mut counter);
+        self.gcm_counter_crypt_inplace(inout, &mut counter);
 
         Ok(())
     }
@@ -268,6 +266,34 @@ impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize>
 
             for i in 0..(src.len() - src_idx) {
                 out[out_idx + i] = src[src_idx + i] ^ mask[i];
+            }
+        }
+    }
+
+    /// CTR-mode encryption/decryption with `inout` as both source and
+    /// destination (out and src indices always coincide, so the XOR can run
+    /// in place without a separate source buffer).
+    fn gcm_counter_crypt_inplace(&self, inout: &mut [u8], counter: &mut [u8; GCM_BLOCK_SIZE]) {
+        let mut mask = [0u8; GCM_BLOCK_SIZE];
+        for chunk in inout.as_chunks_mut::<GCM_BLOCK_SIZE>().0 {
+            mask.copy_from_slice(&counter[..]);
+            self.cipher.encrypt_block(&mut mask);
+            Self::gcm_inc32(counter);
+
+            for (o, m) in chunk.iter_mut().zip(mask.iter()) {
+                *o ^= *m;
+            }
+        }
+
+        let tail = inout.len() % GCM_BLOCK_SIZE;
+        if tail != 0 {
+            let off = inout.len() - tail;
+            mask.copy_from_slice(&counter[..]);
+            self.cipher.encrypt_block(&mut mask);
+            Self::gcm_inc32(counter);
+
+            for (o, m) in inout[off..].iter_mut().zip(mask.iter()) {
+                *o ^= *m;
             }
         }
     }

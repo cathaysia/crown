@@ -3,7 +3,7 @@
 //! P-256, P-384 and P-521. Curve parameters follow FIPS 186-4 D.1.2.3,
 //! D.1.2.4 and D.1.2.5 (secp256r1 / secp384r1 / secp521r1).
 
-use crate::bn::Bn;
+use crate::bn::{Bn, Montgomery};
 use crate::error::{CryptoError, CryptoResult};
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
@@ -29,6 +29,11 @@ pub struct Curve {
     pub gx: Bn,
     pub gy: Bn,
     pub n: Bn,
+    /// Montgomery context over `p`; the field helpers run every product
+    /// through it instead of falling back to `mul + divrem`.
+    mont: crate::bn::Montgomery,
+    /// Curve coefficient `a` in Montgomery form (a = -3 for the NIST curves).
+    a_mont: Bn,
 }
 
 fn hex_to_bytes(s: &str) -> Vec<u8> {
@@ -48,74 +53,94 @@ fn bn_hex(s: &str) -> Bn {
 /// P-256 from FIPS 186-4 D.1.2.3, P-384 from D.1.2.4, P-521 from D.1.2.5.
 pub fn curve(id: CurveId) -> Curve {
     match id {
-        CurveId::P256 => Curve {
-            p: bn_hex("FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF"),
-            a: bn_hex("FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC"),
-            b: bn_hex("5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B"),
-            gx: bn_hex("6B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296"),
-            gy: bn_hex("4FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5"),
-            n: bn_hex("FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551"),
-        },
+        // secp256r1, FIPS 186-4 D.1.2.3.
+        CurveId::P256 => Curve::from_parts(
+            bn_hex("FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF"),
+            bn_hex("FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC"),
+            bn_hex("5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B"),
+            bn_hex("6B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296"),
+            bn_hex("4FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5"),
+            bn_hex("FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551"),
+        ),
         // secp384r1 / P-384, FIPS 186-4 D.1.2.4.
-        CurveId::P384 => Curve {
-            p: bn_hex(
+        CurveId::P384 => Curve::from_parts(
+            bn_hex(
                 "FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFE
                  FFFFFFFF 00000000 00000000 FFFFFFFF",
             ),
-            a: bn_hex(
+            bn_hex(
                 "FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFE
                  FFFFFFFF 00000000 00000000 FFFFFFFC",
             ),
-            b: bn_hex(
+            bn_hex(
                 "B3312FA7 E23EE7E4 988E056B E3F82D19 181D9C6E FE814112 0314088F 5013875A
                  C656398D 8A2ED19D 2A85C8ED D3EC2AEF",
             ),
-            gx: bn_hex(
+            bn_hex(
                 "AA87CA22 BE8B0537 8EB1C71E F320AD74 6E1D3B62 8BA79B98 59F741E0 82542A38
                  5502F25D BF55296C 3A545E38 72760AB7",
             ),
-            gy: bn_hex(
+            bn_hex(
                 "3617DE4A 96262C6F 5D9E98BF 9292DC29 F8F41DBD 289A147C E9DA3113 B5F0B8C0
                  0A60B1CE 1D7E819D 7A431D7C 90EA0E5F",
             ),
-            n: bn_hex(
+            bn_hex(
                 "FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF C7634D81 F4372DDF
                  581A0DB2 48B0A77A ECEC196A CCC52973",
             ),
-        },
+        ),
         // secp521r1 / P-521, FIPS 186-4 D.1.2.5. Field prime is 2^521 - 1.
-        CurveId::P521 => Curve {
-            p: bn_hex(
+        CurveId::P521 => Curve::from_parts(
+            bn_hex(
                 "01FFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF
                  FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF
                  FFFF",
             ),
-            a: bn_hex(
+            bn_hex(
                 "01FFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF
                  FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF
                  FFFC",
             ),
-            b: bn_hex(
+            bn_hex(
                 "0051953E B9618E1C 9A1F929A 21A0B685 40EEA2DA 725B99B3 15F3B8B4 89918EF1
                  09E15619 3951EC7E 937B1652 C0BD3BB1 BF073573 DF883D2C 34F1EF45 1FD46B50
                  3F00",
             ),
-            gx: bn_hex(
+            bn_hex(
                 "00C6858E 06B70404 E9CD9E3E CB662395 B4429C64 8139053F B521F828 AF606B4D
                  3DBAA14B 5E77EFE7 5928FE1D C127A2FF A8DE3348 B3C1856A 429BF97E 7E31C2E5
                  BD66",
             ),
-            gy: bn_hex(
+            bn_hex(
                 "01183929 6A789A3B C0045C8A 5FB42C7D 1BD998F5 4449579B 446817AF BD17273E
                  662C97EE 72995EF4 2640C550 B9013FAD 0761353C 7086A272 C24088BE 94769FD1
                  6650",
             ),
-            n: bn_hex(
+            bn_hex(
                 "01FFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF
                  FFFA5186 8783BF2F 966B7FCC 0148F709 A5D03BB5 C9B8899C 47AEBB6F B71E9138
                  6409",
             ),
-        },
+        ),
+    }
+}
+
+impl Curve {
+    /// Assemble a curve from raw parameters and prepare its Montgomery
+    /// field context (used by curves defined outside this module, e.g. SM2).
+    pub(crate) fn from_parts(p: Bn, a: Bn, b: Bn, gx: Bn, gy: Bn, n: Bn) -> Curve {
+        let mont = Montgomery::new(&p).expect("curve prime is odd");
+        let a_mont = mont.to_mont(&a);
+        Curve {
+            mont,
+            a_mont,
+            p,
+            a,
+            b,
+            gx,
+            gy,
+            n,
+        }
     }
 }
 
@@ -132,43 +157,146 @@ pub struct Point {
     pub infinity: bool,
 }
 
-/// Jacobian projective point: `(X : Y : Z)`, affine `(X/Z^2, Y/Z^3)`.
-#[derive(Debug, Clone)]
+/// Fixed-width field element: `s` limbs of `p` in little-endian order,
+/// Montgomery form (value * R mod p) inside the Jacobian layer. The width
+/// covers P-521 (9 limbs) plus one guard word; limbs at and above `s` stay
+/// zero.
+const FE_LIMBS: usize = 10;
+type Fe = [u64; FE_LIMBS];
+
+/// Jacobian projective point over [`Fe`]: `(X : Y : Z)`.
+#[derive(Clone, Copy)]
 struct Jac {
-    x: Bn,
-    y: Bn,
-    z: Bn,
+    x: Fe,
+    y: Fe,
+    z: Fe,
 }
 
-fn madd(a: &Bn, b: &Bn, p: &Bn) -> Bn {
-    a.add(b).modulus(p)
+fn fe_zero() -> Fe {
+    [0u64; FE_LIMBS]
 }
 
-/// `a - b (mod p)`, safe when `a < b`.
-fn msub(a: &Bn, b: &Bn, p: &Bn) -> Bn {
-    a.add(p).sub(b).expect("a + p >= b").modulus(p)
+fn fe_is_zero(v: &Fe, s: usize) -> bool {
+    v[..s].iter().all(|&x| x == 0)
 }
 
-fn mmul(a: &Bn, b: &Bn, p: &Bn) -> Bn {
-    // Bn::modmul is `self * b mod m`
-    a.modmul(b, p)
-}
-
-fn msqr(a: &Bn, p: &Bn) -> Bn {
-    a.modmul(a, p)
-}
-
-fn u64_bn(v: u64) -> Bn {
-    Bn::from_u64(v)
-}
-
-/// Curve base point as a [`Point`].
-pub fn generator(c: &Curve) -> Point {
-    Point {
-        x: c.gx.clone(),
-        y: c.gy.clone(),
-        infinity: false,
+fn fe_from_bn(v: &Bn, s: usize) -> Fe {
+    let mut r = fe_zero();
+    for (i, &x) in v.limbs.iter().take(s).enumerate() {
+        r[i] = x;
     }
+    r
+}
+
+fn fe_to_bn(v: &Fe, s: usize) -> Bn {
+    let mut bn = Bn {
+        limbs: alloc::vec::Vec::from(&v[..s]),
+    };
+    bn.normalize();
+    bn
+}
+
+fn p_limbs(c: &Curve) -> Fe {
+    fe_from_bn(&c.p, c.p.limbs.len())
+}
+
+/// Enter Montgomery form.
+fn fe_to_mont(v: &Bn, c: &Curve) -> Fe {
+    fe_from_bn(&c.mont.to_mont(v), c.p.limbs.len())
+}
+
+/// Montgomery-form one (R mod p).
+fn fe_one_m(c: &Curve) -> Fe {
+    fe_to_mont(&Bn::one(), c)
+}
+
+/// Reduce a raw `(s + 1)`-word CIOS result (value < 2p) into `out` (< p).
+fn fe_finish(raw: &[u64], out: &mut Fe, p: &Fe, s: usize) {
+    // raw >= p? Equality counts (raw == p must reduce to zero).
+    let mut ge = raw[s] != 0;
+    if !ge {
+        ge = true;
+        for j in (0..s).rev() {
+            if raw[j] != p[j] {
+                ge = raw[j] > p[j];
+                break;
+            }
+        }
+    }
+    if ge {
+        let mut borrow = 0u64;
+        for j in 0..s {
+            let (d, b1) = raw[j].overflowing_sub(p[j]);
+            let (d, b2) = d.overflowing_sub(borrow);
+            borrow = (b1 as u64) | (b2 as u64);
+            out[j] = d;
+        }
+        out[s] = 0;
+    } else {
+        *out = fe_zero();
+        out[..s].copy_from_slice(&raw[..s]);
+    }
+}
+
+/// Montgomery multiplication into `out` (< p). Allocation-free.
+fn fe_mul(a: &Fe, b: &Fe, out: &mut Fe, c: &Curve, scratch: &mut [u64; 2 * FE_LIMBS + 1]) {
+    let s = c.p.limbs.len();
+    c.mont.mont_mul_core(&a[..s], &b[..s], scratch);
+    let p = p_limbs(c);
+    fe_finish(&scratch[s..2 * s + 1], out, &p, s);
+}
+
+/// `a + b (mod p)` for Montgomery-form `a, b < p`.
+fn fe_add(a: &Fe, b: &Fe, out: &mut Fe, p: &Fe, s: usize) {
+    let mut sum = [0u64; FE_LIMBS + 1];
+    let mut carry = 0u64;
+    for j in 0..s {
+        let (v, c1) = a[j].overflowing_add(b[j]);
+        let (v, c2) = v.overflowing_add(carry);
+        sum[j] = v;
+        carry = (c1 as u64) | (c2 as u64);
+    }
+    sum[s] = carry;
+    fe_finish(&sum, out, p, s);
+}
+
+/// `a - b (mod p)` for Montgomery-form `a, b < p`.
+fn fe_sub(a: &Fe, b: &Fe, out: &mut Fe, p: &Fe, s: usize) {
+    // a + p - b in (0, 2p), computed in s + 1 words.
+    let mut sum = [0u64; FE_LIMBS + 1];
+    let mut carry = 0u64;
+    for j in 0..s {
+        let (v, c1) = a[j].overflowing_add(p[j]);
+        let (v, c2) = v.overflowing_add(carry);
+        sum[j] = v;
+        carry = (c1 as u64) | (c2 as u64);
+    }
+    sum[s] = carry;
+    let mut borrow = 0u64;
+    for j in 0..s {
+        let (v, b1) = sum[j].overflowing_sub(b[j]);
+        let (v, b2) = v.overflowing_sub(borrow);
+        sum[j] = v;
+        borrow = (b1 as u64) | (b2 as u64);
+    }
+    sum[s] = sum[s].wrapping_sub(borrow);
+    fe_finish(&sum, out, p, s);
+}
+
+/// Left-pad to `n` bytes.
+pub fn pad_to(b: &[u8], n: usize) -> Vec<u8> {
+    assert!(b.len() <= n, "field element larger than target width");
+    let mut out = vec![0u8; n];
+    out[n - b.len()..].copy_from_slice(b);
+    out
+}
+
+/// Left-pad to 32 bytes (field elements for P-256).
+fn pad32(b: &[u8]) -> [u8; 32] {
+    let mut out = [0u8; 32];
+    assert!(b.len() <= 32, "field element larger than 32 bytes");
+    out[32 - b.len()..].copy_from_slice(b);
+    out
 }
 
 impl Point {
@@ -185,73 +313,121 @@ impl Point {
         self.infinity
     }
 
-    /// Affine -> Jacobian.
-    fn to_jac(&self) -> Jac {
+    /// Affine -> Jacobian (Montgomery form).
+    fn to_jac(&self, c: &Curve) -> Jac {
+        let one_m = fe_one_m(c);
         if self.infinity {
             Jac {
-                x: Bn::one(),
-                y: Bn::one(),
-                z: Bn::zero(),
+                x: one_m,
+                y: one_m,
+                z: fe_zero(),
             }
         } else {
             Jac {
-                x: self.x.clone(),
-                y: self.y.clone(),
-                z: Bn::one(),
+                x: fe_to_mont(&self.x, c),
+                y: fe_to_mont(&self.y, c),
+                z: one_m,
             }
         }
     }
 
-    /// Jacobian -> affine (reduce mod `p`).
+    /// Jacobian (Montgomery form) -> affine (plain values mod `p`).
     fn from_jac(j: &Jac, c: &Curve) -> Point {
-        if j.z.is_zero() {
+        let s = c.p.limbs.len();
+        if fe_is_zero(&j.z, s) {
             return Point::infinity();
         }
-        let p = &c.p;
-        let zinv = j.z.mod_inverse(p).expect("Z invertible");
-        let zinv2 = msqr(&zinv, p);
-        let zinv3 = mmul(&zinv2, &zinv, p);
+        // z is z*R: invert the plain z and re-enter Montgomery form.
+        let z_plain = c.mont.from_mont(&fe_to_bn(&j.z, s));
+        let zinv = z_plain.mod_inverse(&c.p).expect("Z invertible");
+        let zinv = fe_to_mont(&zinv, c);
+        let mut scratch = [0u64; 2 * FE_LIMBS + 1];
+        let mut zinv2 = fe_zero();
+        fe_mul(&zinv, &zinv, &mut zinv2, c, &mut scratch);
+        let mut zinv3 = fe_zero();
+        fe_mul(&zinv2, &zinv, &mut zinv3, c, &mut scratch);
+        let mut x = fe_zero();
+        fe_mul(&j.x, &zinv2, &mut x, c, &mut scratch);
+        let mut y = fe_zero();
+        fe_mul(&j.y, &zinv3, &mut y, c, &mut scratch);
         Point {
-            x: mmul(&j.x, &zinv2, p),
-            y: mmul(&j.y, &zinv3, p),
+            x: c.mont.from_mont(&fe_to_bn(&x, s)),
+            y: c.mont.from_mont(&fe_to_bn(&y, s)),
             infinity: false,
         }
     }
 
-    /// Check `y^2 = x^3 + a x + b (mod p)`.
+    /// Check `y^2 = x^3 + a x + b (mod p)` in Montgomery form.
     pub fn is_on_curve(&self, c: &Curve) -> bool {
         if self.infinity {
             return true;
         }
-        let p = &c.p;
-        let lhs = msqr(&self.y.modulus(p), p);
-        let x = self.x.modulus(p);
-        let x2 = msqr(&x, p);
-        let x3 = mmul(&x2, &x, p);
-        let ax = mmul(&c.a, &x, p);
-        let rhs = madd(&madd(&x3, &ax, p), &c.b.modulus(p), p);
-        lhs == rhs
+        let s = c.p.limbs.len();
+        let p = p_limbs(c);
+        let mut scratch = [0u64; 2 * FE_LIMBS + 1];
+        let x = fe_to_mont(&self.x.modulus(&c.p), c);
+        let y = fe_to_mont(&self.y.modulus(&c.p), c);
+        let a = fe_to_mont(&c.a, c);
+        let b = fe_to_mont(&c.b, c);
+        let mut lhs = fe_zero();
+        fe_mul(&y, &y, &mut lhs, c, &mut scratch);
+        let mut x2 = fe_zero();
+        fe_mul(&x, &x, &mut x2, c, &mut scratch);
+        let mut x3 = fe_zero();
+        fe_mul(&x2, &x, &mut x3, c, &mut scratch);
+        let mut ax = fe_zero();
+        fe_mul(&a, &x, &mut ax, c, &mut scratch);
+        let mut rhs = fe_zero();
+        fe_add(&x3, &ax, &mut rhs, &p, s);
+        let mut rhs2 = fe_zero();
+        fe_add(&rhs, &b, &mut rhs2, &p, s);
+        lhs == rhs2
     }
 
     /// Point addition on curve `c`.
     pub fn add_with(&self, c: &Curve, o: &Point) -> Point {
-        Point::from_jac(&jac_add(&self.to_jac(), &o.to_jac(), c), c)
+        Point::from_jac(&jac_add(&self.to_jac(c), &o.to_jac(c), c), c)
     }
 
-    /// Scalar multiplication `k * self` on curve `c` (double-and-add, MSB first).
+    /// Scalar multiplication `k * self` on curve `c` (4-bit fixed window,
+    /// MSB first).
     pub fn mul_with(&self, c: &Curve, k: &Bn) -> Point {
         let kmod = k.modulus(&c.n);
         if kmod.is_zero() || self.infinity {
             return Point::infinity();
         }
         let bits = kmod.bit_len();
-        let self_jac = self.to_jac();
-        let mut acc = self_jac.clone();
-        for i in (0..bits - 1).rev() {
-            acc = jac_dbl(&acc, c);
-            if kmod.bit(i) {
-                acc = jac_add(&acc, &self_jac, c);
+        let self_jac = self.to_jac(c);
+
+        // table[i] = i * self in Jacobian coordinates.
+        let mut table = alloc::vec![self_jac; 16];
+        for i in 2..16 {
+            table[i] = jac_add(&table[i - 1], &self_jac, c);
+        }
+
+        let one_m = fe_one_m(c);
+        let mut acc = Jac {
+            x: one_m,
+            y: one_m,
+            z: fe_zero(),
+        };
+        let mut i = bits;
+        while i > 0 {
+            // consume a 4-bit window
+            let w = 4usize.min(i);
+            for _ in 0..w {
+                acc = jac_dbl(&acc, c);
             }
+            let mut nib = 0u8;
+            for kk in 0..w {
+                if kmod.bit(i - w + kk) {
+                    nib |= 1 << kk;
+                }
+            }
+            if nib != 0 {
+                acc = jac_add(&acc, &table[nib as usize], c);
+            }
+            i -= w;
         }
         Point::from_jac(&acc, c)
     }
@@ -320,60 +496,83 @@ impl Point {
     }
 }
 
-/// Left-pad to `n` bytes.
-pub fn pad_to(b: &[u8], n: usize) -> Vec<u8> {
-    assert!(b.len() <= n, "field element larger than target width");
-    let mut out = vec![0u8; n];
-    out[n - b.len()..].copy_from_slice(b);
-    out
+fn jac_is_inf(j: &Jac, c: &Curve) -> bool {
+    fe_is_zero(&j.z, c.p.limbs.len())
 }
 
-/// Left-pad to 32 bytes (field elements for P-256).
-fn pad32(b: &[u8]) -> [u8; 32] {
-    let mut out = [0u8; 32];
-    assert!(b.len() <= 32, "field element larger than 32 bytes");
-    out[32 - b.len()..].copy_from_slice(b);
-    out
-}
-
-fn jac_is_inf(j: &Jac) -> bool {
-    j.z.is_zero()
-}
-
-/// Generic Jacobian point doubling (`dbl-2001-b`).
+/// Generic Jacobian point doubling (`dbl-2001-b`). All coordinates are in
+/// Montgomery form; the small constants are applied with additions.
 fn jac_dbl(a: &Jac, c: &Curve) -> Jac {
-    if jac_is_inf(a) || a.y.is_zero() {
+    let s = c.p.limbs.len();
+    let p = p_limbs(c);
+    let mut scratch = [0u64; 2 * FE_LIMBS + 1];
+    if jac_is_inf(a, c) || fe_is_zero(&a.y, s) {
+        let one_m = fe_one_m(c);
         return Jac {
-            x: Bn::one(),
-            y: Bn::one(),
-            z: Bn::zero(),
+            x: one_m,
+            y: one_m,
+            z: fe_zero(),
         };
     }
-    let p = &c.p;
     // A = X^2, B = Y^2, C = B^2
-    let xx = msqr(&a.x, p);
-    let yy = msqr(&a.y, p);
-    let yyyy = msqr(&yy, p);
-    let zz = msqr(&a.z, p);
-    // S = 2*((X+B)^2 - A - C) = 4 X B
-    let s = mmul(&u64_bn(4), &mmul(&a.x, &yy, p), p);
-    // M = 3*A + a*Z^4
-    let mut m = mmul(&u64_bn(3), &xx, p);
-    if !c.a.is_zero() {
-        let z4 = msqr(&zz, p);
-        m = madd(&m, &mmul(&c.a, &z4, p), p);
-    }
+    let mut xx = fe_zero();
+    fe_mul(&a.x, &a.x, &mut xx, c, &mut scratch);
+    let mut yy = fe_zero();
+    fe_mul(&a.y, &a.y, &mut yy, c, &mut scratch);
+    let mut yyyy = fe_zero();
+    fe_mul(&yy, &yy, &mut yyyy, c, &mut scratch);
+    let mut zz = fe_zero();
+    fe_mul(&a.z, &a.z, &mut zz, c, &mut scratch);
+    // S = 4*X*YY
+    let mut xyy = fe_zero();
+    fe_mul(&a.x, &yy, &mut xyy, c, &mut scratch);
+    let mut xyy2 = fe_zero();
+    fe_add(&xyy, &xyy, &mut xyy2, &p, s);
+    let mut s_v = fe_zero();
+    fe_add(&xyy2, &xyy2, &mut s_v, &p, s);
+    // M = 3*XX + a*Z^4
+    let mut m2 = fe_zero();
+    fe_add(&xx, &xx, &mut m2, &p, s);
+    let mut m3 = fe_zero();
+    fe_add(&m2, &xx, &mut m3, &p, s);
+    let m = if c.a.is_zero() {
+        m3
+    } else {
+        let mut z4 = fe_zero();
+        fe_mul(&zz, &zz, &mut z4, c, &mut scratch);
+        let mut az4 = fe_zero();
+        let a_m = fe_from_bn(&c.a_mont, s);
+        fe_mul(&a_m, &z4, &mut az4, c, &mut scratch);
+        let mut m = fe_zero();
+        fe_add(&m3, &az4, &mut m, &p, s);
+        m
+    };
     // T = M^2 - 2*S
-    let t = msub(&msqr(&m, p), &madd(&s, &s, p), p);
-    let x3 = t.clone();
+    let mut msq = fe_zero();
+    fe_mul(&m, &m, &mut msq, c, &mut scratch);
+    let mut s2 = fe_zero();
+    fe_add(&s_v, &s_v, &mut s2, &p, s);
+    let mut t = fe_zero();
+    fe_sub(&msq, &s2, &mut t, &p, s);
+    let x3 = t;
     // Y3 = M*(S-T) - 8*YYYY
-    let y3 = msub(
-        &mmul(&m, &msub(&s, &t, p), p),
-        &mmul(&u64_bn(8), &yyyy, p),
-        p,
-    );
+    let mut st = fe_zero();
+    fe_sub(&s_v, &x3, &mut st, &p, s);
+    let mut mst = fe_zero();
+    fe_mul(&m, &st, &mut mst, c, &mut scratch);
+    let mut yyyy2 = fe_zero();
+    fe_add(&yyyy, &yyyy, &mut yyyy2, &p, s);
+    let mut yyyy4 = fe_zero();
+    fe_add(&yyyy2, &yyyy2, &mut yyyy4, &p, s);
+    let mut yyyy8 = fe_zero();
+    fe_add(&yyyy4, &yyyy4, &mut yyyy8, &p, s);
+    let mut y3 = fe_zero();
+    fe_sub(&mst, &yyyy8, &mut y3, &p, s);
     // Z3 = 2*Y*Z
-    let z3 = mmul(&madd(&a.y, &a.y, p), &a.z, p);
+    let mut y2 = fe_zero();
+    fe_add(&a.y, &a.y, &mut y2, &p, s);
+    let mut z3 = fe_zero();
+    fe_mul(&y2, &a.z, &mut z3, c, &mut scratch);
     Jac {
         x: x3,
         y: y3,
@@ -383,43 +582,88 @@ fn jac_dbl(a: &Jac, c: &Curve) -> Jac {
 
 /// Generic Jacobian point addition (`add-2007-bl`).
 fn jac_add(a: &Jac, b: &Jac, c: &Curve) -> Jac {
-    if jac_is_inf(a) {
-        return b.clone();
+    let s = c.p.limbs.len();
+    let p = p_limbs(c);
+    let mut scratch = [0u64; 2 * FE_LIMBS + 1];
+    if jac_is_inf(a, c) {
+        return *b;
     }
-    if jac_is_inf(b) {
-        return a.clone();
+    if jac_is_inf(b, c) {
+        return *a;
     }
-    let p = &c.p;
-    let z1z1 = msqr(&a.z, p);
-    let z2z2 = msqr(&b.z, p);
-    let u1 = mmul(&a.x, &z2z2, p);
-    let u2 = mmul(&b.x, &z1z1, p);
-    let s1 = mmul(&a.y, &mmul(&b.z, &z2z2, p), p);
-    let s2 = mmul(&b.y, &mmul(&a.z, &z1z1, p), p);
-    let h = msub(&u2, &u1, p);
-    let r = msub(&s2, &s1, p);
-    if h.is_zero() {
-        if r.is_zero() {
+    let mut z1z1 = fe_zero();
+    fe_mul(&a.z, &a.z, &mut z1z1, c, &mut scratch);
+    let mut z2z2 = fe_zero();
+    fe_mul(&b.z, &b.z, &mut z2z2, c, &mut scratch);
+    let mut u1 = fe_zero();
+    fe_mul(&a.x, &z2z2, &mut u1, c, &mut scratch);
+    let mut u2 = fe_zero();
+    fe_mul(&b.x, &z1z1, &mut u2, c, &mut scratch);
+    let mut bz2 = fe_zero();
+    fe_mul(&b.z, &z2z2, &mut bz2, c, &mut scratch);
+    let mut s1 = fe_zero();
+    fe_mul(&a.y, &bz2, &mut s1, c, &mut scratch);
+    let mut az1 = fe_zero();
+    fe_mul(&a.z, &z1z1, &mut az1, c, &mut scratch);
+    let mut s2 = fe_zero();
+    fe_mul(&b.y, &az1, &mut s2, c, &mut scratch);
+    let mut h = fe_zero();
+    fe_sub(&u2, &u1, &mut h, &p, s);
+    let mut r = fe_zero();
+    fe_sub(&s2, &s1, &mut r, &p, s);
+    if fe_is_zero(&h, s) {
+        if fe_is_zero(&r, s) {
             return jac_dbl(a, c);
         }
+        let one_m = fe_one_m(c);
         return Jac {
-            x: Bn::one(),
-            y: Bn::one(),
-            z: Bn::zero(),
+            x: one_m,
+            y: one_m,
+            z: fe_zero(),
         };
     }
-    let h2 = msqr(&h, p);
-    let h3 = mmul(&h2, &h, p);
-    let u1h2 = mmul(&u1, &h2, p);
+    let mut h2 = fe_zero();
+    fe_mul(&h, &h, &mut h2, c, &mut scratch);
+    let mut h3 = fe_zero();
+    fe_mul(&h2, &h, &mut h3, c, &mut scratch);
+    let mut u1h2 = fe_zero();
+    fe_mul(&u1, &h2, &mut u1h2, c, &mut scratch);
     // X3 = R^2 - H^3 - 2*U1*H^2
-    let x3 = msub(&msub(&msqr(&r, p), &h3, p), &madd(&u1h2, &u1h2, p), p);
+    let mut r2 = fe_zero();
+    fe_mul(&r, &r, &mut r2, c, &mut scratch);
+    let mut x3 = fe_zero();
+    fe_sub(&r2, &h3, &mut x3, &p, s);
+    let mut u1h2_2 = fe_zero();
+    fe_add(&u1h2, &u1h2, &mut u1h2_2, &p, s);
+    let mut x3b = fe_zero();
+    fe_sub(&x3, &u1h2_2, &mut x3b, &p, s);
     // Y3 = R*(U1*H^2 - X3) - S1*H^3
-    let y3 = msub(&mmul(&r, &msub(&u1h2, &x3, p), p), &mmul(&s1, &h3, p), p);
-    let z3 = mmul(&mmul(&a.z, &b.z, p), &h, p);
+    let mut ux = fe_zero();
+    fe_sub(&u1h2, &x3b, &mut ux, &p, s);
+    let mut rux = fe_zero();
+    fe_mul(&r, &ux, &mut rux, c, &mut scratch);
+    let mut s1h3 = fe_zero();
+    fe_mul(&s1, &h3, &mut s1h3, c, &mut scratch);
+    let mut y3 = fe_zero();
+    fe_sub(&rux, &s1h3, &mut y3, &p, s);
+    // Z3 = Z1*Z2*H
+    let mut z1z2 = fe_zero();
+    fe_mul(&a.z, &b.z, &mut z1z2, c, &mut scratch);
+    let mut z3 = fe_zero();
+    fe_mul(&z1z2, &h, &mut z3, c, &mut scratch);
     Jac {
-        x: x3,
+        x: x3b,
         y: y3,
         z: z3,
+    }
+}
+
+/// Curve generator as an affine [`Point`].
+pub fn generator(c: &Curve) -> Point {
+    Point {
+        x: c.gx.clone(),
+        y: c.gy.clone(),
+        infinity: false,
     }
 }
 
