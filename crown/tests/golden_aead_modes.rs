@@ -54,7 +54,7 @@ fn test_golden_aes_gcm_siv() {
             .seal_in_place_separate_tag(&mut buf, &nonce, &aad_b)
             .unwrap_or_else(|e| panic!("gcm-siv seal {idx}: {e:?}"));
         assert_eq!(hex::encode(&buf), *exp_ct, "gcm-siv ct vector {idx}");
-        assert_eq!(hex::encode(&tag), *exp_tag, "gcm-siv tag vector {idx}");
+        assert_eq!(hex::encode(tag), *exp_tag, "gcm-siv tag vector {idx}");
 
         // Open must recover the original plaintext.
         c.open_in_place_separate_tag(&mut buf, &tag, &nonce, &aad_b)
@@ -100,7 +100,7 @@ fn test_golden_ascon_aead128() {
             .seal_in_place_separate_tag(&mut buf, &nonce, &aad_b)
             .unwrap_or_else(|e| panic!("ascon seal {idx}: {e:?}"));
         assert_eq!(hex::encode(&buf), *exp_ct, "ascon ct vector {idx}");
-        assert_eq!(hex::encode(&tag), *exp_tag, "ascon tag vector {idx}");
+        assert_eq!(hex::encode(tag), *exp_tag, "ascon tag vector {idx}");
 
         c.open_in_place_separate_tag(&mut buf, &tag, &nonce, &aad_b)
             .unwrap_or_else(|e| panic!("ascon open {idx}: {e:?}"));

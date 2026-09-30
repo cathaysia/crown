@@ -48,7 +48,7 @@ fn bench_ed25519(c: &mut Criterion) {
 fn bench_x25519(c: &mut Criterion) {
     let mut private = [0u8; 32];
     rand::fill(&mut private);
-    let public = crown::x25519::public_from_private(&private);
+    let _public = crown::x25519::public_from_private(&private);
     let mut peer = [0u8; 32];
     rand::fill(&mut peer);
 

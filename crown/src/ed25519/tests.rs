@@ -68,7 +68,7 @@ fn rfc8032_test_3() {
 fn rfc8032_test_1024() {
     let secret = to32("f5e5767cf153319517630f226876b86c8160cc583bc013744c6bf255f5cc0ee5");
     let public = to32("278117fc144c72340f67d0f2316e8386ceffbf2b2428c9c51fef7c597f1d426e");
-    let msg = hex_to_bytes(&concat!(
+    let msg = hex_to_bytes(concat!(
         "08b8b2b733424243760fe426a4b54908632110a66c2f6591eabd3345e3e4eb98",
         "fa6e264bf09efe12ee50f8f54e9f77b1e355f6c50544e23fb1433ddf73be84d8",
         "79de7c0046dc4996d9e773f4bc9efe5738829adb26c81b37c93a1b270b20329d",

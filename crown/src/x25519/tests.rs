@@ -70,6 +70,6 @@ fn clamp_shape() {
     let mut s = [0xffu8; 32];
     clamp(&mut s);
     assert_eq!(s[0], 248);
-    assert_eq!(s[31], 64 | (0xff & 127));
+    assert_eq!(s[31], 64 | 127);
     assert_eq!(s[31] & 0x80, 0);
 }

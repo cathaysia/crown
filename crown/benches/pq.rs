@@ -63,9 +63,7 @@ fn bench_slh_dsa(c: &mut Criterion) {
     let sig = slh_dsa::sign(&sk, &msg, &[], false).unwrap();
 
     group.bench_function("keygen", |b| {
-        b.iter(|| {
-            black_box(slh_dsa::keygen(SlhDsaVariant::Sha2_128s, black_box(&seed)).unwrap())
-        })
+        b.iter(|| black_box(slh_dsa::keygen(SlhDsaVariant::Sha2_128s, black_box(&seed)).unwrap()))
     });
     group.bench_function("sign", |b| {
         b.iter(|| black_box(slh_dsa::sign(black_box(&sk), &msg, &[], false).unwrap()))
@@ -79,10 +77,5 @@ fn bench_slh_dsa(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(
-    benches,
-    bench_ml_kem,
-    bench_ml_dsa,
-    bench_slh_dsa
-);
+criterion_group!(benches, bench_ml_kem, bench_ml_dsa, bench_slh_dsa);
 criterion_main!(benches);

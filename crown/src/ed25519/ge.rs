@@ -5,6 +5,7 @@
 
 use super::fe;
 use super::fe::Fe;
+use alloc::boxed::Box;
 
 /// d = -121665/121666 as 51-bit limbs.
 pub const D: Fe = [

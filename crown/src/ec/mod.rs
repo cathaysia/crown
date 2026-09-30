@@ -342,7 +342,6 @@ impl Point {
         let zinv = z_plain.mod_inverse(&c.p).expect("Z invertible");
         let zinv = fe_to_mont(&zinv, c);
         let mut scratch = [0u64; 2 * FE_LIMBS + 1];
-        let p = p_limbs(c);
         let mut zinv2 = fe_zero();
         fe_mul(&zinv, &zinv, &mut zinv2, c, &mut scratch);
         let mut zinv3 = fe_zero();

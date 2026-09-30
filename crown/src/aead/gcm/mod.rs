@@ -275,7 +275,7 @@ impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize>
     /// in place without a separate source buffer).
     fn gcm_counter_crypt_inplace(&self, inout: &mut [u8], counter: &mut [u8; GCM_BLOCK_SIZE]) {
         let mut mask = [0u8; GCM_BLOCK_SIZE];
-        for chunk in inout.chunks_exact_mut(GCM_BLOCK_SIZE) {
+        for chunk in inout.as_chunks_mut::<GCM_BLOCK_SIZE>().0 {
             mask.copy_from_slice(&counter[..]);
             self.cipher.encrypt_block(&mut mask);
             Self::gcm_inc32(counter);

@@ -614,7 +614,9 @@ impl Clone for Montgomery {
 
 impl core::fmt::Debug for Montgomery {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("Montgomery").field("limbs", &self.limbs).finish()
+        f.debug_struct("Montgomery")
+            .field("limbs", &self.limbs)
+            .finish()
     }
 }
 
@@ -741,7 +743,7 @@ impl Montgomery {
         let s = self.limbs;
         debug_assert_eq!(a.len(), s);
         debug_assert_eq!(b.len(), s);
-        debug_assert!(scratch.len() >= 2 * s + 1);
+        debug_assert!(scratch.len() > 2 * s);
 
         scratch[..s + 1].fill(0);
         let n = &self.n.limbs[..s];

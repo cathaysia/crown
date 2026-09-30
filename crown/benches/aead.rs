@@ -31,10 +31,9 @@ fn bench_gcm(c: &mut Criterion) {
             let mut gcm = aes_gcm::Aes256Gcm::new_from_slice(&key).unwrap();
             let mut buf = data.clone();
             b.iter(|| {
-                let tag = gcm
-                    .encrypt_in_place(nonce.as_slice().into(), &[], &mut buf)
+                gcm.encrypt_in_place(nonce.as_slice().into(), &[], &mut buf)
                     .unwrap();
-                black_box(tag);
+                black_box(&buf);
             })
         });
         group.bench_function(format!("ring_seal_{size}"), |b| {
@@ -50,7 +49,7 @@ fn bench_gcm(c: &mut Criterion) {
                         &mut buf,
                     )
                     .unwrap();
-                black_box(tag);
+                black_box(tag.as_ref());
             })
         });
 
@@ -71,6 +70,7 @@ fn bench_poly1305(c: &mut Criterion) {
         });
         group.bench_function(format!("rustcrypto_{size}"), |b| {
             use poly1305::universal_hash::{KeyInit, UniversalHash};
+            #[allow(deprecated)]
             let key = poly1305::Key::from_slice(&key);
             b.iter(|| {
                 let mut mac = poly1305::Poly1305::new(key);
