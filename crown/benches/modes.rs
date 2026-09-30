@@ -42,10 +42,12 @@ fn bench_cbc(c: &mut Criterion) {
             let mut buf = data.clone();
             mode.encrypt(&mut buf);
             let ct = buf.clone();
+            // The crate's BlockMode follows Go's CryptBlocks semantics: the
+            // decrypter performs CBC decryption through `encrypt`.
             let mut dec = Aes::new(&key).unwrap().to_cbc_dec(&iv);
             b.iter(|| {
                 let mut buf = ct.clone();
-                dec.decrypt(&mut buf);
+                dec.encrypt(&mut buf);
                 black_box(&buf);
             })
         });
