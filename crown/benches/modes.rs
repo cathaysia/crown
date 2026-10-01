@@ -3,7 +3,9 @@ use std::hint::black_box;
 
 use crown::block::aes::Aes;
 use crown::modes::cbc::{CbcDecryptor, CbcEncryptor};
+use crown::modes::cfb::Cfb;
 use crown::modes::ctr::Ctr;
+use crown::modes::ofb::Ofb;
 use crown::modes::xts::Xts;
 use crown::modes::BlockMode;
 use crown::stream::StreamCipher;
@@ -107,7 +109,8 @@ fn bench_ctr(c: &mut Criterion) {
 }
 
 fn bench_xts(c: &mut Criterion) {
-    let key = [0x42u8; 32];
+    let mut key = [0x42u8; 32];
+    key[16..].fill(0x24);
     let tweak = [0x24u8; 16];
 
     for size in [512, 4096] {
@@ -141,5 +144,126 @@ fn bench_xts(c: &mut Criterion) {
     }
 }
 
-criterion_group!(benches, bench_cbc, bench_ctr, bench_xts);
+fn bench_key_wrap(c: &mut Criterion) {
+    let key = [0x42u8; 16];
+    let aes = Aes::new(&key).unwrap();
+
+    for size in [32, 256] {
+        let pt = vec![0u8; size];
+        let ct = crown::modes::kw::key_wrap(&aes, &pt).unwrap();
+        assert_eq!(crown::modes::kw::key_unwrap(&aes, &ct).unwrap(), pt);
+
+        let mut group = c.benchmark_group(format!("aes128_kw_{size}"));
+        group.throughput(Throughput::Bytes(size as u64));
+        group.bench_function(format!("crown_wrap_{size}"), |b| {
+            b.iter(|| black_box(crown::modes::kw::key_wrap(&aes, black_box(&pt)).unwrap()))
+        });
+        group.bench_function(format!("crown_unwrap_{size}"), |b| {
+            b.iter(|| black_box(crown::modes::kw::key_unwrap(&aes, black_box(&ct)).unwrap()))
+        });
+        group.finish();
+    }
+
+    // RFC 5649 padded wrap with a non-multiple-of-8 payload.
+    let pt = vec![0u8; 100];
+    let mut group = c.benchmark_group("aes128_kwp");
+    group.throughput(Throughput::Bytes(100));
+    group.bench_function("crown_wrap_padded", |b| {
+        b.iter(|| black_box(crown::modes::kw::key_wrap_padded(&aes, black_box(&pt)).unwrap()))
+    });
+    group.finish();
+}
+
+fn bench_ff1(c: &mut Criterion) {
+    let key = [0x42u8; 16];
+    let tweak = [0x24u8; 7];
+    let numeral = "1234567890123456789";
+
+    let ct = crown::modes::ff1::ff1_encrypt_decimal(&key, &tweak, numeral).unwrap();
+    assert_eq!(
+        crown::modes::ff1::ff1_decrypt_decimal(&key, &tweak, &ct).unwrap(),
+        numeral
+    );
+
+    let mut group = c.benchmark_group("ff1_aes128_decimal19");
+    group.throughput(Throughput::Elements(1));
+    group.bench_function("crown_encrypt", |b| {
+        b.iter(|| {
+            black_box(
+                crown::modes::ff1::ff1_encrypt_decimal(black_box(&key), &tweak, numeral).unwrap(),
+            )
+        })
+    });
+    group.bench_function("crown_decrypt", |b| {
+        b.iter(|| {
+            black_box(crown::modes::ff1::ff1_decrypt_decimal(black_box(&key), &tweak, &ct).unwrap())
+        })
+    });
+    group.finish();
+}
+
+fn bench_cts(c: &mut Criterion) {
+    let key = [0x42u8; 16];
+    let iv = [0x24u8; 16];
+    let cts = crown::modes::cts::Cts::new(Aes::new(&key).unwrap(), &iv).unwrap();
+
+    for size in [512, 4096] {
+        let pt = vec![0u8; size];
+        let ct = cts.encrypt(&pt).unwrap();
+        assert_eq!(cts.decrypt(&ct).unwrap(), pt);
+
+        let mut group = c.benchmark_group(format!("aes128_cts_cs3_{size}"));
+        group.throughput(Throughput::Bytes(size as u64));
+        group.bench_function(format!("crown_encrypt_{size}"), |b| {
+            b.iter(|| black_box(cts.encrypt(black_box(&pt)).unwrap()))
+        });
+        group.bench_function(format!("crown_decrypt_{size}"), |b| {
+            b.iter(|| black_box(cts.decrypt(black_box(&ct)).unwrap()))
+        });
+        group.finish();
+    }
+}
+
+fn bench_cfb_ofb(c: &mut Criterion) {
+    let key = [0x42u8; 16];
+    let iv = [0x24u8; 16];
+
+    for size in [512, 4096] {
+        let mut data = vec![0u8; size];
+        rand::fill(data.as_mut_slice());
+
+        let mut group = c.benchmark_group(format!("aes128_stream_{size}"));
+        group.throughput(Throughput::Bytes(size as u64));
+
+        group.bench_function(format!("crown_cfb_encrypt_{size}"), |b| {
+            let mut cipher = Aes::new(&key).unwrap().to_cfb_encryptor(&iv).unwrap();
+            let mut buf = data.clone();
+            b.iter(|| {
+                cipher.xor_key_stream(&mut buf).unwrap();
+                black_box(&buf);
+            })
+        });
+        group.bench_function(format!("crown_ofb_{size}"), |b| {
+            let mut cipher = Aes::new(&key).unwrap().to_ofb(&iv).unwrap();
+            let mut buf = data.clone();
+            b.iter(|| {
+                cipher.xor_key_stream(&mut buf).unwrap();
+                black_box(&buf);
+            })
+        });
+
+        group.finish();
+    }
+}
+
+criterion_group!(
+    benches,
+    bench_cbc,
+    bench_ctr,
+    bench_xts,
+    bench_key_wrap,
+    bench_ff1,
+    bench_cts,
+    bench_cfb_ofb
+);
 criterion_main!(benches);

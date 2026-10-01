@@ -24,6 +24,8 @@ pub(crate) mod aesni;
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 mod bsaes;
 
+pub(crate) mod ghash;
+
 #[cfg(feature = "alloc")]
 pub(crate) mod gcm;
 

@@ -232,7 +232,7 @@ impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize>
             let nonce_bits = (nonce.len() as u64) * 8;
             len_block[8..].copy_from_slice(&nonce_bits.to_be_bytes());
 
-            aes_gcm::ghash::ghash(counter, h, &[nonce, &len_block]);
+            crate::block::aes::ghash::ghash(counter, h, &[nonce, &len_block]);
         }
     }
 
@@ -331,7 +331,7 @@ impl<B: BlockCipher, const NONCE_SIZE: usize, const TAG_SIZE: usize>
 
         // Compute GHASH(H, additional_data, ciphertext, len_block)
         let h_key = *h;
-        aes_gcm::ghash::ghash(h, &h_key, &[additional_data, ciphertext, &len_block]);
+        crate::block::aes::ghash::ghash(h, &h_key, &[additional_data, ciphertext, &len_block]);
 
         copy(out, h);
         xor_bytes(out, tag_mask);

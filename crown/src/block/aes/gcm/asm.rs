@@ -125,7 +125,7 @@ pub(crate) fn ghash_absorb(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::block::aes::gcm::ghash::generic_ghash;
+    use crate::block::aes::ghash::generic_ghash;
 
     /// gcm_ghash_avx (AVX Htable) must match the portable GHASH for every
     /// length class the body special-cases: <16, 16..128 short path,

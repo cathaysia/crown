@@ -22,7 +22,7 @@ mod tests;
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 mod asm;
 
-use consts::TABLE;
+use consts::{TABLE, TABLE_ROT};
 #[cfg(feature = "marshal")]
 use crown_derive::Marshal;
 
@@ -92,7 +92,7 @@ fn block_soft(h: &mut [u64; 8], p: &[u8]) {
             let mut v = 0u64;
             for n in 0..8 {
                 let byte = (k[(i + 8 - n) & 7] >> (8 * n)) & 0xff;
-                v ^= TABLE[byte as usize].rotate_left((8 * n) as u32);
+                v ^= TABLE_ROT[n][byte as usize];
             }
             l[i] = v;
         }
@@ -107,7 +107,7 @@ fn block_soft(h: &mut [u64; 8], p: &[u8]) {
             let mut v = l[i];
             for n in 0..8 {
                 let byte = (s[(i + 8 - n) & 7] >> (8 * n)) & 0xff;
-                v ^= TABLE[byte as usize].rotate_left((8 * n) as u32);
+                v ^= TABLE_ROT[n][byte as usize];
             }
             t[i] = v;
         }

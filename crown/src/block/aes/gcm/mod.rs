@@ -2,7 +2,6 @@
 pub(crate) mod asm;
 
 pub mod generic;
-pub mod ghash;
 
 mod noasm;
 pub use noasm::*;

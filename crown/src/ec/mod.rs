@@ -33,7 +33,11 @@ pub struct Curve {
     /// through it instead of falling back to `mul + divrem`.
     mont: crate::bn::Montgomery,
     /// Curve coefficient `a` in Montgomery form (a = -3 for the NIST curves).
+    /// For P-521 (`fast_field`) it holds the plain value instead.
     a_mont: Bn,
+    /// P-521's prime is 2^521 - 1: field products fold by shifts, and the
+    /// Jacobian layer runs in the plain (non-Montgomery) domain.
+    fast_field: bool,
 }
 
 fn hex_to_bytes(s: &str) -> Vec<u8> {
@@ -90,38 +94,44 @@ pub fn curve(id: CurveId) -> Curve {
             ),
         ),
         // secp521r1 / P-521, FIPS 186-4 D.1.2.5. Field prime is 2^521 - 1.
-        CurveId::P521 => Curve::from_parts(
-            bn_hex(
-                "01FFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF
+        CurveId::P521 => {
+            let mut c = Curve::from_parts(
+                bn_hex(
+                    "01FFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF
                  FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF
                  FFFF",
-            ),
-            bn_hex(
-                "01FFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF
+                ),
+                bn_hex(
+                    "01FFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF
                  FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF
                  FFFC",
-            ),
-            bn_hex(
-                "0051953E B9618E1C 9A1F929A 21A0B685 40EEA2DA 725B99B3 15F3B8B4 89918EF1
+                ),
+                bn_hex(
+                    "0051953E B9618E1C 9A1F929A 21A0B685 40EEA2DA 725B99B3 15F3B8B4 89918EF1
                  09E15619 3951EC7E 937B1652 C0BD3BB1 BF073573 DF883D2C 34F1EF45 1FD46B50
                  3F00",
-            ),
-            bn_hex(
-                "00C6858E 06B70404 E9CD9E3E CB662395 B4429C64 8139053F B521F828 AF606B4D
+                ),
+                bn_hex(
+                    "00C6858E 06B70404 E9CD9E3E CB662395 B4429C64 8139053F B521F828 AF606B4D
                  3DBAA14B 5E77EFE7 5928FE1D C127A2FF A8DE3348 B3C1856A 429BF97E 7E31C2E5
                  BD66",
-            ),
-            bn_hex(
-                "01183929 6A789A3B C0045C8A 5FB42C7D 1BD998F5 4449579B 446817AF BD17273E
+                ),
+                bn_hex(
+                    "01183929 6A789A3B C0045C8A 5FB42C7D 1BD998F5 4449579B 446817AF BD17273E
                  662C97EE 72995EF4 2640C550 B9013FAD 0761353C 7086A272 C24088BE 94769FD1
                  6650",
-            ),
-            bn_hex(
-                "01FFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF
+                ),
+                bn_hex(
+                    "01FFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF
                  FFFA5186 8783BF2F 966B7FCC 0148F709 A5D03BB5 C9B8899C 47AEBB6F B71E9138
                  6409",
-            ),
-        ),
+                ),
+            );
+            // Fast field: plain-domain shifted folding, so `a` stays plain.
+            c.fast_field = true;
+            c.a_mont = c.a.clone();
+            c
+        }
     }
 }
 
@@ -140,6 +150,7 @@ impl Curve {
             gx,
             gy,
             n,
+            fast_field: false,
         }
     }
 }
@@ -200,14 +211,25 @@ fn p_limbs(c: &Curve) -> Fe {
     fe_from_bn(&c.p, c.p.limbs.len())
 }
 
-/// Enter Montgomery form.
+/// Enter the Jacobian field domain. Montgomery form for the generic path;
+/// the plain value for P-521's fast field.
 fn fe_to_mont(v: &Bn, c: &Curve) -> Fe {
-    fe_from_bn(&c.mont.to_mont(v), c.p.limbs.len())
+    if c.fast_field {
+        fe_from_bn(&v.modulus(&c.p), c.p.limbs.len())
+    } else {
+        fe_from_bn(&c.mont.to_mont(v), c.p.limbs.len())
+    }
 }
 
-/// Montgomery-form one (R mod p).
+/// Field-domain one (R mod p, or plain 1 for the fast field).
 fn fe_one_m(c: &Curve) -> Fe {
-    fe_to_mont(&Bn::one(), c)
+    if c.fast_field {
+        let mut one = fe_zero();
+        one[0] = 1;
+        one
+    } else {
+        fe_to_mont(&Bn::one(), c)
+    }
 }
 
 /// Reduce a raw `(s + 1)`-word CIOS result (value < 2p) into `out` (< p).
@@ -238,12 +260,78 @@ fn fe_finish(raw: &[u64], out: &mut Fe, p: &Fe, s: usize) {
     }
 }
 
-/// Montgomery multiplication into `out` (< p). Allocation-free.
+/// Field multiplication into `out` (< p). Allocation-free.
 fn fe_mul(a: &Fe, b: &Fe, out: &mut Fe, c: &Curve, scratch: &mut [u64; 2 * FE_LIMBS + 1]) {
-    let s = c.p.limbs.len();
-    c.mont.mont_mul_core(&a[..s], &b[..s], scratch);
-    let p = p_limbs(c);
-    fe_finish(&scratch[s..2 * s + 1], out, &p, s);
+    if c.fast_field {
+        p521_fe_mul(a, b, out);
+    } else {
+        let s = c.p.limbs.len();
+        c.mont.mont_mul_core(&a[..s], &b[..s], scratch);
+        let p = p_limbs(c);
+        fe_finish(&scratch[s..2 * s + 1], out, &p, s);
+    }
+}
+
+/// P-521 field multiply, plain domain: `p = 2^521 - 1` folds every product
+/// past 521 bits straight back onto the low end (`2^521 ≡ 1`), replacing
+/// the generic CIOS reduction.
+fn p521_fe_mul(a: &Fe, b: &Fe, out: &mut Fe) {
+    debug_assert!(a[9] == 0 && b[9] == 0);
+    // Row-wise schoolbook into u64 limbs with u128 accumulators; the
+    // operands are below 2^521, so the product fits in 17 limbs.
+    let mut v = [0u64; 18];
+    for i in 0..9 {
+        let ai = a[i] as u128;
+        let mut carry: u128 = 0;
+        for j in 0..9 {
+            let cur = v[i + j] as u128 + ai * (b[j] as u128) + carry;
+            v[i + j] = cur as u64;
+            carry = cur >> 64;
+        }
+        let mut k = i + 9;
+        while carry > 0 {
+            let cur = v[k] as u128 + carry;
+            v[k] = cur as u64;
+            carry = cur >> 64;
+            k += 1;
+        }
+    }
+
+    // Fold with 2^521 = 1: split at bit 521 (8 limbs + 9 bits) and add the
+    // halves back together until nothing extends past bit 521.
+    loop {
+        if v[9..18].iter().all(|&x| x == 0) && v[8] <= 0x1ff {
+            break;
+        }
+        // H = value >> 521 (9 limbs are enough for the first fold; later
+        // folds see far less).
+        let mut h = [0u64; 9];
+        for i in 0..9 {
+            let lo = if 8 + i < 18 { v[8 + i] >> 9 } else { 0 };
+            let hi = if 9 + i < 18 { v[9 + i] << 55 } else { 0 };
+            h[i] = lo | hi;
+        }
+        // L = value & (2^521 - 1).
+        v[8] &= 0x1ff;
+        for lane in v[9..18].iter_mut() {
+            *lane = 0;
+        }
+        let mut c: u64 = 0;
+        for i in 0..9 {
+            let (s1, o1) = v[i].overflowing_add(h[i]);
+            let (s2, o2) = s1.overflowing_add(c);
+            v[i] = s2;
+            c = (o1 as u64) | (o2 as u64);
+        }
+        v[9] = c;
+    }
+
+    // Value is now in [0, p]; only p itself (all ones) needs reducing.
+    let is_p = v[8] == 0x1ff && v[..8].iter().all(|&x| x == u64::MAX);
+    *out = fe_zero();
+    if !is_p {
+        out[..9].copy_from_slice(&v[..9]);
+    }
 }
 
 /// `a + b (mod p)` for Montgomery-form `a, b < p`.
@@ -337,8 +425,13 @@ impl Point {
         if fe_is_zero(&j.z, s) {
             return Point::infinity();
         }
-        // z is z*R: invert the plain z and re-enter Montgomery form.
-        let z_plain = c.mont.from_mont(&fe_to_bn(&j.z, s));
+        // z is z*R: invert the plain z and re-enter Montgomery form. The
+        // fast field keeps values plain, so no conversions happen.
+        let z_plain = if c.fast_field {
+            fe_to_bn(&j.z, s)
+        } else {
+            c.mont.from_mont(&fe_to_bn(&j.z, s))
+        };
         let zinv = z_plain.mod_inverse(&c.p).expect("Z invertible");
         let zinv = fe_to_mont(&zinv, c);
         let mut scratch = [0u64; 2 * FE_LIMBS + 1];
@@ -350,9 +443,18 @@ impl Point {
         fe_mul(&j.x, &zinv2, &mut x, c, &mut scratch);
         let mut y = fe_zero();
         fe_mul(&j.y, &zinv3, &mut y, c, &mut scratch);
+        // Back to plain Bn coordinates; identity for the fast field.
+        let (xb, yb) = if c.fast_field {
+            (fe_to_bn(&x, s), fe_to_bn(&y, s))
+        } else {
+            (
+                c.mont.from_mont(&fe_to_bn(&x, s)),
+                c.mont.from_mont(&fe_to_bn(&y, s)),
+            )
+        };
         Point {
-            x: c.mont.from_mont(&fe_to_bn(&x, s)),
-            y: c.mont.from_mont(&fe_to_bn(&y, s)),
+            x: xb,
+            y: yb,
             infinity: false,
         }
     }

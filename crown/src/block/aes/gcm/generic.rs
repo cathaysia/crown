@@ -1,5 +1,5 @@
-use super::ghash::ghash;
 use super::*;
+use crate::block::aes::ghash::ghash;
 use crate::block::aes::Aes;
 use crate::error::{CryptoError, CryptoResult};
 use crate::utils::subtle::xor::xor_bytes;
