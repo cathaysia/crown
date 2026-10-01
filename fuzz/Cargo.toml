@@ -25,3 +25,45 @@ path = "fuzz_targets/envelope_fuzz.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "mac_misc_fuzz"
+path = "fuzz_targets/mac_misc_fuzz.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "kdf_drbg_fuzz"
+path = "fuzz_targets/kdf_drbg_fuzz.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bn_fuzz"
+path = "fuzz_targets/bn_fuzz.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ec_fuzz"
+path = "fuzz_targets/ec_fuzz.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "pq_fuzz"
+path = "fuzz_targets/pq_fuzz.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "rsa_dsa_dh_fuzz"
+path = "fuzz_targets/rsa_dsa_dh_fuzz.rs"
+test = false
+doc = false
+bench = false
