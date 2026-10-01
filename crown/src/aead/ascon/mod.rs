@@ -18,38 +18,79 @@ pub const KEY_SIZE: usize = 16;
 /// Rate in bytes.
 const RATE: usize = 8;
 
-#[inline]
 const fn rotr(x: u64, n: u32) -> u64 {
     x.rotate_right(n)
 }
 
-/// Ascon core permutation. `rounds` is 12 or 6; the constants are taken
-/// from the end of the 12-round constant sequence.
+macro_rules! ascon_round {
+    ($s0:ident, $s1:ident, $s2:ident, $s3:ident, $s4:ident, $c:expr) => {
+        $s2 ^= $c;
+        $s0 ^= $s4;
+        $s4 ^= $s3;
+        $s2 ^= $s1;
+        // Substitution layer (5-bit lookup-free S-box).
+        let t0 = !$s0 & $s1;
+        let t1 = !$s1 & $s2;
+        let t2 = !$s2 & $s3;
+        let t3 = !$s3 & $s4;
+        let t4 = !$s4 & $s0;
+        $s0 ^= t1;
+        $s1 ^= t2;
+        $s2 ^= t3;
+        $s3 ^= t4;
+        $s4 ^= t0;
+        $s1 ^= $s0;
+        $s0 ^= $s4;
+        $s3 ^= $s2;
+        $s2 = !$s2;
+        // Linear diffusion layer.
+        $s0 ^= rotr($s0, 19) ^ rotr($s0, 28);
+        $s1 ^= rotr($s1, 61) ^ rotr($s1, 39);
+        $s2 ^= rotr($s2, 1) ^ rotr($s2, 6);
+        $s3 ^= rotr($s3, 10) ^ rotr($s3, 17);
+        $s4 ^= rotr($s4, 7) ^ rotr($s4, 41);
+    };
+}
+
+/// Ascon-p^b over the five-lane state; `rounds` is 12 or 6 and selects the
+/// trailing rounds of the 12-round constant schedule. Fully unrolled so the
+/// round constants and lane variables stay in registers.
 fn ascon_permutation(s: &mut [u64; 5], rounds: usize) {
-    for r in (12 - rounds)..12 {
-        s[2] ^= 0xf0u64.wrapping_sub(r as u64 * 0x10) + r as u64;
-        s[0] ^= s[4];
-        s[4] ^= s[3];
-        s[2] ^= s[1];
-        let t: [u64; 5] = [
-            !s[0] & s[1],
-            !s[1] & s[2],
-            !s[2] & s[3],
-            !s[3] & s[4],
-            !s[4] & s[0],
-        ];
-        for i in 0..5 {
-            s[i] ^= t[(i + 1) % 5];
+    match rounds {
+        12 => {
+            let (mut x0, mut x1, mut x2, mut x3, mut x4) = (s[0], s[1], s[2], s[3], s[4]);
+            ascon_round!(x0, x1, x2, x3, x4, 0xf0);
+            ascon_round!(x0, x1, x2, x3, x4, 0xe1);
+            ascon_round!(x0, x1, x2, x3, x4, 0xd2);
+            ascon_round!(x0, x1, x2, x3, x4, 0xc3);
+            ascon_round!(x0, x1, x2, x3, x4, 0xb4);
+            ascon_round!(x0, x1, x2, x3, x4, 0xa5);
+            ascon_round!(x0, x1, x2, x3, x4, 0x96);
+            ascon_round!(x0, x1, x2, x3, x4, 0x87);
+            ascon_round!(x0, x1, x2, x3, x4, 0x78);
+            ascon_round!(x0, x1, x2, x3, x4, 0x69);
+            ascon_round!(x0, x1, x2, x3, x4, 0x5a);
+            ascon_round!(x0, x1, x2, x3, x4, 0x4b);
+            s[0] = x0;
+            s[1] = x1;
+            s[2] = x2;
+            s[3] = x3;
+            s[4] = x4;
         }
-        s[1] ^= s[0];
-        s[0] ^= s[4];
-        s[3] ^= s[2];
-        s[2] = !s[2];
-        s[0] ^= rotr(s[0], 19) ^ rotr(s[0], 28);
-        s[1] ^= rotr(s[1], 61) ^ rotr(s[1], 39);
-        s[2] ^= rotr(s[2], 1) ^ rotr(s[2], 6);
-        s[3] ^= rotr(s[3], 10) ^ rotr(s[3], 17);
-        s[4] ^= rotr(s[4], 7) ^ rotr(s[4], 41);
+        _ => {
+            let (mut x0, mut x1, mut x2, mut x3, mut x4) = (s[0], s[1], s[2], s[3], s[4]);
+            ascon_round!(x0, x1, x2, x3, x4, 0x96);
+            ascon_round!(x0, x1, x2, x3, x4, 0x87);
+            ascon_round!(x0, x1, x2, x3, x4, 0x78);
+            ascon_round!(x0, x1, x2, x3, x4, 0x69);
+            ascon_round!(x0, x1, x2, x3, x4, 0x5a);
+            ascon_round!(x0, x1, x2, x3, x4, 0x4b);
+            s[0] = x0;
+            s[1] = x1;
+            s[2] = x2;
+            s[3] = x3;
+            s[4] = x4;
+        }
     }
 }
 

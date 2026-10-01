@@ -13,6 +13,7 @@
 #[cfg(test)]
 mod tests;
 
+use crate::block::aes::ghash::GhashTable;
 use crate::{block::BlockCipher, error::CryptoResult, utils::subtle::constant_time_eq};
 
 const BLOCK: usize = 16;
@@ -21,12 +22,10 @@ const IV_SIZE: usize = 12;
 /// GMAC structure computing an authentication tag of all data written to it.
 pub struct Gmac<B: BlockCipher> {
     cipher: B,
-    /// Hash subkey `H = E(K, 0^128)`.
-    h: [u8; BLOCK],
     /// 96-bit IV; J0 is `IV || 0^31 || 1`.
     iv: [u8; IV_SIZE],
-    /// GHASH accumulator.
-    y: [u8; BLOCK],
+    /// GHASH accumulator (table-driven multiplier over H).
+    ghash: GhashTable,
     /// Pending partial block.
     buf: [u8; BLOCK],
     /// Number of valid bytes in `buf`.
@@ -51,9 +50,8 @@ impl<B: BlockCipher> Gmac<B> {
 
         Ok(Gmac {
             cipher,
-            h,
             iv: *iv,
-            y: [0u8; BLOCK],
+            ghash: GhashTable::new(&h),
             buf: [0u8; BLOCK],
             pos: 0,
             bits: 0,
@@ -71,36 +69,8 @@ impl<B: BlockCipher> Gmac<B> {
         IV_SIZE
     }
 
-    /// Multiply two GHASH field elements (reflected representation with the
-    /// R = 0xe1... reduction polynomial), matching the GCM soft path.
-    fn ghash_mul(x: &[u8; BLOCK], y: &[u8; BLOCK]) -> [u8; BLOCK] {
-        let mut z = [0u8; BLOCK];
-        let mut v = *y;
-        for i in 0..128 {
-            if (x[i / 8] >> (7 - (i % 8))) & 1 == 1 {
-                for j in 0..BLOCK {
-                    z[j] ^= v[j];
-                }
-            }
-            let lsb = v[15] & 1;
-            let mut carry = 0u8;
-            for j in 0..BLOCK {
-                let next = v[j] & 1;
-                v[j] = (v[j] >> 1) | (carry << 7);
-                carry = next;
-            }
-            if lsb == 1 {
-                v[0] ^= 0xe1;
-            }
-        }
-        z
-    }
-
     fn absorb_block(&mut self, block: &[u8; BLOCK]) {
-        for (yb, b) in self.y.iter_mut().zip(block.iter()) {
-            *yb ^= b;
-        }
-        self.y = Self::ghash_mul(&self.y, &self.h);
+        self.ghash.absorb_block(block);
     }
 
     /// Write adds more message data to the running authentication code.
@@ -165,7 +135,9 @@ impl<B: BlockCipher> Gmac<B> {
         tag[..IV_SIZE].copy_from_slice(&self.iv);
         tag[BLOCK - 1] = 1;
         self.cipher.encrypt_block(&mut tag);
-        for (t, y) in tag.iter_mut().zip(self.y.iter()) {
+        let mut y = [0u8; BLOCK];
+        self.ghash.sum_into(&mut y);
+        for (t, y) in tag.iter_mut().zip(y.iter()) {
             *t ^= y;
         }
         tag

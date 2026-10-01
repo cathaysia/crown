@@ -238,7 +238,7 @@ mod tests {
         // stale or differently-represented Htable (e.g. the clmul one, which
         // leaves H^5/H^6 zero) shows up here.
         let mut xi = [0u8; 16];
-        crate::block::aes::gcm::ghash::generic_ghash(&mut xi, &h, &[&ct]);
+        crate::block::aes::ghash::generic_ghash(&mut xi, &h, &[&ct]);
         assert_eq!(ctx.xi, xi, "Xi after encrypt");
 
         // Golden values from the perl-generated reference asm

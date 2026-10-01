@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-//! gcmFieldElement represents a value in GF(2¹²⁸). In order to reflect the GCM
+//! GHASH field arithmetic over GF(2¹²⁸) shared by GCM and GMAC. In order to reflect the GCM
 // standard and make binary.BigEndian suitable for marshaling these values, the
 // bits are stored in big endian order. For example:
 //
@@ -35,12 +35,16 @@ pub(crate) fn ghash_absorb(
     h: &[u8; GCM_BLOCK_SIZE],
     inputs: &[&[u8]],
 ) {
-    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    #[cfg(all(feature = "asm", feature = "alloc", target_arch = "x86_64"))]
     {
-        super::asm::ghash_absorb(state, h, inputs);
+        crate::block::aes::gcm::asm::ghash_absorb(state, h, inputs);
     }
 
-    #[cfg(any(not(feature = "asm"), not(target_arch = "x86_64")))]
+    #[cfg(any(
+        not(feature = "asm"),
+        not(feature = "alloc"),
+        not(target_arch = "x86_64")
+    ))]
     {
         // product table then absorb, seeded from `state`.
         let mut product_table = [GcmFieldElement { low: 0, high: 0 }; 16];
@@ -75,35 +79,78 @@ pub(crate) fn generic_ghash(
     h: &[u8; GCM_BLOCK_SIZE],
     inputs: &[&[u8]],
 ) {
-    // productTable contains the first sixteen powers of the key, H.
-    // However, they are in bit reversed order.
-    let mut product_table = [GcmFieldElement { low: 0, high: 0 }; 16];
-
-    // We precompute 16 multiples of H. However, when we do lookups
-    // into this table we'll be using bits from a field element and
-    // therefore the bits will be in the reverse order. So normally one
-    // would expect, say, 4*H to be in index 4 of the table but due to
-    // this bit ordering it will actually be in index 0010 (base 2) = 2.
-    let x = GcmFieldElement {
-        low: u64::from_be_bytes([h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7]]),
-        high: u64::from_be_bytes([h[8], h[9], h[10], h[11], h[12], h[13], h[14], h[15]]),
-    };
-    product_table[reverse_bits(1)] = x;
-
-    for i in (2..16).step_by(2) {
-        product_table[reverse_bits(i)] = ghash_double(&product_table[reverse_bits(i / 2)]);
-        product_table[reverse_bits(i + 1)] = ghash_add(&product_table[reverse_bits(i)], &x);
-    }
-
-    let mut y = GcmFieldElement { low: 0, high: 0 };
+    let mut table = GhashTable::new(h);
     for input in inputs {
-        ghash_update(&product_table, &mut y, input);
+        // ghash_update zero-pads the final partial block, matching the
+        // one-shot GHASH semantics.
+        table.absorb_padded(input);
+    }
+    table.sum_into(out);
+}
+
+/// Reusable GHASH multiplier: builds the 16-entry product table once and
+/// absorbs inputs incrementally. Shared by callers that need repeated
+/// multiplies under one key (e.g. GMAC).
+pub(crate) struct GhashTable {
+    product_table: [GcmFieldElement; 16],
+    y: GcmFieldElement,
+}
+
+impl GhashTable {
+    pub(crate) fn new(h: &[u8; GCM_BLOCK_SIZE]) -> Self {
+        // We precompute 16 multiples of H. However, when we do lookups
+        // into this table we'll be using bits from a field element and
+        // therefore the bits will be in the reverse order. So normally one
+        // would expect, say, 4*H to be in index 4 of the table but due to
+        // this bit ordering it will actually be in index 0010 (base 2) = 2.
+        let x = GcmFieldElement {
+            low: u64::from_be_bytes([h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7]]),
+            high: u64::from_be_bytes([h[8], h[9], h[10], h[11], h[12], h[13], h[14], h[15]]),
+        };
+        let mut product_table = [GcmFieldElement { low: 0, high: 0 }; 16];
+        product_table[reverse_bits(1)] = x;
+        for i in (2..16).step_by(2) {
+            product_table[reverse_bits(i)] = ghash_double(&product_table[reverse_bits(i / 2)]);
+            product_table[reverse_bits(i + 1)] = ghash_add(&product_table[reverse_bits(i)], &x);
+        }
+        Self {
+            product_table,
+            y: GcmFieldElement { low: 0, high: 0 },
+        }
     }
 
-    let low_bytes = y.low.to_be_bytes();
-    let high_bytes = y.high.to_be_bytes();
-    out[0..8].copy_from_slice(&low_bytes);
-    out[8..16].copy_from_slice(&high_bytes);
+    /// XOR `block` into the accumulator and multiply by H. `block` must be
+    /// exactly one GHASH block.
+    pub(crate) fn absorb_block(&mut self, block: &[u8; GCM_BLOCK_SIZE]) {
+        let block_low = u64::from_be_bytes([
+            block[0], block[1], block[2], block[3], block[4], block[5], block[6], block[7],
+        ]);
+        let block_high = u64::from_be_bytes([
+            block[8], block[9], block[10], block[11], block[12], block[13], block[14], block[15],
+        ]);
+        self.y.low ^= block_low;
+        self.y.high ^= block_high;
+        ghash_mul(&self.product_table, &mut self.y);
+    }
+
+    /// Zero-pad `data` to a whole block and absorb it.
+    pub(crate) fn absorb_padded(&mut self, data: &[u8]) {
+        let full = (data.len() >> 4) << 4;
+        for chunk in data[..full].as_chunks::<GCM_BLOCK_SIZE>().0 {
+            self.absorb_block(chunk);
+        }
+        if data.len() != full {
+            let mut partial = [0u8; GCM_BLOCK_SIZE];
+            partial[..data.len() - full].copy_from_slice(&data[full..]);
+            self.absorb_block(&partial);
+        }
+    }
+
+    /// Copy the current accumulator out as big-endian bytes.
+    pub(crate) fn sum_into(&self, out: &mut [u8; GCM_BLOCK_SIZE]) {
+        out[0..8].copy_from_slice(&self.y.low.to_be_bytes());
+        out[8..16].copy_from_slice(&self.y.high.to_be_bytes());
+    }
 }
 
 // reverseBits reverses the order of the bits of 4-bit number in i.

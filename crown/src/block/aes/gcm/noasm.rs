@@ -1,7 +1,7 @@
 #![allow(dead_code, unused_imports)]
 use super::generic::{derive_counter_generic, gcm_counter_crypt_generic, gcm_inc32};
-use super::ghash::ghash_absorb;
 use super::*;
+use crate::block::aes::ghash::ghash_absorb;
 use crate::error::CryptoResult;
 use crate::utils::subtle::constant_time_eq;
 use crate::utils::subtle::xor::xor_bytes;

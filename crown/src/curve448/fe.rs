@@ -174,7 +174,32 @@ pub fn mul(f: &Fe, g: &Fe) -> Fe {
 }
 
 pub fn sq(f: &Fe) -> Fe {
-    mul(f, f)
+    // Dedicated squaring: diagonal products once, cross products doubled.
+    // 36 u128 products instead of the 64 a general mul costs.
+    let mut t = [0u128; 16];
+    for i in 0..8 {
+        t[2 * i] += (f[i] as u128) * (f[i] as u128);
+        let fi = f[i] as u128;
+        for j in i + 1..8 {
+            let p = fi * (f[j] as u128);
+            t[i + j] += p << 1;
+        }
+    }
+    // Same fold as mul: value = LO + HI * 2^448 ≡ LO + HI + HI * 2^224.
+    let mut v = [0u128; 12];
+    for j in 0..8 {
+        v[j] = t[j] + t[j + 8] + if j >= 4 { t[j + 4] } else { 0 };
+    }
+    v[8..12].copy_from_slice(&t[12..16]);
+    for j in 8..12 {
+        let x = v[j];
+        v[j] = 0;
+        v[j - 8] += x;
+        v[j - 4] += x;
+    }
+    let mut w = [0u128; 9];
+    w[..8].copy_from_slice(&v[..8]);
+    normalize9(&mut w)
 }
 
 /// `h = f * k` for a small scalar `k` (used for a24 = 39081).

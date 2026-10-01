@@ -80,6 +80,23 @@ pub(crate) static TABLE: [u64; 266] = {
     t
 };
 
+/// `TABLE_ROT[n][x] = TABLE[x].rotate_left(8 * n)`: the eight pre-rotated
+/// views of the product table, so a theta-pi-gamma pass needs one lookup
+/// and one xor per byte instead of a lookup plus a variable rotate.
+pub(crate) static TABLE_ROT: [[u64; 256]; 8] = {
+    let mut tt = [[0u64; 256]; 8];
+    let mut n = 0;
+    while n < 8 {
+        let mut x = 0;
+        while x < 256 {
+            tt[n][x] = TABLE[x].rotate_left((8 * n) as u32);
+            x += 1;
+        }
+        n += 1;
+    }
+    tt
+};
+
 #[cfg(test)]
 mod tests {
     use super::*;

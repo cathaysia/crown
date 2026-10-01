@@ -30,6 +30,77 @@ const X_INV: u128 = u128::from_le_bytes([
     0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x92,
 ]);
 
+/// `a *= x` in the POLYVAL field (shift toward bit 127, fold overflow).
+#[inline]
+fn mul_x(mut a: u128) -> u128 {
+    let top = a >> 127;
+    a <<= 1;
+    if top == 1 {
+        a ^= RED;
+    }
+    a
+}
+
+/// `a *= x^k` in the POLYVAL field.
+fn mul_x_pow(mut a: u128, k: u32) -> u128 {
+    for _ in 0..k {
+        a = mul_x(a);
+    }
+    a
+}
+
+/// Precomputed 4-bit multiples of `h` for fast POLYVAL multiplication.
+///
+/// The table holds `k * h` (scalar k as a 0/1 polynomial), fully reduced.
+/// A multiply then consumes 4 bits of the *varying* operand per step
+/// (same arrangement as the GHASH product table), replacing the
+/// bit-at-a-time loop.
+struct Polyval {
+    tbl: [u128; 16],
+    /// `over16[t]`: reduction terms for the nibble `t` shifted out of a
+    /// 4-bit left step (composed from `x^(128 + j) mod f`).
+    over16: [u128; 16],
+}
+
+impl Polyval {
+    fn new(h: u128) -> Self {
+        let mut tbl = [0u128; 16];
+        tbl[1] = h;
+        for k in (2..16).step_by(2) {
+            // k = 2m doubles the scalar: poly(k) = poly(m) * x.
+            tbl[k] = mul_x(tbl[k / 2]);
+            tbl[k + 1] = tbl[k] ^ h;
+        }
+        let over = [RED, mul_x(RED), mul_x_pow(RED, 2), mul_x_pow(RED, 3)];
+        let mut over16 = [0u128; 16];
+        for t in 0..16 {
+            let mut acc = 0u128;
+            for j in 0..4 {
+                if (t >> j) & 1 != 0 {
+                    acc ^= over[j];
+                }
+            }
+            over16[t] = acc;
+        }
+        Self { tbl, over16 }
+    }
+
+    /// `(a * b) mod f` where the table was built from `b`.
+    #[inline]
+    fn mul(&self, a: u128) -> u128 {
+        let mut z: u128 = 0;
+        for i in (0..32).rev() {
+            // z = z * x^4, folding the 4 shifted-out bits: bit (124 + j)
+            // becomes a term at x^(128 + j). The `a` nibble indexes the
+            // product table in the same step.
+            let idx = ((a >> (i * 4)) & 0xf) as usize;
+            let t = (z >> 124) as usize;
+            z = (z << 4) ^ self.over16[t] ^ self.tbl[idx];
+        }
+        z
+    }
+}
+
 #[inline]
 fn gf_mul(a: u128, b: u128) -> u128 {
     let mut res: u128 = 0;
@@ -49,16 +120,24 @@ fn gf_mul(a: u128, b: u128) -> u128 {
 }
 
 /// POLYVAL over a sequence of 16-byte blocks.
-fn polyval(h: u128, blocks: &[u8]) -> u128 {
+///
+/// `h` must be pre-scaled with `X_INV` (see `polyval_key`), which folds the
+/// per-block `* x^-128` into the key so each block costs one multiply.
+fn polyval(hp: &Polyval, blocks: &[u8]) -> u128 {
     let mut s: u128 = 0;
     for chunk in blocks.as_chunks::<16>().0 {
         let mut x = [0u8; 16];
         x.copy_from_slice(chunk);
         let x = u128::from_le_bytes(x);
         // S = dot(S + X, H) = (S ⊕ X) * H * x^-128
-        s = gf_mul(gf_mul(s ^ x, h), X_INV);
+        s = hp.mul(s ^ x);
     }
     s
+}
+
+/// Fold `x^-128` into the POLYVAL key once per message.
+fn polyval_key(h: u128) -> Polyval {
+    Polyval::new(gf_mul(h, X_INV))
 }
 
 /// AES-GCM-SIV (RFC 8452) with AES-128.
@@ -120,7 +199,8 @@ impl AesGcmSiv {
         }
         buf.extend_from_slice(&len_block);
 
-        let s = polyval(h, &buf);
+        let hp = polyval_key(h);
+        let s = polyval(&hp, &buf);
         let mut sb = s.to_le_bytes();
         for i in 0..12 {
             sb[i] ^= nonce[i];
@@ -215,6 +295,35 @@ impl Aead<16> for AesGcmSiv {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The table-driven multiply must agree with the reference
+    /// bit-at-a-time multiply on arbitrary operands.
+    #[test]
+    fn polyval_mul_matches_reference() {
+        let mut seed = 0x243f_6a88_85a3_08d3u128;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        for _ in 0..200 {
+            let a = next();
+            let b = next();
+            let hp = Polyval::new(b);
+            assert_eq!(hp.mul(a), gf_mul(a, b), "a={a:#x} b={b:#x}");
+        }
+        // Degenerate operands.
+        for &(a, b) in &[
+            (0, 0),
+            (u128::MAX, u128::MAX),
+            (1, u128::MAX),
+            (u128::MAX, 1),
+        ] {
+            let hp = Polyval::new(b);
+            assert_eq!(hp.mul(a), gf_mul(a, b));
+        }
+    }
 
     fn hex(s: &str) -> Vec<u8> {
         (0..s.len())
