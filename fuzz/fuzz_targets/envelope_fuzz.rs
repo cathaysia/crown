@@ -11,9 +11,13 @@ macro_rules! define_fuzz_actions {
         hashes_var: [$($hash_var:ident),*],
         aead_gcm: [$($aead_gcm:ident),*],
         aead_ccm: [$($aead_ccm:ident),*],
+        aead_eax: [$($aead_eax:ident),*],
+        aead_ocb3: [$($aead_ocb3:ident),*],
         aead_special: [$($aead_special:ident),*],
         block_cbc: [$($block_cbc:ident),*],
         block_cbc_rounds: [$($block_cbc_rounds:ident),*],
+        block_cbc_safer: [$($block_cbc_safer:ident),*],
+        block_cbc_desx: [$($block_cbc_desx:ident),*],
         stream_cfb: [$($stream_cfb:ident),*],
         stream_ctr: [$($stream_ctr:ident),*],
         stream_ofb: [$($stream_ofb:ident),*],
@@ -28,10 +32,21 @@ macro_rules! define_fuzz_actions {
                     [<Hash $hash>] { data: Vec<u8> },
                 )*
                 $(
+                    [<HashChunked $hash>] { data: Vec<u8>, split: u16 },
+                )*
+                $(
                     [<Hash $hash_var>] {
                         data: Vec<u8>,
                         key: Option<Vec<u8>>,
                         key_len: u8,
+                    },
+                )*
+                $(
+                    [<HashChunked $hash_var>] {
+                        data: Vec<u8>,
+                        key: Option<Vec<u8>>,
+                        key_len: u8,
+                        split: u16,
                     },
                 )*
                 $(
@@ -44,6 +59,22 @@ macro_rules! define_fuzz_actions {
                 )*
                 $(
                     [<$aead_ccm Ccm>] {
+                        key: Vec<u8>,
+                        nonce: [u8; 12],
+                        data: Vec<u8>,
+                        aad: Vec<u8>,
+                    },
+                )*
+                $(
+                    [<$aead_eax Eax>] {
+                        key: Vec<u8>,
+                        nonce: Vec<u8>,
+                        data: Vec<u8>,
+                        aad: Vec<u8>,
+                    },
+                )*
+                $(
+                    [<$aead_ocb3 Ocb3>] {
                         key: Vec<u8>,
                         nonce: [u8; 12],
                         data: Vec<u8>,
@@ -71,6 +102,21 @@ macro_rules! define_fuzz_actions {
                         iv: Vec<u8>,
                         data: Vec<u8>,
                         rounds: Option<usize>,
+                    },
+                )*
+                $(
+                    [<$block_cbc_safer Cbc>] {
+                        key: Vec<u8>,
+                        iv: Vec<u8>,
+                        data: Vec<u8>,
+                        rounds: u8,
+                    },
+                )*
+                $(
+                    [<$block_cbc_desx Cbc>] {
+                        key: Vec<u8>,
+                        iv: Vec<u8>,
+                        data: Vec<u8>,
                     },
                 )*
                 $(
@@ -120,11 +166,42 @@ macro_rules! define_fuzz_actions {
                         }
                     )*
                     $(
+                        // One-shot vs. split-write digest must agree for every
+                        // hash; exercises the internal buffering paths.
+                        FuzzAction::[<HashChunked $hash>] { data, split } => {
+                            if let (Ok(mut whole), Ok(mut part)) = (
+                                EvpHash::[<new_ $hash:lower>](),
+                                EvpHash::[<new_ $hash:lower>](),
+                            ) {
+                                let _ = whole.write(&data);
+                                let at = (split as usize) % (data.len() + 1);
+                                let _ = part.write(&data[..at]);
+                                let _ = part.write(&data[at..]);
+                                assert_eq!(whole.sum(), part.sum(), "chunked digest mismatch");
+                            }
+                        }
+                    )*
+                    $(
                         FuzzAction::[<Hash $hash_var>] { data, key, key_len } => {
                             let k = key.as_deref();
                             if let Ok(mut hasher) = EvpHash::[<new_ $hash_var:lower>](k, key_len as usize) {
                                 let _ = hasher.write(&data);
                                 let _ = hasher.sum();
+                            }
+                        }
+                    )*
+                    $(
+                        FuzzAction::[<HashChunked $hash_var>] { data, key, key_len, split } => {
+                            let k = key.as_deref();
+                            if let (Ok(mut whole), Ok(mut part)) = (
+                                EvpHash::[<new_ $hash_var:lower>](k, key_len as usize),
+                                EvpHash::[<new_ $hash_var:lower>](k, key_len as usize),
+                            ) {
+                                let _ = whole.write(&data);
+                                let at = (split as usize) % (data.len() + 1);
+                                let _ = part.write(&data[..at]);
+                                let _ = part.write(&data[at..]);
+                                assert_eq!(whole.sum(), part.sum(), "chunked keyed digest mismatch");
                             }
                         }
                     )*
@@ -145,6 +222,34 @@ macro_rules! define_fuzz_actions {
                     $(
                         FuzzAction::[<$aead_ccm Ccm>] { key, nonce, data, aad } => {
                             if let Ok(cipher) = EvpAeadCipher::[<new_ $aead_ccm:lower _ccm>]::<16, 12>(&key) {
+                                let mut data_clone = data.clone();
+                                if let Ok(tag) = cipher.seal_in_place_separate_tag(&mut data_clone, &nonce, &aad) {
+                                    let mut decrypted = data_clone.clone();
+                                    let res = cipher.open_in_place_separate_tag(&mut decrypted, &tag, &nonce, &aad);
+                                    if res.is_ok() {
+                                        assert_eq!(data, decrypted);
+                                    }
+                                }
+                            }
+                        }
+                    )*
+                    $(
+                        FuzzAction::[<$aead_eax Eax>] { key, nonce, data, aad } => {
+                            if let Ok(cipher) = EvpAeadCipher::[<new_ $aead_eax:lower _eax>]::<16>(&key, nonce.len()) {
+                                let mut data_clone = data.clone();
+                                if let Ok(tag) = cipher.seal_in_place_separate_tag(&mut data_clone, &nonce, &aad) {
+                                    let mut decrypted = data_clone.clone();
+                                    let res = cipher.open_in_place_separate_tag(&mut decrypted, &tag, &nonce, &aad);
+                                    if res.is_ok() {
+                                        assert_eq!(data, decrypted);
+                                    }
+                                }
+                            }
+                        }
+                    )*
+                    $(
+                        FuzzAction::[<$aead_ocb3 Ocb3>] { key, nonce, data, aad } => {
+                            if let Ok(cipher) = EvpAeadCipher::[<new_ $aead_ocb3:lower _ocb3>]::<16, 12>(&key) {
                                 let mut data_clone = data.clone();
                                 if let Ok(tag) = cipher.seal_in_place_separate_tag(&mut data_clone, &nonce, &aad) {
                                     let mut decrypted = data_clone.clone();
@@ -188,6 +293,30 @@ macro_rules! define_fuzz_actions {
                                 let mut inout = data.clone();
                                 if cipher.encrypt_alloc(&mut inout).is_ok() {
                                     if let Ok(mut dec_cipher) = EvpBlockCipher::[<new_ $block_cbc_rounds:lower _cbc>](&key, &iv, rounds) {
+                                        let _ = dec_cipher.decrypt_alloc(&mut inout);
+                                    }
+                                }
+                            }
+                        }
+                    )*
+                    $(
+                        FuzzAction::[<$block_cbc_safer Cbc>] { key, iv, data, rounds } => {
+                            if let Ok(mut cipher) = EvpBlockCipher::[<new_ $block_cbc_safer:lower _cbc>](&key, &iv, rounds) {
+                                let mut inout = data.clone();
+                                if cipher.encrypt_alloc(&mut inout).is_ok() {
+                                    if let Ok(mut dec_cipher) = EvpBlockCipher::[<new_ $block_cbc_safer:lower _cbc>](&key, &iv, rounds) {
+                                        let _ = dec_cipher.decrypt_alloc(&mut inout);
+                                    }
+                                }
+                            }
+                        }
+                    )*
+                    $(
+                        FuzzAction::[<$block_cbc_desx Cbc>] { key, iv, data } => {
+                            if let Ok(mut cipher) = EvpBlockCipher::[<new_ $block_cbc_desx:lower _cbc>](&key, &iv) {
+                                let mut inout = data.clone();
+                                if cipher.encrypt_alloc(&mut inout).is_ok() {
+                                    if let Ok(mut dec_cipher) = EvpBlockCipher::[<new_ $block_cbc_desx:lower _cbc>](&key, &iv) {
                                         let _ = dec_cipher.decrypt_alloc(&mut inout);
                                     }
                                 }
@@ -264,7 +393,7 @@ define_fuzz_actions!(
     hashes: [
         Md2, Md4, Md5, Sha1, Sha224, Sha256, Sha384, Sha512,
         Sha512_224, Sha512_256, Sha3_224, Sha3_256, Sha3_384, Sha3_512,
-        Shake128, Shake256, Sm3
+        Shake128, Shake256, Sm3, Md5_Sha1, Ripemd160, Mdc2, Whirlpool
     ],
     hashes_var: [
         Blake2s, Blake2b
@@ -275,14 +404,28 @@ define_fuzz_actions!(
     aead_ccm: [
         Aes, Aria, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack, Kasumi, Kseed, Anubis, Noekeon, Khazad, Serpent
     ],
+    aead_eax: [
+        Aes, Aria, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack, Kasumi, Kseed, Anubis, Noekeon, Khazad, Serpent
+    ],
+    // OCB3 asserts on non-128-bit block ciphers, so only 128-bit members
+    // that are exposed as fixed-key AEADs (Camellia is rounds-parameterized).
+    aead_ocb3: [
+        Aes, Aria, Rc6, Sm4, Serpent, Twofish, Noekeon, Anubis, Kseed
+    ],
     aead_special: [
-        ChaCha20_Poly1305, XChaCha20_Poly1305
+        ChaCha20_Poly1305, XChaCha20_Poly1305, Aes_Gcm_Siv, Ascon_Aead128, Aes_Siv
     ],
     block_cbc: [
         Aes, Aria, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack, Kasumi, Kseed, Anubis, Noekeon, Khazad, Serpent
     ],
     block_cbc_rounds: [
         Rc2, Rc5, Camellia, Multi2
+    ],
+    block_cbc_safer: [
+        Safer_K64, Safer_Sk64, Safer_K128, Safer_Sk128
+    ],
+    block_cbc_desx: [
+        Desx
     ],
     stream_cfb: [
         Aes, Aria, Blowfish, Cast5, Des, TripleDes, Tea, Twofish, Xtea, Idea, Rc6, Sm4, Skipjack, Kasumi, Kseed, Anubis, Noekeon, Khazad, Serpent

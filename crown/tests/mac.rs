@@ -7,6 +7,7 @@ mod wycheproof;
 
 use crown::block::aes::Aes;
 use crown::block::BlockCipher;
+use crown::envelope::EvpMac;
 use crown::hash::HashUser;
 use crown::mac::cmac::Cmac as CmacMac;
 use crown::mac::{cmac::Cmac, gmac::Gmac, kmac::Kmac128, kmac::Kmac256, siphash};
@@ -398,4 +399,20 @@ fn test_pyca_poly1305() {
         checked > 10,
         "only {checked} Poly1305 vectors were verified"
     );
+}
+
+#[test]
+fn test_evp_mac_siphash_output_len() {
+    let key = [0x42u8; 16];
+    let msg = b"fuzz regression: the envelope tag must honor output_len";
+
+    let short = EvpMac::new_siphash(&key, 8).unwrap();
+    let mut short = short;
+    short.write(msg);
+    assert_eq!(short.sum(), siphash::sum(msg, &key).to_vec());
+
+    let long = EvpMac::new_siphash(&key, 16).unwrap();
+    let mut long = long;
+    long.write(msg);
+    assert_eq!(long.sum(), siphash::sum128(msg, &key).to_vec());
 }

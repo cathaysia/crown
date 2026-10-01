@@ -29,16 +29,18 @@ impl EvpMac {
         }
         let mut k = [0u8; 16];
         k.copy_from_slice(key);
-        struct W(SipHash);
+        struct W(SipHash, usize);
         impl MacInner for W {
             fn write(&mut self, data: &[u8]) {
                 self.0.write(data);
             }
             fn sum(&mut self) -> Vec<u8> {
-                self.0.sum()[..].to_vec()
+                // SipHash::sum always yields the 16-byte state; only the
+                // first `output_len` bytes carry the configured tag.
+                self.0.sum()[..self.1].to_vec()
             }
         }
-        Ok(Self(Box::new(W(SipHash::new(&k, output_len)?))))
+        Ok(Self(Box::new(W(SipHash::new(&k, output_len)?, output_len))))
     }
 
     /// KMAC128. `custom` is the customization string (may be empty).
