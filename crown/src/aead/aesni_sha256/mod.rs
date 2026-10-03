@@ -106,16 +106,20 @@ fn sha256_compress(h: &mut [u32; 8], block: &[u8]) {
     h[7] = h[7].wrapping_add(hh);
 }
 
-/// AES-CBC encrypt `inp` into `out` while folding each 64-byte chunk of the
-/// **plaintext** into the SHA-256 state `ctx` (8 words).
+/// AES-CBC encrypt `inp` into `out` while folding each 64-byte chunk of
+/// `hash_inp` into the SHA-256 state `ctx` (8 words).
 ///
-/// `inp.len()` must be a non-zero multiple of 64 and `out.len() >= inp.len()`.
-/// `iv` is updated in place to the final CBC IV. `ctx` is updated with the
-/// SHA-256 compression of `inp` (length counters are **not** touched — the
-/// caller adds `8 * inp.len()` bits). This matches `aesni_cbc_sha256_enc`.
+/// `inp.len()` must be a non-zero multiple of 64 and `out.len() >= inp.len()`;
+/// `hash_inp.len()` must equal `inp.len()` and may differ from `inp` — the
+/// OpenSSL TLS caller hashes `in + iv + sha_off` while CBC-encrypting the
+/// record from its start. `iv` is updated in place to the final CBC IV.
+/// `ctx` is updated with the SHA-256 compression of `hash_inp` (length
+/// counters are **not** touched — the caller adds `8 * inp.len()` bits).
+/// This matches `aesni_cbc_sha256_enc`.
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 pub fn cbc_sha256_enc(
     inp: &[u8],
+    hash_inp: &[u8],
     out: &mut [u8],
     key: &AesKey,
     iv: &mut [u8; 16],
@@ -127,6 +131,7 @@ pub fn cbc_sha256_enc(
         "len must be a positive multiple of 64"
     );
     assert!(out.len() >= inp.len());
+    assert_eq!(hash_inp.len(), inp.len());
     unsafe {
         aesni_cbc_sha256_enc(
             inp.as_ptr(),
@@ -135,7 +140,7 @@ pub fn cbc_sha256_enc(
             key as *const AesKey as *const u8,
             iv.as_mut_ptr(),
             ctx.as_mut_ptr(),
-            inp.as_ptr(),
+            hash_inp.as_ptr(),
         );
     }
 }
@@ -143,6 +148,7 @@ pub fn cbc_sha256_enc(
 #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
 pub fn cbc_sha256_enc(
     inp: &[u8],
+    hash_inp: &[u8],
     out: &mut [u8],
     key: &AesKey,
     iv: &mut [u8; 16],
@@ -154,9 +160,10 @@ pub fn cbc_sha256_enc(
         "len must be a positive multiple of 64"
     );
     assert!(out.len() >= inp.len());
+    assert_eq!(hash_inp.len(), inp.len());
     out[..inp.len()].copy_from_slice(inp);
     crate::block::aes::aesni::cbc_encrypt(&mut out[..inp.len()], key, iv, true);
-    for chunk in inp.chunks(64) {
+    for chunk in hash_inp.chunks(64) {
         sha256_compress(ctx, chunk);
     }
 }

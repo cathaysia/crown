@@ -54,16 +54,19 @@ pub const SHA1_STATE_WORDS: usize = 5;
 /// SHA-1 initialization vector (FIPS 180-4).
 pub const SHA1_IV: [u32; 5] = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0];
 
-/// AES-CBC encrypt `inp` into `out` while folding each 64-byte chunk into
-/// the SHA-1 state `ctx` (5 words).
+/// AES-CBC encrypt `inp` into `out` while folding each 64-byte chunk of
+/// `hash_inp` into the SHA-1 state `ctx` (5 words).
 ///
-/// `inp.len()` must be a non-zero multiple of 64 and `out.len() >= inp.len()`.
-/// `iv` is updated in place to the final CBC IV. `ctx` is updated with the
-/// SHA-1 compression of `inp` (length counters are **not** touched — the
-/// caller adds `8 * inp.len()` bits, exactly like the OpenSSL TLS path).
+/// `inp.len()` must be a non-zero multiple of 64 and `out.len() >= inp.len()`;
+/// `hash_inp.len()` must equal `inp.len()` and may differ from `inp` — the
+/// OpenSSL TLS caller hashes `in + iv + sha_off` while CBC-encrypting the
+/// record from its start. `iv` is updated in place to the final CBC IV.
+/// `ctx` is updated with the SHA-1 compression of `hash_inp` (length
+/// counters are **not** touched — the caller adds `8 * inp.len()` bits).
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 pub fn cbc_sha1_enc(
     inp: &[u8],
+    hash_inp: &[u8],
     out: &mut [u8],
     key: &AesKey,
     iv: &mut [u8; 16],
@@ -75,6 +78,7 @@ pub fn cbc_sha1_enc(
         "len must be a positive multiple of 64"
     );
     assert!(out.len() >= inp.len());
+    assert_eq!(hash_inp.len(), inp.len());
     unsafe {
         aesni_cbc_sha1_enc(
             inp.as_ptr(),
@@ -83,7 +87,7 @@ pub fn cbc_sha1_enc(
             key,
             iv.as_mut_ptr(),
             ctx.as_mut_ptr(),
-            inp.as_ptr(),
+            hash_inp.as_ptr(),
         );
     }
 }

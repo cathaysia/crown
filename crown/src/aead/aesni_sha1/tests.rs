@@ -90,7 +90,7 @@ fn cbc_sha1_enc_matches_software() {
         let mut out = alloc::vec![0u8; len];
         let mut iv = iv0;
         let mut ctx = SHA1_IV;
-        cbc_sha1_enc(&inp, &mut out, &key, &mut iv, &mut ctx);
+        cbc_sha1_enc(&inp, &inp, &mut out, &key, &mut iv, &mut ctx);
 
         // software AES-CBC oracle (same key schedule)
         let mut expect_ct = inp.clone();
@@ -126,6 +126,6 @@ fn cbc_sha1_enc_matches_full_sha1_digest() {
     let key = aesni::set_encrypt_key(&key_bytes);
     let mut out = alloc::vec![0u8; len];
     let mut ctx = SHA1_IV;
-    cbc_sha1_enc(&inp, &mut out, &key, &mut iv, &mut ctx);
+    cbc_sha1_enc(&inp, &inp, &mut out, &key, &mut iv, &mut ctx);
     assert_eq!(ctx, sha1_portable(&inp));
 }
