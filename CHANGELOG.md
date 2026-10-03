@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.28.0](https://github.com/cathaysia/crown/compare/v0.27.0...v0.28.0) (2026-10-03)
+
+
+### Features
+
+* **sm2:** add sm2 key exchange with confirmation (gb/t 32918.3) ([b1f90f3](https://github.com/cathaysia/crown/commit/b1f90f317ebad1e93afcf5c58246c9ac376acdb9))
+* **sm2:** add sm2 public-key encryption (gb/t 32918.4) ([04cdae0](https://github.com/cathaysia/crown/commit/04cdae093cee6615b0363a6f9a0fefb3a977163e))
+
+
+### Bug Fixes
+
+* **sm2:** gate crypt and kap behind the alloc feature ([0467ab1](https://github.com/cathaysia/crown/commit/0467ab1f17951764fb726126ce63c4c490ed050a))
+
 ## [0.27.0](https://github.com/cathaysia/crown/compare/v0.26.6...v0.27.0) (2026-10-01)
 
 
