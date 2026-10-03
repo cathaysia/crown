@@ -1,6 +1,8 @@
 # Algorithm & asm porting status
 
-Snapshot as of 2026-09-27. Reference trees: `crown-ref/openssl` (Apache-2.0)
+Snapshot as of 2026-10-03 (parity follow-ups: CBC-HMAC-SHA AEADs, CTS variants,
+KW-INV, DES3-WRAP, CFB1/8, GCM-SIV key lengths, RSA/ECDSA/DSA digest
+coverage, DSA parameter generation, RFC 7919 ffdhe groups). Reference trees: `crown-ref/openssl` (Apache-2.0)
 and `crown-ref/boringssl` (the BoringSSL stitched AEADs; both vendors are
 dual-licensed under the CRYPTOGAMS license for the perlasm modules).
 
@@ -41,11 +43,13 @@ dual-licensed under the CRYPTOGAMS license for the perlasm modules).
 - **hash bucket: complete.** Everything with a crown-side consumer is translated.
   Re-generated each perl and compared exported symbols against the `.ts` files;
   all match.
-- **aead-related:** `aesni-gcm` and `chacha20_poly1305` are ported;
-  `aesni-sha1-x86_64.pl`, `aesni-sha256-x86_64.pl`, `sha1-mb-x86_64.pl`,
-  `sha256-mb-x86_64.pl` remain. Note: `sha{1,256}-multi_block` in this OpenSSL
-  version are only consumed by the TLS CBC-HMAC-SHA stitched ciphers
-  (`cipher_aes_cbc_hmac_sha{1,256}_hw.c`), so they belong to the aead round.
+- **aead-related:** `aesni-gcm`, `chacha20_poly1305`, `aesni-sha1-x86_64.pl`
+  and `aesni-sha256-x86_64.pl` are ported and wired: the TLS
+  `AES-CBC-HMAC-SHA{1,256}` AEADs live in `aead::cbc_hmac` (software path on
+  all targets, stitched bulk on x86_64+AES-NI). `sha1-mb-x86_64.pl` and
+  `sha256-mb-x86_64.pl` remain (the multi-block ciphers are only consumed by
+  the TLS CBC-HMAC stitched ciphers' pipelined path, which crown does not
+  implement).
 - **no crown consumer:** `keccak1600x4-avx512vl.pl` (4-way SHA3; crown sha3 is single-stream;
   `keccak1600-avx2/avx512/avx512vl.pl` are not even referenced by this
   OpenSSL's `build.info`).
@@ -109,11 +113,12 @@ All four are registered in `envelope::EvpHash` (`new_ripemd160`, `new_whirlpool`
 | SM4-XTS | `cipher_sm4_xts.c` | implemented (`modes/xts`, `Xts<Sm4>`), both IEEE and GB/T 17964-2021 (`encrypt_gb`) variants, vectors from `evpciph_sm4.txt` |
 | AES-SIV (128/192/256) | `crypto/modes/siv128.c` + `cipher_aes_siv.c` | implemented (`aead/siv`), RFC 5297 A.1/A.2 + `evpciph_aes_siv.txt` vectors; tag = SIV, nonce passed as AAD like OpenSSL |
 | FF1 (SP 800-38G) | — | implemented (`modes/ff1`): AES-CBC-MAC Feistel, 10 rounds, radix 2..=65536, AES-128/192/256 by key length, decimal helper; NIST FF1samples.pdf #1/#2/#3 (radix 10 and 36) |
-| AES-GCM-SIV | `cipher_aes_gcm_siv*.c` | not started (POLYVAL-based, separate construction) |
-| ASCON-AEAD128 | `ascon` | not started |
-| Key Wrap (KW/KWP) | `crypto/modes/wrap128.c` | not started |
-| CTS | `crypto/modes/cts128.c` | not started (XTS stealing is unrelated) |
-| DES-X(EX) | `cipher_desx.c` | not started |
+| AES-GCM-SIV (128/192/256) | `cipher_aes_gcm_siv*.c` | implemented (`aead::gcm_siv`); 192/256 follow OpenSSL's extension (message-encryption key length = master key length), vectors from a locally built OpenSSL 3.5.8 |
+| ASCON-AEAD128 | `ascon` | implemented (`aead::ascon`) |
+| Key Wrap (KW/KWP + INV variants) | `crypto/modes/wrap128.c` | implemented (`modes::kw`); `WRAP-INV`/`WRAP-PAD-INV` run the RFC 3394 loop with the inverse cipher |
+| CTS (CS1/CS2/CS3) | `crypto/modes/cts128.c` + `cipher_cts.c` | implemented (`modes::cts`); CS3 partial layout matches OpenSSL/Kerberos (RFC 2040 §8 post-errata) |
+| DES-X(EX) | `cipher_desx.c` | implemented (`block::des::Desx`) |
+| DES3-WRAP | RFC 3217 (`e_des3.c`) | implemented (`modes::kw::des3_key_wrap`); no parity fixup, matching OpenSSL's `DES3-WRAP` |
 
 ### crown gaps — KDF — ALL CLOSED 2026-09-26 (software; envelope surface does not exist yet)
 
@@ -143,17 +148,22 @@ EVP_KDF's digest option. HKDF/PBKDF2/scrypt/argon2 already existed
 | Ed25519 | `crypto/ec/curve25519.c` | implemented (`ed25519`): 51-bit-limb field arithmetic, ref10 invert/pow22523 chains, extended-coordinate group ops, constant-time 4-bit-window scalar mult; RFC 8032 section 7.1 vectors, CLI cross-checked |
 | Ed448 | `crypto/ec/curve448/` | implemented (`ed448` + shared `curve448::fe`): untwisted Edwards edwards448 (a=1, d=-39081) in extended coordinates, RFC 8032 §5.2.4 complete add/dbl, dom4/SHAKE256 sign-verify with required context; pure Ed448 (phflag=0) + Ed448ph (phflag=1, PH=SHAKE256(.,64)); RFC 8032 §7.4 vectors (blank, 1/11/12/13/64/256/1023 octets, 1 octet with context) and §7.5 Ed448ph vectors (abc blank-context, abc context "foo") |
 | RSA | `crypto/rsa` + `crypto/bn` | implemented (`rsa` on `bn`): raw/PKCS#1 v1.5/OAEP encryption, PKCS#1 v1.5/PSS signatures, CRT private path, key generation (top-two-bit primes, small-prime sieve, 64 MR rounds, FIPS 186-4 distance), PKCS#1 DER + PKCS#8 parse; all directions cross-checked against the OpenSSL 3.5.8 CLI |
-| RSA-PSS/other digests | | PSS and PKCS#1 v1.5 accept md5/sha1/sha224/sha256/sha384/sha512 (DigestInfo table) |
+| RSA-PSS/other digests | | PSS accepts every registered digest; PKCS#1 v1.5 accepts md5, sha1, sha224/256/384/512, sha512-224, sha512-256, sha3-224/256/384/512, sm3 (OpenSSL's sm3WithRSAEncryption-OID quirk reproduced) and ripemd160 via the DigestInfo table; md5-sha1 is signed raw. Signatures cross-checked byte-exact against the OpenSSL CLI |
 | X25519 | `crypto/ec/curve25519.c` | implemented (`x25519`): Montgomery ladder over radix-2^64 field ops, fe64 asm (`x25519_fe64_*`) wired in when `asm` is on; RFC 7748 §5.2/§6.1 vectors |
 | X448 | `crypto/ec/curve448/` | implemented (`x448` + shared `curve448::fe`): Montgomery ladder over radix-2^56 (8×56-bit limbs) field ops for p = 2^448-2^224-1, software only; RFC 7748 §5.2 vectors 1-2, §5.2 iterative (1 iter), §6.2 Diffie-Hellman |
-| DSA/ECDSA/SM2 | | implemented — see the asymmetric table below (DSA-2048/256, ECDSA P-256/384/521, SM2) |
-| ML-KEM/ML-DSA/SLH-DSA/LMS | | not started |
+| DSA/ECDSA digests | | ECDSA and DSA accept sha1, sha224, sha256, sha384, sha512, sha3-224/256/384/512, sm3, ripemd160 (ECDSA also ripemd160); OpenSSL CLI cross-checked both ways |
+| ML-KEM/ML-DSA/SLH-DSA/LMS | | ML-KEM (FIPS 203), ML-DSA (FIPS 204) and SLH-DSA (FIPS 205) implemented; LMS not started |
 | RAND | `crypto/rand` | not started; randomized RSA operations take a caller-supplied `Rng` instead |
 
-### crown gaps — other buckets (not started)
+### crown gaps — other buckets (closed 2026-10-03)
 
-- ARIA/SM4/Camellia GCM/CCM need only marker wiring — `aead/gcm` and
-  `aead/ccm` are already generic.
+- ARIA/SM4/Camellia/SEED GCM/CCM are wired through the generic
+  `aead/gcm` and `aead/ccm`.
+- CFB1/CFB8 (1-/8-bit feedback, OpenSSL `AES-*-CFB1/CFB8` et al.) are
+  implemented in `modes::cfb` alongside CFB128; vectors from a locally
+  built OpenSSL 3.5.8.
+- TLS `AES-CBC-HMAC-SHA1/SHA256` AEADs: `aead::cbc_hmac` (software +
+  stitched x86_64 asm); OpenSSL-generated golden vectors.
 
 ### AEAD/modes additions (this round, software only)
 
@@ -248,6 +258,8 @@ which the unit tests pin against OpenSSL's EVP vectors instead.
 | ECDSA (P-256/384/521, SHA-256/384/512) | `crown/src/ecdsa` | done — `sign`/`verify` with explicit `CurveId` + `DigestId`; `sign_sha256`/`verify_sha256` kept as P-256 wrappers; RFC 6979 A.2.5 (P-256/SHA-256), A.2.6 (P-384/SHA-384), A.2.7 (P-521/SHA-512) |
 | DSA (FIPS 186-4, 2048/256) | `crown/src/dsa` | done — `dsa_2048_256()` parameter set (RFC 6979 A.2.2 / NIST), `generate`, `sign_sha256`, `verify_sha256`; g^q ≡ 1 mod p sanity + RFC 6979 A.2.2 SHA-256 sample/test KATs |
 | DH MODP 2048 (RFC 3526) | `crown/src/dh` | done — modp2048() + generate/agree with y-range checks |
+| DH ffdhe groups (RFC 7919) | `crown/src/dh` | done — `ffdhe(bits)` for 2048/3072/4096/6144/8192, constants cross-checked against OpenSSL |
+| DSA parameter generation (FIPS 186-4 A.1.2.1.2) | `crown/src/dsa` | done — `generate_params(L, N)` for (2048,224), (2048,256), (3072,256); generated groups validated by the OpenSSL CLI |
 | SM2 signature (GM/T 0003.2) | `crown/src/sm2` | done — GM/T sample (d, M="message digest") r/s match |
 
 ## 3. DRBG / OTP / PBES2 status (feat/rand-otp)
