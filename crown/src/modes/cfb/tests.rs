@@ -51,3 +51,64 @@ fn test_cfb_vectors() {
         assert_eq!(dst, pt);
     }
 }
+
+// AES-128-CFB1 / CFB8 golden vectors, generated with a locally built
+// OpenSSL 3.5.8 CLI (`openssl enc -aes-128-cfb{1,8}`): key 000102..0f,
+// IV fedcba9876543210fedcba9876543210, plaintext "Attack at dawn!!" x2.
+#[test]
+fn cfb1_cfb8_openssl_golden() {
+    fn hex(s: &str) -> Vec<u8> {
+        (0..s.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap())
+            .collect()
+    }
+    let key = hex("000102030405060708090a0b0c0d0e0f");
+    let iv = hex("fedcba9876543210fedcba9876543210");
+    let pt = hex("41747461636b206174206461776e212141747461636b206174206461776e2121");
+    let cases: [(&str, u8, &str); 2] = [
+        (
+            "cfb8",
+            8,
+            "36754b40cc4cad4c0f419cc28371f0c3de18d68c2c9cee0c6739fb73c7d75893",
+        ),
+        (
+            "cfb1",
+            1,
+            "59ff5be18f21a126fedb94d8915b6c6a3a205834373190e80f9f6c41710a064e",
+        ),
+    ];
+    for (name, bits, ct_hex) in cases {
+        let aes = crate::block::aes::Aes::new(&key).unwrap();
+        let expected = hex(ct_hex);
+        // encrypt
+        let mut buf = pt.clone();
+        if bits == 8 {
+            aes.clone()
+                .to_cfb8_encryptor(&iv)
+                .unwrap()
+                .xor_key_stream(&mut buf)
+                .unwrap();
+        } else {
+            aes.clone()
+                .to_cfb1_encryptor(&iv)
+                .unwrap()
+                .xor_key_stream(&mut buf)
+                .unwrap();
+        }
+        assert_eq!(buf, expected, "{name} encrypt");
+        // decrypt
+        if bits == 8 {
+            aes.to_cfb8_decryptor(&iv)
+                .unwrap()
+                .xor_key_stream(&mut buf)
+                .unwrap();
+        } else {
+            aes.to_cfb1_decryptor(&iv)
+                .unwrap()
+                .xor_key_stream(&mut buf)
+                .unwrap();
+        }
+        assert_eq!(buf, pt, "{name} decrypt");
+    }
+}
