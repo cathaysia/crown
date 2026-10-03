@@ -1,9 +1,17 @@
-//! SM2 elliptic-curve digital signature (GM/T 0003.2) over SM2-P-256.
+//! SM2 elliptic-curve cryptography over SM2-P-256.
 //!
-//! ZA = SM3(ENTL || ID || a || b || xG || yG || xA || yA)
-//! e  = SM3(ZA || M)
-//! r  = (e + x1) mod n
-//! s  = ((1 + d)^-1 * (k - r d)) mod n
+//! * digital signature (GM/T 0003.2, [`sign`]/[`verify`]):
+//!   ZA = SM3(ENTL || ID || a || b || xG || yG || xA || yA),
+//!   e = SM3(ZA || M), r = (e + x1) mod n,
+//!   s = ((1 + d)^-1 * (k - r d)) mod n;
+//! * public-key encryption (GB/T 32918.4-2016, [`crypt`]);
+//! * key exchange with optional confirmation (GB/T 32918.3-2016, [`kap`]).
+//!
+//! All three reuse the SM3 implementation, which dispatches to the ported
+//! x86_64 asm when the `asm` feature is enabled.
+
+pub mod crypt;
+pub mod kap;
 
 use crate::bn::Bn;
 use crate::ec::{coord32, Curve, Point};
@@ -41,10 +49,16 @@ pub fn sm2_curve() -> Curve {
     )
 }
 
-/// `ZA = SM3(ENTL || ID || a || b || xG || yG || xA || yA)`.
+/// `ZA = SM3(ENTL || ID || a || b || xG || yG || xA || yA)` over
+/// SM2-P-256.
 pub fn compute_za(id: &[u8], pub_key: &Point) -> [u8; 32] {
-    let c = sm2_curve();
-    assert!(pub_key.on_curve_or_inf());
+    compute_za_on(&sm2_curve(), id, pub_key)
+}
+
+/// `ZA` over an explicit curve (the GB/T worked examples use the
+/// GB/T 32918.1 annex A example curve).
+pub fn compute_za_on(c: &Curve, id: &[u8], pub_key: &Point) -> [u8; 32] {
+    assert!(pub_key.infinity || pub_key.is_on_curve(c));
     let mut buf = Vec::with_capacity(2 + id.len() + 32 * 6);
     let entl = (id.len() * 8) as u16;
     buf.extend_from_slice(&entl.to_be_bytes());
@@ -58,12 +72,6 @@ pub fn compute_za(id: &[u8], pub_key: &Point) -> [u8; 32] {
     sum_sm3(&buf)
 }
 
-impl Point {
-    fn on_curve_or_inf(&self) -> bool {
-        self.infinity || self.is_on_curve(&sm2_curve())
-    }
-}
-
 /// `e = SM3(ZA || M)` as an integer.
 fn digest_e(za: &[u8; 32], msg: &[u8]) -> Bn {
     let mut buf = Vec::with_capacity(32 + msg.len());
@@ -73,7 +81,7 @@ fn digest_e(za: &[u8; 32], msg: &[u8]) -> Bn {
 }
 
 /// Sample `k` in `[1, n-1]`.
-fn sample_k(n: &Bn, rng: &mut impl Rng) -> Bn {
+pub(crate) fn sample_k(n: &Bn, rng: &mut impl Rng) -> Bn {
     let mut buf = [0u8; 32];
     for _ in 0..128 {
         rng.fill_bytes(&mut buf);
