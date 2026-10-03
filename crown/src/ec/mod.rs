@@ -138,7 +138,7 @@ pub fn curve(id: CurveId) -> Curve {
 impl Curve {
     /// Assemble a curve from raw parameters and prepare its Montgomery
     /// field context (used by curves defined outside this module, e.g. SM2).
-    pub(crate) fn from_parts(p: Bn, a: Bn, b: Bn, gx: Bn, gy: Bn, n: Bn) -> Curve {
+    pub fn from_parts(p: Bn, a: Bn, b: Bn, gx: Bn, gy: Bn, n: Bn) -> Curve {
         let mont = Montgomery::new(&p).expect("curve prime is odd");
         let a_mont = mont.to_mont(&a);
         Curve {
