@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.0](https://github.com/cathaysia/crown/compare/v0.28.0...v0.29.0) (2026-10-03)
+
+
+### Features
+
+* **hash:** close keccak and sha2-256-192 openssl parity gaps ([5ee8e9c](https://github.com/cathaysia/crown/commit/5ee8e9c77f416550269b0c16be61771952332e07))
+
 ## [0.28.0](https://github.com/cathaysia/crown/compare/v0.27.0...v0.28.0) (2026-10-03)
 
 
