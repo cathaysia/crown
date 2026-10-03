@@ -5,8 +5,8 @@
 //! deterministic RFC 6979 path feed it an HMAC-DRBG derived from the key.
 
 use crate::bn::Bn;
+use crate::ecdsa::{digest, DigestId};
 use crate::error::{CryptoError, CryptoResult};
-use crate::hash::sha256::sum256;
 use crate::rng::Rng;
 
 use alloc::string::String;
@@ -121,18 +121,152 @@ pub fn generate(params: &DsaParams, rng: &mut impl Rng) -> CryptoResult<DsaKeyPa
     })
 }
 
+/// Miller-Rabin rounds for `l`-bit candidates (mirrors rsa::prime policy).
+fn mr_rounds(l: usize) -> usize {
+    if l > 2048 {
+        128
+    } else {
+        64
+    }
+}
+
+/// Increment a big-endian byte string by one (the FFC seed counter).
+fn inc_be(buf: &mut [u8]) {
+    for k in (0..buf.len()).rev() {
+        buf[k] = buf[k].wrapping_add(1);
+        if buf[k] != 0 {
+            break;
+        }
+    }
+}
+
+/// Generate DSA domain parameters `(p, q, g)` per FIPS 186-4 A.1.2.1.2
+/// (probable primes, hash-based), matching OpenSSL's
+/// `ffc_params_generate`. Supported pairs: `(2048, 224)`, `(2048, 256)`
+/// and `(3072, 256)`. The generator is the canonical small-base search
+/// of A.2.3 starting at `h = 2`.
+pub fn generate_params(l: usize, n: usize, rng: &mut impl Rng) -> CryptoResult<DsaParams> {
+    let hash: fn(&[u8]) -> Vec<u8>;
+    let seedlen: usize;
+    match (l, n) {
+        (2048, 224) => {
+            hash = |d: &[u8]| crate::hash::sha256::sum224(d).to_vec();
+            seedlen = 28;
+        }
+        (2048, 256) | (3072, 256) => {
+            hash = |d: &[u8]| crate::hash::sha256::sum256(d).to_vec();
+            seedlen = 32;
+        }
+        _ => {
+            return Err(CryptoError::StrError(
+                "dsa: unsupported (L, N) parameter pair",
+            ))
+        }
+    }
+    let outlen = seedlen * 8;
+    let n_chunks = (l - 1) / outlen;
+    let max_counter = 4 * l - 1;
+    let primes = crate::rsa::prime::small_primes_for_testing();
+
+    loop {
+        // Steps (3)-(6): draw a seed and derive the N-bit prime q. The
+        // top and bottom bits are forced; only the low N bits of the
+        // digest are used (equal to the whole digest for our sizes).
+        let mut seed = alloc::vec![0u8; seedlen];
+        rng.fill_bytes(&mut seed);
+        let mut q_bytes = hash(&seed);
+        q_bytes[0] |= 0x80;
+        q_bytes[n / 8 - 1] |= 0x01;
+        let q = Bn::from_be_bytes(&q_bytes);
+        if primes.iter().any(|&d| q.rem_small(d) == 0) {
+            continue;
+        }
+        if !crate::rsa::prime::is_probable_prime(&q, 64, rng)? {
+            continue;
+        }
+
+        // Steps (7)-(11): search for p over the counter. `buf` holds
+        // seed + offset + j; it is incremented before each hash so the
+        // offset advances by n + 1 per counter iteration.
+        let two_q = q.add(&q);
+        let one = Bn::one();
+        let mut buf = seed.clone();
+        for _i in 0..=max_counter {
+            // W = sum V(j) * 2^(outlen * j): byte-concatenation in
+            // big-endian order.
+            let mut w = alloc::vec![0u8; (n_chunks + 1) * seedlen];
+            for j in 0..=n_chunks {
+                inc_be(&mut buf);
+                let v = hash(&buf);
+                let off = w.len() - (j + 1) * seedlen;
+                w[off..off + seedlen].copy_from_slice(&v);
+            }
+            // X = (W mod 2^(L-1)) + 2^(L-1): truncate to L bits, then
+            // force the top bit.
+            let l_bytes = l / 8;
+            let x_bytes = &w[w.len() - l_bytes..];
+            let mut x = Bn::from_be_bytes(x_bytes);
+            x.set_bit(l - 1);
+
+            let c = x.modulus(&two_q);
+            let p = x.sub(&c.sub(&one)?)?;
+            if p.bit_len() != l {
+                continue;
+            }
+            if primes.iter().any(|&d| p.rem_small(d) == 0) {
+                continue;
+            }
+            if !crate::rsa::prime::is_probable_prime(&p, mr_rounds(l), rng)? {
+                continue;
+            }
+
+            // A.2.3: g = h^((p-1)/q) mod p for the first h >= 2 giving g > 1.
+            let pm1 = p.sub(&one)?;
+            let (e, rem) = pm1.divrem(&q)?;
+            if !rem.is_zero() {
+                return Err(CryptoError::StrError("dsa: q does not divide p - 1"));
+            }
+            let mut h = Bn::from_u64(2);
+            for _ in 0..256 {
+                let g = h.mod_pow(&e, &p)?;
+                if !g.is_one() {
+                    return Ok(DsaParams { p, q, g });
+                }
+                h = h.add(&one);
+            }
+            return Err(CryptoError::StrError("dsa: failed to find a generator"));
+        }
+        // Counter exhausted for this seed; draw a fresh one.
+    }
+}
+
 /// DSA sign over SHA-256. Returns `(r, s)`.
+pub fn sign_sha256(key: &DsaKeyPair, msg: &[u8], rng: &mut impl Rng) -> CryptoResult<(Bn, Bn)> {
+    sign(key, DigestId::Sha256, msg, rng)
+}
+
+/// DSA verify over SHA-256. Returns `true` iff the signature is valid.
+pub fn verify_sha256(params: &DsaParams, y: &Bn, msg: &[u8], r: &Bn, s: &Bn) -> CryptoResult<bool> {
+    verify(params, y, DigestId::Sha256, msg, r, s)
+}
+
+/// DSA sign with an explicit digest. Returns `(r, s)`.
 ///
 /// `r = (g^k mod p) mod q`, `s = k^{-1} (H(m) + x r) mod q` with `k`
 /// random in `[1, q-1]`.
-pub fn sign_sha256(key: &DsaKeyPair, msg: &[u8], rng: &mut impl Rng) -> CryptoResult<(Bn, Bn)> {
+pub fn sign(
+    key: &DsaKeyPair,
+    hash: DigestId,
+    msg: &[u8],
+    rng: &mut impl Rng,
+) -> CryptoResult<(Bn, Bn)> {
     let params = &key.params;
     let p = &params.p;
     let q = &params.q;
     if key.x.is_zero() || !key.x.lt(q) {
         return Err(CryptoError::StrError("dsa: private key out of range"));
     }
-    let h = hash_to_int(&sum256(msg), q);
+    let h = hash_to_int(&digest(hash, msg), q);
 
     for _ in 0..128 {
         let k = sample_k(q, rng);
@@ -157,11 +291,19 @@ pub fn sign_sha256(key: &DsaKeyPair, msg: &[u8], rng: &mut impl Rng) -> CryptoRe
     Err(CryptoError::StrError("dsa: failed to produce signature"))
 }
 
-/// DSA verify over SHA-256. Returns `true` iff the signature is valid.
+/// DSA verify with an explicit digest. Returns `true` iff the signature is
+/// valid.
 ///
 /// `w = s^{-1}`, `u1 = H w`, `u2 = r w`, `v = (g^{u1} y^{u2} mod p) mod q`,
 /// accept iff `v == r`. Rejects `r, s` outside `[1, q-1]`.
-pub fn verify_sha256(params: &DsaParams, y: &Bn, msg: &[u8], r: &Bn, s: &Bn) -> CryptoResult<bool> {
+pub fn verify(
+    params: &DsaParams,
+    y: &Bn,
+    hash: DigestId,
+    msg: &[u8],
+    r: &Bn,
+    s: &Bn,
+) -> CryptoResult<bool> {
     let p = &params.p;
     let q = &params.q;
     // Reject r, s outside [1, q-1].
@@ -172,7 +314,7 @@ pub fn verify_sha256(params: &DsaParams, y: &Bn, msg: &[u8], r: &Bn, s: &Bn) -> 
     if y.is_zero() || !y.lt(p) {
         return Ok(false);
     }
-    let h = hash_to_int(&sum256(msg), q);
+    let h = hash_to_int(&digest(hash, msg), q);
 
     let w = s.mod_inverse(q)?;
     let u1 = h.modmul(&w, q);
@@ -376,5 +518,58 @@ mod tests {
         assert!(!verify_sha256(&params, &y, b"m", &Bn::one(), &Bn::zero()).unwrap());
         assert!(!verify_sha256(&params, &y, b"m", &params.q, &Bn::one()).unwrap());
         assert!(!verify_sha256(&params, &y, b"m", &Bn::one(), &params.q).unwrap());
+    }
+    /// The full FIPS 186-4 A.1.2.1.2 parameter generation (release-mode
+    /// cost ~1s; slow in debug builds, so it is ignored by default).
+    #[test]
+    #[ignore = "slow parameter generation; run explicitly (fast under --release)"]
+    fn generate_params_2048_256() {
+        struct R(u64);
+        impl Rng for R {
+            fn fill_bytes(&mut self, out: &mut [u8]) {
+                for b in out.iter_mut() {
+                    self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1);
+                    *b = (self.0 >> 33) as u8;
+                }
+            }
+        }
+        let mut rng = R(0x1234_5678_9abc_def0);
+        let params = generate_params(2048, 256, &mut rng).unwrap();
+        assert_eq!(params.p.bit_len(), 2048);
+        assert_eq!(params.q.bit_len(), 256);
+        // g^q mod p == 1 and keygen + sign/verify roundtrip.
+        assert!(params.g.mod_pow(&params.q, &params.p).unwrap().is_one());
+        let mut rng2 = R(42);
+        let key = generate(&params, &mut rng2).unwrap();
+        let (r, s) = sign_sha256(&key, b"paramgen test", &mut rng2).unwrap();
+        assert!(verify_sha256(&params, &key.y, b"paramgen test", &r, &s).unwrap());
+    }
+
+    /// (p, q, g) produced by `generate_params` and validated for
+    /// interoperability with the OpenSSL CLI (`genpkey -paramfile` +
+    /// `dgst -sha256 -sign`; signature verified both ways).
+    #[test]
+    fn generated_params_openssl_interop() {
+        let params = DsaParams {
+            p: test_bn_hex("96c36601a5520e45232bd00f0d8357dc063bcc7530cdaea452401dea63a3a5e5ac13a99a5736e320d0c2707e24d9a0608a824918c13b7e48006d1cc13bd0e6e00c23dd362276ac26bb192c6b49455b6cdf75244899ee1356da0f70b0c7e9b73f17fd2380a84f2b6b9fbc4982e459fb1bdfe98aa8fe2e246523da79264516737683900dab66f301695704ab6dc0cc7e2e18b4227e74e8e78fbbb9367d55d6111a90b56154a1c341649d530bad1fe7a5dd37a8dce61e767df71ee6617e7ebf0a7f4409a94d4d64066373617ef80ed2229310df5e0816d1bbcad8dde3c27c4085404c2100e59f6aa1ee2a0daa696e9627384adbd77344c7b13c2c8e29ea538e5abd"),
+            q: test_bn_hex("8082a1d5f41d1949afb40ebf7f6dc923ddd26f48f09793035d5d78af1c81a49f"),
+            g: test_bn_hex("2900a173f3a3c72c8880b565b726931135ecabf8f4b372e5549870b01d94759ee263d7e731f1007d856b764d8219eae50ced10b82ab187a862b82d3e8c076ce3334426179de864c29c18c7243d8f36e65b694928b44d0af963da5b67b2098f336352b5afbe3c48e0ceba69907ef154b86110034c8160d2bb3a1df72cb0a39bb4f9c9f5027e741b634601ce9ab60d76d22a4aecbea43f03726396aad454f25ce31a6761c72990bf5edc33e4e2bfb76ca7bfce728e2f249c59487c0b744cbe33288331e8b1285c9948ce8f221c80218a58b8c056eda76ebbc0e8b0037656e37f2286cd8cf7b538e08b9c75f79c9a7497aba9be673b0faa38f42fa8eb6395c6882a"),
+        };
+        assert_eq!(params.p.bit_len(), 2048);
+        assert!(params.g.mod_pow(&params.q, &params.p).unwrap().is_one());
+        assert!(generate(&params, &mut test_rng()).is_ok());
+    }
+
+    fn test_rng() -> impl Rng {
+        struct R(u64);
+        impl Rng for R {
+            fn fill_bytes(&mut self, out: &mut [u8]) {
+                for b in out.iter_mut() {
+                    self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1);
+                    *b = (self.0 >> 33) as u8;
+                }
+            }
+        }
+        R(7)
     }
 }

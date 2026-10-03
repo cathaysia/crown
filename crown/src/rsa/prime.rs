@@ -23,6 +23,10 @@ fn mr_rounds(bits: usize) -> usize {
 
 /// All primes below 17864 (OpenSSL's trial-division table size), computed
 /// with a simple sieve.
+pub(crate) fn small_primes_for_testing() -> Vec<u64> {
+    small_primes()
+}
+
 fn small_primes() -> Vec<u64> {
     const LIMIT: usize = 17864;
     let mut sieve = alloc::vec![true; LIMIT];
