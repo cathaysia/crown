@@ -140,39 +140,47 @@ fn polyval_key(h: u128) -> Polyval {
     Polyval::new(gf_mul(h, X_INV))
 }
 
-/// AES-GCM-SIV (RFC 8452) with AES-128.
+/// AES-GCM-SIV (RFC 8452) with AES-128/192/256 key-generating keys.
+///
+/// RFC 8452 fixes the master key at 16 bytes; the 192/256-bit variants
+/// follow OpenSSL's extension (`cipher_aes_gcm_siv_hw.c`): the
+/// message-authentication key stays 16 bytes while the message-encryption
+/// key length tracks the master key length.
 pub struct AesGcmSiv {
     key: Aes,
+    key_len: usize,
 }
 
 impl AesGcmSiv {
-    /// Create an AES-128-GCM-SIV instance from a 16-byte key-generating key.
+    /// Create an AES-GCM-SIV instance from a 16/24/32-byte key-generating key.
     pub fn new(key: &[u8]) -> CryptoResult<Self> {
-        if key.len() != 16 {
-            return Err(CryptoError::InvalidKeySize {
-                expected: "16",
+        match key.len() {
+            16 | 24 | 32 => Ok(Self {
+                key: Aes::new(key)?,
+                key_len: key.len(),
+            }),
+            _ => Err(CryptoError::InvalidKeySize {
+                expected: "16, 24 or 32",
                 actual: key.len(),
-            });
+            }),
         }
-        Ok(Self {
-            key: Aes::new(key)?,
-        })
     }
 
     /// Derive the per-nonce message-authentication and message-encryption keys.
     fn derive_keys(&self, nonce: &[u8]) -> (u128, Aes) {
+        // The message-authentication key is always 16 bytes (counters 0-1);
+        // the message-encryption key is key_len bytes (counters 2..).
         let mut mak = [0u8; 16];
-        let mut mek = [0u8; 16];
-        for i in 0..4u32 {
-            let mut block = [0u8; 16];
-            block[..4].copy_from_slice(&i.to_le_bytes());
-            block[4..].copy_from_slice(nonce);
-            self.key.encrypt_block(&mut block);
-            match i {
-                0 => mak[..8].copy_from_slice(&block[..8]),
-                1 => mak[8..].copy_from_slice(&block[..8]),
-                2 => mek[..8].copy_from_slice(&block[..8]),
-                _ => mek[8..].copy_from_slice(&block[..8]),
+        let mut mek = alloc::vec![0u8; self.key_len];
+        let mut counter = 0u32;
+        for out in [&mut mak[..], &mut mek[..]] {
+            for chunk in out.chunks_mut(8) {
+                let mut block = [0u8; 16];
+                block[..4].copy_from_slice(&counter.to_le_bytes());
+                block[4..].copy_from_slice(nonce);
+                counter += 1;
+                self.key.encrypt_block(&mut block);
+                chunk.copy_from_slice(&block[..8]);
             }
         }
         let h = u128::from_le_bytes(mak);
@@ -398,6 +406,54 @@ mod tests {
     #[test]
     fn bad_key_size() {
         assert!(AesGcmSiv::new(&[0u8; 15]).is_err());
-        assert!(AesGcmSiv::new(&[0u8; 32]).is_err());
+        assert!(AesGcmSiv::new(&[0u8; 17]).is_err());
+        assert!(AesGcmSiv::new(&[0u8; 33]).is_err());
+    }
+
+    #[test]
+    fn accepts_extended_key_lengths() {
+        for len in [16usize, 24, 32] {
+            let key = alloc::vec![1u8; len];
+            let c = AesGcmSiv::new(&key).unwrap();
+            let nonce = hex("030000000000000000000000");
+            let mut pt = hex("0100000000000000");
+            let tag = c.seal_in_place_separate_tag(&mut pt, &nonce, &[]).unwrap();
+            c.open_in_place_separate_tag(&mut pt, &tag, &nonce, &[])
+                .unwrap();
+            assert_eq!(&pt[..], &hex("0100000000000000")[..]);
+        }
+    }
+
+    /// Golden vectors. 128-bit cases match the RFC 8452 shape; 192/256
+    /// follow OpenSSL's extension and were generated with a locally built
+    /// OpenSSL 3.5.8 EVP interface.
+    mod keylen_vectors {
+        include!("keylen_vectors.rs");
+    }
+
+    #[test]
+    fn keylen_golden_vectors() {
+        for (name, case) in keylen_vectors::CASES {
+            let key = hex(case.key);
+            let nonce = hex(case.nonce);
+            let aad = hex(case.aad);
+            let c = AesGcmSiv::new(&key).unwrap();
+            let mut buf = hex(case.plaintext);
+            let tag = c
+                .seal_in_place_separate_tag(&mut buf, &nonce, &aad)
+                .unwrap();
+            assert_eq!(&buf[..], &hex(case.ciphertext)[..], "{name} ct");
+            assert_eq!(&tag[..], &hex(case.tag)[..], "{name} tag");
+
+            // Open path recovers the plaintext and rejects tampering.
+            c.open_in_place_separate_tag(&mut buf, &tag, &nonce, &aad)
+                .unwrap();
+            assert_eq!(&buf[..], &hex(case.plaintext)[..], "{name} open");
+            let mut bad_tag = tag;
+            bad_tag[0] ^= 0x80;
+            assert!(c
+                .open_in_place_separate_tag(&mut buf, &bad_tag, &nonce, &aad)
+                .is_err());
+        }
     }
 }
