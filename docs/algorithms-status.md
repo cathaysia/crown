@@ -2,7 +2,8 @@
 
 Snapshot as of 2026-10-03 (parity follow-ups: CBC-HMAC-SHA AEADs, CTS variants,
 KW-INV, DES3-WRAP, CFB1/8, GCM-SIV key lengths, RSA/ECDSA/DSA digest
-coverage, DSA parameter generation, RFC 7919 ffdhe groups). Reference trees: `crown-ref/openssl` (Apache-2.0)
+coverage, DSA parameter generation, RFC 7919 ffdhe groups; SM2 encryption
+and key exchange). Reference trees: `crown-ref/openssl` (Apache-2.0)
 and `crown-ref/boringssl` (the BoringSSL stitched AEADs; both vendors are
 dual-licensed under the CRYPTOGAMS license for the perlasm modules).
 
@@ -261,6 +262,9 @@ which the unit tests pin against OpenSSL's EVP vectors instead.
 | DH ffdhe groups (RFC 7919) | `crown/src/dh` | done — `ffdhe(bits)` for 2048/3072/4096/6144/8192, constants cross-checked against OpenSSL |
 | DSA parameter generation (FIPS 186-4 A.1.2.1.2) | `crown/src/dsa` | done — `generate_params(L, N)` for (2048,224), (2048,256), (3072,256); generated groups validated by the OpenSSL CLI |
 | SM2 signature (GM/T 0003.2) | `crown/src/sm2` | done — GM/T sample (d, M="message digest") r/s match |
+| SM2 encryption (GB/T 32918.4-2016) | `crown/src/sm2/crypt` | done — raw C1C3C2 and OpenSSL-compatible DER forms; GB/T 32918.1 annex A worked example (fixed k) + OpenSSL CLI interop both directions |
+| SM2 key exchange (GB/T 32918.3-2016) | `crown/src/sm2/kap` | done — shared key and S1/S2 confirmation tags; GB/T 32918.3 appendix A vector |
+| SM3 x86_64 asm dispatch | `crown/src/hash/sm3` | live — SM2 ZA/KDF/tags ride the ported asm under `feature="asm"` |
 
 ## 3. DRBG / OTP / PBES2 status (feat/rand-otp)
 
