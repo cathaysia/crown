@@ -1,68 +1,94 @@
-//! Ciphertext Stealing (CTS), CBC-CS3.
+//! Ciphertext Stealing (CTS), CBC-CS1/CS2/CS3.
 //!
-//! CBC-CS3 is the variant used by Kerberos (RFC 3962) and IEEE P1619:
-//! - When the plaintext length is a multiple of the block size, the last
-//!   two ciphertext blocks are swapped relative to plain CBC.
-//! - Otherwise the final partial block "steals" bytes from the penultimate
-//!   ciphertext block so the ciphertext length equals the plaintext length
-//!   without padding.
+//! The three variants follow OpenSSL's `AES-*-CBC-CTS` modes
+//! (`providers/implementations/ciphers/cipher_cts.c`):
 //!
-//! The plaintext length must be at least one full block.
+//! - **CS1** (NIST): for messages that are a multiple of the block size
+//!   this is plain CBC. Otherwise the output ends
+//!   `.., C(n-1)[0..r], T` — the penultimate block is truncated and the
+//!   full stolen block `T` comes last.
+//! - **CS2**: like CS1 for full multiples; otherwise like CS3.
+//! - **CS3** (Kerberos5, RFC 3962 via RFC 2040 §8): the last two blocks
+//!   are always swapped. For full multiples this is plain CBC with the
+//!   last two ciphertext blocks exchanged; otherwise the output ends
+//!   `.., T, C(n-1)[0..r]`.
+//!
+//! In all variants the stolen block is
+//! `T = E(P_n || 0^.. ⊕ C(n-1))`, where `C(n-1)` is the CBC ciphertext of
+//! the last full block. Messages must be at least one block long.
 
 use crate::block::BlockCipher;
 use crate::error::{CryptoError, CryptoResult};
 use alloc::vec;
 use alloc::vec::Vec;
 
-/// CBC-CS3 mode over an arbitrary block cipher.
+/// CBC ciphertext-stealing variant.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CtsVariant {
+    /// NIST variant; plain CBC for full multiples.
+    Cs1,
+    /// CS1 for full multiples, CS3 otherwise.
+    Cs2,
+    /// Kerberos5 variant; last two blocks always exchanged.
+    Cs3,
+}
+
+/// CBC-CTS mode over an arbitrary block cipher.
 pub struct Cts<B: BlockCipher> {
     b: B,
     iv: Vec<u8>,
+    variant: CtsVariant,
 }
 
 impl<B: BlockCipher> Cts<B> {
-    /// Create a CS3 instance. `iv` must be exactly one block.
+    /// Create a CS3 (Kerberos5) instance. `iv` must be exactly one block.
     pub fn new(b: B, iv: &[u8]) -> CryptoResult<Self> {
+        Self::with_variant(CtsVariant::Cs3, b, iv)
+    }
+
+    /// Create an instance of the given variant. `iv` must be exactly one block.
+    pub fn with_variant(variant: CtsVariant, b: B, iv: &[u8]) -> CryptoResult<Self> {
         let bs = b.block_size();
         if iv.len() != bs {
             return Err(CryptoError::InvalidIvSize(iv.len()));
         }
-        Ok(Self { b, iv: iv.to_vec() })
+        Ok(Self {
+            b,
+            iv: iv.to_vec(),
+            variant,
+        })
     }
 
     fn block_size(&self) -> usize {
         self.b.block_size()
     }
 
-    /// Encrypt `pt` (length >= block_size) with CBC-CS3.
+    /// Encrypt `pt` (length >= block_size) with the selected variant.
+    /// The ciphertext length always equals the plaintext length.
     pub fn encrypt(&self, pt: &[u8]) -> CryptoResult<Vec<u8>> {
         let bs = self.block_size();
         if pt.len() < bs {
             return Err(CryptoError::InvalidLength);
         }
+        let full = pt.len() / bs;
+        let r = pt.len() % bs;
+        let full_bytes = full * bs;
         let mut out = pt.to_vec();
 
-        if pt.len().is_multiple_of(bs) {
-            // Full blocks: plain CBC, then swap the last two ciphertext blocks.
-            self.cbc_blocks(&mut out);
-            let n = out.len();
-            if n >= 2 * bs {
+        // CBC-encrypt the complete blocks in place → C(1)..C(full).
+        self.cbc_encrypt_blocks(&mut out[..full_bytes]);
+
+        if r == 0 {
+            // CS1/CS2 are plain CBC; CS3 exchanges the last two blocks.
+            if self.variant == CtsVariant::Cs3 && full >= 2 {
                 for i in 0..bs {
-                    out.swap(n - 2 * bs + i, n - bs + i);
+                    out.swap(full_bytes - 2 * bs + i, full_bytes - bs + i);
                 }
             }
             return Ok(out);
         }
 
-        // Partial final block: number of full blocks (>= 1).
-        let full = pt.len() / bs;
-        let r = pt.len() % bs;
-        let full_bytes = full * bs;
-
-        // CBC-encrypt the full blocks in place → C_1..C_full.
-        self.cbc_blocks_partial(&mut out, full_bytes);
-
-        // T = E( (P_last_padded) ⊕ C_full )
+        // Stolen block: T = E(P_n || 0^.. ⊕ C(full)).
         let mut t = vec![0u8; bs];
         t[..r].copy_from_slice(&pt[full_bytes..]);
         for i in 0..bs {
@@ -70,134 +96,71 @@ impl<B: BlockCipher> Cts<B> {
         }
         self.b.encrypt_block(&mut t);
 
-        // C_last = T[0..r]
-        // C_full = T[r..bs] || C_full[0..r]   (the "steal")
-        // Rebuild the tail of `out`.
-        let mut tail = Vec::with_capacity(bs + r);
-        tail.extend_from_slice(&t[r..]);
-        tail.extend_from_slice(&out[full_bytes - bs..full_bytes - bs + r]);
-        tail.extend_from_slice(&t[..r]);
+        // The surviving prefix of C(full).
+        let c_full_prefix = out[full_bytes - bs..full_bytes - bs + r].to_vec();
         out.truncate(full_bytes - bs);
-        out.extend_from_slice(&tail);
+        match self.variant {
+            CtsVariant::Cs1 => {
+                out.extend_from_slice(&c_full_prefix);
+                out.extend_from_slice(&t);
+            }
+            CtsVariant::Cs2 | CtsVariant::Cs3 => {
+                out.extend_from_slice(&t);
+                out.extend_from_slice(&c_full_prefix);
+            }
+        }
         Ok(out)
     }
 
-    /// Decrypt `ct` (length >= block_size) with CBC-CS3.
+    /// Decrypt `ct` (length >= block_size) with the selected variant.
     pub fn decrypt(&self, ct: &[u8]) -> CryptoResult<Vec<u8>> {
         let bs = self.block_size();
         if ct.len() < bs {
             return Err(CryptoError::InvalidLength);
         }
-        if ct.len().is_multiple_of(bs) {
-            // Full blocks: swap last two, then plain CBC decrypt.
+        let full = ct.len() / bs;
+        let r = ct.len() % bs;
+        let full_bytes = full * bs;
+
+        if r == 0 {
             let mut out = ct.to_vec();
-            let n = out.len();
-            if n >= 2 * bs {
+            if self.variant == CtsVariant::Cs3 && full >= 2 {
                 for i in 0..bs {
-                    out.swap(n - 2 * bs + i, n - bs + i);
+                    out.swap(full_bytes - 2 * bs + i, full_bytes - bs + i);
                 }
             }
             self.cbc_decrypt_blocks(&mut out);
             return Ok(out);
         }
 
-        let full = ct.len() / bs;
-        let r = ct.len() % bs;
-        let full_bytes = full * bs;
+        // Locate the full stolen block X (= T) and the partial piece
+        // Y (= C(full)[0..r]); their order differs per variant. Both sit
+        // after the (full-1) untouched leading blocks.
+        let (x, y): (&[u8], &[u8]) = match self.variant {
+            CtsVariant::Cs1 => {
+                let y_start = full_bytes - bs;
+                (
+                    &ct[y_start + r..y_start + r + bs],
+                    &ct[y_start..y_start + r],
+                )
+            }
+            CtsVariant::Cs2 | CtsVariant::Cs3 => {
+                (&ct[full_bytes - bs..full_bytes], &ct[ct.len() - r..])
+            }
+        };
 
-        // Ciphertext layout: C_1..C_{full-1} || C_full' || C_last'
-        // where C_full' = T[r..bs] || C_last_prefix[0..r]  (bs bytes)
-        //       C_last' = T[0..r]                           (r bytes)
-        // Recover T = C_last' || C_full'[0..bs-r]
-        let mut t = vec![0u8; bs];
-        t[..r].copy_from_slice(&ct[full_bytes..]);
-        t[r..].copy_from_slice(&ct[full_bytes - bs..full_bytes - bs + (bs - r)]);
+        // D(T) = P_n' ⊕ C(full), so C(full)[r..] = D(T)[r..].
+        let mut dt = x.to_vec();
+        self.b.decrypt_block(&mut dt);
 
-        // Recover C_full = C_full'[bs-r..] || ??? — actually C_full (the CBC
-        // ciphertext of the last full block) had its first r bytes placed at
-        // C_full'[bs-r..]. The remaining b-r bytes of C_full are the last
-        // b-r bytes of... they were swapped out. Let me re-derive.
-        //
-        // During encrypt we produced:
-        //   tail = T[r..bs] (bs-r bytes) || C_full[0..r] (r bytes) || T[0..r] (r bytes)
-        // so C_full' = T[r..bs] || C_full[0..r], and C_last' = T[0..r].
-        // We know T fully (above). We know C_full[0..r] = C_full'[bs-r..].
-        // The other (bs-r) bytes of C_full are NOT in the output — they were
-        // discarded after use. But we don't need them: to decrypt we need
-        // P_last_full = D(T) ⊕ C_full... wait no.
-        //
-        // Correct inverse:
-        //   D(T) = P_last_padded ⊕ C_full
-        //   so P_last_full = D(T)[0..bs] ⊕ C_full, but we only need P for
-        //   the full blocks via CBC, and the last full plaintext is what we
-        //   want. We are missing C_full[bs-r..] (b-r bytes).
-        //
-        // Actually we DO have them: during encrypt, the CBC ciphertext C_full
-        // is `out[full_bytes-bs..full_bytes]` BEFORE the tail rewrite. Its
-        // first r bytes are preserved at C_full'[bs-r..]. Its last bs-r bytes
-        // were overwritten by T[r..]. So they are lost from the output —
-        // which is correct, because decryption must not need them.
-        //
-        // What we need is:
-        //   P_last_padded = D(T) ⊕ C_full
-        // but C_full itself is recovered as: C_full = (D(T)[r..] ⊕ P_full_tail)
-        // — circular. The standard inverse instead works as follows:
-        //
-        //   Let X = D(T).  Then X = P_last_padded ⊕ C_full.
-        //   C_full = (old C_full)[0..bs]; we know old C_full[0..r] from
-        //   C_full'[bs-r..]. And X[0..r] = P_last ⊕ C_full[0..r] is the
-        //   last partial plaintext (since P_last_padded[0..r] = P_last).
-        //   For the full-block plaintext we then CBC-decrypt using the
-        //   reconstructed C_full: C_full = C_full'[bs-r..] || (X[r..] ⊕ ?)...
-        //
-        // Simpler standard inverse (CS3):
-        //   1. Swap the last two ciphertext "blocks" in the CS3 sense by
-        //      reconstructing the intermediate CBC ciphertext stream:
-        //         C_full = C_full'[0..r] is wrong position...
-        //
-        // Use the well-known CS3 decrypt recipe:
-        //   - Let Cm-1 = last bs bytes of ciphertext-that-are-full (C_full'),
-        //     Cm = final r bytes.
-        //   - T = Cm || Cm-1[0..bs-r]
-        //   - Pm = D(T)[0..r] ⊕ Cm-1[bs-r..]     (Cm-1 tail holds C_full[0..r])
-        //   - Recovered CBC ciphertext of last full block:
-        //         C_full = D(T)[r..] ... no.
-        //
-        // Worked inverse from the encrypt equations:
-        //   T = E(P_last_padded ⊕ C_full)
-        //   C_last' = T[0..r]
-        //   C_full' = T[r..bs] || C_full[0..r]
-        // Therefore:
-        //   T is fully known → P_last_padded ⊕ C_full = D(T)
-        //   C_full[0..r] is known from C_full'[bs-r..]
-        //   ⇒ P_last = D(T)[0..r] ⊕ C_full[0..r] = D(T)[0..r] ⊕ C_full'[bs-r..]
-        //   ⇒ P_last_padded[r..] = D(T)[r..] ⊕ C_full[r..]
-        //   But C_full[r..] is exactly what we want to feed the CBC decrypt
-        //   of the full blocks. We recover it as:
-        //        C_full[r..] = D(T)[r..] ⊕ P_last_padded[r..]
-        //   and P_last_padded[r..] = 0 (we padded with zeros!). So
-        //        C_full[r..] = D(T)[r..]
-        //   Beautiful — that is the point of the zero padding.
-        // Thus:
-        //   C_full = C_full'[bs-r..] || D(T)[r..]
-        //   P_full_and_below via normal CBC decrypt of C_1..C_{full-1} || C_full.
-
-        let mut x = t;
-        self.b.decrypt_block(&mut x);
-
-        // P_last (r bytes)
-        let p_last: Vec<u8> = x[..r]
-            .iter()
-            .zip(ct[full_bytes - bs + (bs - r)..full_bytes].iter())
-            .map(|(a, b)| a ^ b)
-            .collect();
-
-        // Reconstruct C_full = C_full'[bs-r..] (r bytes) || X[r..] (bs-r bytes)
+        // Rebuild C(full) = Y || D(T)[r..] and the partial plaintext
+        // P_n = D(T)[0..r] ⊕ C(full)[0..r].
         let mut c_full = vec![0u8; bs];
-        c_full[..r].copy_from_slice(&ct[full_bytes - bs + (bs - r)..full_bytes]);
-        c_full[r..].copy_from_slice(&x[r..]);
+        c_full[..r].copy_from_slice(y);
+        c_full[r..].copy_from_slice(&dt[r..]);
+        let p_last: Vec<u8> = dt[..r].iter().zip(y.iter()).map(|(a, b)| a ^ b).collect();
 
-        // Build the CBC ciphertext stream C_1..C_full and decrypt.
+        // CBC-decrypt C(1)..C(full).
         let mut stream = Vec::with_capacity(full_bytes);
         stream.extend_from_slice(&ct[..full_bytes - bs]);
         stream.extend_from_slice(&c_full);
@@ -207,23 +170,10 @@ impl<B: BlockCipher> Cts<B> {
     }
 
     /// CBC-encrypt `buf` in place (all of it must be block-aligned).
-    fn cbc_blocks(&self, buf: &mut [u8]) {
+    fn cbc_encrypt_blocks(&self, buf: &mut [u8]) {
         let bs = self.block_size();
         let mut prev = self.iv.clone();
         for chunk in buf.chunks_exact_mut(bs) {
-            for i in 0..bs {
-                chunk[i] ^= prev[i];
-            }
-            self.b.encrypt_block(chunk);
-            prev.copy_from_slice(chunk);
-        }
-    }
-
-    /// CBC-encrypt only the first `len` bytes of `buf` in place.
-    fn cbc_blocks_partial(&self, buf: &mut [u8], len: usize) {
-        let bs = self.block_size();
-        let mut prev = self.iv.clone();
-        for chunk in buf[..len].chunks_exact_mut(bs) {
             for i in 0..bs {
                 chunk[i] ^= prev[i];
             }
@@ -272,9 +222,6 @@ mod tests {
         // 32 bytes = 2 full blocks → last two blocks swapped.
         let (pt, ct) = aes_cts(32);
         assert_eq!(ct.len(), 32);
-        // Ciphertext must differ from plain CBC of the same input.
-        // At minimum, roundtrip holds and the two halves are "swapped"
-        // relative to CBC — we just check CT != PT and stability.
         assert_ne!(ct, pt);
         let (_, ct2) = aes_cts(32);
         assert_eq!(ct, ct2);
@@ -289,7 +236,6 @@ mod tests {
         let pt = [0x00u8; 32];
         let ct = c.encrypt(&pt).unwrap();
         // Plain CBC of two zero blocks: C1 = E(IV), C2 = E(C1). CS3 swaps.
-        // Verify by computing CBC manually.
         let mut c1 = [0x22u8; 16];
         Aes::new(&key).unwrap().encrypt_block(&mut c1);
         let mut c2 = c1;
@@ -327,5 +273,64 @@ mod tests {
     fn bad_iv_size() {
         let key = [0u8; 16];
         assert!(Cts::new(Aes::new(&key).unwrap(), &[0u8; 8]).is_err());
+    }
+
+    /// CS1 leaves full-multiple messages as plain CBC (no swap).
+    #[test]
+    fn cs1_full_multiple_is_plain_cbc() {
+        let key = [0x11u8; 16];
+        let iv = [0x22u8; 16];
+        let aes = Aes::new(&key).unwrap();
+        let c = Cts::with_variant(CtsVariant::Cs1, aes.clone(), &iv).unwrap();
+        let pt = [0u8; 32];
+        let ct = c.encrypt(&pt).unwrap();
+        let mut c1 = iv;
+        aes.encrypt_block(&mut c1);
+        let mut c2 = c1;
+        aes.encrypt_block(&mut c2);
+        assert_eq!(&ct[..16], &c1[..]);
+        assert_eq!(&ct[16..], &c2[..]);
+        assert_eq!(c.decrypt(&ct).unwrap(), pt);
+    }
+}
+
+#[cfg(test)]
+mod vectors {
+    include!("vectors.rs");
+}
+
+#[cfg(test)]
+mod golden_tests {
+    use super::vectors::CTS_VECTORS;
+    use super::*;
+    use crate::block::aes::Aes;
+
+    fn hex(s: &str) -> Vec<u8> {
+        (0..s.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn openssl_cts_golden_vectors() {
+        // key = 0x11.., iv = 0x22.. (matching the generated vectors).
+        let key: Vec<u8> = (0..16u8).map(|i| 0x11 + i).collect();
+        let iv: Vec<u8> = (0..16u8).map(|i| 0x22 + i).collect();
+        let aes = Aes::new(&key).unwrap();
+        for (name, mode, pt_hex, ct_hex) in CTS_VECTORS {
+            let variant = match *mode {
+                "CS1" => CtsVariant::Cs1,
+                "CS2" => CtsVariant::Cs2,
+                _ => CtsVariant::Cs3,
+            };
+            let c = Cts::with_variant(variant, aes.clone(), &iv).unwrap();
+            let pt = hex(pt_hex);
+            let expected = hex(ct_hex);
+            let ct = c.encrypt(&pt).unwrap();
+            assert_eq!(ct, expected, "{name} encrypt");
+            let back = c.decrypt(&expected).unwrap();
+            assert_eq!(back, pt, "{name} decrypt");
+        }
     }
 }

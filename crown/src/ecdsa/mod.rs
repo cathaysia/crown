@@ -18,19 +18,37 @@ use crate::rng::Rng;
 use alloc::vec;
 use alloc::vec::Vec;
 /// Hash algorithm used to digest the message before signing/verifying.
+/// Mirrors the digest set OpenSSL's default provider registers for
+/// ECDSA/DSA signature algorithms.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DigestId {
+    Sha1,
+    Sha224,
     Sha256,
     Sha384,
     Sha512,
+    Sha3_224,
+    Sha3_256,
+    Sha3_384,
+    Sha3_512,
+    Sm3,
+    Ripemd160,
 }
 
 /// Compute the digest of `msg` under `id`.
 pub fn digest(id: DigestId, msg: &[u8]) -> Vec<u8> {
     match id {
+        DigestId::Sha1 => crate::hash::sha1::sum(msg).to_vec(),
+        DigestId::Sha224 => crate::hash::sha256::sum224(msg).to_vec(),
         DigestId::Sha256 => sum256(msg).to_vec(),
         DigestId::Sha384 => sum384(msg).to_vec(),
         DigestId::Sha512 => sum512(msg).to_vec(),
+        DigestId::Sha3_224 => crate::hash::sha3::sum224(msg).to_vec(),
+        DigestId::Sha3_256 => crate::hash::sha3::sum256(msg).to_vec(),
+        DigestId::Sha3_384 => crate::hash::sha3::sum384(msg).to_vec(),
+        DigestId::Sha3_512 => crate::hash::sha3::sum512(msg).to_vec(),
+        DigestId::Sm3 => crate::hash::sm3::sum_sm3(msg).to_vec(),
+        DigestId::Ripemd160 => crate::hash::ripemd160::sum_ripemd160(msg).to_vec(),
     }
 }
 

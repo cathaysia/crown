@@ -771,3 +771,184 @@ fn test_golden_dh_modp2048() {
 
     assert!(checked >= 2, "only {checked} DH cases verified");
 }
+
+// RSA PKCS#1 v1.5 signatures over the newly supported digest set,
+// generated with the OpenSSL CLI (system 3.0.13 for the SHA-2/SHA-3/
+// RIPEMD-160/MD5-SHA1 cases, a locally built 3.5.8 for SM3). PKCS#1 v1.5
+// is deterministic, so the same bytes assert both verify and sign parity.
+// Note: OpenSSL's RSA-SM3 DigestInfo uses the sm3WithRSAEncryption OID
+// (see the digestinfo_prefix comment in crown/src/rsa/mod.rs).
+
+#[test]
+fn test_golden_rsa_new_digests() {
+    use crown::kdf::HashFactory;
+
+    fn hex(s: &str) -> Vec<u8> {
+        (0..s.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap())
+            .collect()
+    }
+
+    let key_der = include_bytes!("data/rsa2048_new_digests_pkcs8.der");
+    let (n, e, d, p, q, dp, dq, qinv) =
+        crown::rsa::der::parse_pkcs8_rsa_private_key(key_der).unwrap();
+    let key = crown::rsa::RsaPrivateKey::from_components(
+        &n,
+        &e,
+        &d,
+        Some(&p),
+        Some(&q),
+        Some(&dp),
+        Some(&dq),
+        Some(&qinv),
+    )
+    .unwrap();
+    let public =
+        crown::rsa::RsaPublicKey::from_components(&key.public().n(), &key.public().e()).unwrap();
+
+    const MSG: &[u8] = b"crown parity vectors";
+
+    let cases: &[(&str, HashFactory, &str)] = &[
+        (
+            "sha512-224",
+            crown::envelope::EvpHash::new_sha512_224,
+            "434ba96f7092c7fda4440caef90abea34208670951b3df3440289f44cb28ca1500379679e566e1f37dda1d7348ea3738c6553871201ea4198dd7d3232c3117ff2bece58ba2b2546992c976349c9ae53251630d4e47443fbf4a98525c362180c58f5eac8f84162bcc3e8c2d4e748d5a0365f317f5255917957a36d23a047ac09a0a747aaad312874543253176ae4b6ba827eebbefa3e1906dd6f3d4e045e0b5da8e70600a965ab5087c96d95d0982f84b95e71ee47409001b14e0644cf98ded514c89044b94fa0a6e013721411095320989d4d0050764ea122d7dde0893d6b26142a2bd95f04b13f0859b683e6f100b93d14afe1bf844aba27e0322f23a6654ca",
+        ),
+        (
+            "sha512-256",
+            crown::envelope::EvpHash::new_sha512_256,
+            "7e28c4f10a934678b162ae7a4dd134bf93bb317497bab3d221833e6977b9e077bf9f01ba362235fd85448a53bbee83ffbe148829a0fcd655b688599c56c10be961863bc2ed09b16dc453f146dfcc6ed3095a0ec108605e46d28ff84370b023b6a05810383a0b5085fa08f20d8709782460bce652fc815d9508b932c87a0fc2411fbaed1e809fb9e8c3abb2f7bef58a83516a0ce32dfca0c9377291bae687dd75cdd0ae758923ba8e4102d787318b1908d7745708be7403e49df6a888be4f0878fad5a4839ce082c77e9b951f9e99886362b87b0901fd8317c10901b27d5cc379b079b5efc1da56dabe0210a674633b32aa33346be38c59552203987519acefe3",
+        ),
+        (
+            "sha3-224",
+            crown::envelope::EvpHash::new_sha3_224,
+            "05626628f10c424cde7c9630d245142aaf99596cea35432bb19308fc273c728f23e6720fdd2075a227b21110e348ffdd90f2a57d1d7f8e1ed9374b90ef8200b31c1317bcddd65bab4f1e684b4b09a2b787da48ed853f24179c06f46705875220c4b2d80a416372d400584439345ce4b16f7199de7b1a378d07936e058520bace9a66b5864f9955cd80ad4640cce9294383b4b0f1b60fb8aa8a89c41084820d42317a284c901cf0653456aa8f1864a2c0a53076fd172f6d013aad387f0aa482f6dcfebb1420321876fc4fbc2616aefbb961b2c241e4aac38449ae1a994926685d45c811d4f17a5a66b1be5e60c186e667fdd71d66bf807ca0b0b5d4cd9000315f",
+        ),
+        (
+            "sha3-256",
+            crown::envelope::EvpHash::new_sha3_256,
+            "536af67d89e40431167ad38109b8aa012fed453b5cb5e5680b80ee5dee8e7ca7f58e98899aafcc8cd6ebec3452bccf6fbda07beb7dc248cf149e15a19c8f62c14e7013da4b33d57469f2d4303d7842c0221055e620b3ae20aa37ffdb356259d1002162e9e6af915e20ab74c8ec0962d30d4bd66bd432348ba55bc08d5eb8eaf2db97e61905c06aa1444c7cbdb990927c07710e296c1658d8ff583e55e2e2291d8a785c2405e5d3395e9b6662c69538d659ed7e035a881928afddbb0ffeef8eb718076d7515e0980eca8c5ae5f6da76fd1d341ac388616edd03e25960ba7b01532652d7b5315d0d4b5248a954da5a6b1d083532e94dc63e1fa8c2eeae2c8e0f40",
+        ),
+        (
+            "sha3-384",
+            crown::envelope::EvpHash::new_sha3_384,
+            "6844bf91ce570587696cd6330000a75cfe27a3ae4302a2bf911ab7c65ef261536b949ee782490eb4a675556f95b3c991db8f7c29bc950ad1b15a4a6c6c25c6a2c2b204044bb2e5664138b0576a1048db034b559bfcd0b7bd49fd1cf50a46c91b66e0936681af728382575e579089824e1c9c43472fe0b38345aa352649021b8d535b797eabd8f6c21b168de54964d812ac16bda49a61b1f58aed11964067fa1e0251d926b53ec288920c7fcf48726aebb5ba508b16c4b64532c3724fef88001d267f503aa08011b8573a477c7fb340533c6ff3701cc9b4b0c78e0be8a7f255176b45120cc868aec60e9b954541bfce603e9f726a597cbb83a92cc3f6f59486c3",
+        ),
+        (
+            "sha3-512",
+            crown::envelope::EvpHash::new_sha3_512,
+            "197d32a971e5778f56d5a662764dfc0dd6d37f8b4be30b6af73a0e399e94cf6b87b3093bd63afb90b8a7d0e07b669556236dfd299d513ba7cc16bd216d14e15ed9549bb74888b7fac14f54b91d4543eef0785bfc6fb0379ab15b6440efe527ea3d361a84490dd775a2da91848a65fa9925eff85622fdcfd99944486dfe07ad6e8d93eda594d3c464d8eb22ebfc528866c57849c15017d4c91022ca3a716bddcf7e28edd0829729feb710f9f485284a13258d229c9d953889df6df277bc96e3bc89dec5b18ee35a57cea583d3febf920663bdea011baa89b7ff17b247c54e57274c58e1bb2771013a8173f0f35819b62bb2e18989d6c610bd0508d1180b636b39",
+        ),
+        (
+            "sm3",
+            crown::envelope::EvpHash::new_sm3,
+            "55cf66e688f6eaf6ab81f6493bb0b17d6eb45632a80372a88c27c944c9bae242b38bf393fab6016e351fa2c03a0c4a34638b953db76416dc5f216dfec8a21e5b78bf14a12eba083c9f4ecc44e700e191604717ebb7cf769e56a440606c2b3fa074df84573c49258a0f5d0558a0491b7b14c4643d3071d50b32002574a75b6e587596b121221cf505c2a5d1f6dbe37e2c592687b6bdbdc268fee3a011cb5a18ae1487f14d2483b4bf49273414876d358f6d7edacd9cb7a8615a2b6d920f13fc8961ea1e36a38b193061477e999743a19af7e4fbca407e5bd0de09939b3e530a5818564c4c97b8169b495107cafe9fc863493077e32cba04e8487c5d4af65d2400",
+        ),
+        (
+            "ripemd160",
+            crown::envelope::EvpHash::new_ripemd160,
+            "00fd6cb42f96976e0e85fa8939cd14a76ceec051f3c8d1f4811f7839338bb94967c80c95e089d30d8887facd02d3b146bb2676f21d391c991e5b1b961aa7c1990df4076df52da2920951b5086ebf2005bd9d89d0c4682bad0d07be16945a4f546e8a99d3516b6bcbf85b4ed2028d45f3d6199ee1e4f79fea5620e82a976a2c60db7c950700f09908e4afff6827fc1688d76326ca6fd4c316cfe41dddb2327295a5739ca28c8f3a3176734bf1729dc0b33e54a548376a7711b945384785d5dd103c26b01addb3246e46228a806cd57386aa17553e6a3b7974a9846d9983e997ffc473e30f1bdb3e025b64880e6c406ff3407e3ae1f9d74c5310813e30712a349d",
+        ),
+        (
+            "md5-sha1",
+            crown::envelope::EvpHash::new_md5_sha1,
+            "5e0ffddc2effa7ebd138f2dc988c980b92faa06e01ac3d200d3bef92a5b46899ee2221412da5e523efe66d2271069afb2bfbade1019e1d0ed42e630b038fab98d22fd7c9fccca2b26b4fb05876f6ea6c49380ca06da4bbdbb0673b9d6238762f2b1d41583c7597331d02a4bf1db60dd241ad030c30d26318e2295f616f28fd16d1cb4b8a8b85bd6d1afd4a8b2660dbbfd2edce435d56e68dd44df848705b6f62be736e954806cf9c8539c9893a9ed90c330b44ab2c463bdf4f1d19b32dee3959bea6d30643be94e811b1328e5c75bab0bffa9a119386ea2d3bbb177b737851548a2e7aca67678eccda0468f785f8a5786bb1bcaffeda295484dbdee45967eb9b",
+        ),
+    ];
+
+    let mut checked = 0usize;
+    for (name, hash, sig_hex) in cases {
+        let sig = hex(sig_hex);
+        assert!(
+            public.verify_pkcs1v15(*hash, MSG, &sig).unwrap(),
+            "{name} verify"
+        );
+        // Deterministic: crown's signing must reproduce OpenSSL's bytes.
+        let ours = key.sign_pkcs1v15(*hash, MSG).unwrap();
+        assert_eq!(ours, sig, "{name} sign parity");
+        checked += 1;
+    }
+    assert!(checked >= 9, "only {checked} RSA digest vectors verified");
+}
+
+// ECDSA/DSA signatures with the extended digest set (SHA-1, SHA-224,
+// SHA-3, SM3, RIPEMD-160), generated with the OpenSSL CLI. ECDSA/DSA are
+// randomized, so these pin the verify direction; the sign direction is
+// pinned by crown-sign → openssl-verify cross-checks run while generating
+// these vectors (all Verified OK).
+
+#[test]
+fn test_golden_ecdsa_dsa_new_digests() {
+    use crown::ec::CurveId;
+    use crown::ecdsa::{self, DigestId};
+
+    fn bn(s: &str) -> Bn {
+        let bytes: Vec<u8> = (0..s.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap())
+            .collect();
+        Bn::from_be_bytes(&bytes)
+    }
+    fn hex(s: &str) -> Vec<u8> {
+        (0..s.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap())
+            .collect()
+    }
+    /// Decode a DER ECDSA/DSA signature SEQUENCE{r,s}.
+    fn parse_sig(der: &[u8]) -> (Bn, Bn) {
+        let mut top = crown::rsa::der::Parser::new(der);
+        let mut seq = top.read_sequence().unwrap();
+        let r = seq.read_integer().unwrap();
+        let s = seq.read_integer().unwrap();
+        (Bn::from_be_bytes(&r), Bn::from_be_bytes(&s))
+    }
+
+    let msg = b"crown parity vectors";
+    let mut checked = 0usize;
+
+    // ECDSA P-256 with a fixed OpenSSL-generated key.
+    let d = bn("4d6f13b188950e94da8aae3f02fdab9636a07246fe3e9832115bc777c08a9e13");
+    let c = curve(CurveId::P256);
+    let pub_key = mul_base(&c, &d);
+    let ec_cases: Vec<(&str, DigestId, &str)> = vec![
+        ("sha224", DigestId::Sha224, "30440220391242bd524a98129e949a66d0412148589817ae64e049148acd58f115e28e7102204628cec0fea8da352d0bc483ba6a410460aad0adb20a2f1a38255984a0cdaaa1"),
+        ("sha3-256", DigestId::Sha3_256, "3046022100805c483a894f9c821c22afbb75ed8a42b8d252bb0536d7dde306a4bfdaa1ad66022100ef8c8c65bff9eea3f87afa5e934c6b5b9d9ba9ee948f8da3dd89441f06f64aed"),
+        ("sm3", DigestId::Sm3, "304402204aa6ae019e40f8d1e0f31cf7076ecabbc651e60123b69aa0de9055bb99dfd75b02203750ee49807e8e193d54c02a814a24715d75fedc34db5a845d14bdb3042810f4"),
+        ("ripemd160", DigestId::Ripemd160, "3044022001a3a10d0e786e301744ec437d57da4972903d4e589d8bb9f6b42d43bcc8754202203daab8b11302dcc97f9462500736e4d4204b92803e64c60370b82b02be8465d5"),
+        ("sha1", DigestId::Sha1, "3046022100fa5877ea40017e971c5e88ecaa7d26ba087333ca5426d47e82f4a692399a77040221008e833073c7ea4ac7ac6867714bdc8bb8b3a8f7d80fda6b04ac780b89a47da204"),
+    ];
+    for (name, hash, sig_hex) in &ec_cases {
+        let (r, s) = parse_sig(&hex(sig_hex));
+        assert!(
+            ecdsa::verify(CurveId::P256, *hash, &pub_key, msg, &r, &s).unwrap(),
+            "ecdsa {name}"
+        );
+        checked += 1;
+    }
+
+    // DSA 2048/256 with a fixed OpenSSL-generated key.
+    let params = dsa::DsaParams {
+        p: bn("00db9fe1845242d3e1adfc314b62cde5d29b2f0a461a8f25bf66692fd62c8855e1d07909c8b450e601d59ce5da67a1440e7de57264e62b999e9417ce33a25aaa0b0b196f4db3a76809950897e7c3d0a6eda46ab24cf25d997534471874a592db457a7c7465dd6c93bb158238071441414edcb0725a22ad0eb3e106655f304285bc08c3c69b0623c2b927c5711d51c7039b343c51ab6add401039db8a7977f15291d451045e4ca54494754b909fcfb043a5f1f34328384840af3c1629b1dcd53fc8eedd9e5923c3369434f52eddbbb7da87b2e110c8f9aad50d678e5f00a14e194d76d19ba2b2489b7ce0f337c7270866c64d08a45450d066ebd17aeca7c0050bb7"),
+        q: bn("00df3c19f2c10e82fcd2a3376e163d5a397dc91d5bd633ccd046d8688f"),
+        g: bn("00b70beb3df15d4b0b322bace46b8d57a32f482a81058b03c495fd0db972fdabd9175208588966453d07c8a6b77e0f167eb9f5f8bcc41476cc2f728fce5be6f29fbe16d30d498afea1a28697e190dc6782515252927ac04f72fcbbe9d1bc31f554dc9acab32d672e424e7e668238f9b4a4afc8cee1f8c0609cc7416f5cc3959fd0c30222db4246298281f8b75c6186f92191cc17a25c5b70d79d4dc55dbd0fcf93cb26447c876746f49308b611e16578fc005c25a2a2b7a1cd5d310b3a95414e7ec4fec38d841f4034b81d95fa44864cb6b6738c98f84ddeae3f9a5be6d313ad419c8cba4b2b17b9a1eb4d64dd544bc768b335ae00424c8bb33edddf98672846cf"),
+    };
+    let y = bn("46b8e820974605a7f2717a393ecf938c3dd3fc07019178406dab291aea304ecc373f95226fee8135453fb1d60d2fc7f2624507de68343ff6f28e764fe90f1e61a1b733ba5f9183570e8578e246446305033648c344ba31033df8b4b53cb5b19a72750524a0d262acc51c1903ac8291e9e726360c6f1de7b057dbbc15c96c6ea6b17b5d0ac3e05bd9ac092b494e88f24a3d8c5fabee0cb7727615b48731e631472854a2f4989c42063b6a12bcb1cd37a141fb2d3420ddee15e2ae6549e21d20083b0e35a5773b63f768596c09946b7b16ec4388f87108e499ff6ed9790a317ff143792f432955b0b1795ebdb864ffe7e38b8d134aaf435748c90a7c963afd07ae");
+    let dsa_cases: Vec<(&str, DigestId, &str)> = vec![
+        ("sha224", DigestId::Sha224, "303c021c5dd99d4ace017585c086a8400cce40f9c64a9978d15fefc72a41ddd8021c59aed4a36c50c3298623027ad842b0087f6858ce3ea6983745c0f0f1"),
+        ("sha3-256", DigestId::Sha3_256, "303e021d00cc3b11adc7a7825bf2ead642def0caf03e4a219ae2fc3c6f3fc7eba2021d00859b8ba0d5de8bc221d412926d6e900e873c7243d0cdcdad5017c019"),
+    ];
+    for (name, hash, sig_hex) in &dsa_cases {
+        let (r, s) = parse_sig(&hex(sig_hex));
+        assert!(
+            dsa::verify(&params, &y, *hash, msg, &r, &s).unwrap(),
+            "dsa {name}"
+        );
+        checked += 1;
+    }
+    assert!(
+        checked >= 7,
+        "only {checked} ECDSA/DSA digest vectors verified"
+    );
+}
