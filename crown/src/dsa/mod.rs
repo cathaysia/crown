@@ -122,6 +122,7 @@ pub fn generate(params: &DsaParams, rng: &mut impl Rng) -> CryptoResult<DsaKeyPa
 }
 
 /// Miller-Rabin rounds for `l`-bit candidates (mirrors rsa::prime policy).
+#[cfg(feature = "alloc")]
 fn mr_rounds(l: usize) -> usize {
     if l > 2048 {
         128
@@ -131,6 +132,7 @@ fn mr_rounds(l: usize) -> usize {
 }
 
 /// Increment a big-endian byte string by one (the FFC seed counter).
+#[cfg(feature = "alloc")]
 fn inc_be(buf: &mut [u8]) {
     for k in (0..buf.len()).rev() {
         buf[k] = buf[k].wrapping_add(1);
@@ -145,6 +147,7 @@ fn inc_be(buf: &mut [u8]) {
 /// `ffc_params_generate`. Supported pairs: `(2048, 224)`, `(2048, 256)`
 /// and `(3072, 256)`. The generator is the canonical small-base search
 /// of A.2.3 starting at `h = 2`.
+#[cfg(feature = "alloc")]
 pub fn generate_params(l: usize, n: usize, rng: &mut impl Rng) -> CryptoResult<DsaParams> {
     let hash: fn(&[u8]) -> Vec<u8>;
     let seedlen: usize;
@@ -521,6 +524,7 @@ mod tests {
     }
     /// The full FIPS 186-4 A.1.2.1.2 parameter generation (release-mode
     /// cost ~1s; slow in debug builds, so it is ignored by default).
+    #[cfg(feature = "alloc")]
     #[test]
     #[ignore = "slow parameter generation; run explicitly (fast under --release)"]
     fn generate_params_2048_256() {
@@ -548,6 +552,7 @@ mod tests {
     /// (p, q, g) produced by `generate_params` and validated for
     /// interoperability with the OpenSSL CLI (`genpkey -paramfile` +
     /// `dgst -sha256 -sign`; signature verified both ways).
+    #[cfg(feature = "alloc")]
     #[test]
     fn generated_params_openssl_interop() {
         let params = DsaParams {
@@ -560,6 +565,7 @@ mod tests {
         assert!(generate(&params, &mut test_rng()).is_ok());
     }
 
+    #[cfg(feature = "alloc")]
     fn test_rng() -> impl Rng {
         struct R(u64);
         impl Rng for R {
