@@ -3,7 +3,8 @@
 Snapshot as of 2026-10-03 (parity follow-ups: CBC-HMAC-SHA AEADs, CTS variants,
 KW-INV, DES3-WRAP, CFB1/8, GCM-SIV key lengths, RSA/ECDSA/DSA digest
 coverage, DSA parameter generation, RFC 7919 ffdhe groups; SM2 encryption
-and key exchange). Reference trees: `crown-ref/openssl` (Apache-2.0)
+and key exchange; Keccak-224/384, KECCAK-KMAC-128/256 and SHA2-256-192).
+Reference trees: `crown-ref/openssl` (Apache-2.0)
 and `crown-ref/boringssl` (the BoringSSL stitched AEADs; both vendors are
 dual-licensed under the CRYPTOGAMS license for the perlasm modules).
 
@@ -96,6 +97,19 @@ is deliberately deferred — see `crown/src/bn/rsaz/NOTES.md`.
 All four are registered in `envelope::EvpHash` (`new_ripemd160`, `new_whirlpool`,
 `new_mdc2`, `new_md5_sha1`).
 
+### crown gaps — hash leftovers — ALL CLOSED 2026-10-03
+
+| algorithm | openssl source | crown status |
+|---|---|---|
+| Keccak-224 / Keccak-384 | `providers/implementations/digests/sha3_prov.c` (`\x01` pad) | implemented (`hash/sha3::new_legacy_keccak224/384`); the 224/256/384/512 widths are registered in `envelope::EvpHash` as `new_keccak224/…/new_keccak512` |
+| KECCAK-KMAC-128 / KECCAK-KMAC-256 | `sha3_prov.c` (`IMPLEMENT_KMAC_functions`, `\x04` pad, XOF) | implemented (`hash/sha3::new_keccak_kmac128/256`); plain Keccak sponge with KMAC's padding, default 32/64-byte output plus arbitrary squeeze via `CoreRead`; registered as `new_keccak_kmac_128/256` |
+| SHA2-256-192 | `crypto/sha/sha256.c` (`ossl_sha256_192_init`, truncated output) | implemented (`hash/sha256::new256_192` / `sum256_192`): standard SHA-256 truncated to its leftmost 192 bits (RFC 8554 SHA-256/192); registered as `new_sha2_256_192` |
+
+Verified against the locally built OpenSSL 3.5.8 CLI
+(`openssl dgst -keccak-224|384|512`, `-keccak-kmac-128|256 [-xoflen N]`,
+`-sha256-192`) for empty, `abc` and a 349-byte multi-block message, plus a
+randomized RustCrypto `sha3` interop test for the four legacy Keccak widths.
+
 ### crown gaps — MAC — ALL CLOSED 2026-09-26 (software; envelope EvpMac surface does not exist yet)
 
 | MAC | crown status |
@@ -185,7 +199,9 @@ Twofish, Salsa20, Rabbit, SOSEMANUK, SOBER128, EAX, bcrypt.
 ## 3. Test-vector sources for this round
 
 - OpenSSL 3.5.8 system CLI (`openssl dgst` / `openssl mac` / `openssl kdf`)
-  where available.
+  where available; the Keccak leftover vectors (legacy Keccak-224..512,
+  KECCAK-KMAC-128/256 incl. `-xoflen` squeezes, SHA2-256-192) come from the
+  locally built `crown-ref/openssl/apps/openssl` (3.5.8).
 - `crown-ref/openssl/test/recipes/30-test_evp_data/`:
   `evpmd_mdc2.txt`, `evpmd_whirlpool.txt` (ISO/IEC 10118-3 set),
   `evpmac_siphash.txt`, `evpmac_cmac_des.txt`, `cmactest.c` (RFC 4493),
