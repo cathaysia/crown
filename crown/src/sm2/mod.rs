@@ -10,7 +10,9 @@
 //! All three reuse the SM3 implementation, which dispatches to the ported
 //! x86_64 asm when the `asm` feature is enabled.
 
+#[cfg(feature = "alloc")]
 pub mod crypt;
+#[cfg(feature = "alloc")]
 pub mod kap;
 
 use crate::bn::Bn;
