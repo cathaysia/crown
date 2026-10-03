@@ -4,6 +4,10 @@
 //! defined by [FIPS 202], as well as the cSHAKE extendable-output-length
 //! functions defined by [SP 800-185].
 //!
+//! The original pre-standard Keccak digests (`new_legacy_keccak*`) and the
+//! KECCAK-KMAC XOF digests used by KMAC (`new_keccak_kmac*`) are provided for
+//! interoperability with OpenSSL.
+//!
 //! [FIPS 202]: https://doi.org/10.6028/NIST.FIPS.202
 //! [SP 800-185]: https://doi.org/10.6028/NIST.SP.800-185
 //!
@@ -99,28 +103,40 @@ impl_new_for!(new256, 32, 512, 256, "SHA3-256");
 impl_new_for!(new384, 48, 768, 384, "SHA3-384");
 impl_new_for!(new512, 64, 1024, 512, "SHA3-512");
 
-/// Create a new [Hash] computing the legacy, non-standard
-/// Keccak-256 hash.
-pub fn new_legacy_keccak256() -> Sha3<32> {
+/// Creates a legacy Keccak sponge with the given rate and the original
+/// Keccak (0x01) domain-separation byte.
+fn new_legacy_keccak<const N: usize>(rate: usize) -> Sha3<N> {
     Sha3 {
         a: [0; 200],
         n: 0,
-        rate: RATE_K512,
+        rate,
         dsbyte: DSBYTE_KECCAK,
         state: digest::SpongeDirection::Absorbing,
     }
 }
 
 /// Create a new [Hash] computing the legacy, non-standard
+/// Keccak-224 hash.
+pub fn new_legacy_keccak224() -> Sha3<28> {
+    new_legacy_keccak(RATE_K448)
+}
+
+/// Create a new [Hash] computing the legacy, non-standard
+/// Keccak-256 hash.
+pub fn new_legacy_keccak256() -> Sha3<32> {
+    new_legacy_keccak(RATE_K512)
+}
+
+/// Create a new [Hash] computing the legacy, non-standard
+/// Keccak-384 hash.
+pub fn new_legacy_keccak384() -> Sha3<48> {
+    new_legacy_keccak(RATE_K768)
+}
+
+/// Create a new [Hash] computing the legacy, non-standard
 /// Keccak-512 hash.
 pub fn new_legacy_keccak512() -> Sha3<64> {
-    Sha3 {
-        a: [0; 200],
-        n: 0,
-        rate: RATE_K1024,
-        dsbyte: DSBYTE_KECCAK,
-        state: digest::SpongeDirection::Absorbing,
-    }
+    new_legacy_keccak(RATE_K1024)
 }
 
 /// Create a new [Hash] computing the SHAKE128 XOF checksum.
@@ -151,6 +167,52 @@ pub fn new_shake256() -> Shake<64> {
             n: 0,
             rate: RATE_K512,
             dsbyte: DSBYTE_SHAKE,
+            state: digest::SpongeDirection::Absorbing,
+        },
+        init_block: alloc::vec::Vec::new(),
+    }
+}
+
+/// Create a new [Hash] computing the KECCAK-KMAC-128 XOF checksum.
+///
+/// This is the plain Keccak sponge carrying KMAC's 0x04 domain-separation
+/// byte (no SP 800-185 function-name prefix), matching OpenSSL's
+/// `KECCAK-KMAC-128`. It differs from [`new_shake128`] (0x1f) and from an
+/// empty-N/empty-S cSHAKE, which SP 800-185 defines to be SHAKE128.
+///
+/// The default output length is 32 bytes; arbitrary lengths are available
+/// through [CoreRead](crate::core::CoreRead).
+#[cfg(feature = "alloc")]
+pub fn new_keccak_kmac128() -> Shake<32> {
+    Shake {
+        d: Sha3 {
+            a: [0; 200],
+            n: 0,
+            rate: RATE_K256,
+            dsbyte: DSBYTE_CSHAKE,
+            state: digest::SpongeDirection::Absorbing,
+        },
+        init_block: alloc::vec::Vec::new(),
+    }
+}
+
+/// Create a new [Hash] computing the KECCAK-KMAC-256 XOF checksum.
+///
+/// This is the plain Keccak sponge carrying KMAC's 0x04 domain-separation
+/// byte (no SP 800-185 function-name prefix), matching OpenSSL's
+/// `KECCAK-KMAC-256`. It differs from [`new_shake256`] (0x1f) and from an
+/// empty-N/empty-S cSHAKE, which SP 800-185 defines to be SHAKE256.
+///
+/// The default output length is 64 bytes; arbitrary lengths are available
+/// through [CoreRead](crate::core::CoreRead).
+#[cfg(feature = "alloc")]
+pub fn new_keccak_kmac256() -> Shake<64> {
+    Shake {
+        d: Sha3 {
+            a: [0; 200],
+            n: 0,
+            rate: RATE_K512,
+            dsbyte: DSBYTE_CSHAKE,
             state: digest::SpongeDirection::Absorbing,
         },
         init_block: alloc::vec::Vec::new(),

@@ -31,6 +31,10 @@ const SIZE: usize = 32;
 // The size of a SHA-224 checksum in bytes.
 const SIZE224: usize = 28;
 
+// The size of a SHA2-256-192 checksum in bytes (SHA-256 truncated to its
+// leftmost 192 bits, the SHA-256/192 of RFC 8554).
+const SIZE_256_192: usize = 24;
+
 // The block size of SHA-256 and SHA-224 in bytes.
 const BLOCK_SIZE: usize = 64;
 
@@ -221,11 +225,7 @@ impl<const N: usize, const IS_224: bool> CoreWrite for Sha256<N, IS_224> {
 
 impl<const N: usize, const IS_224: bool> HashUser for Sha256<N, IS_224> {
     fn size(&self) -> usize {
-        if !IS_224 {
-            SIZE
-        } else {
-            SIZE224
-        }
+        N
     }
 
     fn block_size(&self) -> usize {
@@ -292,6 +292,25 @@ pub fn new224() -> Sha256<28, true> {
     d
 }
 
+/// Create a new [Hash] computing the SHA2-256-192 checksum.
+///
+/// This is FIPS 180-4 SHA-256 with the output truncated to its leftmost
+/// 192 bits (the SHA-256/192 of RFC 8554), matching OpenSSL's
+/// `SHA2-256-192`.
+///
+/// The Hash also implements [Marshalable]
+/// to marshal and unmarshal the internal state of the hash.
+pub fn new256_192() -> Sha256<SIZE_256_192, false> {
+    let mut d = Sha256 {
+        h: [0; 8],
+        x: [0; CHUNK],
+        nx: 0,
+        len: 0,
+    };
+    d.reset();
+    d
+}
+
 /// Compute the SHA-256 checksum of the input.
 pub fn sum256(data: &[u8]) -> [u8; SIZE] {
     let mut h = new256();
@@ -307,5 +326,15 @@ pub fn sum224(data: &[u8]) -> [u8; SIZE224] {
     let full = h.check_sum();
     let mut ret = [0u8; SIZE224];
     ret.copy_from_slice(&full[..SIZE224]);
+    ret
+}
+
+/// Compute the SHA2-256-192 checksum of the input.
+pub fn sum256_192(data: &[u8]) -> [u8; SIZE_256_192] {
+    let mut h = new256_192();
+    h.write_all(data).unwrap();
+    let full = h.check_sum();
+    let mut ret = [0u8; SIZE_256_192];
+    ret.copy_from_slice(&full[..SIZE_256_192]);
     ret
 }
