@@ -66,6 +66,8 @@
 extern crate alloc;
 
 pub mod aead;
+#[cfg(feature = "alloc")]
+pub mod asn1;
 pub mod block;
 pub mod bn;
 pub mod curve448;
@@ -91,6 +93,10 @@ pub mod padding;
 #[cfg(feature = "password")]
 pub mod password_hash;
 #[cfg(feature = "alloc")]
+pub mod pkcs12;
+#[cfg(feature = "alloc")]
+pub mod pkcs7;
+#[cfg(feature = "alloc")]
 pub mod rsa;
 #[cfg(feature = "alloc")]
 pub mod slh_dsa;
@@ -98,6 +104,8 @@ pub mod sm2;
 pub mod stream;
 pub mod x25519;
 pub mod x448;
+#[cfg(feature = "alloc")]
+pub mod x509;
 
 pub mod core;
 

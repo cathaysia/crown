@@ -1,9 +1,10 @@
 # Algorithm & asm porting status
 
-Snapshot as of 2026-10-03 (parity follow-ups: CBC-HMAC-SHA AEADs, CTS variants,
+Snapshot as of 2026-10-04 (parity follow-ups: CBC-HMAC-SHA AEADs, CTS variants,
 KW-INV, DES3-WRAP, CFB1/8, GCM-SIV key lengths, RSA/ECDSA/DSA digest
 coverage, DSA parameter generation, RFC 7919 ffdhe groups; SM2 encryption
-and key exchange; Keccak-224/384, KECCAK-KMAC-128/256 and SHA2-256-192).
+and key exchange; Keccak-224/384, KECCAK-KMAC-128/256 and SHA2-256-192;
+X.509 / PKCS#7 / PKCS#12).
 Reference trees: `crown-ref/openssl` (Apache-2.0)
 and `crown-ref/boringssl` (the BoringSSL stitched AEADs; both vendors are
 dual-licensed under the CRYPTOGAMS license for the perlasm modules).
@@ -170,6 +171,32 @@ EVP_KDF's digest option. HKDF/PBKDF2/scrypt/argon2 already existed
 | ML-KEM/ML-DSA/SLH-DSA/LMS | | ML-KEM (FIPS 203), ML-DSA (FIPS 204) and SLH-DSA (FIPS 205) implemented; LMS not started |
 | RAND | `crypto/rand` | not started; randomized RSA operations take a caller-supplied `Rng` instead |
 
+### crown gaps — PKI (`asn1`/`x509`/`pkcs7`/`pkcs12`) — CLOSED 2026-10-04 (software)
+
+| area | openssl source | crown status |
+|---|---|---|
+| ASN.1 DER/BER | `crypto/asn1` | `asn1`: strict DER reader/writer plus BER indefinite lengths and constructed OCTET STRINGs (real PKCS#7 files), `ObjectIdentifier` with the PKI OID registry, PEM armour with a built-in base64 codec, UTCTime/GeneralizedTime |
+| X.509 certificates | `crypto/x509` | `x509::Certificate`: parse/encode (byte-exact re-encode), PEM, v1/v2/v3, RDNs with UTF8/Printable/IA5/Teletex/BMP strings, validity, unique IDs, all common extensions (basicConstraints, keyUsage, extKeyUsage, SAN/IAN, SKI/AKI, CRL DP, AIA, certificatePolicies), fingerprint, signing and verification |
+| X.509 CSRs | `crypto/x509/x509_req.c` | `x509::CertificationRequest`: parse/encode, attributes, proof-of-possession verification, builder |
+| CRLs | `crypto/x509/x509_crl.c` | `x509::CertificateList`: parse/encode, entry extensions, signature verification, `is_revoked`, builder |
+| Public keys | `crypto/x509/x_pubkey.c` | `SubjectPublicKeyInfo` for RSA, NIST EC (P-256/384/521), Ed25519/Ed448, X25519/X448, SM2, DSA, ML-DSA, SLH-DSA |
+| PKCS#8 | `crypto/pkcs8` | `x509::PrivateKeyInfo` (RSA/EC/Ed/X/SM2/DSA/ML-DSA/SLH-DSA, OpenSSL ML-DSA seed+expanded wrapper) and `EncryptedPrivateKeyInfo` |
+| PBE | `crypto/evp/p5_crpt*`, `p12_crpt.c` | `x509::pbe`: PBKDF2 (runtime PRF), PBES2 (AES-128/192/256-CBC, 3DES-CBC) and the legacy PKCS#12 schemes (RC4-40/128, RC2-40, 2/3-key 3DES) with the BMP password encoding |
+| PKCS#7 / CMS | `crypto/pkcs7`, `crypto/cms` | `pkcs7::SignedData`: parse/verify/create, attached and detached, signed attributes (contentType/messageDigest/signingTime) with byte-exact SET re-tagging, RSA PKCS#1 v1.5 (CMS `rsaEncryption` signatureAlgorithm + separate digest) and PSS, ECDSA, Ed25519/Ed448, SM2, DSA, ML-DSA, SLH-DSA; BER input accepted. EnvelopedData is not implemented |
+| PKCS#12 | `crypto/pkcs12` | `pkcs12::Pfx`: parse/encode, MAC verification (HMAC-SHA1/SHA256 with the PKCS#12 KDF and OpenSSL's empty-password rule), bag decoding (key/shrouded key/cert/CRL/secret/safeContents), attributes (friendlyName/localKeyId), PBES2 + legacy PBE encrypted content, builder producing OpenSSL-readable files |
+
+Signature dispatch is shared (`x509::SignatureAlgorithm`), including the
+`rsaEncryption`-in-CMS special case, MD2/MD4/MD5/SHA-1/SHA-2/SHA-3/SM3/
+RIPEMD-160 digests, and an explicit SM2 identity override because OpenSSL's
+provider CLI signs SM2 with an empty ID unless `distid` is given (the GM/T
+default identity is used by default).
+
+Verification scope: `Certificate::verify`/`verify_signature` cover name
+chaining, validity windows, CA basicConstraints/keyUsage and the signature.
+Full RFC 5280 path validation (name constraints, policies, revocation) and
+OCSP/CMP are out of scope, as are CMS `EnvelopedData` and OCSP response
+signing.
+
 ### crown gaps — other buckets (closed 2026-10-03)
 
 - ARIA/SM4/Camellia/SEED GCM/CCM are wired through the generic
@@ -214,6 +241,12 @@ Twofish, Salsa20, Rabbit, SOSEMANUK, SOBER128, EAX, bcrypt.
   (RSA interop in both directions).
 - `crown-ref/boringssl/crypto/cipher/test/chacha20_poly1305_tests.txt`
   (stitched chacha20-poly1305 asm seal/open).
+- `crown/tests/data/pki/` (committed): certificates/CSRs/CRLs/PKCS#7/
+  PKCS#12/PKCS#8 generated with the locally built OpenSSL 3.5.8 CLI
+  (`req -x509`, `x509 -req`, `ca -gencrl`, `cms -sign`, `pkcs12 -export`
+  both modern and `-legacy`, `pkcs8 -topk8` plain/PBES2/`-v1 PBE-SHA1-3DES`);
+  cross-checked in both directions (crown parses OpenSSL output and the
+  OpenSSL CLI verifies crown-built CMS/PFX).
 - RFC 2289 (RIPEMD-160), RFC 4493 (AES-CMAC), RFC 5297 (AES-SIV),
   RFC 8032 (Ed25519), RFC 8017 (RSA),
   RFC 3711 (SRTP KDF), RFC 3961 (KRB5KDF), McGrew/Viega GCM test case 4
@@ -238,10 +271,10 @@ harness cannot silently degrade into skipping everything again.
 | `pyca_modes.rs` | pyca | AES-XTS (CAVS), AES-SIV, ECB (AES/3DES/SM4), RC4 (incl. offsets) |
 | `pyca_block.rs`, `pyca_stream.rs`, `pyca_aead.rs` | pyca | CBC (NIST CAVS), CTR/CFB128/OFB, GCM/OCB3/ChaCha20-Poly1305 seal *and* open, CAVS negative cases |
 | `hash.rs` | pyca | MD5, SHA-1/2/3, SHAKE (incl. variable output), SM3, BLAKE2b/2s, HMAC-RIPEMD-160 |
+| `pki.rs` | pyca + openssl fixtures | X.509 roots (RSA MD2/SHA-1/SHA-256, ECDSA, Ed25519, Ed448) and a real chain, CSRs (ECDSA/RSA/DSA/MD4, negative case), 100+ PKITS CRLs with 5+ validated against issuers, PKCS#7 (DER/BER/pem certs-only), PKCS#12 (PBES2 AES-256, legacy RC2/3DES, no-password) |
 
 Not covered because crown has no implementation to test against those
-vectors: ML-KEM/ML-DSA, AEGIS,
-PKCS#7/PKCS#12/X.509. DSA/ECDSA/ECDH are now implemented
+vectors: ML-KEM/ML-DSA, AEGIS. DSA/ECDSA/ECDH are now implemented
 and pinned by in-module RFC 6979 / RFC 5903 KATs (X448/Ed448/Ed448ph
 likewise have RFC 7748/8032 in-module vectors). HOTP/TOTP, PBES2 and FF1
 are now implemented with RFC 4226/6238, PKCS#5 and SP 800-38G vectors.
