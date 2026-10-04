@@ -4,9 +4,9 @@
 //! The KDF mixes the password and salt into blocks of the digest's block
 //! size, then iterates a hash chain seeded with `id` bytes:
 //!
-//! * `id = 1` derives MAC/integrity keys,
-//! * `id = 2` derives encryption (key) material,
-//! * `id = 3` derives IV bytes.
+//! * `id = 1` derives encryption key material,
+//! * `id = 2` derives IV bytes,
+//! * `id = 3` derives MAC/integrity keys.
 //!
 //! The caller is responsible for encoding the password the way the PBE
 //! packet expects it (RFC 7292 uses UTF-16-BE with two trailing zero bytes).
