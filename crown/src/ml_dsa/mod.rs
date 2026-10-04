@@ -41,6 +41,9 @@ use alloc::vec::Vec;
 use crate::error::{CryptoError, CryptoResult};
 pub use params::{MlDsaVariant, MAX_CONTEXT_STRING_LEN};
 
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+mod asm;
+
 use params::params as lookup_params;
 
 /// Encoded public-key size in bytes for `variant`.

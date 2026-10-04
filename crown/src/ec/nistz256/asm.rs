@@ -4,8 +4,8 @@
 //! OpenSSL `crypto/ec/asm/ecp_nistz256-x86_64.pl` provides the P-256
 //! field, Montgomery, order and Jacobian point primitives used by
 //! `crypto/ec/ecp_nistz256.c`.  This module exposes them through thin
-//! safe wrappers; it is not yet dispatched from `crate::ec` (see
-//! NOTES.md: "translated, not yet dispatched").
+//! safe wrappers; `crate::ec::nistz256::driver` routes P-256 scalar
+//! multiplication through them under `feature = "asm"`.
 //!
 //! C ABI (`$win64=0`, unix SysV):
 //!

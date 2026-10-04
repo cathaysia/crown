@@ -148,12 +148,20 @@ Montgomery arithmetic, scatter/gather roundtrips, and the AVX2
 
 ## Wiring status
 
-**Translated, not yet dispatched.** The mont5 `bn_mul_mont` /
-`bn_power5` stack still owns `Montgomery::pow_consttime`; the RSAZ helpers
-are exported from `crown::bn::rsaz` and unit-tested, but
-`RSAZ_512_mod_exp` / `RSAZ_1024_mod_exp_avx2` (the C-side windowed
-exponentiators in `rsaz_exp.c`) have no crown equivalent yet. Folding them
-into `pow_consttime` would mean a second table layout (29-bit digits +
-320-byte scatter5 stride vs the mont5 256-byte gather5 stride) and is
-deliberately left out of this port — do not rewrite the Montgomery stack
-to force it.
+**Dispatched.** `rsaz::mod_exp` ports `RSAZ_512_mod_exp` and
+`RSAZ_1024_mod_exp_avx2` from `crypto/bn/rsaz_exp.c`:
+
+- the 512-bit driver uses a 16-entry scatter4/gather4 table (64-byte
+  stride) with 4-bit windows over the exponent bytes;
+- the 1024-bit driver uses the redundant 29-bit-digit form with the
+  32-entry scatter5 table (32-byte aligned, 4608 bytes), the `two80`
+  bridge constant and 5-bit windows.
+
+`Montgomery::pow_consttime` calls the driver for 8- and 16-limb moduli
+(RSA-1024/2048 CRT halves) when `avx2_eligible()` holds (1024-bit only)
+and falls back to the mont5 stack on any mismatch — the mont5 table
+layout is untouched.
+
+Tests: `pow_consttime_matches_windowed` / `..._1024` and
+`rsaz_mod_exp_driver_matches_windowed` cross-check the drivers against
+the 4-bit windowed `Montgomery::pow` for random bases and exponents.

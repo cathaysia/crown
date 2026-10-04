@@ -27,7 +27,7 @@ dual-licensed under the CRYPTOGAMS license for the perlasm modules).
 | `crypto/chacha/asm/chacha-x86_64.pl` | `crown/src/stream/chacha20/x86_64.ts` |
 | `boringSSL crypto/cipher/asm/chacha20_poly1305_x86_64.pl` | `crown/src/aead/chacha20poly1305/x86_64.ts` (`_CET_ENDBR` expanded, SSE4.1+AVX2 dispatch in Rust) |
 | `crypto/ec/asm/x25519-x86_64.pl` | `crown/src/ed25519/x86_64.ts` (fe51 for ed25519, fe64 for x25519; `$addx=1` pin) |
-| `crypto/ec/asm/ecp_nistz256-x86_64.pl` | `crown/src/ec/nistz256/x86_64.ts` (+ NOTES.md; translated, not yet dispatched) |
+| `crypto/ec/asm/ecp_nistz256-x86_64.pl` | `crown/src/ec/nistz256/x86_64.ts` (+ NOTES.md; `driver.rs` dispatches P-256 scalar mult, w5 + precomputed w7) |
 | `crypto/md5/asm/md5-x86_64.pl` | `crown/src/hash/md5/block/x86_64.ts` |
 | `crypto/modes/asm/aesni-gcm-x86_64.pl` | `crown/src/aead/gcm/x86_64.ts` (stitch; wired into AES-GCM seal/open for the bulk) |
 | `crypto/modes/asm/ghash-x86_64.pl` | `crown/src/block/aes/gcm/x86_64.ts` (dispatch live in `block::aes::gcm::ghash`; `gcm_init_avx` + `gcm_ghash_avx` ported and wired; `gcm_gmult_avx` is the upstream alias of the clmul body) |
@@ -40,6 +40,7 @@ dual-licensed under the CRYPTOGAMS license for the perlasm modules).
 | `crypto/sm3/asm/sm3-x86_64.pl` | `crown/src/hash/sm3/x86_64.ts` |
 | `crypto/sm4/asm/sm4-x86_64.pl` | `crown/src/block/sm4/x86_64.ts` |
 | `crypto/whrlpool/asm/wp-x86_64.pl` | `crown/src/hash/whirlpool/x86_64.ts` (+ NOTES.md) |
+| `crypto/ml_dsa/asm/ml_dsa_ntt-x86_64.pl` (upstream master) | `crown/src/ml_dsa/ntt_x86_64.ts` (frozen perl output; AVX2 dispatches `ntt`/`ntt_inverse`/`ntt_mult`) |
 
 ### Remaining, by bucket
 
@@ -50,17 +51,18 @@ dual-licensed under the CRYPTOGAMS license for the perlasm modules).
   and `aesni-sha256-x86_64.pl` are ported and wired: the TLS
   `AES-CBC-HMAC-SHA{1,256}` AEADs live in `aead::cbc_hmac` (software path on
   all targets, stitched bulk on x86_64+AES-NI). `sha1-mb-x86_64.pl` and
-  `sha256-mb-x86_64.pl` remain (the multi-block ciphers are only consumed by
-  the TLS CBC-HMAC stitched ciphers' pipelined path, which crown does not
-  implement).
+  `sha256-mb-x86_64.pl` are translated (`hash/sha1/mb`, `hash/sha256/mb`)
+  but unwired: the multi-block ciphers are only consumed by the TLS
+  CBC-HMAC stitched ciphers' pipelined path, which crown does not implement.
 - **no crown consumer:** `keccak1600x4-avx512vl.pl` (4-way SHA3; crown sha3 is single-stream;
   `keccak1600-avx2/avx512/avx512vl.pl` are not even referenced by this
   OpenSSL's `build.info`).
-- **not yet visited buckets:** `bn/` (`gf2m` — mont, mont5, rsaz-x86_64 and
-  rsaz-avx2 are done), `ml_dsa/` (`ml_dsa_ntt`). `ec/` is complete:
-  `x25519-x86_64.pl` is wired; `ecp_nistz256-x86_64.pl` is translated (see
-  Done table) and unit-tested but not yet dispatched into `crate::ec` — see
-  `crown/src/ec/nistz256/NOTES.md`.
+- **remaining:** `bn/` `gf2m` (the `mul_2x2` primitive is translated and
+  tested, but binary-field EC — the only consumer — is not implemented;
+  see `crown/src/bn/gf2m.rs`). Everything else is now translated and
+  dispatched: `ec/` (`x25519-x86_64.pl`, `ecp_nistz256-x86_64.pl` via
+  `ec::nistz256::driver`), `bn/` (`mont`, `mont5`, `rsaz-x86_64` and
+  `rsaz-avx2` via `bn::rsaz::mod_exp`) and `ml_dsa/` (`ml_dsa_ntt`).
 
 ### Wiring status of the newly ported asm
 
@@ -77,12 +79,20 @@ rc4 and aes-ctr32 are live. `wp-x86_64.pl` is ported and wired into
 fallback and the test oracle).
 
 The RSAZ 512/1024 helpers (`rsaz-x86_64.pl` / `rsaz-avx2.pl`) are
-**translated and unit-tested but not dispatched**: `crown::bn::rsaz`
-exports the 7 + 7 primitives and the tests cross-check them against `Bn`
-Montgomery arithmetic, but `Montgomery::pow_consttime` still runs on the
-mont5 stack. Folding RSAZ in would mean a second table layout (29-bit
-digits, 320-byte scatter5 stride vs mont5's 256-byte gather5 stride) and
-is deliberately deferred — see `crown/src/bn/rsaz/NOTES.md`.
+dispatched: `crown::bn::rsaz::mod_exp` ports `rsaz_exp.c` and
+`Montgomery::pow_consttime` routes 512-/1024-bit moduli (RSA-1024/2048
+CRT halves) through it, with the mont5 stack as fallback — see
+`crown/src/bn/rsaz/NOTES.md`.
+
+The nistz256 module is dispatched the same way: `ec::nistz256::driver`
+ports `ecp_nistz256.c` (w5 windowed ladder for variable points, the
+precomputed w7 generator table for `mul_base`) and `crate::ec` routes
+P-256 through it — see `crown/src/ec/nistz256/NOTES.md`.
+
+ML-DSA's `ml_dsa_ntt` is ported as a frozen build of the upstream perl
+output (the vendored 3.5.8 tree predates the script) and dispatches
+`ntt`/`ntt_inverse`/`ntt_mult` when AVX2 is available — see
+`crown/src/ml_dsa/NOTES.md`.
 
 ## 2. Algorithm coverage: crown vs OpenSSL (default provider)
 

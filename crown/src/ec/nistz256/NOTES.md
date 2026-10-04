@@ -111,15 +111,27 @@ causes double-sizing (`orq` → `orqq`) — do not do that.
 
 ## Wiring status
 
-**Translated, not yet dispatched.**  The asm is compiled and unit-tested
-(`crown/src/ec/nistz256/tests.rs`, gated on `feature = "asm"` +
-`target_arch = "x86_64"`) against the software Jacobian path in
-`crown/src/ec` and against RFC 5903 §8.1 P-256 KATs.  It is **not**
-routed into `crate::ec::point_mul` / `Point::mul_with` yet: crown's
-software path uses generic `Bn` arithmetic in plain (non-Montgomery)
-domain, while this asm expects fixed 4-limb Montgomery-form buffers.
-Bridging that would require a Montgomery-aware P-256 field context in
-`crown/src/ec`; left for a follow-up.
+**Dispatched.**  `crown/src/ec/nistz256/driver.rs` ports the drivers from
+`crypto/ec/ecp_nistz256.c`:
+
+- `driver::mul` is `ecp_nistz256_windowed_mul` (w5 Booth-recode ladder,
+  scatter/gather table built with the asm point ops);
+- `driver::mul_base` uses the static `ecp_nistz256_precomputed` w7
+  generator table emitted by the perlasm module.
+
+`crate::ec::Point::mul_with` and `crate::ec::mul_base` route P-256
+(`is_p256` compares the prime, so SM2 stays on the software path) through
+the driver under `feature = "asm"` + `target_arch = "x86_64"`, falling
+back to `mul_with_soft` on any error.
+
+Two asm details matter on the Rust side: `scatter_w5` uses `movdqa` for
+both the table and the input point (16-byte alignment required; the
+driver copies through `AlignedPoint`), and `gather_w5`/`gather_w7` treat
+index 0 as the implicit infinity, which the window loops rely on.
+
+`crown/src/ec/nistz256/tests.rs` cross-checks the driver against the
+software path for small, large and pseudo-random scalars, and validates
+row 0 of the precomputed table against `to_mont(G)`.
 
 ## Re-run tests
 
