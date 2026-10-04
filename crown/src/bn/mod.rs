@@ -914,6 +914,12 @@ impl Montgomery {
             return self.pow(a_mont, e);
         }
 
+        // RSAZ owns 512- and 1024-bit moduli (RSA-1024/2048 CRT halves)
+        // when the CPU supports it; everything else stays on mont5.
+        if let Some(result) = crate::bn::rsaz::mod_exp(self, a_mont, e) {
+            return result;
+        }
+
         let pad = |b: &Bn| -> alloc::vec::Vec<u64> {
             let mut v = alloc::vec![0u64; num];
             #[allow(clippy::manual_memcpy)]

@@ -281,6 +281,37 @@ fn pow_consttime_matches_windowed() {
     }
 }
 
+/// 1024-bit counterpart; with the asm feature this exercises the
+/// RSAZ_1024_mod_exp_avx2 driver path.
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[test]
+fn pow_consttime_matches_windowed_1024() {
+    let mut n_be = [0xffu8; 128];
+    n_be[127] = 0x01; // odd, 1024-bit
+    let n = Bn::from_be_bytes(&n_be);
+    let mont = Montgomery::new(&n).unwrap();
+
+    let mut rng = 0x5eed_1024u64;
+    for case in 0..4 {
+        let mut a_be = [0u8; 128];
+        let mut e_be = [0u8; 128];
+        for b in a_be.iter_mut().chain(e_be.iter_mut()) {
+            rng = rng.wrapping_mul(0x9e3779b97f4a7c15).wrapping_add(case);
+            *b = (rng >> 24) as u8;
+        }
+        a_be[0] |= 1;
+        e_be[0] |= 1;
+
+        let a = Bn::from_be_bytes(&a_be).modulus(&n);
+        let e = Bn::from_be_bytes(&e_be);
+        let a_mont = mont.to_mont(&a);
+
+        let got = mont.pow_consttime(&a_mont, &e);
+        let want = mont.pow(&a_mont, &e);
+        assert_eq!(got, want, "case {case}");
+    }
+}
+
 // rsaz-x86_64.pl / rsaz-avx2.pl helpers vs Bn arithmetic.
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 mod rsaz_tests {
@@ -615,5 +646,44 @@ mod gf2m_tests {
         assert_eq!(gf2m::poly_mul64(u64::MAX, 1), [u64::MAX, 0]);
         // x^63 * x^63 = x^126 -> high limb bit 62.
         assert_eq!(gf2m::poly_mul64(1 << 63, 1 << 63), [0, 1 << 62]);
+    }
+}
+
+/// The RSAZ drivers must actually be taken for 512/1024-bit moduli (and
+/// match the windowed pow).
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[test]
+fn rsaz_mod_exp_driver_matches_windowed() {
+    let mut rng = 0xabcd_ef01u64;
+    for limbs in [8usize, 16usize] {
+        if limbs == 16 && !rsaz::avx2_eligible() {
+            continue;
+        }
+        // Odd modulus (composite is fine for the arithmetic).
+        let mut n_limbs = vec![0u64; limbs];
+        for (i, slot) in n_limbs.iter_mut().enumerate() {
+            rng = rng.wrapping_mul(0x9e3779b97f4a7c15).wrapping_add(i as u64);
+            *slot = rng;
+        }
+        n_limbs[0] |= 1;
+        n_limbs[limbs - 1] |= 1 << 63;
+        let n = Bn { limbs: n_limbs };
+        let mont = Montgomery::new(&n).unwrap();
+        for case in 0..4u64 {
+            let mut a_limbs = vec![0u64; limbs];
+            let mut e_limbs = vec![0u64; limbs];
+            for slot in a_limbs.iter_mut().chain(e_limbs.iter_mut()) {
+                rng = rng.wrapping_mul(0x9e3779b97f4a7c15).wrapping_add(case);
+                *slot = rng;
+            }
+            a_limbs[limbs - 1] &= 1 << 63; // keep a < n
+            let a = Bn { limbs: a_limbs };
+            let a = a.modulus(&n);
+            let e = Bn { limbs: e_limbs };
+            let a_mont = mont.to_mont(&a);
+            let got = rsaz::mod_exp(&mont, &a_mont, &e).expect("rsaz driver");
+            let want = mont.pow(&a_mont, &e);
+            assert_eq!(got, want, "limbs={limbs} case={case}");
+        }
     }
 }

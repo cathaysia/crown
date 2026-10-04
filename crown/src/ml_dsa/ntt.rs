@@ -71,7 +71,20 @@ pub(crate) fn mod_sub(a: u32, b: u32) -> u32 {
 }
 
 /// In-place forward NTT (FIPS 204 Algorithm 41), Montgomery form.
+///
+/// Uses the AVX2 assembly when the `asm` feature is on and the CPU
+/// supports it; otherwise the portable version below.
 pub(crate) fn ntt(p: &mut [u32; N]) {
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    if super::asm::capable() {
+        super::asm::ntt(p, &ZETAS_MONTGOMERY);
+        return;
+    }
+    ntt_soft(p)
+}
+
+/// Portable in-place forward NTT.
+fn ntt_soft(p: &mut [u32; N]) {
     let mut offset = N;
     let mut step = 1;
     while step < N {
@@ -93,6 +106,16 @@ pub(crate) fn ntt(p: &mut [u32; N]) {
 
 /// In-place inverse NTT (FIPS 204 Algorithm 42), Montgomery form.
 pub(crate) fn ntt_inverse(p: &mut [u32; N]) {
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    if super::asm::capable() {
+        super::asm::ntt_inverse(p);
+        return;
+    }
+    ntt_inverse_soft(p)
+}
+
+/// Portable in-place inverse NTT.
+fn ntt_inverse_soft(p: &mut [u32; N]) {
     let mut offset = 1;
     let mut step = N;
     while offset < N {
@@ -117,7 +140,65 @@ pub(crate) fn ntt_inverse(p: &mut [u32; N]) {
 
 /// Pointwise product of two NTT-form polynomials (FIPS 204 Algorithm 45).
 pub(crate) fn ntt_mult(lhs: &[u32; N], rhs: &[u32; N], out: &mut [u32; N]) {
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    if super::asm::capable() {
+        super::asm::ntt_mult(lhs, rhs, out);
+        return;
+    }
+    ntt_mult_soft(lhs, rhs, out)
+}
+
+/// Portable pointwise product.
+fn ntt_mult_soft(lhs: &[u32; N], rhs: &[u32; N], out: &mut [u32; N]) {
     for i in 0..N {
         out[i] = reduce_montgomery(lhs[i] as u64 * rhs[i] as u64);
+    }
+}
+
+#[cfg(all(test, feature = "asm", target_arch = "x86_64"))]
+mod asm_tests {
+    use super::*;
+
+    fn pseudo_random(seed: &mut u64) -> u32 {
+        *seed = seed
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        ((*seed >> 33) as u32) % Q
+    }
+
+    #[test]
+    fn avx2_matches_portable() {
+        if !super::super::asm::capable() {
+            return;
+        }
+        let mut seed = 0x1234_5678_9abc_def0u64;
+        for round in 0..8 {
+            let mut input = [0u32; N];
+            for c in input.iter_mut() {
+                *c = pseudo_random(&mut seed);
+            }
+
+            let mut asm_ntt = input;
+            super::super::asm::ntt(&mut asm_ntt, &ZETAS_MONTGOMERY);
+            let mut soft_ntt = input;
+            ntt_soft(&mut soft_ntt);
+            assert_eq!(asm_ntt, soft_ntt, "ntt round {round}");
+
+            let mut asm_inv = asm_ntt;
+            super::super::asm::ntt_inverse(&mut asm_inv);
+            let mut soft_inv = soft_ntt;
+            ntt_inverse_soft(&mut soft_inv);
+            assert_eq!(asm_inv, soft_inv, "ntt_inverse round {round}");
+
+            let mut other = [0u32; N];
+            for c in other.iter_mut() {
+                *c = pseudo_random(&mut seed);
+            }
+            let mut asm_mult = [0u32; N];
+            super::super::asm::ntt_mult(&asm_ntt, &other, &mut asm_mult);
+            let mut soft_mult = [0u32; N];
+            ntt_mult_soft(&soft_ntt, &other, &mut soft_mult);
+            assert_eq!(asm_mult, soft_mult, "ntt_mult round {round}");
+        }
     }
 }

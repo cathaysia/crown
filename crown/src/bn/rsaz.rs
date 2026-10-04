@@ -4,9 +4,11 @@
 //! OpenSSL's `crypto/bn/asm/rsaz-x86_64.pl` provides 512-bit Montgomery
 //! primitives (R = 2^512, 8 limbs) used by `RSAZ_512_mod_exp`, and
 //! `crypto/bn/asm/rsaz-avx2.pl` provides the 1024-bit AVX2 family used by
-//! `RSAZ_1024_mod_exp_avx2`. Both are translated, exported and unit-tested
-//! here; they are not yet dispatched from [`crate::bn::Montgomery`]
-//! (the mont5 `bn_mul_mont`/`bn_power5` stack still owns `pow_consttime`).
+//! `RSAZ_1024_mod_exp_avx2`. Both are translated, exported, unit-tested
+//! and dispatched: [`mod_exp`] ports `crypto/bn/rsaz_exp.c` and
+//! [`crate::bn::Montgomery::pow_consttime`] routes 512- and 1024-bit
+//! moduli (RSA-1024/2048 CRT halves) through it, falling back to the mont5
+//! `bn_mul_mont`/`bn_power5` stack for everything else.
 //!
 //! C ABI (`$win64=0`, unix SysV):
 //!
@@ -295,4 +297,349 @@ pub fn gather5_1024_avx2(val: &mut [u64], tbl: &[u64], i: u32) {
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 pub fn avx2_eligible() -> bool {
     unsafe { rsaz_avx2_eligible() != 0 }
+}
+
+// ---------------------------------------------------------------------------
+// Drivers: ports of crypto/bn/rsaz_exp.c
+// ---------------------------------------------------------------------------
+
+use crate::bn::{Bn, Montgomery};
+use alloc::vec::Vec;
+
+/// 64-byte aligned scratch storage for the scatter tables.
+#[repr(align(64))]
+struct Aligned<const N: usize>([u64; N]);
+
+/// Widen `v` to `num` limbs.
+fn pad(v: &Bn, num: usize) -> Vec<u64> {
+    let mut out = alloc::vec![0u64; num];
+    for (slot, &limb) in out.iter_mut().zip(v.limbs.iter()) {
+        *slot = limb;
+    }
+    out
+}
+
+/// Conditional subtract of `m` once, for results below `2*m`.
+fn reduce_once(v: &mut [u64], m: &[u64]) {
+    let mut ge = true;
+    for (a, b) in v.iter().zip(m.iter()).rev() {
+        if a != b {
+            ge = a > b;
+            break;
+        }
+    }
+    if ge {
+        let mut borrow = 0u64;
+        for (a, &b) in v.iter_mut().zip(m.iter()) {
+            let (d1, b1) = a.overflowing_sub(b);
+            let (d2, b2) = d1.overflowing_sub(borrow);
+            *a = d2;
+            borrow = (b1 as u64) | (b2 as u64);
+        }
+    }
+}
+
+/// RSAZ-backed `a^e mod n` returned in Montgomery form, matching
+/// [`Montgomery::pow_consttime`]'s contract.
+///
+/// Returns `None` when the modulus size or CPU features do not apply, so
+/// the caller falls back to the mont5 stack.
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+pub(crate) fn mod_exp(mont: &Montgomery, a_mont: &Bn, e: &Bn) -> Option<Bn> {
+    let num = mont.limbs;
+    if !matches!(num, LIMBS_512 | LIMBS_1024) {
+        return None;
+    }
+    if num == LIMBS_1024 && !avx2_eligible() {
+        return None;
+    }
+    if e.is_zero() {
+        return Some(mont.to_mont(&Bn::one()));
+    }
+    // RSAZ takes the base in the normal domain.
+    let a_norm = mont.from_mont(a_mont);
+    let base = pad(&a_norm, num);
+    let exponent = pad(e, num);
+    let m = pad(&mont.n, num);
+    let rr = pad(&mont.r2, num);
+    let n0 = mont.n0;
+    let normal: Vec<u64> = if num == LIMBS_512 {
+        let mut b = [0u64; LIMBS_512];
+        let mut x = [0u64; LIMBS_512];
+        let mut md = [0u64; LIMBS_512];
+        let mut r = [0u64; LIMBS_512];
+        b.copy_from_slice(&base);
+        x.copy_from_slice(&exponent);
+        md.copy_from_slice(&m);
+        r.copy_from_slice(&rr);
+        mod_exp_512(&b, &x, &md, n0, &r).to_vec()
+    } else {
+        let mut b = [0u64; LIMBS_1024];
+        let mut x = [0u64; LIMBS_1024];
+        let mut md = [0u64; LIMBS_1024];
+        let mut r = [0u64; LIMBS_1024];
+        b.copy_from_slice(&base);
+        x.copy_from_slice(&exponent);
+        md.copy_from_slice(&m);
+        r.copy_from_slice(&rr);
+        mod_exp_1024(&b, &x, &md, n0, &r).to_vec()
+    };
+    let mut result = Bn { limbs: normal };
+    result.normalize();
+    if !result.lt(&mont.n) {
+        result = result.sub(&mont.n).unwrap_or(result);
+    }
+    Some(mont.to_mont(&result))
+}
+
+/// `RSAZ_512_mod_exp` (R = 2^512).
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+fn mod_exp_512(
+    base: &[u64; LIMBS_512],
+    exponent: &[u64; LIMBS_512],
+    m: &[u64; LIMBS_512],
+    n0: u64,
+    rr: &[u64; LIMBS_512],
+) -> [u64; LIMBS_512] {
+    let mut table = Aligned::<{ 16 * LIMBS_512 }>([0u64; 16 * LIMBS_512]);
+    let mut a_inv = [0u64; LIMBS_512];
+    let mut temp = [0u64; LIMBS_512];
+
+    // table[0] = R mod m = -m
+    let mut minus_m = [0u64; LIMBS_512];
+    minus_m[0] = 0u64.wrapping_sub(m[0]);
+    for i in 1..LIMBS_512 {
+        minus_m[i] = !m[i];
+    }
+    scatter4_512(&mut table.0, &minus_m, 0);
+
+    // table[1] = base * R
+    mul_512(&mut a_inv, base, rr, m, n0);
+    scatter4_512(&mut table.0, &a_inv, 1);
+
+    // table[2] = (base * R)^2 / R
+    let a_owned = a_inv;
+    sqr_512(&mut temp, &a_owned, m, n0, 1);
+    scatter4_512(&mut table.0, &temp, 2);
+
+    // table[3..16]
+    for index in 3..16u32 {
+        let a_owned = a_inv;
+        mul_scatter4_512(&mut temp, &a_owned, m, n0, &mut table.0, index);
+    }
+
+    let mut bytes = [0u8; 64];
+    for (i, &limb) in exponent.iter().enumerate() {
+        bytes[i * 8..i * 8 + 8].copy_from_slice(&limb.to_le_bytes());
+    }
+
+    let mut wvalue = bytes[63];
+    gather4_512(&mut temp, &table.0, u32::from(wvalue >> 4));
+    let t_owned = temp;
+    sqr_512(&mut temp, &t_owned, m, n0, 4);
+    let t_owned = temp;
+    mul_gather4_512(
+        &mut temp,
+        &t_owned,
+        &table.0,
+        m,
+        n0,
+        u32::from(wvalue & 0x0f),
+    );
+
+    for index in (0..=62).rev() {
+        wvalue = bytes[index];
+        let t_owned = temp;
+        sqr_512(&mut temp, &t_owned, m, n0, 4);
+        let t_owned = temp;
+        mul_gather4_512(&mut temp, &t_owned, &table.0, m, n0, u32::from(wvalue >> 4));
+        let t_owned = temp;
+        sqr_512(&mut temp, &t_owned, m, n0, 4);
+        let t_owned = temp;
+        mul_gather4_512(
+            &mut temp,
+            &t_owned,
+            &table.0,
+            m,
+            n0,
+            u32::from(wvalue & 0x0f),
+        );
+    }
+
+    let t_owned = temp;
+    mul_by_one_512(&mut temp, &t_owned, m, n0);
+    reduce_once(&mut temp, m);
+    temp
+}
+
+/// `RSAZ_1024_mod_exp_avx2` (AMM R = 2^1044, redundant 29-bit digits).
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+fn mod_exp_1024(
+    base: &[u64; LIMBS_1024],
+    exponent: &[u64; LIMBS_1024],
+    m: &[u64; LIMBS_1024],
+    n0: u64,
+    rr: &[u64; LIMBS_1024],
+) -> [u64; LIMBS_1024] {
+    let mut m_red = [0u64; RED_LEN];
+    norm2red_1024(&mut m_red, m);
+    let mut a_red = [0u64; RED_LEN];
+    norm2red_1024(&mut a_red, base);
+    let mut r2_red = [0u64; RED_LEN];
+    norm2red_1024(&mut r2_red, rr);
+
+    let mut one = [0u64; RED_LEN];
+    one[0] = 1;
+    let mut two80 = [0u64; RED_LEN];
+    two80[2] = 1 << 22;
+
+    let mut table = Aligned::<SCATTER5_WORDS>([0u64; SCATTER5_WORDS]);
+    let mut result = [0u64; RED_LEN];
+    let mut a_inv = [0u64; RED_LEN];
+
+    // R2 = RR^2 * 2^80 (bridges 2^1024 and the AMM's 2^1044).
+    let x = r2_red;
+    mul_1024_avx2(&mut r2_red, &x, &x, &m_red, n0);
+    let x = r2_red;
+    mul_1024_avx2(&mut r2_red, &x, &two80, &m_red, n0);
+
+    macro_rules! sqr_into {
+        ($out:expr, $a:expr) => {{
+            let a = $a;
+            sqr_1024_avx2(&mut $out, &a, &m_red, n0, 1);
+        }};
+    }
+    macro_rules! mul_into {
+        ($out:expr, $a:expr, $b:expr) => {{
+            let a = $a;
+            let b = $b;
+            mul_1024_avx2(&mut $out, &a, &b, &m_red, n0);
+        }};
+    }
+    macro_rules! scatter {
+        ($val:expr, $i:expr) => {{
+            let v = $val;
+            scatter5_1024_avx2(&mut table.0, &v, $i);
+        }};
+    }
+    macro_rules! gather {
+        ($val:expr, $i:expr) => {{
+            gather5_1024_avx2(&mut $val, &table.0, $i);
+        }};
+    }
+
+    // table[0] = one (R_amm mod m), table[1] = base * R_amm.
+    mul_into!(result, r2_red, one);
+    scatter!(result, 0);
+    mul_into!(a_inv, a_red, r2_red);
+    scatter!(a_inv, 1);
+
+    sqr_into!(result, a_inv);
+    scatter!(result, 2);
+    sqr_into!(result, result);
+    scatter!(result, 4);
+    sqr_into!(result, result);
+    scatter!(result, 8);
+    sqr_into!(result, result);
+    scatter!(result, 16);
+    mul_into!(result, result, a_inv);
+    scatter!(result, 17);
+
+    gather!(result, 2);
+    mul_into!(result, result, a_inv);
+    scatter!(result, 3);
+    sqr_into!(result, result);
+    scatter!(result, 6);
+    sqr_into!(result, result);
+    scatter!(result, 12);
+    sqr_into!(result, result);
+    scatter!(result, 24);
+    mul_into!(result, result, a_inv);
+    scatter!(result, 25);
+
+    gather!(result, 4);
+    mul_into!(result, result, a_inv);
+    scatter!(result, 5);
+    sqr_into!(result, result);
+    scatter!(result, 10);
+    sqr_into!(result, result);
+    scatter!(result, 20);
+    mul_into!(result, result, a_inv);
+    scatter!(result, 21);
+
+    gather!(result, 6);
+    mul_into!(result, result, a_inv);
+    scatter!(result, 7);
+    sqr_into!(result, result);
+    scatter!(result, 14);
+    sqr_into!(result, result);
+    scatter!(result, 28);
+    mul_into!(result, result, a_inv);
+    scatter!(result, 29);
+
+    gather!(result, 8);
+    mul_into!(result, result, a_inv);
+    scatter!(result, 9);
+    sqr_into!(result, result);
+    scatter!(result, 18);
+    mul_into!(result, result, a_inv);
+    scatter!(result, 19);
+
+    gather!(result, 10);
+    mul_into!(result, result, a_inv);
+    scatter!(result, 11);
+    sqr_into!(result, result);
+    scatter!(result, 22);
+    mul_into!(result, result, a_inv);
+    scatter!(result, 23);
+
+    gather!(result, 12);
+    mul_into!(result, result, a_inv);
+    scatter!(result, 13);
+    sqr_into!(result, result);
+    scatter!(result, 26);
+    mul_into!(result, result, a_inv);
+    scatter!(result, 27);
+
+    gather!(result, 14);
+    mul_into!(result, result, a_inv);
+    scatter!(result, 15);
+    sqr_into!(result, result);
+    scatter!(result, 30);
+    mul_into!(result, result, a_inv);
+    scatter!(result, 31);
+
+    // First window: the top 8 bits of the exponent.
+    let mut bytes = [0u8; 128];
+    for (i, &limb) in exponent.iter().enumerate() {
+        bytes[i * 8..i * 8 + 8].copy_from_slice(&limb.to_le_bytes());
+    }
+    let mut wvalue = u32::from(bytes[127] >> 3);
+    gather!(result, wvalue);
+
+    let mut index: i32 = 1014;
+    while index > -1 {
+        let r_owned = result;
+        sqr_1024_avx2(&mut result, &r_owned, &m_red, n0, 5);
+        let low = bytes[(index / 8) as usize] as u32;
+        let high = bytes[(index / 8 + 1) as usize] as u32;
+        wvalue = ((high << 8) | low) >> (index % 8) & 31;
+        index -= 5;
+        gather!(a_inv, wvalue);
+        mul_into!(result, result, a_inv);
+    }
+
+    let r_owned = result;
+    sqr_1024_avx2(&mut result, &r_owned, &m_red, n0, 4);
+    wvalue = u32::from(bytes[0] & 15);
+    gather!(a_inv, wvalue);
+    mul_into!(result, result, a_inv);
+
+    // Leave Montgomery form; `one` acts as the AMM's 1.
+    mul_into!(result, result, one);
+
+    let mut normal = [0u64; LIMBS_1024];
+    red2norm_1024(&mut normal, &result);
+    reduce_once(&mut normal, m);
+    normal
 }

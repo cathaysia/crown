@@ -381,3 +381,80 @@ fn ord_sqr_mont_rep_matches_repeated() {
     }
     assert_eq!(got, t.modulus(&c.n), "ord_sqr_mont rep=3");
 }
+
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[test]
+fn driver_matches_software() {
+    let c = p256();
+    let g = generator(&c);
+    for k in [1u32, 2, 3, 7, 16, 255] {
+        let scalar = crate::bn::Bn::from_u32(k);
+        let soft = g.mul_with_soft(&c, &scalar);
+        let base = super::driver::mul_base(&scalar, &c.n).expect("mul_base");
+        assert_eq!(base, soft, "mul_base k={k}");
+    }
+    for k in [1u32, 2, 3, 7, 16, 255] {
+        let scalar = crate::bn::Bn::from_u32(k);
+        let soft = g.mul_with_soft(&c, &scalar);
+        let var = super::driver::mul(&g, &scalar, &c.n).expect("mul");
+        assert_eq!(var, soft, "mul k={k}");
+    }
+    // Large scalars, including values with the top bit set.
+    let twog = g.add_with(&c, &g);
+    let large = [
+        "7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632550",
+        "deadbeefcafebabe0123456789abcdeffedcba9876543210a5a5a5a55a5a5a5a",
+        "0000000000000000000000000000000000000000000000000000000000000001",
+    ];
+    for hex in large {
+        let scalar = hex_bn(hex);
+        let soft_base = g.mul_with_soft(&c, &scalar);
+        let base = super::driver::mul_base(&scalar, &c.n).expect("mul_base large");
+        assert_eq!(base, soft_base, "mul_base {hex}");
+        let soft_var = twog.mul_with_soft(&c, &scalar);
+        let var = super::driver::mul(&twog, &scalar, &c.n).expect("mul large");
+        assert_eq!(var, soft_var, "mul {hex}");
+    }
+    // Deterministic pseudo-random scalars.
+    let mut state = 0x0123_4567_89ab_cdefu64;
+    for round in 0..16 {
+        let mut bytes = [0u8; 32];
+        for byte in bytes.iter_mut() {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            *byte = (state >> 33) as u8;
+        }
+        let scalar = crate::bn::Bn::from_be_bytes(&bytes).modulus(&c.n);
+        let soft_base = g.mul_with_soft(&c, &scalar);
+        let base = super::driver::mul_base(&scalar, &c.n).expect("mul_base random");
+        assert_eq!(base, soft_base, "mul_base round {round}");
+        let soft_var = twog.mul_with_soft(&c, &scalar);
+        let var = super::driver::mul(&twog, &scalar, &c.n).expect("mul random");
+        assert_eq!(var, soft_var, "mul round {round}");
+    }
+}
+
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[test]
+fn driver_precomputed_table_layout() {
+    let c = p256();
+    let g = generator(&c);
+    let gx = limbs_from_bn(&g.x);
+    let gy = limbs_from_bn(&g.y);
+    let gx_m = asm::to_mont(&gx);
+    let gy_m = asm::to_mont(&gy);
+    // Directly check the precomputed row 0, index 1 against to_mont(G).
+    let mut got = [0u64; 8];
+    asm::gather_w7(&mut got, super::driver::precomputed_row_for_test(0), 1);
+    assert_eq!(&got[0..4], &gx_m, "row 0 idx 1 X");
+    assert_eq!(&got[4..8], &gy_m, "row 0 idx 1 Y");
+
+    // point_add_affine with an affine infinity must be a no-op.
+    let jac = super::driver::to_jac_for_test(&g);
+    let zero = [0u64; 8];
+    let sum = asm::point_add_affine(&jac, &zero);
+    assert_eq!(sum, jac, "add affine infinity");
+}
