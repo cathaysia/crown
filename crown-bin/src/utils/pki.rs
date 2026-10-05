@@ -88,6 +88,91 @@ pub fn load_certificate(path: &str) -> anyhow::Result<Certificate> {
     load_certificates(path).map(|certificates| certificates.into_iter().next().expect("non-empty"))
 }
 
+/// Load an attribute certificate (PEM or DER).
+pub fn load_attribute_certificate(path: &str) -> anyhow::Result<crown::x509::AttributeCertificate> {
+    use crown::x509::AttributeCertificate;
+    let bytes = read_bytes(path)?;
+    match pem_text(&bytes) {
+        Some(text) => Ok(AttributeCertificate::from_pem(&text)?),
+        None => Ok(AttributeCertificate::parse(&bytes)?),
+    }
+}
+
+/// Text report for an attribute certificate.
+pub fn attribute_certificate_report(certificate: &crown::x509::AttributeCertificate) -> String {
+    let info = certificate.info();
+    let mut out = String::new();
+    let _ = writeln!(out, "Attribute Certificate:");
+    let _ = writeln!(out, "    Version: {}", info.version + 1);
+    let _ = writeln!(
+        out,
+        "    Serial Number: {}",
+        serial_hex(&info.serial_number)
+    );
+    let _ = writeln!(
+        out,
+        "    Signature Algorithm: {}",
+        signature_algorithm_name(certificate.signature_algorithm())
+    );
+    let _ = writeln!(out, "    Issuer:");
+    for name in info.issuer.directory_names() {
+        let _ = writeln!(out, "        {name}");
+    }
+    let _ = writeln!(out, "    Validity:");
+    let _ = writeln!(
+        out,
+        "        Not Before: {}",
+        format_time(info.validity.not_before)
+    );
+    let _ = writeln!(
+        out,
+        "        Not After : {}",
+        format_time(info.validity.not_after)
+    );
+    let _ = writeln!(out, "    Holder:");
+    if let Some(id) = &info.holder.base_certificate_id {
+        let _ = writeln!(
+            out,
+            "        Base Certificate ID: serial {}",
+            serial_hex(&id.serial)
+        );
+        for name in &id.issuer {
+            let _ = writeln!(out, "        Issuer: {}", general_name_text(name));
+        }
+    }
+    if let Some(names) = &info.holder.entity_name {
+        for name in names {
+            let _ = writeln!(out, "        Entity: {}", general_name_text(name));
+        }
+    }
+    if let Some(digest) = &info.holder.object_digest_info {
+        let _ = writeln!(
+            out,
+            "        Object Digest: type {} ({} bytes)",
+            digest.digested_object_type,
+            digest.object_digest.len()
+        );
+    }
+    let _ = writeln!(out, "    Attributes: {}", info.attributes.len());
+    for attribute in &info.attributes {
+        match attribute.first_text() {
+            Some(text) => {
+                let _ = writeln!(out, "        {}: {text}", attribute.oid);
+            }
+            None => {
+                let _ = writeln!(out, "        {}: (raw)", attribute.oid);
+            }
+        }
+    }
+    if !info.extensions.is_empty() {
+        let _ = writeln!(out, "    X509v3 Extensions:");
+        for extension in &info.extensions {
+            write_extension(&mut out, extension);
+        }
+    }
+    out
+}
+
 /// Load a PKCS#10 CSR (PEM or DER).
 pub fn load_csr(path: &str) -> anyhow::Result<CertificationRequest> {
     let bytes = read_bytes(path)?;

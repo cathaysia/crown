@@ -38,3 +38,9 @@ pub use pkey::run_pkey;
 
 mod ocsp;
 pub use ocsp::run_ocsp;
+
+mod ts;
+pub use ts::run_ts;
+
+mod cmp;
+pub use cmp::{run_cmp, run_crmf};

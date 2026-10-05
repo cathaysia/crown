@@ -232,6 +232,25 @@ pub fn run_x509(args: ArgsX509) -> anyhow::Result<()> {
             };
             report(valid)?;
         }
+        X509Op::AcInfo { input } => {
+            let certificate = pki::load_attribute_certificate(&input)?;
+            print!("{}", pki::attribute_certificate_report(&certificate));
+        }
+        X509Op::AcVerify {
+            input,
+            issuer,
+            no_check_time,
+        } => {
+            let certificate = pki::load_attribute_certificate(&input)?;
+            let issuer = pki::load_certificate(&issuer)?;
+            let now = if no_check_time {
+                None
+            } else {
+                Some(unix_time())
+            };
+            certificate.verify(&issuer, now)?;
+            println!("OK");
+        }
         X509Op::CrlInfo { input } => {
             let crl = pki::load_crl(&input)?;
             print!("{}", pki::crl_report(&crl));

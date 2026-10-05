@@ -8,6 +8,11 @@
 
 typedef struct AeadCipher AeadCipher;
 
+/**
+ * An opaque parsed X.509 attribute certificate (RFC 5755).
+ */
+typedef struct AttributeCertificate AttributeCertificate;
+
 typedef struct BlockCipher BlockCipher;
 
 /**
@@ -19,6 +24,11 @@ typedef struct Certificate Certificate;
  * An opaque trust store for RFC 5280 path validation.
  */
 typedef struct CertificateStore CertificateStore;
+
+/**
+ * An opaque parsed CMP message (RFC 4210).
+ */
+typedef struct CmpMessage CmpMessage;
 
 /**
  * An opaque parsed X.509 CRL.
@@ -1206,6 +1216,133 @@ int32_t cms_decrypt_password(const uint8_t *data,
 int32_t ocsp_response_verify(const uint8_t *response,
                              uintptr_t response_len,
                              const struct Certificate *issuer);
+
+/**
+ * Parse an attribute certificate from PEM or DER.
+ */
+struct AttributeCertificate *attribute_certificate_parse(const uint8_t *data, uintptr_t len);
+
+/**
+ * Free an attribute certificate handle.
+ */
+void attribute_certificate_free(struct AttributeCertificate *certificate);
+
+/**
+ * The DER encoding of the attribute certificate.
+ */
+int32_t attribute_certificate_encode(const struct AttributeCertificate *certificate,
+                                     uint8_t *out,
+                                     uintptr_t *out_len);
+
+/**
+ * The PEM encoding of the attribute certificate.
+ */
+int32_t attribute_certificate_to_pem(const struct AttributeCertificate *certificate,
+                                     uint8_t *out,
+                                     uintptr_t *out_len);
+
+/**
+ * The serial number magnitude.
+ */
+int32_t attribute_certificate_serial(const struct AttributeCertificate *certificate,
+                                     uint8_t *out,
+                                     uintptr_t *out_len);
+
+/**
+ * Verify the attribute certificate against its issuer certificate,
+ * optionally checking the validity window at `now`.
+ */
+int32_t attribute_certificate_verify(const struct AttributeCertificate *certificate,
+                                     const struct Certificate *issuer,
+                                     int64_t now,
+                                     int32_t check_time);
+
+/**
+ * Whether the attribute certificate holder is the given certificate.
+ */
+int32_t attribute_certificate_holder_matches(const struct AttributeCertificate *certificate,
+                                             const struct Certificate *holder);
+
+/**
+ * Verify a CMS AuthenticatedData object with an RSA/ECDH recipient key
+ * (PKCS#8 DER) and certificate; returns the content with the query pattern.
+ */
+int32_t cms_authdata_verify(const uint8_t *data,
+                            uintptr_t data_len,
+                            const uint8_t *key,
+                            uintptr_t key_len,
+                            const struct Certificate *certificate,
+                            uint8_t *out,
+                            uintptr_t *out_len);
+
+/**
+ * Verify a CMS AuthenticatedData object with a password recipient.
+ */
+int32_t cms_authdata_verify_password(const uint8_t *data,
+                                     uintptr_t data_len,
+                                     const uint8_t *password,
+                                     uintptr_t password_len,
+                                     uint8_t *out,
+                                     uintptr_t *out_len);
+
+/**
+ * Verify an RFC 3161 timestamp response (DER or PEM). When `request` is
+ * given, its message imprint and nonce must match. Returns 1 verified,
+ * 0 not, -1 on error.
+ */
+int32_t ts_verify(const uint8_t *response,
+                  uintptr_t response_len,
+                  const struct Certificate *tsa,
+                  const uint8_t *request,
+                  uintptr_t request_len);
+
+/**
+ * Parse a CMP message from DER or PEM.
+ */
+struct CmpMessage *cmp_message_parse(const uint8_t *data, uintptr_t len);
+
+/**
+ * Free a CMP message handle.
+ */
+void cmp_message_free(struct CmpMessage *message);
+
+/**
+ * The protocol version (1..=3).
+ */
+int32_t cmp_message_pvno(const struct CmpMessage *message);
+
+/**
+ * The body kind: 0 ir, 1 cr, 2 p10cr, 3 kur, 4 rr, 5 ccr, 6 pkiconf,
+ * 7 genm, 8 genp, 9 error, 10 certConf, 11 pollReq, 12 pollRep, 13 other.
+ */
+int32_t cmp_message_body_kind(const struct CmpMessage *message);
+
+/**
+ * The sender name.
+ */
+int32_t cmp_message_sender(const struct CmpMessage *message, uint8_t *out, uintptr_t *out_len);
+
+/**
+ * The recipient name.
+ */
+int32_t cmp_message_recipient(const struct CmpMessage *message, uint8_t *out, uintptr_t *out_len);
+
+/**
+ * Number of embedded extra certificates.
+ */
+int64_t cmp_message_certificate_count(const struct CmpMessage *message);
+
+/**
+ * Verify the password-based protection (PBM).
+ */
+int32_t cmp_message_verify_password(const struct CmpMessage *message,
+                                    const uint8_t *password,
+                                    uintptr_t password_len);
+
+/**
+ * Verify the signature-based protection against the signer in `extraCerts`.
+ */
+int32_t cmp_message_verify_signature(const struct CmpMessage *message);
 
 /**
  * ML-DSA keygen from 32-byte seed. variant = 44/65/87.

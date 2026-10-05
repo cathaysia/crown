@@ -1228,3 +1228,358 @@ pub unsafe extern "C" fn ocsp_response_verify(
         Err(_) => 0,
     }
 }
+
+/// An opaque parsed X.509 attribute certificate (RFC 5755).
+pub struct AttributeCertificate(crown::x509::AttributeCertificate);
+
+/// Parse an attribute certificate from PEM or DER.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn attribute_certificate_parse(
+    data: *const u8,
+    len: usize,
+) -> *mut AttributeCertificate {
+    use crown::x509::AttributeCertificate as Inner;
+    let Some(data) = (unsafe { slice_from_raw_parts(data, len) }) else {
+        return std::ptr::null_mut();
+    };
+    let parsed = match core::str::from_utf8(data) {
+        Ok(text) if text.contains("-----BEGIN") => Inner::from_pem(text),
+        _ => Inner::parse(data),
+    };
+    match parsed {
+        Ok(certificate) => Box::into_raw(Box::new(AttributeCertificate(certificate))),
+        Err(_) => std::ptr::null_mut(),
+    }
+}
+
+/// Free an attribute certificate handle.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn attribute_certificate_free(certificate: *mut AttributeCertificate) {
+    if !certificate.is_null() {
+        drop(unsafe { Box::from_raw(certificate) });
+    }
+}
+
+/// The DER encoding of the attribute certificate.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn attribute_certificate_encode(
+    certificate: *const AttributeCertificate,
+    out: *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    let Some(certificate) = (unsafe { ref_from_ptr(certificate) }) else {
+        return -1;
+    };
+    unsafe { write_buffer(&certificate.0.encode(), out, out_len) }
+}
+
+/// The PEM encoding of the attribute certificate.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn attribute_certificate_to_pem(
+    certificate: *const AttributeCertificate,
+    out: *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    let Some(certificate) = (unsafe { ref_from_ptr(certificate) }) else {
+        return -1;
+    };
+    unsafe { write_buffer(certificate.0.to_pem().as_bytes(), out, out_len) }
+}
+
+/// The serial number magnitude.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn attribute_certificate_serial(
+    certificate: *const AttributeCertificate,
+    out: *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    let Some(certificate) = (unsafe { ref_from_ptr(certificate) }) else {
+        return -1;
+    };
+    unsafe { write_buffer(certificate.0.serial_number(), out, out_len) }
+}
+
+/// Verify the attribute certificate against its issuer certificate,
+/// optionally checking the validity window at `now`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn attribute_certificate_verify(
+    certificate: *const AttributeCertificate,
+    issuer: *const Certificate,
+    now: i64,
+    check_time: i32,
+) -> i32 {
+    let (Some(certificate), Some(issuer)) =
+        (unsafe { (ref_from_ptr(certificate), ref_from_ptr(issuer)) })
+    else {
+        return -1;
+    };
+    let now = (check_time != 0).then_some(now);
+    match certificate.0.verify(&issuer.0, now) {
+        Ok(()) => 1,
+        Err(_) => 0,
+    }
+}
+
+/// Whether the attribute certificate holder is the given certificate.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn attribute_certificate_holder_matches(
+    certificate: *const AttributeCertificate,
+    holder: *const Certificate,
+) -> i32 {
+    let (Some(certificate), Some(holder)) =
+        (unsafe { (ref_from_ptr(certificate), ref_from_ptr(holder)) })
+    else {
+        return -1;
+    };
+    i32::from(certificate.0.holder_matches(&holder.0))
+}
+
+/// Verify a CMS AuthenticatedData object with an RSA/ECDH recipient key
+/// (PKCS#8 DER) and certificate; returns the content with the query pattern.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cms_authdata_verify(
+    data: *const u8,
+    data_len: usize,
+    key: *const u8,
+    key_len: usize,
+    certificate: *const Certificate,
+    out: *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    let (Some(data), Some(key), Some(certificate)) = (unsafe {
+        (
+            slice_from_raw_parts(data, data_len),
+            slice_from_raw_parts(key, key_len),
+            ref_from_ptr(certificate),
+        )
+    }) else {
+        return -1;
+    };
+    let Ok(info) = PrivateKeyInfo::parse(key) else {
+        return -1;
+    };
+    let Ok(private_key) = info.decode() else {
+        return -1;
+    };
+    let Ok(content_info) = crown::pkcs7::ContentInfo::parse(data) else {
+        return -1;
+    };
+    let Ok(authenticated) = crown::cms::AuthenticatedData::from_content_info(&content_info) else {
+        return -1;
+    };
+    match authenticated.verify_with_key(&private_key, &certificate.0) {
+        Ok(content) => unsafe { write_buffer(&content, out, out_len) },
+        Err(_) => -1,
+    }
+}
+
+/// Verify a CMS AuthenticatedData object with a password recipient.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cms_authdata_verify_password(
+    data: *const u8,
+    data_len: usize,
+    password: *const u8,
+    password_len: usize,
+    out: *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    let (Some(data), Some(password)) = (unsafe {
+        (
+            slice_from_raw_parts(data, data_len),
+            optional_slice(password, password_len),
+        )
+    }) else {
+        return -1;
+    };
+    let Ok(content_info) = crown::pkcs7::ContentInfo::parse(data) else {
+        return -1;
+    };
+    let Ok(authenticated) = crown::cms::AuthenticatedData::from_content_info(&content_info) else {
+        return -1;
+    };
+    match authenticated.verify_with_password(password) {
+        Ok(content) => unsafe { write_buffer(&content, out, out_len) },
+        Err(_) => -1,
+    }
+}
+
+/// Verify an RFC 3161 timestamp response (DER or PEM). When `request` is
+/// given, its message imprint and nonce must match. Returns 1 verified,
+/// 0 not, -1 on error.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ts_verify(
+    response: *const u8,
+    response_len: usize,
+    tsa: *const Certificate,
+    request: *const u8,
+    request_len: usize,
+) -> i32 {
+    let (Some(response), Some(tsa)) = (unsafe {
+        (
+            slice_from_raw_parts(response, response_len),
+            ref_from_ptr(tsa),
+        )
+    }) else {
+        return -1;
+    };
+    let Some(request) = (unsafe { optional_slice(request, request_len) }) else {
+        return -1;
+    };
+    let parsed = match core::str::from_utf8(response) {
+        Ok(text) if text.contains("-----BEGIN") => crown::ts::TimeStampResp::from_pem(text),
+        _ => crown::ts::TimeStampResp::parse(response),
+    };
+    let Ok(parsed) = parsed else {
+        return -1;
+    };
+    let result = if request.is_empty() {
+        parsed.verify(&tsa.0)
+    } else {
+        match crown::ts::TimeStampReq::parse(request) {
+            Ok(request) => parsed.verify_request(&tsa.0, &request),
+            Err(_) => return -1,
+        }
+    };
+    match result {
+        Ok(_) => 1,
+        Err(_) => 0,
+    }
+}
+
+/// An opaque parsed CMP message (RFC 4210).
+pub struct CmpMessage(crown::cmp::PkiMessage);
+
+/// Parse a CMP message from DER or PEM.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cmp_message_parse(data: *const u8, len: usize) -> *mut CmpMessage {
+    let Some(data) = (unsafe { slice_from_raw_parts(data, len) }) else {
+        return std::ptr::null_mut();
+    };
+    match crown::cmp::PkiMessage::parse(data) {
+        Ok(message) => Box::into_raw(Box::new(CmpMessage(message))),
+        Err(_) => std::ptr::null_mut(),
+    }
+}
+
+/// Free a CMP message handle.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cmp_message_free(message: *mut CmpMessage) {
+    if !message.is_null() {
+        drop(unsafe { Box::from_raw(message) });
+    }
+}
+
+/// The protocol version (1..=3).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cmp_message_pvno(message: *const CmpMessage) -> i32 {
+    let Some(message) = (unsafe { ref_from_ptr(message) }) else {
+        return -1;
+    };
+    i32::from(message.0.header.pvno)
+}
+
+/// The body kind: 0 ir, 1 cr, 2 p10cr, 3 kur, 4 rr, 5 ccr, 6 pkiconf,
+/// 7 genm, 8 genp, 9 error, 10 certConf, 11 pollReq, 12 pollRep, 13 other.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cmp_message_body_kind(message: *const CmpMessage) -> i32 {
+    use crown::cmp::PkiBody;
+    let Some(message) = (unsafe { ref_from_ptr(message) }) else {
+        return -1;
+    };
+    match &message.0.body {
+        PkiBody::Ir(_) => 0,
+        PkiBody::Cr(_) => 1,
+        PkiBody::P10Cr(_) => 2,
+        PkiBody::Kur(_) => 3,
+        PkiBody::Rr(_) => 4,
+        PkiBody::Ccr(_) => 5,
+        PkiBody::Pkiconf => 6,
+        PkiBody::Genm(_) => 7,
+        PkiBody::Genp(_) => 8,
+        PkiBody::Error(_) => 9,
+        PkiBody::CertConf(_) => 10,
+        PkiBody::PollReq(_) => 11,
+        PkiBody::PollRep(_) => 12,
+        PkiBody::Other { .. } => 13,
+    }
+}
+
+fn general_name_text(name: &crown::x509::GeneralName) -> String {
+    match name {
+        crown::x509::GeneralName::DirectoryName(name) => name.to_string(),
+        crown::x509::GeneralName::DnsName(name) => format!("DNS:{name}"),
+        crown::x509::GeneralName::Rfc822Name(name) => format!("email:{name}"),
+        crown::x509::GeneralName::Uri(uri) => format!("URI:{uri}"),
+        other => format!("{other:?}"),
+    }
+}
+
+/// The sender name.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cmp_message_sender(
+    message: *const CmpMessage,
+    out: *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    let Some(message) = (unsafe { ref_from_ptr(message) }) else {
+        return -1;
+    };
+    let text = general_name_text(&message.0.header.sender);
+    unsafe { write_buffer(text.as_bytes(), out, out_len) }
+}
+
+/// The recipient name.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cmp_message_recipient(
+    message: *const CmpMessage,
+    out: *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    let Some(message) = (unsafe { ref_from_ptr(message) }) else {
+        return -1;
+    };
+    let text = general_name_text(&message.0.header.recipient);
+    unsafe { write_buffer(text.as_bytes(), out, out_len) }
+}
+
+/// Number of embedded extra certificates.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cmp_message_certificate_count(message: *const CmpMessage) -> i64 {
+    let Some(message) = (unsafe { ref_from_ptr(message) }) else {
+        return -1;
+    };
+    message.0.extra_certs.len() as i64
+}
+
+/// Verify the password-based protection (PBM).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cmp_message_verify_password(
+    message: *const CmpMessage,
+    password: *const u8,
+    password_len: usize,
+) -> i32 {
+    let Some(message) = (unsafe { ref_from_ptr(message) }) else {
+        return -1;
+    };
+    let Some(password) = (unsafe { optional_slice(password, password_len) }) else {
+        return -1;
+    };
+    match message.0.verify_password(password) {
+        Ok(true) => 1,
+        Ok(false) => 0,
+        Err(_) => -1,
+    }
+}
+
+/// Verify the signature-based protection against the signer in `extraCerts`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cmp_message_verify_signature(message: *const CmpMessage) -> i32 {
+    let Some(message) = (unsafe { ref_from_ptr(message) }) else {
+        return -1;
+    };
+    match message.0.verify_signature() {
+        Ok(true) => 1,
+        Ok(false) => 0,
+        Err(_) => -1,
+    }
+}

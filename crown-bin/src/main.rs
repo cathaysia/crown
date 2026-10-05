@@ -49,6 +49,9 @@ fn main() -> anyhow::Result<()> {
         args::Args::Pkcs12(args) => runner::run_pkcs12(args)?,
         args::Args::Pkey(args) => runner::run_pkey(args)?,
         args::Args::Ocsp(args) => runner::run_ocsp(args)?,
+        args::Args::Ts(args) => runner::run_ts(args)?,
+        args::Args::Cmp(args) => runner::run_cmp(args)?,
+        args::Args::Crmf(args) => runner::run_crmf(args)?,
     }
 
     Ok(())
