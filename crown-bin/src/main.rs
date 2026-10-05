@@ -44,6 +44,10 @@ fn main() -> anyhow::Result<()> {
         args::Args::Otp(args) => runner::run_otp(args)?,
         args::Args::Sign(args) => runner::run_sign(args)?,
         args::Args::Kem(args) => runner::run_kem(args)?,
+        args::Args::X509(args) => runner::run_x509(args)?,
+        args::Args::Pkcs7(args) => runner::run_pkcs7(args)?,
+        args::Args::Pkcs12(args) => runner::run_pkcs12(args)?,
+        args::Args::Pkey(args) => runner::run_pkey(args)?,
     }
 
     Ok(())

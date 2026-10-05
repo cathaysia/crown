@@ -22,6 +22,9 @@ pub use sign::*;
 mod kem;
 pub use kem::*;
 
+mod pki;
+pub use pki::*;
+
 use clap::Parser;
 
 #[derive(Debug, Parser)]
@@ -43,6 +46,17 @@ pub enum Args {
     Sign(ArgsSign),
     /// ML-KEM key encapsulation.
     Kem(ArgsKem),
+    /// X.509 certificates, CSRs and CRLs.
+    #[clap(name = "x509")]
+    X509(ArgsX509),
+    /// CMS / PKCS#7 signed data.
+    #[clap(name = "pkcs7")]
+    Pkcs7(ArgsPkcs7),
+    /// PKCS#12 key and certificate containers.
+    #[clap(name = "pkcs12")]
+    Pkcs12(ArgsPkcs12),
+    /// PKCS#8 private keys and encrypted keys.
+    Pkey(ArgsPkey),
 }
 
 #[derive(Debug, Parser)]

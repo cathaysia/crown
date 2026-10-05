@@ -10,9 +10,38 @@ typedef struct AeadCipher AeadCipher;
 
 typedef struct BlockCipher BlockCipher;
 
+/**
+ * An opaque parsed X.509 certificate.
+ */
+typedef struct Certificate Certificate;
+
+/**
+ * An opaque parsed X.509 CRL.
+ */
+typedef struct Crl Crl;
+
+/**
+ * An opaque parsed PKCS#10 certification request.
+ */
+typedef struct Csr Csr;
+
 typedef struct Hash Hash;
 
+typedef struct Mac Mac;
+
+/**
+ * An opaque parsed PKCS#12 PFX with its bags decrypted.
+ */
+typedef struct Pkcs12 Pkcs12;
+
+/**
+ * An opaque parsed PKCS#7 / CMS object.
+ */
+typedef struct Pkcs7 Pkcs7;
+
 typedef struct StreamCipher StreamCipher;
+
+typedef struct Xts Xts;
 
 struct AeadCipher *aead_cipher_new_aes_gcm(const uint8_t *key, uintptr_t key_len);
 
@@ -405,6 +434,12 @@ struct AeadCipher *aead_cipher_new_chacha20_poly1305(const uint8_t *key, uintptr
 
 struct AeadCipher *aead_cipher_new_xchacha20_poly1305(const uint8_t *key, uintptr_t key_len);
 
+struct AeadCipher *aead_cipher_new_aes_gcm_siv(const uint8_t *key, uintptr_t key_len);
+
+struct AeadCipher *aead_cipher_new_ascon_aead128(const uint8_t *key, uintptr_t key_len);
+
+struct AeadCipher *aead_cipher_new_aes_siv(const uint8_t *key, uintptr_t key_len);
+
 uintptr_t aead_cipher_nonce_size(const struct AeadCipher *self);
 
 uintptr_t aead_cipher_tag_size(const struct AeadCipher *self);
@@ -496,6 +531,41 @@ struct BlockCipher *block_cipher_new_skipjack_cbc(const uint8_t *key,
                                                   const uint8_t *iv,
                                                   uintptr_t iv_len);
 
+struct BlockCipher *block_cipher_new_kasumi_cbc(const uint8_t *key,
+                                                uintptr_t key_len,
+                                                const uint8_t *iv,
+                                                uintptr_t iv_len);
+
+struct BlockCipher *block_cipher_new_kseed_cbc(const uint8_t *key,
+                                               uintptr_t key_len,
+                                               const uint8_t *iv,
+                                               uintptr_t iv_len);
+
+struct BlockCipher *block_cipher_new_anubis_cbc(const uint8_t *key,
+                                                uintptr_t key_len,
+                                                const uint8_t *iv,
+                                                uintptr_t iv_len);
+
+struct BlockCipher *block_cipher_new_noekeon_cbc(const uint8_t *key,
+                                                 uintptr_t key_len,
+                                                 const uint8_t *iv,
+                                                 uintptr_t iv_len);
+
+struct BlockCipher *block_cipher_new_khazad_cbc(const uint8_t *key,
+                                                uintptr_t key_len,
+                                                const uint8_t *iv,
+                                                uintptr_t iv_len);
+
+struct BlockCipher *block_cipher_new_serpent_cbc(const uint8_t *key,
+                                                 uintptr_t key_len,
+                                                 const uint8_t *iv,
+                                                 uintptr_t iv_len);
+
+struct BlockCipher *block_cipher_new_desx_cbc(const uint8_t *key,
+                                              uintptr_t key_len,
+                                              const uint8_t *iv,
+                                              uintptr_t iv_len);
+
 struct BlockCipher *block_cipher_new_rc2_cbc(const uint8_t *key,
                                              uintptr_t key_len,
                                              const uint8_t *iv,
@@ -513,6 +583,12 @@ struct BlockCipher *block_cipher_new_camellia_cbc(const uint8_t *key,
                                                   const uint8_t *iv,
                                                   uintptr_t iv_len,
                                                   const uintptr_t *rounds);
+
+struct BlockCipher *block_cipher_new_multi2_cbc(const uint8_t *key,
+                                                uintptr_t key_len,
+                                                const uint8_t *iv,
+                                                uintptr_t iv_len,
+                                                const uintptr_t *rounds);
 
 int32_t block_cipher_encrypt(struct BlockCipher *self,
                              uint8_t *inout,
@@ -595,6 +671,22 @@ struct Hash *hash_new_sm3(void);
 
 struct Hash *hash_new_sm3_hmac(const uint8_t *key, uintptr_t key_len);
 
+struct Hash *hash_new_md5_sha1(void);
+
+struct Hash *hash_new_md5_sha1_hmac(const uint8_t *key, uintptr_t key_len);
+
+struct Hash *hash_new_ripemd160(void);
+
+struct Hash *hash_new_ripemd160_hmac(const uint8_t *key, uintptr_t key_len);
+
+struct Hash *hash_new_mdc2(void);
+
+struct Hash *hash_new_mdc2_hmac(const uint8_t *key, uintptr_t key_len);
+
+struct Hash *hash_new_whirlpool(void);
+
+struct Hash *hash_new_whirlpool_hmac(const uint8_t *key, uintptr_t key_len);
+
 struct Hash *hash_new_blake2s(const uint8_t *key, uintptr_t key_len, uintptr_t output_len);
 
 struct Hash *hash_new_blake2b(const uint8_t *key, uintptr_t key_len, uintptr_t output_len);
@@ -614,6 +706,500 @@ uintptr_t hash_size(const struct Hash *self);
 uintptr_t hash_block_size(const struct Hash *self);
 
 void hash_free(struct Hash *hash);
+
+/**
+ * Keygen from 64-byte seed. `variant` is 512/768/1024.
+ * `public` and `private` buffers must be large enough (see ml_kem lengths).
+ */
+int32_t ml_kem_keygen(uint32_t variant,
+                      const uint8_t *seed,
+                      uintptr_t seed_len,
+                      uint8_t *public_,
+                      uintptr_t *public_len,
+                      uint8_t *private_,
+                      uintptr_t *private_len);
+
+int32_t ml_kem_encapsulate(uint32_t variant,
+                           const uint8_t *public_,
+                           uintptr_t public_len,
+                           const uint8_t *message,
+                           uintptr_t message_len,
+                           uint8_t *ciphertext,
+                           uintptr_t *ciphertext_len,
+                           uint8_t *shared);
+
+int32_t ml_kem_decapsulate(uint32_t variant,
+                           const uint8_t *private_,
+                           uintptr_t private_len,
+                           const uint8_t *ciphertext,
+                           uintptr_t ciphertext_len,
+                           uint8_t *shared);
+
+struct Mac *mac_new_siphash(const uint8_t *key, uintptr_t key_len, uintptr_t output_len);
+
+struct Mac *mac_new_kmac128(const uint8_t *key,
+                            uintptr_t key_len,
+                            const uint8_t *custom,
+                            uintptr_t custom_len,
+                            uintptr_t output_len);
+
+struct Mac *mac_new_kmac256(const uint8_t *key,
+                            uintptr_t key_len,
+                            const uint8_t *custom,
+                            uintptr_t custom_len,
+                            uintptr_t output_len);
+
+struct Mac *mac_new_cmac_aes(const uint8_t *key, uintptr_t key_len);
+
+struct Mac *mac_new_gmac_aes(const uint8_t *key,
+                             uintptr_t key_len,
+                             const uint8_t *iv,
+                             uintptr_t iv_len);
+
+void mac_write(struct Mac *self, const uint8_t *data, uintptr_t len);
+
+int32_t mac_sum(struct Mac *self, uint8_t *out, uintptr_t out_len);
+
+void mac_free(struct Mac *this_);
+
+uint8_t *aes_key_wrap(const uint8_t *key,
+                      uintptr_t key_len,
+                      const uint8_t *pt,
+                      uintptr_t pt_len,
+                      uintptr_t *out_len);
+
+uint8_t *aes_key_unwrap(const uint8_t *key,
+                        uintptr_t key_len,
+                        const uint8_t *ct,
+                        uintptr_t ct_len,
+                        uintptr_t *out_len);
+
+uint8_t *aes_key_wrap_padded(const uint8_t *key,
+                             uintptr_t key_len,
+                             const uint8_t *pt,
+                             uintptr_t pt_len,
+                             uintptr_t *out_len);
+
+uint8_t *aes_key_unwrap_padded(const uint8_t *key,
+                               uintptr_t key_len,
+                               const uint8_t *ct,
+                               uintptr_t ct_len,
+                               uintptr_t *out_len);
+
+/**
+ * FF1 decimal encrypt. Returns a newly allocated ASCII string.
+ */
+uint8_t *ff1_encrypt_decimal(const uint8_t *key,
+                             uintptr_t key_len,
+                             const uint8_t *tweak,
+                             uintptr_t tweak_len,
+                             const uint8_t *input,
+                             uintptr_t input_len,
+                             uintptr_t *out_len);
+
+uint8_t *ff1_decrypt_decimal(const uint8_t *key,
+                             uintptr_t key_len,
+                             const uint8_t *tweak,
+                             uintptr_t tweak_len,
+                             const uint8_t *input,
+                             uintptr_t input_len,
+                             uintptr_t *out_len);
+
+void crown_free_buf(uint8_t *p, uintptr_t len);
+
+/**
+ * Parse a certificate from PEM or DER. Returns an opaque handle, or null.
+ */
+struct Certificate *certificate_parse(const uint8_t *data, uintptr_t len);
+
+/**
+ * Free a certificate handle.
+ */
+void certificate_free(struct Certificate *certificate);
+
+/**
+ * The DER encoding of the certificate.
+ */
+int32_t certificate_encode(const struct Certificate *certificate, uint8_t *out, uintptr_t *out_len);
+
+/**
+ * The PEM encoding of the certificate (with a trailing newline).
+ */
+int32_t certificate_to_pem(const struct Certificate *certificate, uint8_t *out, uintptr_t *out_len);
+
+/**
+ * The subject name in RFC 4514 form.
+ */
+int32_t certificate_subject(const struct Certificate *certificate,
+                            uint8_t *out,
+                            uintptr_t *out_len);
+
+/**
+ * The issuer name in RFC 4514 form.
+ */
+int32_t certificate_issuer(const struct Certificate *certificate, uint8_t *out, uintptr_t *out_len);
+
+/**
+ * The serial number magnitude (big-endian, without the sign octet).
+ */
+int32_t certificate_serial(const struct Certificate *certificate, uint8_t *out, uintptr_t *out_len);
+
+/**
+ * The validity window as Unix timestamps.
+ */
+int32_t certificate_validity(const struct Certificate *certificate,
+                             int64_t *not_before,
+                             int64_t *not_after);
+
+/**
+ * Fingerprint with `hash`: 0=SHA-256, 1=SHA-1, 2=SHA-384, 3=SHA-512,
+ * 4=SHA3-256, 5=SM3, 6=RIPEMD-160, 7=MD5.
+ */
+int32_t certificate_fingerprint(const struct Certificate *certificate,
+                                uint32_t hash,
+                                uint8_t *out,
+                                uintptr_t *out_len);
+
+/**
+ * The DER `SubjectPublicKeyInfo` of the certificate.
+ */
+int32_t certificate_subject_public_key_info(const struct Certificate *certificate,
+                                            uint8_t *out,
+                                            uintptr_t *out_len);
+
+/**
+ * 1 when the subject equals the issuer, 0 otherwise.
+ */
+int32_t certificate_is_self_signed(const struct Certificate *certificate);
+
+/**
+ * 1 when the certificate has the CA basic constraint, 0 otherwise.
+ */
+int32_t certificate_is_ca(const struct Certificate *certificate);
+
+/**
+ * Verify the certificate signature with the issuer's public key.
+ */
+int32_t certificate_verify_signature(const struct Certificate *certificate,
+                                     const struct Certificate *issuer);
+
+/**
+ * Verify a certificate against its issuer: name chaining, CA constraints,
+ * the signature and, when `check_time` is non-zero, the validity window at
+ * `now` (Unix seconds; 0 means the current time is unavailable, which is
+ * treated as expired).
+ *
+ * `sm2_id` selects the SM2 identity; pass null for the GM/T default.
+ */
+int32_t certificate_verify(const struct Certificate *certificate,
+                           const struct Certificate *issuer,
+                           int64_t now,
+                           int32_t check_time,
+                           const uint8_t *sm2_id,
+                           uintptr_t sm2_id_len);
+
+/**
+ * Parse a CSR from PEM or DER.
+ */
+struct Csr *csr_parse(const uint8_t *data, uintptr_t len);
+
+/**
+ * Free a CSR handle.
+ */
+void csr_free(struct Csr *csr);
+
+/**
+ * The DER encoding of the CSR.
+ */
+int32_t csr_encode(const struct Csr *csr, uint8_t *out, uintptr_t *out_len);
+
+/**
+ * The subject name in RFC 4514 form.
+ */
+int32_t csr_subject(const struct Csr *csr, uint8_t *out, uintptr_t *out_len);
+
+/**
+ * The DER `SubjectPublicKeyInfo` of the CSR.
+ */
+int32_t csr_public_key_info(const struct Csr *csr, uint8_t *out, uintptr_t *out_len);
+
+/**
+ * Verify the CSR self-signature. `sm2_id` may be null for the GM/T default.
+ */
+int32_t csr_verify_signature(const struct Csr *csr, const uint8_t *sm2_id, uintptr_t sm2_id_len);
+
+/**
+ * Parse a CRL from PEM or DER.
+ */
+struct Crl *crl_parse(const uint8_t *data, uintptr_t len);
+
+/**
+ * Free a CRL handle.
+ */
+void crl_free(struct Crl *crl);
+
+/**
+ * The DER encoding of the CRL.
+ */
+int32_t crl_encode(const struct Crl *crl, uint8_t *out, uintptr_t *out_len);
+
+/**
+ * The issuer name in RFC 4514 form.
+ */
+int32_t crl_issuer(const struct Crl *crl, uint8_t *out, uintptr_t *out_len);
+
+/**
+ * Verify the CRL signature with the issuer certificate. `sm2_id` may be
+ * null for the GM/T default.
+ */
+int32_t crl_verify_signature(const struct Crl *crl,
+                             const struct Certificate *issuer,
+                             const uint8_t *sm2_id,
+                             uintptr_t sm2_id_len);
+
+/**
+ * 1 when `serial` (big-endian magnitude) is listed in the CRL, 0 when not.
+ */
+int32_t crl_is_revoked(const struct Crl *crl, const uint8_t *serial, uintptr_t serial_len);
+
+/**
+ * Parse a PKCS#7 / CMS object from PEM or DER.
+ */
+struct Pkcs7 *pkcs7_parse(const uint8_t *data, uintptr_t len);
+
+/**
+ * Free a PKCS#7 handle.
+ */
+void pkcs7_free(struct Pkcs7 *pkcs7);
+
+/**
+ * 1 when the object is CMS SignedData, 0 otherwise.
+ */
+int32_t pkcs7_is_signed_data(const struct Pkcs7 *pkcs7);
+
+/**
+ * Number of signers, or -1 when the object is not SignedData.
+ */
+int64_t pkcs7_signer_count(const struct Pkcs7 *pkcs7);
+
+/**
+ * Number of embedded certificates, or -1 when not SignedData.
+ */
+int64_t pkcs7_certificate_count(const struct Pkcs7 *pkcs7);
+
+/**
+ * Clone the embedded certificate at `index` into a new handle, or null.
+ */
+struct Certificate *pkcs7_certificate(const struct Pkcs7 *pkcs7, uintptr_t index);
+
+/**
+ * The encapsulated content (fails for detached signatures).
+ */
+int32_t pkcs7_content(const struct Pkcs7 *pkcs7, uint8_t *out, uintptr_t *out_len);
+
+/**
+ * Verify every signer. For detached signatures pass the content in
+ * `detached`; pass null for attached content. `sm2_id` may be null for the
+ * GM/T default. Returns 1 verified, 0 not, -1 on error.
+ */
+int32_t pkcs7_verify(const struct Pkcs7 *pkcs7,
+                     const uint8_t *detached,
+                     uintptr_t detached_len,
+                     const uint8_t *sm2_id,
+                     uintptr_t sm2_id_len);
+
+/**
+ * Parse a PKCS#12 PFX (DER or PEM) with its password. Shrouded key bags are
+ * decrypted with the password; the MAC is verified when present and its
+ * result is exposed through `pkcs12_mac_verified`.
+ */
+struct Pkcs12 *pkcs12_parse(const uint8_t *data,
+                            uintptr_t len,
+                            const uint8_t *password,
+                            uintptr_t password_len);
+
+/**
+ * Free a PKCS#12 handle.
+ */
+void pkcs12_free(struct Pkcs12 *pkcs12);
+
+/**
+ * 1 when the PFX MAC verified, 0 when there is no MAC, -1 when it did not
+ * verify.
+ */
+int32_t pkcs12_mac_verified(const struct Pkcs12 *pkcs12);
+
+/**
+ * Number of bags in the PFX.
+ */
+int64_t pkcs12_bag_count(const struct Pkcs12 *pkcs12);
+
+/**
+ * Kind of the bag at `index`: 0 certificate, 1 private key, 2 CRL,
+ * 3 secret, 4 safeContents, 5 other; -1 on error.
+ */
+int32_t pkcs12_bag_kind(const struct Pkcs12 *pkcs12, uintptr_t index);
+
+/**
+ * The `friendlyName` of the bag at `index`: 1 present, 0 absent, -1 error.
+ */
+int32_t pkcs12_bag_friendly_name(const struct Pkcs12 *pkcs12,
+                                 uintptr_t index,
+                                 uint8_t *out,
+                                 uintptr_t *out_len);
+
+/**
+ * Clone the certificate bag at `index` into a new handle, or null.
+ */
+struct Certificate *pkcs12_bag_certificate(const struct Pkcs12 *pkcs12, uintptr_t index);
+
+/**
+ * Clone the CRL bag at `index` into a new handle, or null.
+ */
+struct Crl *pkcs12_bag_crl(const struct Pkcs12 *pkcs12, uintptr_t index);
+
+/**
+ * The PKCS#8 DER of the key bag at `index`.
+ */
+int32_t pkcs12_bag_private_key(const struct Pkcs12 *pkcs12,
+                               uintptr_t index,
+                               uint8_t *out,
+                               uintptr_t *out_len);
+
+/**
+ * Decrypt a PKCS#8 `EncryptedPrivateKeyInfo` DER, writing plain PKCS#8 DER.
+ */
+int32_t pkcs8_decrypt(const uint8_t *data,
+                      uintptr_t len,
+                      const uint8_t *password,
+                      uintptr_t password_len,
+                      uint8_t *out,
+                      uintptr_t *out_len);
+
+/**
+ * Encrypt PKCS#8 DER with PBES2. `cipher`: 0=AES-128-CBC, 1=AES-192-CBC,
+ * 2=AES-256-CBC, 3=3DES.
+ */
+int32_t pkcs8_encrypt(const uint8_t *data,
+                      uintptr_t len,
+                      const uint8_t *password,
+                      uintptr_t password_len,
+                      uint32_t cipher,
+                      uint32_t iterations,
+                      uint8_t *out,
+                      uintptr_t *out_len);
+
+/**
+ * The DER `SubjectPublicKeyInfo` of a PKCS#8 key.
+ */
+int32_t pkcs8_public_key_info(const uint8_t *data, uintptr_t len, uint8_t *out, uintptr_t *out_len);
+
+/**
+ * The algorithm OID (dotted string) of a public key, e.g.
+ * `"1.2.840.113549.1.1.1"` for RSA.
+ */
+int32_t public_key_algorithm(const uint8_t *data, uintptr_t len, uint8_t *out, uintptr_t *out_len);
+
+/**
+ * Number of bits of a public key, or -1 when not meaningful.
+ */
+int64_t public_key_bits(const uint8_t *data, uintptr_t len);
+
+/**
+ * The signature algorithm OID of a certificate as a dotted string.
+ */
+int32_t certificate_signature_algorithm(const struct Certificate *certificate,
+                                        uint8_t *out,
+                                        uintptr_t *out_len);
+
+/**
+ * Whether the certificate signature algorithm is one crown can verify.
+ */
+int32_t certificate_signature_supported(const struct Certificate *certificate);
+
+/**
+ * ML-DSA keygen from 32-byte seed. variant = 44/65/87.
+ * On success writes pk/sk; call with null buffers first to get lengths.
+ */
+int32_t ml_dsa_keygen(uint32_t variant,
+                      const uint8_t *seed,
+                      uintptr_t seed_len,
+                      uint8_t *public_,
+                      uintptr_t *public_len,
+                      uint8_t *private_,
+                      uintptr_t *private_len);
+
+int32_t ml_dsa_sign(uint32_t variant,
+                    const uint8_t *private_,
+                    uintptr_t private_len,
+                    const uint8_t *msg,
+                    uintptr_t msg_len,
+                    const uint8_t *ctx,
+                    uintptr_t ctx_len,
+                    uint8_t *sig,
+                    uintptr_t *sig_len);
+
+int32_t ml_dsa_verify(uint32_t variant,
+                      const uint8_t *public_,
+                      uintptr_t public_len,
+                      const uint8_t *msg,
+                      uintptr_t msg_len,
+                      const uint8_t *ctx,
+                      uintptr_t ctx_len,
+                      const uint8_t *sig,
+                      uintptr_t sig_len);
+
+/**
+ * SLH-DSA keygen. `name` is e.g. "SLH-DSA-SHA2-128s". seed is 3n bytes.
+ */
+int32_t slh_dsa_keygen(const uint8_t *name,
+                       uintptr_t name_len,
+                       const uint8_t *seed,
+                       uintptr_t seed_len,
+                       uint8_t *public_,
+                       uintptr_t *public_len,
+                       uint8_t *private_,
+                       uintptr_t *private_len);
+
+int32_t slh_dsa_sign(const uint8_t *name,
+                     uintptr_t name_len,
+                     const uint8_t *private_,
+                     uintptr_t private_len,
+                     const uint8_t *msg,
+                     uintptr_t msg_len,
+                     const uint8_t *ctx,
+                     uintptr_t ctx_len,
+                     uint8_t *sig,
+                     uintptr_t *sig_len);
+
+int32_t slh_dsa_verify(const uint8_t *name,
+                       uintptr_t name_len,
+                       const uint8_t *public_,
+                       uintptr_t public_len,
+                       const uint8_t *msg,
+                       uintptr_t msg_len,
+                       const uint8_t *ctx,
+                       uintptr_t ctx_len,
+                       const uint8_t *sig,
+                       uintptr_t sig_len);
+
+/**
+ * Ed25519 keygen. Writes 32-byte seed to `seed`, 32-byte public to `public`.
+ */
+int32_t ed25519_keygen(uint8_t *seed, uint8_t *public_);
+
+int32_t ed25519_sign(const uint8_t *secret,
+                     uintptr_t secret_len,
+                     const uint8_t *msg,
+                     uintptr_t msg_len,
+                     uint8_t *sig);
+
+int32_t ed25519_verify(const uint8_t *public_,
+                       uintptr_t public_len,
+                       const uint8_t *msg,
+                       uintptr_t msg_len,
+                       const uint8_t *sig,
+                       uintptr_t sig_len);
 
 struct StreamCipher *stream_cipher_new_aes_cfb(const uint8_t *key,
                                                uintptr_t key_len,
@@ -1004,5 +1590,25 @@ int32_t stream_cipher_encrypt(struct StreamCipher *self, uint8_t *inout, uintptr
 int32_t stream_cipher_decrypt(struct StreamCipher *self, uint8_t *inout, uintptr_t len);
 
 void stream_cipher_free(struct StreamCipher *cipher);
+
+struct Xts *xts_new_aes(const uint8_t *key, uintptr_t key_len);
+
+struct Xts *xts_new_sm4_gb(const uint8_t *key, uintptr_t key_len);
+
+struct Xts *xts_new_sm4(const uint8_t *key, uintptr_t key_len);
+
+int32_t xts_encrypt(const struct Xts *self,
+                    const uint8_t *tweak,
+                    uintptr_t tweak_len,
+                    uint8_t *data,
+                    uintptr_t data_len);
+
+int32_t xts_decrypt(const struct Xts *self,
+                    const uint8_t *tweak,
+                    uintptr_t tweak_len,
+                    uint8_t *data,
+                    uintptr_t data_len);
+
+void xts_free(struct Xts *this_);
 
 #endif  /* crown_H */

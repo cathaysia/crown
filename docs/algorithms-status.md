@@ -207,6 +207,19 @@ Full RFC 5280 path validation (name constraints, policies, revocation) and
 OCSP/CMP are out of scope, as are CMS `EnvelopedData` and OCSP response
 signing.
 
+### PKI consumer wiring (CLI / C ABI / playground) — 2026-10-05
+
+| consumer | exposed |
+|---|---|
+| `crown-bin` | `crown x509 info`/`fingerprint`/`verify`, `x509 csr-info`/`csr-verify`, `x509 crl-info`/`crl-verify`/`crl-check`; `crown pkcs7 sign`/`verify`/`info`/`extract` (attached and detached, PEM or DER, optional SM2 identity and extra chain certificates); `crown pkcs12 export`/`info`/`verify`/`extract`; `crown pkey info`/`decrypt`/`encrypt`/`pubout` (PKCS#8 and PBES2). Outputs cross-checked both directions with the OpenSSL 3.5.8 CLI: OpenSSL verifies crown-built CMS and reads crown-built PFX (MAC, key, certificates, attributes), and crown reads OpenSSL DER/PEM/BER outputs |
+| `crown-cabi` (`crown.h`) | Opaque `Certificate`/`Csr`/`Crl`/`Pkcs7`/`Pkcs12` handles with parse/free; DER and PEM output; subject/issuer/serial/validity/fingerprint/SPKI queries; signature and full chain verification with an optional SM2 identity; CSR self-signature and CRL signature verification plus revocation checks; CMS signer/certificate enumeration, content extraction and verification; PKCS#12 MAC status, bag enumeration (kind, friendlyName, certificate/CRL/PKCS#8 extraction); PKCS#8 decrypt/encrypt (PBES2) and public-key metadata. Buffer outputs use the query pattern (`-2` with the required length) |
+| `crown-wasm` + playground | `x509_parse` (certificate/CSR/CRL auto-detect, JSON report), `pkcs7_parse`/`pkcs7_verify`, `pkcs12_parse`, `pkcs8_decrypt`; the playground gains a `Certificates (X.509)` page covering all four modes |
+
+The committed `crown-cabi/include/crown.h` is regenerated from the sources
+with `cargo +nightly build -p crown-cabi --features cbindgen` (cbindgen's
+expansion needs nightly); this round also pulled in previously missing
+declarations that predated it.
+
 ### crown gaps — other buckets (closed 2026-10-03)
 
 - ARIA/SM4/Camellia/SEED GCM/CCM are wired through the generic
