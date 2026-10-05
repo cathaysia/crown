@@ -110,6 +110,71 @@ impl Extension {
                 CertificatePolicies::parse(&self.value)?,
             ));
         }
+        if self.oid.matches(oid::OID_NAME_CONSTRAINTS) {
+            return Ok(ParsedExtension::NameConstraints(NameConstraints::parse(
+                &self.value,
+            )?));
+        }
+        if self.oid.matches(oid::OID_POLICY_CONSTRAINTS) {
+            return Ok(ParsedExtension::PolicyConstraints(
+                PolicyConstraints::parse(&self.value)?,
+            ));
+        }
+        if self.oid.matches(oid::OID_INHIBIT_ANY_POLICY) {
+            return Ok(ParsedExtension::InhibitAnyPolicy(InhibitAnyPolicy::parse(
+                &self.value,
+            )?));
+        }
+        if self.oid.matches(oid::OID_POLICY_MAPPINGS) {
+            return Ok(ParsedExtension::PolicyMappings(PolicyMappings::parse(
+                &self.value,
+            )?));
+        }
+        if self.oid.matches(oid::OID_SUBJECT_INFO_ACCESS) {
+            return Ok(ParsedExtension::SubjectInfoAccess(
+                SubjectInfoAccess::parse(&self.value)?,
+            ));
+        }
+        if self.oid.matches(oid::OID_CRL_NUMBER) {
+            return Ok(ParsedExtension::CrlNumber(CrlNumber::parse(&self.value)?));
+        }
+        if self.oid.matches(oid::OID_DELTA_CRL_INDICATOR) {
+            return Ok(ParsedExtension::DeltaCrlIndicator(
+                DeltaCrlIndicator::parse(&self.value)?,
+            ));
+        }
+        if self.oid.matches(oid::OID_ISSUING_DISTRIBUTION_POINT) {
+            return Ok(ParsedExtension::IssuingDistributionPoint(
+                IssuingDistributionPoint::parse(&self.value)?,
+            ));
+        }
+        if self.oid.matches(oid::OID_REASON_CODE) {
+            return Ok(ParsedExtension::CrlReason(CrlReason::parse(&self.value)?));
+        }
+        if self.oid.matches(oid::OID_INVALIDITY_DATE) {
+            return Ok(ParsedExtension::InvalidityDate(InvalidityDate::parse(
+                &self.value,
+            )?));
+        }
+        if self.oid.matches(oid::OID_CERTIFICATE_ISSUER) {
+            return Ok(ParsedExtension::CertificateIssuer(
+                CertificateIssuer::parse(&self.value)?,
+            ));
+        }
+        if self.oid.matches(oid::OID_FRESHEST_CRL) {
+            return Ok(ParsedExtension::FreshestCrl(CrlDistributionPoints::parse(
+                &self.value,
+            )?));
+        }
+        if self.oid.matches(oid::OID_TLS_FEATURE) {
+            return Ok(ParsedExtension::TlsFeature(TlsFeature::parse(&self.value)?));
+        }
+        if self.oid.matches(oid::OID_OCSP_NOCHECK) {
+            return Ok(ParsedExtension::OcspNoCheck);
+        }
+        if self.oid.matches(oid::OID_NO_REV_AVAIL) {
+            return Ok(ParsedExtension::NoRevAvail);
+        }
         if self.oid.matches(oid::OID_SUBJECT_DIRECTORY_ATTRIBUTES) {
             return Ok(ParsedExtension::SubjectDirectoryAttributes);
         }
@@ -140,6 +205,36 @@ pub enum ParsedExtension {
     AuthorityInfoAccess(AuthorityInfoAccess),
     /// `certificatePolicies` (policy OIDs only).
     CertificatePolicies(CertificatePolicies),
+    /// `nameConstraints`.
+    NameConstraints(NameConstraints),
+    /// `policyConstraints`.
+    PolicyConstraints(PolicyConstraints),
+    /// `inhibitAnyPolicy`.
+    InhibitAnyPolicy(InhibitAnyPolicy),
+    /// `policyMappings`.
+    PolicyMappings(PolicyMappings),
+    /// `subjectInfoAccess`.
+    SubjectInfoAccess(SubjectInfoAccess),
+    /// `cRLNumber`.
+    CrlNumber(CrlNumber),
+    /// `deltaCRLIndicator`.
+    DeltaCrlIndicator(DeltaCrlIndicator),
+    /// `issuingDistributionPoint`.
+    IssuingDistributionPoint(IssuingDistributionPoint),
+    /// `reasonCode` (CRL entries).
+    CrlReason(CrlReason),
+    /// `invalidityDate` (CRL entries).
+    InvalidityDate(InvalidityDate),
+    /// `certificateIssuer` (CRL entries).
+    CertificateIssuer(CertificateIssuer),
+    /// `freshestCRL`.
+    FreshestCrl(CrlDistributionPoints),
+    /// `tlsfeature`.
+    TlsFeature(TlsFeature),
+    /// `OCSP no-check`.
+    OcspNoCheck,
+    /// `noRevAvail`.
+    NoRevAvail,
     /// `subjectDirectoryAttributes` (not decoded further).
     SubjectDirectoryAttributes,
     /// A recognized-but-untyped extension.
@@ -702,5 +797,1097 @@ pub fn authority_key_identifier(key_id: &[u8]) -> Extension {
             ..Default::default()
         }
         .encode(),
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Access descriptions and subjectInfoAccess
+// ---------------------------------------------------------------------------
+
+/// One `AccessDescription`: `SEQUENCE { accessMethod OID, accessLocation GeneralName }`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AccessDescription {
+    /// Access method OID.
+    pub method: ObjectIdentifier,
+    /// The location of the data.
+    pub location: GeneralName,
+}
+
+impl AccessDescription {
+    /// Parse one `AccessDescription`.
+    pub fn parse(reader: &mut Reader<'_>) -> CryptoResult<Self> {
+        let mut seq = reader.read_sequence()?;
+        let method = seq.read_oid()?;
+        let location = GeneralName::parse(&mut seq)?;
+        seq.expect_end()?;
+        Ok(AccessDescription { method, location })
+    }
+
+    /// Encode one `AccessDescription`.
+    pub fn encode(&self) -> Vec<u8> {
+        let mut content = der::oid(&self.method);
+        content.extend_from_slice(&self.location.encode());
+        der::sequence(&content)
+    }
+}
+
+/// `SubjectInfoAccessSyntax ::= SEQUENCE OF AccessDescription` (RFC 5280
+/// 4.2.2.2).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SubjectInfoAccess {
+    /// The access descriptions.
+    pub descriptions: Vec<AccessDescription>,
+}
+
+impl SubjectInfoAccess {
+    /// Parse the extension contents.
+    pub fn parse(der: &[u8]) -> CryptoResult<Self> {
+        let mut reader = Reader::new(der);
+        let mut seq = reader.read_sequence()?;
+        let mut descriptions = Vec::new();
+        while !seq.is_empty() {
+            descriptions.push(AccessDescription::parse(&mut seq)?);
+        }
+        Ok(SubjectInfoAccess { descriptions })
+    }
+
+    /// Encode the extension contents.
+    pub fn encode(&self) -> Vec<u8> {
+        let mut content = Vec::new();
+        for description in &self.descriptions {
+            content.extend_from_slice(&description.encode());
+        }
+        der::sequence(&content)
+    }
+
+    /// Every access location for `method`.
+    pub fn locations(&self, method: &[u64]) -> Vec<&GeneralName> {
+        self.descriptions
+            .iter()
+            .filter(|description| description.method.matches(method))
+            .map(|description| &description.location)
+            .collect()
+    }
+
+    /// `caRepository` URIs.
+    pub fn ca_repository(&self) -> Vec<&str> {
+        self.locations(oid::OID_AD_CA_REPOSITORY)
+            .into_iter()
+            .filter_map(GeneralName::to_text)
+            .collect()
+    }
+
+    /// `timeStamping` URIs.
+    pub fn time_stamping(&self) -> Vec<&str> {
+        self.locations(oid::OID_AD_TIME_STAMPING)
+            .into_iter()
+            .filter_map(GeneralName::to_text)
+            .collect()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Name constraints
+// ---------------------------------------------------------------------------
+
+/// `GeneralSubtree ::= SEQUENCE { base GeneralName, minimum [0] BaseDistance
+/// DEFAULT 0, maximum [1] BaseDistance OPTIONAL }`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GeneralSubtree {
+    /// The constraint's base name.
+    pub base: GeneralName,
+    /// Minimum distance (always 0 in RFC 5280 deployments).
+    pub minimum: u32,
+    /// Maximum distance, when present.
+    pub maximum: Option<u32>,
+}
+
+impl GeneralSubtree {
+    /// Whether the subtree uses only the RFC 5280 mandatory zero minimum and
+    /// no maximum.
+    pub fn is_supported(&self) -> bool {
+        self.minimum == 0 && self.maximum.is_none()
+    }
+
+    /// Parse one `GeneralSubtree`.
+    pub fn parse(reader: &mut Reader<'_>) -> CryptoResult<Self> {
+        let mut seq = reader.read_sequence()?;
+        let base = GeneralName::parse(&mut seq)?;
+        let mut minimum = 0;
+        let mut maximum = None;
+        while !seq.is_empty() {
+            let tag = seq.peek_tag()?;
+            match (tag.class, tag.number) {
+                (der::Class::ContextSpecific, 0) => {
+                    minimum = implicit_u32(&mut seq, 0)?;
+                }
+                (der::Class::ContextSpecific, 1) => {
+                    maximum = Some(implicit_u32(&mut seq, 1)?);
+                }
+                _ => return Err(CryptoError::StrError("x509: invalid general subtree")),
+            }
+        }
+        Ok(GeneralSubtree {
+            base,
+            minimum,
+            maximum,
+        })
+    }
+
+    /// Encode one `GeneralSubtree`.
+    pub fn encode(&self) -> Vec<u8> {
+        let mut content = self.base.encode();
+        if self.minimum != 0 {
+            content.extend_from_slice(&der::implicit(0, false, &integer_content(self.minimum)));
+        }
+        if let Some(maximum) = self.maximum {
+            content.extend_from_slice(&der::implicit(1, false, &integer_content(maximum)));
+        }
+        der::sequence(&content)
+    }
+
+    /// Whether `name` falls inside this subtree (RFC 5280 4.2.1.10 matching
+    /// rules for DNS, email, IP, URI and directory names).
+    pub fn matches(&self, name: &GeneralName) -> bool {
+        match (&self.base, name) {
+            (GeneralName::DnsName(constraint), GeneralName::DnsName(name)) => {
+                dns_matches(constraint, name)
+            }
+            (GeneralName::Rfc822Name(constraint), GeneralName::Rfc822Name(name)) => {
+                email_matches(constraint, name)
+            }
+            (GeneralName::IpAddress(constraint), GeneralName::IpAddress(name)) => {
+                ip_matches(constraint, name)
+            }
+            (GeneralName::Uri(constraint), GeneralName::Uri(name)) => uri_matches(constraint, name),
+            (GeneralName::DirectoryName(constraint), GeneralName::DirectoryName(name)) => {
+                directory_matches(constraint, name)
+            }
+            (GeneralName::RegisteredId(constraint), GeneralName::RegisteredId(name)) => {
+                constraint == name
+            }
+            (
+                GeneralName::OtherName {
+                    oid: constraint_oid,
+                    value: constraint_value,
+                },
+                GeneralName::OtherName { oid, value },
+            ) => constraint_oid == oid && constraint_value == value,
+            _ => false,
+        }
+    }
+
+    fn same_type(&self, name: &GeneralName) -> bool {
+        general_name_tag(&self.base) == general_name_tag(name)
+    }
+}
+
+/// The context tag of a `GeneralName` (the matching "type").
+fn general_name_tag(name: &GeneralName) -> u32 {
+    match name {
+        GeneralName::OtherName { .. } => 0,
+        GeneralName::Rfc822Name(_) => 1,
+        GeneralName::DnsName(_) => 2,
+        GeneralName::X400Address(_) => 3,
+        GeneralName::DirectoryName(_) => 4,
+        GeneralName::EdiPartyName(_) => 5,
+        GeneralName::Uri(_) => 6,
+        GeneralName::IpAddress(_) => 7,
+        GeneralName::RegisteredId(_) => 8,
+        GeneralName::Unknown { tag, .. } => *tag,
+    }
+}
+
+fn dns_matches(constraint: &str, name: &str) -> bool {
+    if name.is_empty() {
+        return false;
+    }
+    let constraint = constraint.to_ascii_lowercase();
+    let name = name.to_ascii_lowercase();
+    match constraint.strip_prefix('.') {
+        // A leading dot constrains subdomains only.
+        Some(suffix) => name.len() > suffix.len() + 1 && name.ends_with(&constraint),
+        None => {
+            name == constraint
+                || (name.len() > constraint.len()
+                    && name.ends_with(&constraint)
+                    && name.as_bytes()[name.len() - constraint.len() - 1] == b'.')
+        }
+    }
+}
+
+fn email_matches(constraint: &str, name: &str) -> bool {
+    let constraint = constraint.to_ascii_lowercase();
+    let name = name.to_ascii_lowercase();
+    if constraint.contains('@') {
+        return name == constraint;
+    }
+    let Some((_, host)) = name.rsplit_once('@') else {
+        return false;
+    };
+    match constraint.strip_prefix('.') {
+        Some(suffix) => host.len() > suffix.len() + 1 && host.ends_with(&constraint),
+        None => host == constraint,
+    }
+}
+
+fn ip_matches(constraint: &[u8], name: &[u8]) -> bool {
+    if constraint.len() != name.len() * 2 || name.is_empty() {
+        return false;
+    }
+    let (address, mask) = constraint.split_at(name.len());
+    address
+        .iter()
+        .zip(name.iter())
+        .zip(mask.iter())
+        .all(|((address, name), mask)| address & mask == name & mask)
+}
+
+fn uri_host(uri: &str) -> Option<&str> {
+    let rest = uri.split_once("://").map(|(_, rest)| rest)?;
+    let host = rest.split(['/', '?', '#']).next()?;
+    let host = host.rsplit('@').next().unwrap_or(host);
+    if let Some(bracketed) = host.strip_prefix('[') {
+        return bracketed.split(']').next();
+    }
+    Some(host.split(':').next().unwrap_or(host))
+}
+
+fn uri_matches(constraint: &str, name: &str) -> bool {
+    let Some(host) = uri_host(name) else {
+        return false;
+    };
+    dns_matches(constraint, host)
+}
+
+fn directory_matches(constraint: &Name, name: &Name) -> bool {
+    if constraint.rdns.len() > name.rdns.len() {
+        return false;
+    }
+    constraint
+        .rdns
+        .iter()
+        .zip(name.rdns.iter())
+        .all(|(constraint, name)| constraint == name)
+}
+
+/// `NameConstraints ::= SEQUENCE { permittedSubtrees [0] OPTIONAL, excludedSubtrees [1] OPTIONAL }`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct NameConstraints {
+    /// Permitted subtrees.
+    pub permitted: Option<Vec<GeneralSubtree>>,
+    /// Excluded subtrees.
+    pub excluded: Option<Vec<GeneralSubtree>>,
+}
+
+impl NameConstraints {
+    /// Parse the extension contents.
+    pub fn parse(der: &[u8]) -> CryptoResult<Self> {
+        let mut reader = Reader::new(der);
+        let mut seq = reader.read_sequence()?;
+        let mut constraints = NameConstraints::default();
+        while !seq.is_empty() {
+            let tag = seq.peek_tag()?;
+            let mut subtrees = Vec::new();
+            match (tag.class, tag.number) {
+                (der::Class::ContextSpecific, 0) => {
+                    let mut inner = seq.read_implicit_constructed(0)?;
+                    while !inner.is_empty() {
+                        subtrees.push(GeneralSubtree::parse(&mut inner)?);
+                    }
+                    constraints.permitted = Some(subtrees);
+                }
+                (der::Class::ContextSpecific, 1) => {
+                    let mut inner = seq.read_implicit_constructed(1)?;
+                    while !inner.is_empty() {
+                        subtrees.push(GeneralSubtree::parse(&mut inner)?);
+                    }
+                    constraints.excluded = Some(subtrees);
+                }
+                _ => return Err(CryptoError::StrError("x509: invalid name constraints")),
+            }
+        }
+        Ok(constraints)
+    }
+
+    /// Encode the extension contents.
+    pub fn encode(&self) -> Vec<u8> {
+        let mut content = Vec::new();
+        if let Some(permitted) = &self.permitted {
+            let mut inner = Vec::new();
+            for subtree in permitted {
+                inner.extend_from_slice(&subtree.encode());
+            }
+            content.extend_from_slice(&der::implicit(0, true, &inner));
+        }
+        if let Some(excluded) = &self.excluded {
+            let mut inner = Vec::new();
+            for subtree in excluded {
+                inner.extend_from_slice(&subtree.encode());
+            }
+            content.extend_from_slice(&der::implicit(1, true, &inner));
+        }
+        der::sequence(&content)
+    }
+
+    /// Whether `name` is permitted by these constraints.
+    ///
+    /// A name of a type with permitted subtrees must match at least one of
+    /// them; excluded subtrees reject on any match. Names of a type that is
+    /// not constrained are permitted.
+    pub fn permits(&self, name: &GeneralName) -> bool {
+        if let Some(excluded) = &self.excluded {
+            if excluded
+                .iter()
+                .any(|subtree| subtree.same_type(name) && subtree.matches(name))
+            {
+                return false;
+            }
+        }
+        if let Some(permitted) = &self.permitted {
+            let mut any_of_type = false;
+            let mut matches = false;
+            for subtree in permitted {
+                if !subtree.same_type(name) {
+                    continue;
+                }
+                any_of_type = true;
+                if subtree.matches(name) {
+                    matches = true;
+                    break;
+                }
+            }
+            if any_of_type && !matches {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Whether every subtree uses only the supported zero minimum and no
+    /// maximum.
+    pub fn is_supported(&self) -> bool {
+        let supported = |subtrees: &Option<Vec<GeneralSubtree>>| {
+            subtrees
+                .as_ref()
+                .is_none_or(|subtrees| subtrees.iter().all(GeneralSubtree::is_supported))
+        };
+        supported(&self.permitted) && supported(&self.excluded)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Policy constraints, inhibitAnyPolicy and policyMappings
+// ---------------------------------------------------------------------------
+
+fn integer_content(value: u32) -> Vec<u8> {
+    let bytes = value.to_be_bytes();
+    let start = bytes.iter().position(|&byte| byte != 0).unwrap_or(3);
+    bytes[start..].to_vec()
+}
+
+/// `PolicyConstraints ::= SEQUENCE { requireExplicitPolicy [0] OPTIONAL,
+/// inhibitPolicyMapping [1] OPTIONAL }`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct PolicyConstraints {
+    /// `requireExplicitPolicy` skipCerts.
+    pub require_explicit_policy: Option<u32>,
+    /// `inhibitPolicyMapping` skipCerts.
+    pub inhibit_policy_mapping: Option<u32>,
+}
+
+impl PolicyConstraints {
+    /// Parse the extension contents.
+    pub fn parse(der: &[u8]) -> CryptoResult<Self> {
+        let mut reader = Reader::new(der);
+        let mut seq = reader.read_sequence()?;
+        let mut constraints = PolicyConstraints::default();
+        while !seq.is_empty() {
+            let tag = seq.peek_tag()?;
+            match (tag.class, tag.number) {
+                (der::Class::ContextSpecific, 0) => {
+                    constraints.require_explicit_policy = Some(implicit_u32(&mut seq, 0)?);
+                }
+                (der::Class::ContextSpecific, 1) => {
+                    constraints.inhibit_policy_mapping = Some(implicit_u32(&mut seq, 1)?);
+                }
+                _ => return Err(CryptoError::StrError("x509: invalid policy constraint")),
+            }
+        }
+        Ok(constraints)
+    }
+
+    /// Encode the extension contents.
+    pub fn encode(&self) -> Vec<u8> {
+        let mut content = Vec::new();
+        if let Some(value) = self.require_explicit_policy {
+            content.extend_from_slice(&der::implicit(0, false, &integer_content(value)));
+        }
+        if let Some(value) = self.inhibit_policy_mapping {
+            content.extend_from_slice(&der::implicit(1, false, &integer_content(value)));
+        }
+        der::sequence(&content)
+    }
+}
+
+/// `InhibitAnyPolicy ::= SkipCerts`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct InhibitAnyPolicy {
+    /// Number of certificates that may follow before anyPolicy stops being
+    /// acceptable.
+    pub skip_certs: u32,
+}
+
+impl InhibitAnyPolicy {
+    /// Parse the extension contents.
+    pub fn parse(der: &[u8]) -> CryptoResult<Self> {
+        let mut reader = Reader::new(der);
+        let value = reader.read_integer_i64()?;
+        reader.expect_end()?;
+        Ok(InhibitAnyPolicy {
+            skip_certs: u32::try_from(value)
+                .map_err(|_| CryptoError::StrError("x509: invalid inhibitAnyPolicy"))?,
+        })
+    }
+
+    /// Encode the extension contents.
+    pub fn encode(&self) -> Vec<u8> {
+        der::integer(&integer_content(self.skip_certs))
+    }
+}
+
+/// One `PolicyMapping`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PolicyMapping {
+    /// `issuerDomainPolicy`.
+    pub issuer_domain_policy: ObjectIdentifier,
+    /// `subjectDomainPolicy`.
+    pub subject_domain_policy: ObjectIdentifier,
+}
+
+/// `PolicyMappings ::= SEQUENCE OF SEQUENCE { issuerDomainPolicy, subjectDomainPolicy }`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct PolicyMappings {
+    /// The mappings.
+    pub mappings: Vec<PolicyMapping>,
+}
+
+impl PolicyMappings {
+    /// Parse the extension contents.
+    pub fn parse(der: &[u8]) -> CryptoResult<Self> {
+        let mut reader = Reader::new(der);
+        let mut seq = reader.read_sequence()?;
+        let mut mappings = Vec::new();
+        while !seq.is_empty() {
+            let mut mapping = seq.read_sequence()?;
+            mappings.push(PolicyMapping {
+                issuer_domain_policy: mapping.read_oid()?,
+                subject_domain_policy: mapping.read_oid()?,
+            });
+        }
+        Ok(PolicyMappings { mappings })
+    }
+
+    /// Encode the extension contents.
+    pub fn encode(&self) -> Vec<u8> {
+        let mut content = Vec::new();
+        for mapping in &self.mappings {
+            content.extend_from_slice(&der::sequence(
+                &[
+                    der::oid(&mapping.issuer_domain_policy),
+                    der::oid(&mapping.subject_domain_policy),
+                ]
+                .concat(),
+            ));
+        }
+        der::sequence(&content)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CRL extensions
+// ---------------------------------------------------------------------------
+
+/// `CRLNumber ::= INTEGER`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CrlNumber {
+    /// The number as a big-endian magnitude.
+    pub number: Vec<u8>,
+}
+
+impl CrlNumber {
+    /// Parse the extension contents.
+    pub fn parse(der: &[u8]) -> CryptoResult<Self> {
+        let mut reader = Reader::new(der);
+        let number = reader.read_integer()?.to_vec();
+        reader.expect_end()?;
+        Ok(CrlNumber { number })
+    }
+
+    /// Encode the extension contents.
+    pub fn encode(&self) -> Vec<u8> {
+        der::integer(&self.number)
+    }
+
+    /// The number as a `u64`, when it fits.
+    pub fn to_u64(&self) -> Option<u64> {
+        if self.number.len() > 8 {
+            return None;
+        }
+        Some(
+            self.number
+                .iter()
+                .fold(0u64, |value, &byte| (value << 8) | byte as u64),
+        )
+    }
+}
+
+/// `BaseCRLNumber ::= CRLNumber` (the `deltaCRLIndicator` extension).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DeltaCrlIndicator {
+    /// The base CRL number.
+    pub base_crl_number: Vec<u8>,
+}
+
+impl DeltaCrlIndicator {
+    /// Parse the extension contents.
+    pub fn parse(der: &[u8]) -> CryptoResult<Self> {
+        Ok(DeltaCrlIndicator {
+            base_crl_number: CrlNumber::parse(der)?.number,
+        })
+    }
+
+    /// Encode the extension contents.
+    pub fn encode(&self) -> Vec<u8> {
+        CrlNumber {
+            number: self.base_crl_number.clone(),
+        }
+        .encode()
+    }
+}
+
+/// The RFC 5280 `CRLReason` values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CrlReason {
+    /// `unspecified` (0).
+    Unspecified,
+    /// `keyCompromise` (1).
+    KeyCompromise,
+    /// `cACompromise` (2).
+    CaCompromise,
+    /// `affiliationChanged` (3).
+    AffiliationChanged,
+    /// `superseded` (4).
+    Superseded,
+    /// `cessationOfOperation` (5).
+    CessationOfOperation,
+    /// `certificateHold` (6).
+    CertificateHold,
+    /// `removeFromCRL` (8).
+    RemoveFromCrl,
+    /// `privilegeWithdrawn` (9).
+    PrivilegeWithdrawn,
+    /// `aACompromise` (10).
+    AaCompromise,
+}
+
+impl CrlReason {
+    /// Decode an ENUMERATED value.
+    pub fn from_u8(value: u8) -> CryptoResult<Self> {
+        Ok(match value {
+            0 => CrlReason::Unspecified,
+            1 => CrlReason::KeyCompromise,
+            2 => CrlReason::CaCompromise,
+            3 => CrlReason::AffiliationChanged,
+            4 => CrlReason::Superseded,
+            5 => CrlReason::CessationOfOperation,
+            6 => CrlReason::CertificateHold,
+            8 => CrlReason::RemoveFromCrl,
+            9 => CrlReason::PrivilegeWithdrawn,
+            10 => CrlReason::AaCompromise,
+            _ => return Err(CryptoError::StrError("x509: unknown CRL reason value")),
+        })
+    }
+
+    /// The wire value.
+    pub fn as_u8(self) -> u8 {
+        match self {
+            CrlReason::Unspecified => 0,
+            CrlReason::KeyCompromise => 1,
+            CrlReason::CaCompromise => 2,
+            CrlReason::AffiliationChanged => 3,
+            CrlReason::Superseded => 4,
+            CrlReason::CessationOfOperation => 5,
+            CrlReason::CertificateHold => 6,
+            CrlReason::RemoveFromCrl => 8,
+            CrlReason::PrivilegeWithdrawn => 9,
+            CrlReason::AaCompromise => 10,
+        }
+    }
+
+    /// The RFC 5280 name.
+    pub fn name(self) -> &'static str {
+        match self {
+            CrlReason::Unspecified => "unspecified",
+            CrlReason::KeyCompromise => "keyCompromise",
+            CrlReason::CaCompromise => "cACompromise",
+            CrlReason::AffiliationChanged => "affiliationChanged",
+            CrlReason::Superseded => "superseded",
+            CrlReason::CessationOfOperation => "cessationOfOperation",
+            CrlReason::CertificateHold => "certificateHold",
+            CrlReason::RemoveFromCrl => "removeFromCRL",
+            CrlReason::PrivilegeWithdrawn => "privilegeWithdrawn",
+            CrlReason::AaCompromise => "aACompromise",
+        }
+    }
+
+    /// Parse a `reasonCode` value: the CRL entry extension uses a plain
+    /// `ENUMERATED`, OCSP's `RevokedInfo` wraps the same value in `[0]`.
+    pub fn parse(der: &[u8]) -> CryptoResult<Self> {
+        let mut reader = Reader::new(der);
+        let (tag, content) = reader.read_tlv()?;
+        let enumerated = tag.class == der::Class::Universal && tag.number == 0x0a;
+        let context = tag.class == der::Class::ContextSpecific && tag.number == 0;
+        if !(enumerated || context) || tag.constructed || content.len() != 1 {
+            return Err(CryptoError::StrError("x509: invalid crl reason code"));
+        }
+        reader.expect_end()?;
+        CrlReason::from_u8(content[0])
+    }
+
+    /// Encode the `reasonCode` extension contents (`ENUMERATED`).
+    pub fn encode(self) -> Vec<u8> {
+        der::tlv(der::Tag::universal(0x0a), &[self.as_u8()])
+    }
+}
+
+impl core::fmt::Display for CrlReason {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.name())
+    }
+}
+
+/// `InvalidityDate ::= GeneralizedTime`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InvalidityDate {
+    /// The invalidity date.
+    pub date: crate::asn1::time::Asn1Time,
+}
+
+impl InvalidityDate {
+    /// Parse the extension contents.
+    pub fn parse(der: &[u8]) -> CryptoResult<Self> {
+        let mut reader = Reader::new(der);
+        let date = reader.read_generalized_time()?;
+        reader.expect_end()?;
+        Ok(InvalidityDate { date })
+    }
+
+    /// Encode the extension contents.
+    pub fn encode(&self) -> Vec<u8> {
+        let mut date = self.date;
+        date.utc = false;
+        der::generalized_time(&date)
+    }
+}
+
+/// `CertificateIssuer ::= GeneralNames` (a CRL entry indirection).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CertificateIssuer {
+    /// The issuer names.
+    pub names: Vec<GeneralName>,
+}
+
+impl CertificateIssuer {
+    /// Parse the extension contents.
+    pub fn parse(der: &[u8]) -> CryptoResult<Self> {
+        Ok(CertificateIssuer {
+            names: parse_general_names(der)?,
+        })
+    }
+
+    /// Encode the extension contents.
+    pub fn encode(&self) -> Vec<u8> {
+        encode_general_names(&self.names)
+    }
+}
+
+/// The distribution point name of an `IssuingDistributionPoint`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DistributionPointName {
+    /// `fullName` general names.
+    pub full_name: Option<Vec<GeneralName>>,
+    /// `nameRelativeToCRLIssuer`.
+    pub relative_name: Option<super::name::Rdn>,
+}
+
+/// `IssuingDistributionPoint ::= SEQUENCE { distributionPoint [0] OPTIONAL,
+/// onlyContainsUserCerts [1] DEFAULT FALSE, onlyContainsCACerts [2] DEFAULT
+/// FALSE, onlySomeReasons [3] OPTIONAL, indirectCRL [4] DEFAULT FALSE,
+/// onlyContainsAttributeCerts [5] DEFAULT FALSE }`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct IssuingDistributionPoint {
+    /// The distribution point name.
+    pub distribution_point: Option<DistributionPointName>,
+    /// `onlyContainsUserCerts`.
+    pub only_contains_user_certs: bool,
+    /// `onlyContainsCACerts`.
+    pub only_contains_ca_certs: bool,
+    /// `onlySomeReasons` bits (RFC 5280 bit numbers 0..=8).
+    pub only_some_reasons: Option<u16>,
+    /// `indirectCRL`.
+    pub indirect_crl: bool,
+    /// `onlyContainsAttributeCerts`.
+    pub only_contains_attribute_certs: bool,
+}
+
+impl IssuingDistributionPoint {
+    /// Parse the extension contents.
+    pub fn parse(der: &[u8]) -> CryptoResult<Self> {
+        let mut reader = Reader::new(der);
+        let mut seq = reader.read_sequence()?;
+        let mut point = IssuingDistributionPoint::default();
+        while !seq.is_empty() {
+            let tag = seq.peek_tag()?;
+            match (tag.class, tag.number) {
+                (der::Class::ContextSpecific, 0) => {
+                    let mut inner = seq.read_implicit_constructed(0)?;
+                    point.distribution_point = Some(parse_distribution_point_name(&mut inner)?);
+                }
+                (der::Class::ContextSpecific, 1) => {
+                    point.only_contains_user_certs = implicit_boolean(&mut seq, 1)?;
+                }
+                (der::Class::ContextSpecific, 2) => {
+                    point.only_contains_ca_certs = implicit_boolean(&mut seq, 2)?;
+                }
+                (der::Class::ContextSpecific, 3) => {
+                    let content = seq.read_implicit(3, false)?;
+                    let (unused, data) = content.split_first().ok_or(CryptoError::StrError(
+                        "x509: invalid issuingDistributionPoint reasons",
+                    ))?;
+                    point.only_some_reasons = Some(bit_string_bits(*unused, data));
+                }
+                (der::Class::ContextSpecific, 4) => {
+                    point.indirect_crl = implicit_boolean(&mut seq, 4)?;
+                }
+                (der::Class::ContextSpecific, 5) => {
+                    point.only_contains_attribute_certs = implicit_boolean(&mut seq, 5)?;
+                }
+                _ => {
+                    return Err(CryptoError::StrError(
+                        "x509: invalid issuingDistributionPoint",
+                    ));
+                }
+            }
+        }
+        Ok(point)
+    }
+
+    /// Encode the extension contents.
+    pub fn encode(&self) -> Vec<u8> {
+        let mut content = Vec::new();
+        if let Some(point) = &self.distribution_point {
+            let mut inner = Vec::new();
+            if let Some(names) = &point.full_name {
+                let mut names_content = Vec::new();
+                for name in names {
+                    names_content.extend_from_slice(&name.encode());
+                }
+                inner.extend_from_slice(&der::implicit(0, true, &names_content));
+            }
+            if let Some(relative) = &point.relative_name {
+                let mut rdn_content = Vec::new();
+                for attribute in &relative.attributes {
+                    rdn_content.extend_from_slice(&attribute.encode());
+                }
+                inner.extend_from_slice(&der::implicit(1, true, &rdn_content));
+            }
+            content.extend_from_slice(&der::implicit(0, true, &inner));
+        }
+        if self.only_contains_user_certs {
+            content.extend_from_slice(&der::implicit(1, false, &[0xff]));
+        }
+        if self.only_contains_ca_certs {
+            content.extend_from_slice(&der::implicit(2, false, &[0xff]));
+        }
+        if let Some(bits) = self.only_some_reasons {
+            content.extend_from_slice(&der::implicit(3, false, &bit_string_bytes(bits)));
+        }
+        if self.indirect_crl {
+            content.extend_from_slice(&der::implicit(4, false, &[0xff]));
+        }
+        if self.only_contains_attribute_certs {
+            content.extend_from_slice(&der::implicit(5, false, &[0xff]));
+        }
+        der::sequence(&content)
+    }
+
+    /// Whether the given RFC 5280 reason bit is set.
+    pub fn has_reason(&self, bit: u16) -> bool {
+        self.only_some_reasons
+            .is_some_and(|reasons| reasons & (1 << bit) != 0)
+    }
+}
+
+fn parse_distribution_point_name(reader: &mut Reader<'_>) -> CryptoResult<DistributionPointName> {
+    let tag = reader.peek_tag()?;
+    match (tag.class, tag.number) {
+        (der::Class::ContextSpecific, 0) => {
+            let mut inner = reader.read_implicit_constructed(0)?;
+            let mut names = Vec::new();
+            while !inner.is_empty() {
+                names.push(GeneralName::parse(&mut inner)?);
+            }
+            Ok(DistributionPointName {
+                full_name: Some(names),
+                relative_name: None,
+            })
+        }
+        (der::Class::ContextSpecific, 1) => {
+            let mut inner = reader.read_implicit_constructed(1)?;
+            let mut attributes = Vec::new();
+            while !inner.is_empty() {
+                attributes.push(super::name::AttributeTypeAndValue::parse(&mut inner)?);
+            }
+            Ok(DistributionPointName {
+                full_name: None,
+                relative_name: Some(super::name::Rdn { attributes }),
+            })
+        }
+        _ => Err(CryptoError::StrError(
+            "x509: invalid distribution point name",
+        )),
+    }
+}
+
+fn bit_string_bits(unused: u8, data: &[u8]) -> u16 {
+    let mut bits = 0u16;
+    for (index, &byte) in data.iter().enumerate() {
+        for bit in 0..8 {
+            let position = index * 8 + bit;
+            if position >= 16 {
+                return bits;
+            }
+            if byte & (0x80 >> bit) != 0 {
+                bits |= 1 << position;
+            }
+        }
+    }
+    let _ = unused;
+    bits
+}
+
+/// The content of an IMPLICIT BIT STRING for `bits` (unused count then
+/// octets). `bits` uses RFC 5280 bit numbering: bit 0 is the most significant
+/// bit of the first octet.
+fn bit_string_bytes(bits: u16) -> Vec<u8> {
+    let encode = |group: u16| -> u8 {
+        let mut byte = 0u8;
+        for bit in 0..8 {
+            if group & (1 << bit) != 0 {
+                byte |= 0x80 >> bit;
+            }
+        }
+        byte
+    };
+    if bits > 0xff {
+        alloc::vec![0, encode(bits >> 8), encode(bits & 0xff)]
+    } else {
+        alloc::vec![0, encode(bits)]
+    }
+}
+
+/// Read an IMPLICIT INTEGER of at most four octets.
+fn implicit_u32(reader: &mut Reader<'_>, number: u32) -> CryptoResult<u32> {
+    let content = reader.read_implicit(number, false)?;
+    if content.is_empty() || content.len() > 4 {
+        return Err(CryptoError::StrError("x509: invalid implicit integer"));
+    }
+    Ok(content
+        .iter()
+        .fold(0u32, |value, &byte| (value << 8) | byte as u32))
+}
+
+/// Read an IMPLICIT BOOLEAN.
+fn implicit_boolean(reader: &mut Reader<'_>, number: u32) -> CryptoResult<bool> {
+    let content = reader.read_implicit(number, false)?;
+    content
+        .first()
+        .map(|&byte| byte != 0)
+        .ok_or(CryptoError::StrError("x509: invalid implicit boolean"))
+}
+
+/// `TLSFeature ::= SEQUENCE OF INTEGER`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TlsFeature {
+    /// The feature values (`status_request` = 5, `status_request_v2` = 17).
+    pub features: Vec<u64>,
+}
+
+impl TlsFeature {
+    /// Parse the extension contents.
+    pub fn parse(der: &[u8]) -> CryptoResult<Self> {
+        let mut reader = Reader::new(der);
+        let mut seq = reader.read_sequence()?;
+        let mut features = Vec::new();
+        while !seq.is_empty() {
+            features.push(
+                u64::try_from(seq.read_integer_i64()?)
+                    .map_err(|_| CryptoError::StrError("x509: invalid TLS feature value"))?,
+            );
+        }
+        Ok(TlsFeature { features })
+    }
+
+    /// Encode the extension contents.
+    pub fn encode(&self) -> Vec<u8> {
+        let mut content = Vec::new();
+        for feature in &self.features {
+            content.extend_from_slice(&der::integer_i64(*feature as i64));
+        }
+        der::sequence(&content)
+    }
+}
+
+/// Build a `subjectInfoAccess` extension.
+pub fn subject_info_access(descriptions: &[AccessDescription]) -> Extension {
+    Extension::new(
+        ObjectIdentifier::new(oid::OID_SUBJECT_INFO_ACCESS).expect("static oid"),
+        false,
+        SubjectInfoAccess {
+            descriptions: descriptions.to_vec(),
+        }
+        .encode(),
+    )
+}
+
+/// Build a `nameConstraints` extension.
+pub fn name_constraints(permitted: &[GeneralSubtree], excluded: &[GeneralSubtree]) -> Extension {
+    Extension::new(
+        ObjectIdentifier::new(oid::OID_NAME_CONSTRAINTS).expect("static oid"),
+        true,
+        NameConstraints {
+            permitted: (!permitted.is_empty()).then(|| permitted.to_vec()),
+            excluded: (!excluded.is_empty()).then(|| excluded.to_vec()),
+        }
+        .encode(),
+    )
+}
+
+/// Build a `policyConstraints` extension.
+pub fn policy_constraints(
+    require_explicit_policy: Option<u32>,
+    inhibit_policy_mapping: Option<u32>,
+) -> Extension {
+    Extension::new(
+        ObjectIdentifier::new(oid::OID_POLICY_CONSTRAINTS).expect("static oid"),
+        true,
+        PolicyConstraints {
+            require_explicit_policy,
+            inhibit_policy_mapping,
+        }
+        .encode(),
+    )
+}
+
+/// Build an `inhibitAnyPolicy` extension.
+pub fn inhibit_any_policy(skip_certs: u32) -> Extension {
+    Extension::new(
+        ObjectIdentifier::new(oid::OID_INHIBIT_ANY_POLICY).expect("static oid"),
+        true,
+        InhibitAnyPolicy { skip_certs }.encode(),
+    )
+}
+
+/// Build a `policyMappings` extension.
+pub fn policy_mappings(mappings: &[PolicyMapping]) -> Extension {
+    Extension::new(
+        ObjectIdentifier::new(oid::OID_POLICY_MAPPINGS).expect("static oid"),
+        true,
+        PolicyMappings {
+            mappings: mappings.to_vec(),
+        }
+        .encode(),
+    )
+}
+
+/// Build a `cRLNumber` extension.
+pub fn crl_number(number: &[u8]) -> Extension {
+    Extension::new(
+        ObjectIdentifier::new(oid::OID_CRL_NUMBER).expect("static oid"),
+        false,
+        CrlNumber {
+            number: number.to_vec(),
+        }
+        .encode(),
+    )
+}
+
+/// Build a `reasonCode` CRL entry extension.
+pub fn reason_code(reason: CrlReason) -> Extension {
+    Extension::new(
+        ObjectIdentifier::new(oid::OID_REASON_CODE).expect("static oid"),
+        false,
+        reason.encode(),
+    )
+}
+
+/// Build an `invalidityDate` CRL entry extension.
+pub fn invalidity_date(date: crate::asn1::time::Asn1Time) -> Extension {
+    Extension::new(
+        ObjectIdentifier::new(oid::OID_INVALIDITY_DATE).expect("static oid"),
+        false,
+        InvalidityDate { date }.encode(),
+    )
+}
+
+/// Build a `certificateIssuer` CRL entry extension.
+pub fn certificate_issuer(names: &[GeneralName]) -> Extension {
+    Extension::new(
+        ObjectIdentifier::new(oid::OID_CERTIFICATE_ISSUER).expect("static oid"),
+        true,
+        encode_general_names(names),
+    )
+}
+
+/// Build a `deltaCRLIndicator` extension.
+pub fn delta_crl_indicator(base_crl_number: &[u8]) -> Extension {
+    Extension::new(
+        ObjectIdentifier::new(oid::OID_DELTA_CRL_INDICATOR).expect("static oid"),
+        true,
+        DeltaCrlIndicator {
+            base_crl_number: base_crl_number.to_vec(),
+        }
+        .encode(),
+    )
+}
+
+/// Build a `tlsfeature` extension.
+pub fn tls_feature(features: &[u64]) -> Extension {
+    Extension::new(
+        ObjectIdentifier::new(oid::OID_TLS_FEATURE).expect("static oid"),
+        false,
+        TlsFeature {
+            features: features.to_vec(),
+        }
+        .encode(),
+    )
+}
+
+/// Build an `OCSP no-check` extension.
+pub fn ocsp_no_check() -> Extension {
+    Extension::new(
+        ObjectIdentifier::new(oid::OID_OCSP_NOCHECK).expect("static oid"),
+        false,
+        der::null(),
+    )
+}
+
+/// Build a `noRevAvail` extension.
+pub fn no_rev_avail() -> Extension {
+    Extension::new(
+        ObjectIdentifier::new(oid::OID_NO_REV_AVAIL).expect("static oid"),
+        false,
+        der::null(),
     )
 }

@@ -385,26 +385,50 @@ pub const OID_SUBJECT_ALT_NAME: &[u64] = &[2, 5, 29, 17];
 pub const OID_ISSUER_ALT_NAME: &[u64] = &[2, 5, 29, 18];
 /// `basicConstraints` (2.5.29.19).
 pub const OID_BASIC_CONSTRAINTS: &[u64] = &[2, 5, 29, 19];
+/// `cRLNumber` (2.5.29.20).
+pub const OID_CRL_NUMBER: &[u64] = &[2, 5, 29, 20];
+/// `reasonCode` (2.5.29.21).
+pub const OID_REASON_CODE: &[u64] = &[2, 5, 29, 21];
+/// `invalidityDate` (2.5.29.24).
+pub const OID_INVALIDITY_DATE: &[u64] = &[2, 5, 29, 24];
+/// `deltaCRLIndicator` (2.5.29.27).
+pub const OID_DELTA_CRL_INDICATOR: &[u64] = &[2, 5, 29, 27];
+/// `issuingDistributionPoint` (2.5.29.28).
+pub const OID_ISSUING_DISTRIBUTION_POINT: &[u64] = &[2, 5, 29, 28];
+/// `certificateIssuer` (2.5.29.29).
+pub const OID_CERTIFICATE_ISSUER: &[u64] = &[2, 5, 29, 29];
 /// `nameConstraints` (2.5.29.30).
 pub const OID_NAME_CONSTRAINTS: &[u64] = &[2, 5, 29, 30];
 /// `crlDistributionPoints` (2.5.29.31).
 pub const OID_CRL_DISTRIBUTION_POINTS: &[u64] = &[2, 5, 29, 31];
 /// `certificatePolicies` (2.5.29.32).
 pub const OID_CERTIFICATE_POLICIES: &[u64] = &[2, 5, 29, 32];
+/// `policyMappings` (2.5.29.33).
+pub const OID_POLICY_MAPPINGS: &[u64] = &[2, 5, 29, 33];
 /// `authorityKeyIdentifier` (2.5.29.35).
 pub const OID_AUTHORITY_KEY_IDENTIFIER: &[u64] = &[2, 5, 29, 35];
+/// `policyConstraints` (2.5.29.36).
+pub const OID_POLICY_CONSTRAINTS: &[u64] = &[2, 5, 29, 36];
 /// `extKeyUsage` (2.5.29.37).
 pub const OID_EXTENDED_KEY_USAGE: &[u64] = &[2, 5, 29, 37];
 /// `freshestCRL` (2.5.29.46).
 pub const OID_FRESHEST_CRL: &[u64] = &[2, 5, 29, 46];
 /// `inhibitAnyPolicy` (2.5.29.54).
 pub const OID_INHIBIT_ANY_POLICY: &[u64] = &[2, 5, 29, 54];
+/// `noRevAvail` (2.5.29.56).
+pub const OID_NO_REV_AVAIL: &[u64] = &[2, 5, 29, 56];
 /// `authorityInfoAccess` (1.3.6.1.5.5.7.1.1).
 pub const OID_AUTHORITY_INFO_ACCESS: &[u64] = &[1, 3, 6, 1, 5, 5, 7, 1, 1];
+/// `subjectInfoAccess` (1.3.6.1.5.5.7.1.11).
+pub const OID_SUBJECT_INFO_ACCESS: &[u64] = &[1, 3, 6, 1, 5, 5, 7, 1, 11];
 /// `OCSP` access method (1.3.6.1.5.5.7.48.1).
 pub const OID_AD_OCSP: &[u64] = &[1, 3, 6, 1, 5, 5, 7, 48, 1];
 /// `caIssuers` access method (1.3.6.1.5.5.7.48.2).
 pub const OID_AD_CA_ISSUERS: &[u64] = &[1, 3, 6, 1, 5, 5, 7, 48, 2];
+/// `timeStamping` access method (1.3.6.1.5.5.7.48.3).
+pub const OID_AD_TIME_STAMPING: &[u64] = &[1, 3, 6, 1, 5, 5, 7, 48, 3];
+/// `caRepository` access method (1.3.6.1.5.5.7.48.5).
+pub const OID_AD_CA_REPOSITORY: &[u64] = &[1, 3, 6, 1, 5, 5, 7, 48, 5];
 /// `tlsfeature` (1.3.6.1.5.5.7.1.24).
 pub const OID_TLS_FEATURE: &[u64] = &[1, 3, 6, 1, 5, 5, 7, 1, 24];
 /// `OCSP no-check` (1.3.6.1.5.5.7.48.1.5).

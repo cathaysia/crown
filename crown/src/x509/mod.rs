@@ -39,6 +39,7 @@ pub mod extensions;
 pub mod keys;
 pub mod name;
 pub mod pbe;
+pub mod verify;
 
 pub use algorithm::{AlgorithmIdentifier, Hash, SignatureAlgorithm};
 pub use attribute::Attribute;
@@ -46,13 +47,20 @@ pub use cert::{Certificate, CertificateBuilder, TbsCertificate, Validity};
 pub use crl::{CertificateList, RevokedCertificate, TbsCertList};
 pub use csr::{CertificationRequest, CertificationRequestInfo};
 pub use extensions::{
-    AuthorityInfoAccess, AuthorityKeyIdentifier, BasicConstraints, CrlDistributionPoints,
-    ExtendedKeyUsage, Extension, GeneralName, KeyUsage, ParsedExtension,
+    AccessDescription, AuthorityInfoAccess, AuthorityKeyIdentifier, BasicConstraints,
+    CertificateIssuer, CertificatePolicies, CrlDistributionPoints, CrlNumber, CrlReason,
+    DeltaCrlIndicator, DistributionPointName, ExtendedKeyUsage, Extension, GeneralName,
+    GeneralSubtree, InhibitAnyPolicy, InvalidityDate, IssuingDistributionPoint, KeyUsage,
+    NameConstraints, ParsedExtension, PolicyConstraints, PolicyMapping, PolicyMappings,
+    SubjectInfoAccess, TlsFeature,
 };
 pub use keys::{
     EncryptedPrivateKeyInfo, PrivateKey, PrivateKeyInfo, PublicKey, SubjectPublicKeyInfo,
 };
 pub use name::{AttributeTypeAndValue, Name, Rdn};
+pub use verify::{
+    verify_certificate, Purpose, Store, VerifyError, VerifyFlags, VerifyOptions, VerifyResult,
+};
 
 #[cfg(test)]
 mod tests;
