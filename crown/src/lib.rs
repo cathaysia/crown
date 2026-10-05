@@ -71,6 +71,8 @@ pub mod asn1;
 pub mod block;
 pub mod bn;
 #[cfg(feature = "alloc")]
+pub mod cmp;
+#[cfg(feature = "alloc")]
 pub mod cms;
 pub mod curve448;
 pub mod dh;
@@ -106,12 +108,16 @@ pub mod rsa;
 pub mod slh_dsa;
 pub mod sm2;
 pub mod stream;
+#[cfg(feature = "alloc")]
+pub mod ts;
 pub mod x25519;
 pub mod x448;
 #[cfg(feature = "alloc")]
 pub mod x509;
 
 pub mod core;
+#[cfg(feature = "alloc")]
+pub mod crmf;
 
 pub mod cuda;
 

@@ -30,6 +30,7 @@
 //! validity, CA constraints and the signature); full RFC 5280 path
 //! validation, name constraints, policies, OCSP and CMP are out of scope.
 
+pub mod ac;
 pub mod algorithm;
 pub mod attribute;
 pub mod cert;
@@ -41,6 +42,10 @@ pub mod name;
 pub mod pbe;
 pub mod verify;
 
+pub use ac::{
+    AttCertIssuer, AttCertValidityPeriod, AttributeCertificate, AttributeCertificateInfo, Holder,
+    IssuerSerial, ObjectDigestInfo, V2Form,
+};
 pub use algorithm::{AlgorithmIdentifier, Hash, SignatureAlgorithm};
 pub use attribute::Attribute;
 pub use cert::{Certificate, CertificateBuilder, TbsCertificate, Validity};

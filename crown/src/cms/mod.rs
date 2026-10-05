@@ -32,17 +32,24 @@ use crate::error::{CryptoError, CryptoResult};
 pub use crate::pkcs7::ContentInfo;
 
 mod auth;
+mod authdata;
 mod cipher;
 mod digested;
 mod encrypted;
 mod enveloped;
+mod multisign;
 mod recipient;
 
 pub use auth::AuthEnvelopedData;
+pub use authdata::{
+    AuthenticatedData, AuthenticatedDataBuilder, OID_AUTH_DATA, OID_HMAC_SHA1, OID_HMAC_SHA224,
+    OID_HMAC_SHA256, OID_HMAC_SHA384, OID_HMAC_SHA512,
+};
 pub use cipher::{Cipher, ContentCipher, KeyWrapAlgorithm};
 pub use digested::DigestedData;
 pub use encrypted::EncryptedData;
 pub use enveloped::{EncryptedContentInfo, EnvelopedData, EnvelopedDataBuilder, OriginatorInfo};
+pub use multisign::{SignedDataMultiBuilder, SignerSpec};
 pub use recipient::{
     IssuerAndSerialNumber, KekIdentifier, KekRecipientInfo, KeyAgreeRecipientIdentifier,
     KeyAgreeRecipientInfo, KeyTransRecipientInfo, OriginatorIdentifierOrKey, OriginatorPublicKey,

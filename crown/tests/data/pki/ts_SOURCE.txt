@@ -1,0 +1,4 @@
+RFC 3161 fixtures for crown::ts, generated with the OpenSSL 3.5.8 CLI
+(see the module and test docs for the exact commands). ts_ca.pem/ts_tsa.pem
+and ts_tsa_key.pem are a throwaway test PKI: the key exists only so the tests
+can sign timestamps the OpenSSL CLI then verifies, and must never be reused.
