@@ -1,6 +1,6 @@
 'use client';
 
-import { Crown, Hash, Lock, Shield, Zap } from 'lucide-react';
+import { Award, Crown, Hash, Lock, Shield, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -23,6 +23,7 @@ export const menuItems = [
   { id: 'mac', label: 'MAC', icon: Shield },
   { id: 'kdf', label: 'Key Derivation', icon: Zap },
   { id: 'kem', label: 'Signatures & KEM', icon: Lock },
+  { id: 'x509', label: 'Certificates (X.509)', icon: Award },
   { id: 'tools', label: 'Tools (XTS/KW/FF1)', icon: Hash },
 ];
 

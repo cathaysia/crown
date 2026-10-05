@@ -6,6 +6,7 @@ pub mod evp_hash;
 pub mod evp_kem;
 pub mod evp_mac;
 pub mod evp_misc;
+pub mod evp_pki;
 pub mod evp_pq_sign;
 pub mod evp_sign;
 pub mod evp_stream;
@@ -27,5 +28,13 @@ where
         None
     } else {
         unsafe { Some(*ptr) }
+    }
+}
+
+unsafe fn ref_from_ptr<'a, T>(ptr: *const T) -> Option<&'a T> {
+    if ptr.is_null() {
+        None
+    } else {
+        unsafe { Some(&*ptr) }
     }
 }

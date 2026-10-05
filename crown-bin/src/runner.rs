@@ -23,3 +23,15 @@ pub use sign::run_sign;
 
 mod kem;
 pub use kem::run_kem;
+
+mod x509;
+pub use x509::run_x509;
+
+mod pkcs7;
+pub use pkcs7::run_pkcs7;
+
+mod pkcs12;
+pub use pkcs12::run_pkcs12;
+
+mod pkey;
+pub use pkey::run_pkey;

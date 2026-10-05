@@ -4,6 +4,8 @@ pub use io::read_file;
 #[cfg(unix)]
 pub use io::write_file;
 
+pub mod pki;
+
 pub fn init_logger() {
     use tracing_subscriber::{fmt, prelude::*, util::SubscriberInitExt, EnvFilter};
 

@@ -7,6 +7,7 @@ pub mod evp_kdf;
 pub mod evp_kem;
 pub mod evp_mac;
 pub mod evp_misc;
+pub mod evp_pki;
 pub mod evp_pq_sign;
 pub mod evp_sign;
 pub mod evp_stream;
