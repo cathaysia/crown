@@ -191,6 +191,22 @@ pub enum X509Op {
         #[clap(long)]
         sm2_id: Option<String>,
     },
+    /// Print an attribute certificate (RFC 5755) as text.
+    AcInfo {
+        /// Attribute certificate file (PEM or DER).
+        input: String,
+    },
+    /// Verify an attribute certificate against its issuer.
+    AcVerify {
+        /// Attribute certificate file (PEM or DER).
+        input: String,
+        /// Issuer certificate file (PEM or DER).
+        #[clap(long)]
+        issuer: String,
+        /// Skip the validity-period check.
+        #[clap(long, default_value_t = false)]
+        no_check_time: bool,
+    },
     /// Check whether a serial number is listed in a CRL.
     CrlCheck {
         /// CRL file (PEM or DER).
@@ -226,15 +242,15 @@ pub enum Pkcs7Op {
     Sign {
         /// Content file to sign.
         input: String,
-        /// Signer private key (PKCS#8 PEM or DER).
-        #[clap(long)]
-        key: String,
+        /// Signer private key (PKCS#8 PEM or DER; repeat for multiple signers).
+        #[clap(long = "key", required = true)]
+        keys: Vec<String>,
         /// Password for an encrypted PKCS#8 key.
         #[clap(long)]
         password: Option<String>,
-        /// Signer certificate (PEM or DER).
-        #[clap(long)]
-        cert: String,
+        /// Signer certificate (PEM or DER; repeat for multiple signers).
+        #[clap(long = "cert", required = true)]
+        certs: Vec<String>,
         /// Additional certificates to embed (repeatable).
         #[clap(long)]
         chain: Vec<String>,
@@ -305,6 +321,29 @@ pub enum Pkcs7Op {
         #[clap(long)]
         password: Option<String>,
         /// Output file (defaults to stdout).
+        #[clap(long)]
+        out: Option<String>,
+    },
+    /// Verify a CMS AuthenticatedData object.
+    AuthVerify {
+        /// CMS AuthenticatedData file (PEM or DER).
+        input: String,
+        /// Recipient private key (PKCS#8 PEM or DER).
+        #[clap(long)]
+        key: Option<String>,
+        /// Recipient certificate (PEM or DER).
+        #[clap(long)]
+        cert: Option<String>,
+        /// Password recipient password.
+        #[clap(long)]
+        password: Option<String>,
+        /// KEK recipient key (hex).
+        #[clap(long)]
+        kek: Option<String>,
+        /// KEK recipient identifier.
+        #[clap(long, default_value = "")]
+        kek_id: String,
+        /// Output file for the authenticated content (defaults to stdout).
         #[clap(long)]
         out: Option<String>,
     },
@@ -390,6 +429,135 @@ pub enum Pkcs12Op {
         /// Write the remaining certificates (PEM) here.
         #[clap(long)]
         chain: Option<String>,
+    },
+}
+
+/// CMP (RFC 4210) messages.
+#[derive(Debug, Parser)]
+pub struct ArgsCmp {
+    #[clap(subcommand)]
+    pub op: CmpOp,
+}
+
+/// CMP operations.
+#[derive(Debug, Subcommand)]
+pub enum CmpOp {
+    /// Print a CMP message as text.
+    Info {
+        /// CMP message file (DER or PEM).
+        input: String,
+    },
+    /// Verify a CMP message's protection.
+    Verify {
+        /// CMP message file (DER or PEM).
+        input: String,
+        /// Password for password-based protection.
+        #[clap(long)]
+        password: Option<String>,
+    },
+}
+
+/// CRMF (RFC 4211) certificate request messages.
+#[derive(Debug, Parser)]
+pub struct ArgsCrmf {
+    #[clap(subcommand)]
+    pub op: CrmfOp,
+}
+
+/// CRMF operations.
+#[derive(Debug, Subcommand)]
+pub enum CrmfOp {
+    /// Print CRMF certificate request messages as text.
+    Info {
+        /// CRMF file (DER or PEM).
+        input: String,
+    },
+}
+
+/// RFC 3161 timestamping.
+#[derive(Debug, Parser)]
+pub struct ArgsTs {
+    #[clap(subcommand)]
+    pub op: TsOp,
+}
+
+/// Timestamp operations.
+#[derive(Debug, Subcommand)]
+pub enum TsOp {
+    /// Build a timestamp request for a file.
+    Request {
+        /// Data file to timestamp.
+        #[clap(long)]
+        data: String,
+        /// Imprint digest algorithm.
+        #[clap(long, default_value = "sha256")]
+        hash: HashAlgorithm,
+        /// Ask the TSA to include its certificate.
+        #[clap(long, default_value_t = false)]
+        cert_req: bool,
+        /// Nonce in hex (a random nonce is used when omitted).
+        #[clap(long)]
+        nonce: Option<String>,
+        /// Omit the nonce entirely.
+        #[clap(long, default_value_t = false)]
+        no_nonce: bool,
+        /// Write DER instead of PEM.
+        #[clap(long, default_value_t = false)]
+        der: bool,
+        /// Output file (defaults to stdout).
+        #[clap(long)]
+        out: Option<String>,
+    },
+    /// Answer a timestamp request (act as a TSA).
+    Reply {
+        /// Query file (PEM or DER).
+        #[clap(long)]
+        query: String,
+        /// TSA certificate (PEM or DER).
+        #[clap(long)]
+        signer: String,
+        /// TSA private key (PEM or DER).
+        #[clap(long)]
+        key: String,
+        /// Password for an encrypted key.
+        #[clap(long, default_value = "")]
+        key_password: String,
+        /// Additional certificates to embed (repeatable).
+        #[clap(long)]
+        chain: Vec<String>,
+        /// TSA policy OID (dotted).
+        #[clap(long, default_value = "1.3.6.1.4.1.13762.3")]
+        policy: String,
+        /// Serial number in hex (random when omitted).
+        #[clap(long)]
+        serial: Option<String>,
+        /// Write DER instead of PEM.
+        #[clap(long, default_value_t = false)]
+        der: bool,
+        /// Output file (defaults to stdout).
+        #[clap(long)]
+        out: Option<String>,
+    },
+    /// Verify a timestamp response.
+    Verify {
+        /// Response file (PEM or DER).
+        #[clap(long)]
+        input: String,
+        /// TSA certificate (PEM or DER).
+        #[clap(long)]
+        tsa: String,
+        /// Query file to check the imprint and nonce against.
+        #[clap(long)]
+        query: Option<String>,
+        /// Data file to check the message imprint against.
+        #[clap(long)]
+        data: Option<String>,
+    },
+    /// Print a timestamp response as text.
+    Info {
+        /// Response file (PEM or DER).
+        #[clap(long)]
+        input: String,
     },
 }
 

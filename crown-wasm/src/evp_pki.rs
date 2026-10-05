@@ -372,6 +372,11 @@ fn parse_x509(data: &[u8]) -> Result<Value, JsValue> {
             let crl = CertificateList::parse(&block.data).map_err(js_error)?;
             return Ok(crl_json(&crl));
         }
+        if block.label == "ATTRIBUTE CERTIFICATE" {
+            let certificate =
+                crown::x509::AttributeCertificate::parse(&block.data).map_err(js_error)?;
+            return Ok(attribute_certificate_json(&certificate));
+        }
         let certificate = Certificate::parse(&block.data).map_err(js_error)?;
         return Ok(certificate_json(&certificate));
     }
@@ -381,8 +386,11 @@ fn parse_x509(data: &[u8]) -> Result<Value, JsValue> {
     if let Ok(csr) = CertificationRequest::parse(data) {
         return Ok(csr_json(&csr));
     }
-    let crl = CertificateList::parse(data).map_err(js_error)?;
-    Ok(crl_json(&crl))
+    if let Ok(crl) = CertificateList::parse(data) {
+        return Ok(crl_json(&crl));
+    }
+    let certificate = crown::x509::AttributeCertificate::parse(data).map_err(js_error)?;
+    Ok(attribute_certificate_json(&certificate))
 }
 
 /// Parse a certificate, CSR or CRL (PEM or DER) and return a JSON report.
@@ -931,6 +939,68 @@ mod extra_tests {
     }
 
     #[test]
+    fn attribute_certificate_and_timestamp_bindings() {
+        use crown::cms::AuthenticatedDataBuilder;
+
+        const TS_QUERY: &[u8] = include_bytes!("../../crown/tests/data/pki/ts_query_sha256.der");
+        const TS_RESPONSE: &[u8] =
+            include_bytes!("../../crown/tests/data/pki/ts_response_sha256.der");
+        const TS_TSA: &[u8] = include_bytes!("../../crown/tests/data/pki/ts_tsa.pem");
+        const TS_DATA: &[u8] = b"crown timestamp test payload\n";
+        const AC: &[u8] = include_bytes!("../../crown/tests/data/pki/ac_acert_ietf.pem");
+
+        let report: Value = serde_json::from_str(&ac_parse(AC).unwrap()).unwrap();
+        assert_eq!(report["kind"], "attribute-certificate");
+        assert_eq!(report["version"], 2);
+        assert!(report["attributes"].as_array().unwrap().len() >= 1);
+        // x509_parse auto-detects the PEM label.
+        let report: Value = serde_json::from_str(&x509_parse(AC).unwrap()).unwrap();
+        assert_eq!(report["kind"], "attribute-certificate");
+
+        let report: Value = serde_json::from_str(
+            &ts_verify(
+                TS_RESPONSE,
+                TS_TSA,
+                Some(TS_QUERY.to_vec()),
+                Some(TS_DATA.to_vec()),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(report["ok"], true);
+        assert_eq!(report["message_imprint_matches"], true);
+
+        struct WasmTestRng(u64);
+        impl crown::rng::Rng for WasmTestRng {
+            fn fill_bytes(&mut self, out: &mut [u8]) {
+                WasmRng.fill_bytes(out);
+                let _ = &mut self.0;
+            }
+        }
+        let authenticated = AuthenticatedDataBuilder::new(PAYLOAD.to_vec())
+            .add_rsa_recipient(&parse_certificate_bytes(LEAF).unwrap())
+            .build(&mut WasmTestRng(1))
+            .unwrap();
+        let der = authenticated.to_content_info().encode();
+        let plaintext =
+            cms_auth_verify(&der, Some(RSA_KEY.to_vec()), Some(LEAF.to_vec()), None).unwrap();
+        assert_eq!(plaintext, PAYLOAD);
+    }
+
+    #[test]
+    fn cmp_bindings() {
+        const CMP_IR: &[u8] = include_bytes!("../../crown/tests/data/pki/cmp_ir_secret.der");
+        let report: Value = serde_json::from_str(&cmp_parse(CMP_IR).unwrap()).unwrap();
+        assert_eq!(report["kind"], "cmp");
+        assert_eq!(report["pvno"], 2);
+        assert_eq!(report["body"], "ir");
+        assert_eq!(report["requests"].as_array().unwrap().len(), 1);
+        assert_eq!(report["requests"][0]["popo"], "signature");
+        assert!(cmp_verify(CMP_IR, Some("test".to_string())).unwrap());
+        assert!(!cmp_verify(CMP_IR, Some("wrong".to_string())).unwrap());
+    }
+
+    #[test]
     fn cms_round_trip_and_ocsp() {
         let enveloped = cms_encrypt(PAYLOAD, LEAF, None).unwrap();
         let plaintext = cms_decrypt(
@@ -952,4 +1022,255 @@ mod extra_tests {
         assert_eq!(report["ok"], true);
         assert_eq!(report["responses"].as_array().unwrap().len(), 1);
     }
+}
+
+fn attribute_certificate_json(certificate: &crown::x509::AttributeCertificate) -> Value {
+    let info = certificate.info();
+    let holder = &info.holder;
+    let mut holder_json = json!({});
+    if let Some(id) = &holder.base_certificate_id {
+        holder_json = json!({
+            "base_certificate_id": hex(&id.serial),
+            "issuer": id.issuer.iter().map(general_name_text).collect::<Vec<_>>(),
+        });
+    }
+    if let Some(names) = &holder.entity_name {
+        holder_json = json!({
+            "entity_name": names.iter().map(general_name_text).collect::<Vec<_>>(),
+        });
+    }
+    let attributes: Vec<Value> = info
+        .attributes
+        .iter()
+        .map(|attribute| {
+            json!({
+                "oid": attribute.oid.to_string(),
+                "value": attribute.first_text(),
+            })
+        })
+        .collect();
+    json!({
+        "kind": "attribute-certificate",
+        "version": info.version + 1,
+        "serial": serial_hex(&info.serial_number),
+        "issuer": info.issuer.directory_names().iter().map(|name| name.to_string()).collect::<Vec<_>>(),
+        "not_before": info.validity.not_before.to_unix(),
+        "not_after": info.validity.not_after.to_unix(),
+        "not_before_text": time_text(info.validity.not_before),
+        "not_after_text": time_text(info.validity.not_after),
+        "holder": holder_json,
+        "attributes": attributes,
+        "signature_algorithm": signature_algorithm_name(certificate.signature_algorithm()),
+        "extensions": info.extensions.iter().map(extension_json).collect::<Vec<_>>(),
+    })
+}
+
+fn parse_attribute_certificate(data: &[u8]) -> Result<crown::x509::AttributeCertificate, JsValue> {
+    use crown::x509::AttributeCertificate;
+    match is_pem(data) {
+        Some(text) => AttributeCertificate::from_pem(text).map_err(js_error),
+        None => AttributeCertificate::parse(data).map_err(js_error),
+    }
+}
+
+/// Parse an attribute certificate (RFC 5755) and return a JSON report.
+#[wasm_bindgen]
+pub fn ac_parse(data: &[u8]) -> Result<String, JsValue> {
+    let certificate = parse_attribute_certificate(data)?;
+    serde_json::to_string(&attribute_certificate_json(&certificate))
+        .map_err(|error| js_error(error.to_string()))
+}
+
+/// Verify an attribute certificate against its issuer certificate.
+#[wasm_bindgen]
+pub fn ac_verify(data: &[u8], issuer: &[u8]) -> Result<String, JsValue> {
+    let certificate = parse_attribute_certificate(data)?;
+    let issuer = parse_certificate_bytes(issuer)?;
+    let mut value = attribute_certificate_json(&certificate);
+    let object = value.as_object_mut().expect("object");
+    object.insert(
+        "signature_valid".into(),
+        json!(certificate.verify(&issuer, None).is_ok()),
+    );
+    object.insert(
+        "holder_matches_issuer".into(),
+        json!(certificate.holder_matches(&issuer)),
+    );
+    serde_json::to_string(&value).map_err(|error| js_error(error.to_string()))
+}
+
+/// Verify an RFC 3161 timestamp response. `query` (optional) checks the
+/// message imprint and nonce; `data` (optional) checks the imprint against
+/// the original content. Returns a JSON report.
+#[wasm_bindgen]
+pub fn ts_verify(
+    response: &[u8],
+    tsa: &[u8],
+    query: Option<Vec<u8>>,
+    data: Option<Vec<u8>>,
+) -> Result<String, JsValue> {
+    let tsa = parse_certificate_bytes(tsa)?;
+    let response = match is_pem(response) {
+        Some(text) => crown::ts::TimeStampResp::from_pem(text).map_err(js_error)?,
+        None => crown::ts::TimeStampResp::parse(response).map_err(js_error)?,
+    };
+    let info = match &query {
+        Some(query) => {
+            let request = crown::ts::TimeStampReq::parse(query).map_err(js_error)?;
+            response.verify_request(&tsa, &request)
+        }
+        None => response.verify(&tsa),
+    };
+    let mut value = json!({ "ok": info.is_ok() });
+    if let Ok(info) = info {
+        let object = value.as_object_mut().expect("object");
+        object.insert("policy".into(), json!(info.policy.to_string()));
+        object.insert("serial".into(), json!(serial_hex(&info.serial_number)));
+        object.insert("gen_time".into(), json!(info.gen_time.to_unix()));
+        if let Some(nonce) = &info.nonce {
+            object.insert("nonce".into(), json!(hex(nonce)));
+        }
+        if let Some(data) = &data {
+            let matches = info.message_imprint.matches(data).unwrap_or(false);
+            object.insert("message_imprint_matches".into(), json!(matches));
+            if !matches {
+                object.insert("ok".into(), json!(false));
+                object.insert(
+                    "error".into(),
+                    json!("message imprint does not match the data"),
+                );
+            }
+        }
+    } else if let Err(error) = info {
+        let object = value.as_object_mut().expect("object");
+        object.insert("error".into(), json!(error.to_string()));
+    }
+    serde_json::to_string(&value).map_err(|error| js_error(error.to_string()))
+}
+
+/// Verify a CMS AuthenticatedData object (RSA/ECDH key, or password) and
+/// return the authenticated content.
+#[wasm_bindgen]
+pub fn cms_auth_verify(
+    data: &[u8],
+    key: Option<Vec<u8>>,
+    certificate: Option<Vec<u8>>,
+    password: Option<String>,
+) -> Result<Vec<u8>, JsValue> {
+    let content_info = crown::pkcs7::ContentInfo::parse(data).map_err(js_error)?;
+    let authenticated =
+        crown::cms::AuthenticatedData::from_content_info(&content_info).map_err(js_error)?;
+    if let Some(password) = password.as_deref().filter(|password| !password.is_empty()) {
+        return authenticated
+            .verify_with_password(password.as_bytes())
+            .map_err(js_error);
+    }
+    let (Some(key), Some(certificate)) = (key, certificate) else {
+        return Err(JsValue::from_str(
+            "key and certificate, or password, required",
+        ));
+    };
+    let info = parse_private_key_info(&key)?;
+    let private_key = info.decode().map_err(js_error)?;
+    let certificate = parse_certificate_bytes(&certificate)?;
+    authenticated
+        .verify_with_key(&private_key, &certificate)
+        .map_err(js_error)
+}
+
+fn cmp_body_kind(body: &crown::cmp::PkiBody) -> &'static str {
+    use crown::cmp::PkiBody;
+    match body {
+        PkiBody::Ir(_) => "ir",
+        PkiBody::Cr(_) => "cr",
+        PkiBody::P10Cr(_) => "p10cr",
+        PkiBody::Kur(_) => "kur",
+        PkiBody::Rr(_) => "rr",
+        PkiBody::Ccr(_) => "ccr",
+        PkiBody::Pkiconf => "pkiconf",
+        PkiBody::Genm(_) => "genm",
+        PkiBody::Genp(_) => "genp",
+        PkiBody::Error(_) => "error",
+        PkiBody::CertConf(_) => "certConf",
+        PkiBody::PollReq(_) => "pollReq",
+        PkiBody::PollRep(_) => "pollRep",
+        PkiBody::Other { .. } => "other",
+    }
+}
+
+fn cmp_message_json(message: &crown::cmp::PkiMessage) -> Value {
+    let header = &message.header;
+    let requests = match &message.body {
+        crown::cmp::PkiBody::Ir(requests)
+        | crown::cmp::PkiBody::Cr(requests)
+        | crown::cmp::PkiBody::Kur(requests)
+        | crown::cmp::PkiBody::Ccr(requests) => requests
+            .messages
+            .iter()
+            .map(|request| {
+                json!({
+                    "cert_req_id": hex(&request.cert_req.cert_req_id),
+                    "subject": request
+                        .cert_req
+                        .cert_template
+                        .subject
+                        .as_ref()
+                        .map(|subject| subject.to_string()),
+                    "public_key_algorithm": request
+                        .cert_req
+                        .cert_template
+                        .public_key
+                        .as_ref()
+                        .map(|key| public_key_algorithm(&key.public_key)),
+                    "popo": request.popo.as_ref().map(|popo| match popo {
+                        crown::crmf::ProofOfPossession::RaVerified => "raVerified",
+                        crown::crmf::ProofOfPossession::Signature(_) => "signature",
+                        crown::crmf::ProofOfPossession::KeyEncipherment(_) => "keyEncipherment",
+                        crown::crmf::ProofOfPossession::KeyAgreement(_) => "keyAgreement",
+                    }),
+                })
+            })
+            .collect::<Vec<_>>(),
+        _ => Vec::new(),
+    };
+    json!({
+        "kind": "cmp",
+        "pvno": header.pvno,
+        "sender": format!("{:?}", header.sender),
+        "recipient": format!("{:?}", header.recipient),
+        "message_time": header.message_time.map(|time| time.to_unix()),
+        "protection_algorithm": message
+            .protection
+            .as_ref()
+            .map(|protection| protection.alg_id.oid.to_string()),
+        "transaction_id": header.transaction_id.as_deref().map(hex),
+        "sender_nonce": header.sender_nonce.as_deref().map(hex),
+        "free_text": header.free_text,
+        "body": cmp_body_kind(&message.body),
+        "requests": requests,
+        "certificates": message
+            .extra_certs
+            .iter()
+            .map(|certificate| certificate.subject().to_string())
+            .collect::<Vec<_>>(),
+    })
+}
+
+/// Parse a CMP message (DER or PEM) and return a JSON report.
+#[wasm_bindgen]
+pub fn cmp_parse(data: &[u8]) -> Result<String, JsValue> {
+    let message = crown::cmp::PkiMessage::parse(data).map_err(js_error)?;
+    serde_json::to_string(&cmp_message_json(&message)).map_err(|error| js_error(error.to_string()))
+}
+
+/// Verify a CMP message's protection: the PBM password when given, otherwise
+/// the signature against the signer in `extraCerts`.
+#[wasm_bindgen]
+pub fn cmp_verify(data: &[u8], password: Option<String>) -> Result<bool, JsValue> {
+    let message = crown::cmp::PkiMessage::parse(data).map_err(js_error)?;
+    let result = match password.as_deref() {
+        Some(password) if !password.is_empty() => message.verify_password(password.as_bytes()),
+        _ => message.verify_signature(),
+    };
+    result.map_err(js_error)
 }

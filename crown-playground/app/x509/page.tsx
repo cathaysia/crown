@@ -9,6 +9,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  acParse,
+  acVerify,
+  cmpParse,
+  cmpVerify,
+  cmsAuthVerify,
   cmsDecrypt,
   cmsEncrypt,
   ocspVerify,
@@ -16,6 +21,7 @@ import {
   pkcs7Verify,
   pkcs8Decrypt,
   pkcs12Parse,
+  tsVerify,
   x509Parse,
   x509Verify,
 } from '@/lib/pki';
@@ -25,11 +31,23 @@ import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
 import { Textarea } from '@/ui/textarea';
 
-type Mode = 'x509' | 'pkcs7' | 'pkcs12' | 'pkcs8' | 'verify' | 'cms' | 'ocsp';
+type Mode =
+  | 'x509'
+  | 'pkcs7'
+  | 'pkcs12'
+  | 'pkcs8'
+  | 'verify'
+  | 'cms'
+  | 'ocsp'
+  | 'ac'
+  | 'ts'
+  | 'cmp';
 
 export default function X509Page() {
   const [mode, setMode] = useState<Mode>('x509');
-  const [cmsMode, setCmsMode] = useState<'encrypt' | 'decrypt'>('encrypt');
+  const [cmsMode, setCmsMode] = useState<'encrypt' | 'decrypt' | 'auth'>(
+    'encrypt',
+  );
   const [encoding, setEncoding] = useState<'utf8' | 'base64' | 'hex'>('utf8');
   const [input, setInput] = useState('');
   const [extra, setExtra] = useState('');
@@ -86,6 +104,39 @@ export default function X509Page() {
             2,
           ),
         );
+      } else if (mode === 'cmp') {
+        setOutput(
+          JSON.stringify(
+            verify
+              ? {
+                  verified: cmpVerify(
+                    decode(input, encoding),
+                    password || undefined,
+                  ),
+                }
+              : cmpParse(decode(input, encoding)),
+            null,
+            2,
+          ),
+        );
+      } else if (mode === 'ac') {
+        const report = extra
+          ? acVerify(decode(input, encoding), stringToUint8Array(extra, 'utf8'))
+          : acParse(decode(input, encoding));
+        setOutput(JSON.stringify(report, null, 2));
+      } else if (mode === 'ts') {
+        setOutput(
+          JSON.stringify(
+            tsVerify(
+              decode(input, encoding),
+              stringToUint8Array(extra, 'utf8'),
+              extra2 ? stringToUint8Array(extra2, 'utf8') : undefined,
+              extra3 ? stringToUint8Array(extra3, 'utf8') : undefined,
+            ),
+            null,
+            2,
+          ),
+        );
       } else if (mode === 'verify') {
         const crl = extra3 ? stringToUint8Array(extra3, 'utf8') : undefined;
         setOutput(
@@ -102,7 +153,15 @@ export default function X509Page() {
           ),
         );
       } else if (mode === 'cms') {
-        if (cmsMode === 'encrypt') {
+        if (cmsMode === 'auth') {
+          const plaintext = cmsAuthVerify(
+            stringToUint8Array(input, encoding),
+            extra ? stringToUint8Array(extra, 'utf8') : undefined,
+            extra2 ? stringToUint8Array(extra2, 'utf8') : undefined,
+            password || undefined,
+          );
+          setOutput(uint8ArrayToString(plaintext, 'utf8'));
+        } else if (cmsMode === 'encrypt') {
           const enveloped = cmsEncrypt(
             stringToUint8Array(input, 'utf8'),
             stringToUint8Array(extra, 'utf8'),
@@ -182,6 +241,9 @@ export default function X509Page() {
               <SelectItem value="pkcs7">CMS / PKCS#7 signed data</SelectItem>
               <SelectItem value="cms">CMS encrypt / decrypt</SelectItem>
               <SelectItem value="ocsp">OCSP response</SelectItem>
+              <SelectItem value="ac">Attribute certificate</SelectItem>
+              <SelectItem value="ts">Timestamp response</SelectItem>
+              <SelectItem value="cmp">CMP message</SelectItem>
               <SelectItem value="pkcs12">PKCS#12</SelectItem>
               <SelectItem value="pkcs8">
                 Encrypted PKCS#8 private key
@@ -204,6 +266,7 @@ export default function X509Page() {
               <SelectContent>
                 <SelectItem value="encrypt">Encrypt</SelectItem>
                 <SelectItem value="decrypt">Decrypt</SelectItem>
+                <SelectItem value="auth">Verify authenticated data</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -333,7 +396,7 @@ export default function X509Page() {
                 className="font-mono text-xs"
               />
             </div>
-            {cmsMode === 'decrypt' && (
+            {(cmsMode === 'decrypt' || cmsMode === 'auth') && (
               <div className="grid gap-2">
                 <Label>Recipient certificate</Label>
                 <Textarea
@@ -354,6 +417,47 @@ export default function X509Page() {
             </div>
           </>
         )}
+        {mode === 'ac' && (
+          <div className="grid gap-2">
+            <Label>Issuer certificate (optional: verify when given)</Label>
+            <Textarea
+              value={extra}
+              onChange={e => setExtra(e.target.value)}
+              rows={4}
+              className="font-mono text-xs"
+            />
+          </div>
+        )}
+        {mode === 'ts' && (
+          <>
+            <div className="grid gap-2">
+              <Label>TSA certificate</Label>
+              <Textarea
+                value={extra}
+                onChange={e => setExtra(e.target.value)}
+                rows={4}
+                className="font-mono text-xs"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Query (optional: checks imprint and nonce)</Label>
+              <Textarea
+                value={extra2}
+                onChange={e => setExtra2(e.target.value)}
+                rows={3}
+                className="font-mono text-xs"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Data (optional: checks the message imprint)</Label>
+              <Textarea
+                value={extra3}
+                onChange={e => setExtra3(e.target.value)}
+                rows={2}
+              />
+            </div>
+          </>
+        )}
         {mode === 'ocsp' && (
           <div className="grid gap-2">
             <Label>Issuer certificate</Label>
@@ -362,6 +466,16 @@ export default function X509Page() {
               onChange={e => setExtra(e.target.value)}
               rows={4}
               className="font-mono text-xs"
+            />
+          </div>
+        )}
+        {mode === 'cmp' && (
+          <div className="grid gap-2">
+            <Label>Password (for password-based protection)</Label>
+            <Input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
             />
           </div>
         )}
@@ -377,6 +491,11 @@ export default function X509Page() {
         )}
         <div className="flex gap-2">
           <Button onClick={() => run(false)}>{runLabel}</Button>
+          {mode === 'cmp' && (
+            <Button variant="outline" onClick={() => run(true)}>
+              Verify protection
+            </Button>
+          )}
           {mode === 'pkcs7' && (
             <Button variant="outline" onClick={() => run(true)}>
               Verify

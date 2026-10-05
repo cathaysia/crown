@@ -1,4 +1,9 @@
 import {
+  ac_parse,
+  ac_verify,
+  cmp_parse,
+  cmp_verify,
+  cms_auth_verify,
   cms_decrypt,
   cms_encrypt,
   ocsp_verify,
@@ -6,6 +11,7 @@ import {
   pkcs7_verify,
   pkcs8_decrypt,
   pkcs12_parse,
+  ts_verify,
   x509_parse,
   x509_verify,
 } from 'crown-wasm';
@@ -70,4 +76,45 @@ export function cmsDecrypt(
 
 export function ocspVerify(response: Uint8Array, issuer: Uint8Array) {
   return JSON.parse(ocsp_verify(response, issuer));
+}
+
+export function acParse(data: Uint8Array) {
+  return JSON.parse(ac_parse(data));
+}
+
+export function acVerify(data: Uint8Array, issuer: Uint8Array) {
+  return JSON.parse(ac_verify(data, issuer));
+}
+
+export function tsVerify(
+  response: Uint8Array,
+  tsa: Uint8Array,
+  query?: Uint8Array,
+  data?: Uint8Array,
+) {
+  return JSON.parse(
+    ts_verify(response, tsa, query || undefined, data || undefined),
+  );
+}
+
+export function cmsAuthVerify(
+  data: Uint8Array,
+  key?: Uint8Array,
+  certificate?: Uint8Array,
+  password?: string,
+) {
+  return cms_auth_verify(
+    data,
+    key || undefined,
+    certificate || undefined,
+    password || undefined,
+  );
+}
+
+export function cmpParse(data: Uint8Array) {
+  return JSON.parse(cmp_parse(data));
+}
+
+export function cmpVerify(data: Uint8Array, password?: string) {
+  return cmp_verify(data, password || undefined);
 }

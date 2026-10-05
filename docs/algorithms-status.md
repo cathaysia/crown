@@ -231,16 +231,22 @@ declarations that predated it.
 | issuance helpers | `CertificateBuilder::from_request` (CSR to certificate), `RevokedCertificate::{new, reason, invalidity_date}`; fixed a pre-existing `TbsCertList` encoder bug (CRL extensions were written with tag [3] instead of [0], so crown could not re-read its own CRLs with extensions and OpenSSL rejected them) |
 | consumers | CLI: `x509 verify --trust/--untrusted/--crl/--crl-check/--purpose/--policy-check`, `x509 self-sign`, `x509 issue`, `x509 crl`, `pkcs7 encrypt`/`decrypt`, `ocsp request`/`verify`/`info` (SEC1/PKCS#1 legacy keys accepted). C ABI: `certificate_store_*` chain verification, `cms_encrypt`/`cms_decrypt`/`cms_decrypt_password`, `ocsp_response_verify`. wasm: `x509_verify`, `cms_encrypt`/`cms_decrypt`, `ocsp_verify`; playground modes for chain validation, CMS and OCSP |
 
+| CMP (RFC 4210/9481) | `cmp`: `PkiMessage` (DER/PEM) with `PkiHeader` (pvno 1/2/3, generalInfo helpers for implicitConfirm/confirmWaitTime/certProfile/caCerts), bodies ir/cr/kur/p10cr/rr/ccr/genm/genp/error/certConf/pkiconf/pollReq/pollRep (others preserved), `PkiStatusInfo`, `CertConfirmContent`; protection: signature-based (PKCS#1 v1.5/ECDSA over the RFC 4210 protected part) and password-based (`id-PasswordBasedMac` PBMParameter with constant-time MAC compare). OpenSSL CLI interop: fixtures from `openssl cmp -reqout` parse/re-encode byte-exactly and verify; a crown-built IR is enrolled end-to-end by `openssl cmp`'s mock server (IP → CertConf → PKIConf) and rejected with a wrong password. The client/server transaction state machine (polling, confirmation sequencing, enrollment policy, message routing) and ip/cp/kup/krp/rp/rann bodies are out of scope — this is the message/codec + protection layer |
+| CRMF (RFC 4211) | `crmf`: `CertReqMessages`/`CertReqMsg`/`CertRequest`/`CertTemplate` (all optional fields), `OptionalValidity`, proof-of-possession (`raVerified`/signature with `PopoSigningKey` sign+verify/keyEncipherment/keyAgreement), `EncryptedValue`/`PKMACValue`/`PbmParameter` structures, `id-regInfo-certReq` |
+| RFC 3161 timestamping | `ts`: `TimeStampReq`/`TimeStampResp` (DER/PEM), `TstInfo` with accuracy/ordering/nonce/tsa, `TimeStampSigner` producing CMS `SignedData` tokens with `signingCertificateV2` signed attributes, `verify`/`verify_request` (imprint + nonce), ESS v1/v2 signing-certificate attributes; OpenSSL `ts` CLI interop both ways (crown verifies OpenSSL responses and `openssl ts -verify` accepts crown tokens) |
+| ESS | `ts::SigningCertificateV2` / `EsCertIdV2` (and the v1 form) usable as `id-aa-signingCertificate[V2]` signed attributes |
+| attribute certificates (RFC 5755) | `x509::ac`: `AttributeCertificate`/`AttributeCertificateInfo` parse/encode (OpenSSL's `acert*.pem` fixtures re-encode byte-exactly), holder/issuer/V2Form/IssuerSerial/ObjectDigestInfo, validity, attributes, signing and verification, holder matching; accepts the RFC 3281 untagged-extensions form some toolkits still emit |
+| CMS `AuthenticatedData` (RFC 5652 9.1) | `cms::AuthenticatedData` with RSA/ECDH/KEK/password recipients, HMAC-SHA-1/224/256/384/512, authAttrs, builder, MAC verification and content recovery; OpenSSL `asn1parse` accepts the output |
+| multi-signer CMS | `cms::SignedDataMultiBuilder` (one content, any number of signers with per-signer digest/signature algorithm and extra signed attributes); OpenSSL `cms -verify` verifies the crown-built output |
+| write-side legacy keys | the CLI accepts SEC1 `EC PRIVATE KEY` and PKCS#1 `RSA PRIVATE KEY` files |
+
 Still not ported (OpenSSL-only PKI surface):
 
-- CMP (RFC 4210/9480) and CRMF (RFC 4211).
-- RFC 3161 timestamping (`crypto/ts`) and ESS (`crypto/ess`).
-- Attribute certificates (`X509_AC`).
 - Automated fetching of AIA/CRL distribution points and OCSP-based revocation
   inside `verify_certificate`: intermediates and CRLs are caller-supplied
   (no network code in the library).
-- CMS `CompressedData`, `AuthenticatedData`, and a multi-signer *builder*
-  (multi-signer `SignedData` parsing and verification already work).
+- CMS `CompressedData` (needs a compression backend) and the CMP client/server
+  transaction state machine (message-level support is implemented).
 
 ### crown gaps — other buckets (closed 2026-10-03)
 

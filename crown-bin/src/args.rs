@@ -59,6 +59,12 @@ pub enum Args {
     Pkey(ArgsPkey),
     /// OCSP requests and responses.
     Ocsp(ArgsOcsp),
+    /// RFC 3161 timestamping.
+    Ts(ArgsTs),
+    /// CMP (RFC 4210) messages.
+    Cmp(ArgsCmp),
+    /// CRMF (RFC 4211) certificate request messages.
+    Crmf(ArgsCrmf),
 }
 
 #[derive(Debug, Parser)]

@@ -3,7 +3,7 @@ use std::fmt::Write as _;
 use crate::args::{ArgsPkcs7, Pkcs7Op};
 use crate::utils::pki::{self, FileRng};
 use crown::asn1::pem;
-use crown::pkcs7::{Pkcs7, SignedData, SignedDataBuilder, SignerIdentifier};
+use crown::pkcs7::{Pkcs7, SignedData, SignerIdentifier};
 use crown::x509::Hash;
 
 pub fn run_pkcs7(args: ArgsPkcs7) -> anyhow::Result<()> {
@@ -45,9 +45,9 @@ pub fn run_pkcs7(args: ArgsPkcs7) -> anyhow::Result<()> {
         }
         Pkcs7Op::Sign {
             input,
-            key,
+            keys,
             password,
-            cert,
+            certs,
             chain,
             detached,
             hash,
@@ -55,35 +55,34 @@ pub fn run_pkcs7(args: ArgsPkcs7) -> anyhow::Result<()> {
             out,
             sm2_id,
         } => {
+            use crown::cms::{SignedDataMultiBuilder, SignerSpec};
             let content = std::fs::read(&input)?;
-            let key_info = pki::load_private_key_info(&key, password.as_deref())?;
-            let private_key = key_info.decode()?;
-            let certificate = pki::load_certificate(&cert)?;
+            if keys.len() != certs.len() {
+                anyhow::bail!("--key and --cert must be given the same number of times");
+            }
             let hash = pki::hash_from_cli(hash)?;
-            let algorithm = pki::default_signature_algorithm(&private_key, hash)?;
             let mut builder = if detached {
-                SignedDataBuilder::detached(content)
+                SignedDataMultiBuilder::detached(content)
             } else {
-                SignedDataBuilder::new(content)
+                SignedDataMultiBuilder::new(content)
             };
-            builder = builder.add_certificate(certificate.clone());
+            for (key_path, cert_path) in keys.iter().zip(certs.iter()) {
+                let key_info = pki::load_private_key_info(key_path, password.as_deref())?;
+                let private_key = key_info.decode()?;
+                let certificate = pki::load_certificate(cert_path)?;
+                let algorithm = pki::default_signature_algorithm(&private_key, hash)?;
+                let mut spec = SignerSpec::new(private_key, certificate, hash, algorithm);
+                if let Some(id) = &sm2_id {
+                    spec = spec.sm2_id(id.as_bytes().to_vec());
+                }
+                builder = builder.add_signer(spec);
+            }
             for chain_path in &chain {
                 for chained in pki::load_certificates(chain_path)? {
                     builder = builder.add_certificate(chained);
                 }
             }
-            let mut rng = FileRng;
-            let signed = match &sm2_id {
-                Some(id) => builder.sign_with_sm2_id(
-                    &private_key,
-                    &certificate,
-                    hash,
-                    algorithm,
-                    id.as_bytes(),
-                    &mut rng,
-                )?,
-                None => builder.sign(&private_key, &certificate, hash, algorithm, &mut rng)?,
-            };
+            let signed = builder.build(&mut FileRng)?;
             let encoded = signed.to_content_info().encode();
             let output = if der {
                 encoded
@@ -112,6 +111,35 @@ pub fn run_pkcs7(args: ArgsPkcs7) -> anyhow::Result<()> {
             println!("OK");
             println!("Signers: {}", data.signer_infos.len());
             println!("Certificates: {}", data.certificates.len());
+        }
+        Pkcs7Op::AuthVerify {
+            input,
+            key,
+            cert,
+            password,
+            kek,
+            kek_id,
+            out,
+        } => {
+            use crown::cms::AuthenticatedData;
+            let der = pki::load_der_payload(&input)?;
+            let content_info = crown::pkcs7::ContentInfo::parse(&der)?;
+            let authenticated = AuthenticatedData::from_content_info(&content_info)?;
+            let plaintext = if let Some(password) = &password {
+                authenticated.verify_with_password(password.as_bytes())?
+            } else if let Some(kek) = &kek {
+                authenticated.verify_with_kek(&hex::decode(kek)?, kek_id.as_bytes())?
+            } else {
+                let (Some(key), Some(cert)) = (key.as_deref(), cert.as_deref()) else {
+                    anyhow::bail!("--key and --cert, or --password, are required");
+                };
+                let info = pki::load_private_key_info(key, None)?;
+                let private_key = info.decode()?;
+                let certificate = pki::load_certificate(cert)?;
+                authenticated.verify_with_key(&private_key, &certificate)?
+            };
+            println!("MAC: OK");
+            pki::write_output(out.as_deref(), &plaintext)?;
         }
         Pkcs7Op::Extract { input, out } => {
             let der = pki::load_der_payload(&input)?;
