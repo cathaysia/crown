@@ -974,3 +974,257 @@ pub unsafe extern "C" fn certificate_signature_supported(certificate: *const Cer
     };
     i32::from(SignatureAlgorithm::from_identifier(certificate.0.signature_algorithm()).is_ok())
 }
+
+/// An opaque trust store for RFC 5280 path validation.
+pub struct CertificateStore {
+    store: crown::x509::Store,
+    untrusted: Vec<InnerCertificate>,
+}
+
+/// Create an empty certificate store.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn certificate_store_new() -> *mut CertificateStore {
+    Box::into_raw(Box::new(CertificateStore {
+        store: crown::x509::Store::new(),
+        untrusted: Vec::new(),
+    }))
+}
+
+/// Free a certificate store.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn certificate_store_free(store: *mut CertificateStore) {
+    if !store.is_null() {
+        drop(unsafe { Box::from_raw(store) });
+    }
+}
+
+/// Add a trust anchor.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn certificate_store_add_trusted(
+    store: *mut CertificateStore,
+    certificate: *const Certificate,
+) -> i32 {
+    let (Some(store), Some(certificate)) = (unsafe { (store.as_mut(), ref_from_ptr(certificate)) })
+    else {
+        return -1;
+    };
+    store.store.add_trusted_certificate(certificate.0.clone());
+    0
+}
+
+/// Add an untrusted intermediate certificate.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn certificate_store_add_untrusted(
+    store: *mut CertificateStore,
+    certificate: *const Certificate,
+) -> i32 {
+    let (Some(store), Some(certificate)) = (unsafe { (store.as_mut(), ref_from_ptr(certificate)) })
+    else {
+        return -1;
+    };
+    store.untrusted.push(certificate.0.clone());
+    0
+}
+
+/// Add a CRL (DER) to the store.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn certificate_store_add_crl(
+    store: *mut CertificateStore,
+    crl: *const u8,
+    crl_len: usize,
+) -> i32 {
+    let Some(store) = (unsafe { store.as_mut() }) else {
+        return -1;
+    };
+    let Some(data) = (unsafe { slice_from_raw_parts(crl, crl_len) }) else {
+        return -1;
+    };
+    match crown::x509::CertificateList::parse(data) {
+        Ok(parsed) => {
+            store.store.add_crl(parsed);
+            0
+        }
+        Err(_) => -1,
+    }
+}
+
+/// Verify `certificate` against the store.
+///
+/// `purpose`: 0 any, 1 sslServer, 2 sslClient, 3 smimeSign, 4 smimeEncrypt,
+/// 5 codeSigning, 6 ocspHelper, 7 timeStamping, 8 crlSign.
+/// `flags` bitmask: 1 CRL check, 2 CRL check all, 4 policy check,
+/// 8 explicit policy, 16 inhibit anyPolicy, 32 x509 strict.
+/// Returns 1 verified, 0 not, -1 on error.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn certificate_store_verify(
+    store: *const CertificateStore,
+    certificate: *const Certificate,
+    now: i64,
+    check_time: i32,
+    purpose: u32,
+    flags: u32,
+) -> i32 {
+    let (Some(store), Some(certificate)) =
+        (unsafe { (ref_from_ptr(store), ref_from_ptr(certificate)) })
+    else {
+        return -1;
+    };
+    use crown::x509::Purpose;
+    let purpose = match purpose {
+        0 => Purpose::Any,
+        1 => Purpose::SslServer,
+        2 => Purpose::SslClient,
+        3 => Purpose::SmimeSign,
+        4 => Purpose::SmimeEncrypt,
+        5 => Purpose::CodeSigning,
+        6 => Purpose::OcspHelper,
+        7 => Purpose::TimeStamping,
+        8 => Purpose::CrlSign,
+        _ => return -1,
+    };
+    let options = crown::x509::VerifyOptions {
+        time: (check_time != 0).then_some(now),
+        purpose,
+        flags: crown::x509::VerifyFlags {
+            crl_check: flags & 1 != 0,
+            crl_check_all: flags & 2 != 0,
+            policy_check: flags & 4 != 0,
+            explicit_policy: flags & 8 != 0,
+            inhibit_any_policy: flags & 16 != 0,
+            x509_strict: flags & 32 != 0,
+        },
+        untrusted: store.untrusted.clone(),
+        ..Default::default()
+    };
+    match crown::x509::verify_certificate(&store.store, &certificate.0, &options) {
+        Ok(_) => 1,
+        Err(_) => 0,
+    }
+}
+
+/// Encrypt `content` to one RSA recipient certificate (AES-256-CBC).
+/// Output is a DER `ContentInfo`; use the query pattern for `out`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cms_encrypt(
+    content: *const u8,
+    content_len: usize,
+    recipient: *const Certificate,
+    out: *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    let (Some(content), Some(recipient)) = (unsafe {
+        (
+            slice_from_raw_parts(content, content_len),
+            ref_from_ptr(recipient),
+        )
+    }) else {
+        return -1;
+    };
+    let enveloped = match crown::cms::EnvelopedDataBuilder::new(content.to_vec())
+        .add_rsa_recipient(&recipient.0, crown::cms::Cipher::Aes256Cbc, &mut OsRng)
+        .build(&mut OsRng)
+    {
+        Ok(enveloped) => enveloped,
+        Err(_) => return -1,
+    };
+    let der = enveloped.to_content_info().encode();
+    unsafe { write_buffer(&der, out, out_len) }
+}
+
+/// Decrypt a CMS EnvelopedData (DER) with an RSA key (PKCS#8 DER) and its
+/// certificate. Returns the plaintext with the query pattern.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cms_decrypt(
+    data: *const u8,
+    data_len: usize,
+    key: *const u8,
+    key_len: usize,
+    certificate: *const Certificate,
+    out: *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    let (Some(data), Some(key), Some(certificate)) = (unsafe {
+        (
+            slice_from_raw_parts(data, data_len),
+            slice_from_raw_parts(key, key_len),
+            ref_from_ptr(certificate),
+        )
+    }) else {
+        return -1;
+    };
+    let Ok(info) = PrivateKeyInfo::parse(key) else {
+        return -1;
+    };
+    let Ok(private_key) = info.decode() else {
+        return -1;
+    };
+    let Ok(content_info) = crown::pkcs7::ContentInfo::parse(data) else {
+        return -1;
+    };
+    let Ok(enveloped) = crown::cms::EnvelopedData::from_content_info(&content_info) else {
+        return -1;
+    };
+    match enveloped.decrypt_with_key(&private_key, &certificate.0) {
+        Ok(plaintext) => unsafe { write_buffer(&plaintext, out, out_len) },
+        Err(_) => -1,
+    }
+}
+
+/// Decrypt a CMS EnvelopedData (DER) with a password recipient.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cms_decrypt_password(
+    data: *const u8,
+    data_len: usize,
+    password: *const u8,
+    password_len: usize,
+    out: *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    let (Some(data), Some(password)) = (unsafe {
+        (
+            slice_from_raw_parts(data, data_len),
+            optional_slice(password, password_len),
+        )
+    }) else {
+        return -1;
+    };
+    let Ok(content_info) = crown::pkcs7::ContentInfo::parse(data) else {
+        return -1;
+    };
+    let Ok(enveloped) = crown::cms::EnvelopedData::from_content_info(&content_info) else {
+        return -1;
+    };
+    match enveloped.decrypt_with_password(password) {
+        Ok(plaintext) => unsafe { write_buffer(&plaintext, out, out_len) },
+        Err(_) => -1,
+    }
+}
+
+/// Verify an OCSP response (DER or PEM) against its issuer certificate.
+/// Returns 1 verified, 0 not, -1 on error.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ocsp_response_verify(
+    response: *const u8,
+    response_len: usize,
+    issuer: *const Certificate,
+) -> i32 {
+    let (Some(response), Some(issuer)) = (unsafe {
+        (
+            slice_from_raw_parts(response, response_len),
+            ref_from_ptr(issuer),
+        )
+    }) else {
+        return -1;
+    };
+    let parsed = match core::str::from_utf8(response) {
+        Ok(text) if text.contains("-----BEGIN") => crown::ocsp::OcspResponse::from_pem(text),
+        _ => crown::ocsp::OcspResponse::parse(response),
+    };
+    let Ok(parsed) = parsed else {
+        return -1;
+    };
+    match parsed.verify(&issuer.0) {
+        Ok(()) => 1,
+        Err(_) => 0,
+    }
+}

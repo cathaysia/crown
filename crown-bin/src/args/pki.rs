@@ -25,19 +25,142 @@ pub enum X509Op {
         #[clap(long, default_value = "sha256")]
         hash: HashAlgorithm,
     },
-    /// Verify a certificate against its issuer.
+    /// Verify a certificate (single issuer or a full path-validation chain).
     Verify {
         /// Certificate file (PEM or DER).
         input: String,
-        /// Issuer certificate file (PEM or DER).
+        /// Issuer certificate for single-step verification (PEM or DER).
         #[clap(long)]
-        issuer: String,
+        issuer: Option<String>,
+        /// Trust anchor for RFC 5280 path validation (repeatable).
+        #[clap(long = "trust")]
+        trust: Vec<String>,
+        /// Untrusted intermediate certificate (repeatable).
+        #[clap(long = "untrusted")]
+        untrusted: Vec<String>,
+        /// CRL file used for revocation checking (repeatable).
+        #[clap(long = "crl")]
+        crls: Vec<String>,
+        /// Check the leaf certificate for revocation.
+        #[clap(long, default_value_t = false)]
+        crl_check: bool,
+        /// Check every chain certificate for revocation.
+        #[clap(long, default_value_t = false)]
+        crl_check_all: bool,
+        /// Enable certificate policy processing.
+        #[clap(long, default_value_t = false)]
+        policy_check: bool,
+        /// Require an explicit policy.
+        #[clap(long, default_value_t = false)]
+        explicit_policy: bool,
+        /// Extra-strict extension checks.
+        #[clap(long, default_value_t = false)]
+        x509_strict: bool,
+        /// Required leaf purpose.
+        #[clap(long, default_value = "any")]
+        purpose: CertPurpose,
         /// Skip the validity-period check.
         #[clap(long, default_value_t = false)]
         no_check_time: bool,
         /// SM2 identity string (defaults to the GM/T value).
         #[clap(long)]
         sm2_id: Option<String>,
+    },
+    /// Create a self-signed certificate from a PKCS#8 private key.
+    SelfSign {
+        /// Private key file (PEM or DER).
+        #[clap(long)]
+        key: String,
+        /// Password for an encrypted key.
+        #[clap(long, default_value = "")]
+        key_password: String,
+        /// Subject name, e.g. "C=CN,O=Org,CN=example.com".
+        #[clap(long)]
+        subject: String,
+        /// Validity in days.
+        #[clap(long, default_value_t = 365)]
+        days: u64,
+        /// Serial number in hex (random when omitted).
+        #[clap(long)]
+        serial: Option<String>,
+        /// DNS subject alternative name (repeatable).
+        #[clap(long = "san")]
+        sans: Vec<String>,
+        /// Mark the certificate as a CA.
+        #[clap(long, default_value_t = false)]
+        ca: bool,
+        /// Digest algorithm.
+        #[clap(long, default_value = "sha256")]
+        hash: HashAlgorithm,
+        /// Write DER instead of PEM.
+        #[clap(long, default_value_t = false)]
+        der: bool,
+        /// Output file (defaults to stdout).
+        #[clap(long)]
+        out: Option<String>,
+    },
+    /// Sign a PKCS#10 request with a CA certificate and key.
+    Issue {
+        /// CSR file (PEM or DER).
+        #[clap(long)]
+        csr: String,
+        /// CA certificate file (PEM or DER).
+        #[clap(long)]
+        ca: String,
+        /// CA private key file (PEM or DER).
+        #[clap(long)]
+        ca_key: String,
+        /// Password for an encrypted CA key.
+        #[clap(long, default_value = "")]
+        ca_password: String,
+        /// Validity in days.
+        #[clap(long, default_value_t = 365)]
+        days: u64,
+        /// Serial number in hex (random when omitted).
+        #[clap(long)]
+        serial: Option<String>,
+        /// DNS subject alternative name (repeatable).
+        #[clap(long = "san")]
+        sans: Vec<String>,
+        /// Mark the issued certificate as a CA.
+        #[clap(long = "is-ca", default_value_t = false)]
+        is_ca: bool,
+        /// Digest algorithm.
+        #[clap(long, default_value = "sha256")]
+        hash: HashAlgorithm,
+        /// Write DER instead of PEM.
+        #[clap(long, default_value_t = false)]
+        der: bool,
+        /// Output file (defaults to stdout).
+        #[clap(long)]
+        out: Option<String>,
+    },
+    /// Create a CRL signed by a CA.
+    Crl {
+        /// CA certificate file (PEM or DER).
+        #[clap(long)]
+        ca: String,
+        /// CA private key file (PEM or DER).
+        #[clap(long)]
+        ca_key: String,
+        /// Password for an encrypted CA key.
+        #[clap(long, default_value = "")]
+        ca_password: String,
+        /// Revoked serial in hex, optionally "SERIAL:reason" (repeatable).
+        #[clap(long = "revoke")]
+        revoke: Vec<String>,
+        /// Validity in days.
+        #[clap(long, default_value_t = 30)]
+        days: u64,
+        /// CRL number (omitted when not given).
+        #[clap(long)]
+        crl_number: Option<u64>,
+        /// Digest algorithm.
+        #[clap(long, default_value = "sha256")]
+        hash: HashAlgorithm,
+        /// Output file (defaults to stdout).
+        #[clap(long)]
+        out: Option<String>,
     },
     /// Print a PKCS#10 CSR as text.
     CsrInfo {
@@ -142,6 +265,49 @@ pub enum Pkcs7Op {
         #[clap(long)]
         sm2_id: Option<String>,
     },
+    /// Encrypt content to one or more CMS recipients.
+    Encrypt {
+        /// Content file to encrypt.
+        input: String,
+        /// Recipient certificate (repeatable).
+        #[clap(long = "recip")]
+        recipients: Vec<String>,
+        /// Add a password recipient.
+        #[clap(long)]
+        password: Option<String>,
+        /// Content cipher.
+        #[clap(long, default_value = "aes-256-cbc")]
+        cipher: CmsCipher,
+        /// PBKDF2 iteration count for the password recipient.
+        #[clap(long, default_value_t = 2048)]
+        iterations: u32,
+        /// Write DER instead of PEM.
+        #[clap(long, default_value_t = false)]
+        der: bool,
+        /// Output file (defaults to stdout).
+        #[clap(long)]
+        out: Option<String>,
+    },
+    /// Decrypt a CMS EnvelopedData object.
+    Decrypt {
+        /// CMS file (PEM or DER).
+        input: String,
+        /// Recipient private key (PKCS#8 PEM or DER).
+        #[clap(long)]
+        key: Option<String>,
+        /// Password for an encrypted key.
+        #[clap(long)]
+        key_password: Option<String>,
+        /// Recipient certificate (PEM or DER).
+        #[clap(long)]
+        cert: Option<String>,
+        /// Password recipient password.
+        #[clap(long)]
+        password: Option<String>,
+        /// Output file (defaults to stdout).
+        #[clap(long)]
+        out: Option<String>,
+    },
     /// Write the encapsulated content to a file.
     Extract {
         /// CMS file (PEM or DER).
@@ -227,6 +393,58 @@ pub enum Pkcs12Op {
     },
 }
 
+/// OCSP requests and responses.
+#[derive(Debug, Parser)]
+pub struct ArgsOcsp {
+    #[clap(subcommand)]
+    pub op: OcspOp,
+}
+
+/// OCSP operations.
+#[derive(Debug, Subcommand)]
+pub enum OcspOp {
+    /// Build an OCSP request for a certificate.
+    Request {
+        /// Certificate to query (PEM or DER).
+        #[clap(long)]
+        cert: String,
+        /// Issuer certificate (PEM or DER).
+        #[clap(long)]
+        issuer: String,
+        /// Hash algorithm for the certificate identifier.
+        #[clap(long, default_value = "sha1")]
+        hash: HashAlgorithm,
+        /// Add a caller-supplied nonce in hex.
+        #[clap(long)]
+        nonce: Option<String>,
+        /// Write DER instead of PEM.
+        #[clap(long, default_value_t = false)]
+        der: bool,
+        /// Output file (defaults to stdout).
+        #[clap(long)]
+        out: Option<String>,
+    },
+    /// Verify an OCSP response signature.
+    Verify {
+        /// OCSP response file (PEM or DER).
+        input: String,
+        /// Issuer certificate (PEM or DER).
+        #[clap(long)]
+        issuer: String,
+        /// Optional queried certificate, to check the response status.
+        #[clap(long)]
+        cert: Option<String>,
+        /// Expected nonce in hex, when the request used one.
+        #[clap(long)]
+        nonce: Option<String>,
+    },
+    /// Print an OCSP response as text.
+    Info {
+        /// OCSP response file (PEM or DER).
+        input: String,
+    },
+}
+
 /// PKCS#8 private keys and encrypted keys.
 #[derive(Debug, Parser)]
 pub struct ArgsPkey {
@@ -293,6 +511,34 @@ pub enum PkeyOp {
         #[clap(long)]
         out: Option<String>,
     },
+}
+
+/// Leaf certificate purpose for path validation.
+#[derive(Debug, Clone, Copy, ValueEnum)]
+#[clap(rename_all = "kebab-case")]
+pub enum CertPurpose {
+    Any,
+    SslServer,
+    SslClient,
+    SmimeSign,
+    SmimeEncrypt,
+    CodeSigning,
+    OcspHelper,
+    TimeStamping,
+    CrlSign,
+}
+
+/// CMS content cipher.
+#[derive(Debug, Clone, Copy, ValueEnum)]
+#[clap(rename_all = "kebab-case")]
+pub enum CmsCipher {
+    Aes128Cbc,
+    Aes192Cbc,
+    Aes256Cbc,
+    Aes128Gcm,
+    Aes192Gcm,
+    Aes256Gcm,
+    DesEde3Cbc,
 }
 
 /// PBES2 content cipher.

@@ -695,3 +695,261 @@ mod tests {
         assert_eq!(report["key"]["public_key_bits"], 2048);
     }
 }
+
+/// Verify a certificate chain (RFC 5280). `trust` and `untrusted` are PEM
+/// bundles (or single DER objects); `crl` is an optional PEM/DER CRL.
+/// Returns a JSON report.
+#[wasm_bindgen]
+pub fn x509_verify(
+    leaf: &[u8],
+    trust: &[u8],
+    untrusted: &[u8],
+    crl: Option<Vec<u8>>,
+    purpose: Option<String>,
+    time: Option<i64>,
+) -> Result<String, JsValue> {
+    use crown::x509::{verify_certificate, Purpose, Store, VerifyFlags, VerifyOptions};
+    let leaf = parse_certificate_bytes(leaf)?;
+    let mut store = Store::new();
+    for candidate in parse_certificate_bundle(trust)? {
+        store.add_trusted_certificate(candidate);
+    }
+    let untrusted = parse_certificate_bundle(untrusted)?;
+    if let Some(crl) = &crl {
+        let parsed = match is_pem(crl) {
+            Some(text) => crown::x509::CertificateList::from_pem(text).map_err(js_error)?,
+            None => crown::x509::CertificateList::parse(crl).map_err(js_error)?,
+        };
+        store.add_crl(parsed);
+    }
+    let purpose = match purpose.as_deref().unwrap_or("any") {
+        "any" => Purpose::Any,
+        "ssl-server" | "sslServer" => Purpose::SslServer,
+        "ssl-client" | "sslClient" => Purpose::SslClient,
+        "smime-sign" => Purpose::SmimeSign,
+        "smime-encrypt" => Purpose::SmimeEncrypt,
+        "code-signing" => Purpose::CodeSigning,
+        "ocsp-helper" => Purpose::OcspHelper,
+        "time-stamping" => Purpose::TimeStamping,
+        "crl-sign" => Purpose::CrlSign,
+        other => return Err(JsValue::from_str(&format!("unknown purpose {other}"))),
+    };
+    let flags = VerifyFlags {
+        crl_check: crl.is_some(),
+        ..Default::default()
+    };
+    let options = VerifyOptions {
+        time,
+        purpose,
+        flags,
+        untrusted,
+        ..Default::default()
+    };
+    let value = match verify_certificate(&store, &leaf, &options) {
+        Ok(result) => json!({
+            "ok": true,
+            "chain": result.chain.iter().map(|certificate| json!({
+                "subject": certificate.subject().to_string(),
+                "issuer": certificate.issuer().to_string(),
+            })).collect::<Vec<_>>(),
+        }),
+        Err(error) => json!({
+            "ok": false,
+            "error": error.to_string(),
+            "code": error.code(),
+        }),
+    };
+    serde_json::to_string(&value).map_err(|error| js_error(error.to_string()))
+}
+
+fn parse_certificate_bytes(data: &[u8]) -> Result<Certificate, JsValue> {
+    match is_pem(data) {
+        Some(text) => Certificate::from_pem(text).map_err(js_error),
+        None => Certificate::parse(data).map_err(js_error),
+    }
+}
+
+fn parse_certificate_bundle(data: &[u8]) -> Result<Vec<Certificate>, JsValue> {
+    if let Some(text) = is_pem(data) {
+        let mut certificates = Vec::new();
+        for block in pem::parse(text).map_err(js_error)? {
+            if block.label == "CERTIFICATE" || block.label == "X509 CERTIFICATE" {
+                certificates.push(Certificate::parse(&block.data).map_err(js_error)?);
+            }
+        }
+        if certificates.is_empty() {
+            return Err(JsValue::from_str("no CERTIFICATE block found"));
+        }
+        return Ok(certificates);
+    }
+    Ok(vec![Certificate::parse(data).map_err(js_error)?])
+}
+
+/// Encrypt `content` to a recipient certificate (AES-256-CBC + RSA key
+/// transport). `password` adds a password recipient when non-empty.
+#[wasm_bindgen]
+pub fn cms_encrypt(
+    content: &[u8],
+    certificate: &[u8],
+    password: Option<String>,
+) -> Result<Vec<u8>, JsValue> {
+    use crown::cms::{Cipher, EnvelopedDataBuilder};
+    let certificate = parse_certificate_bytes(certificate)?;
+    let mut builder = EnvelopedDataBuilder::new(content.to_vec()).add_rsa_recipient(
+        &certificate,
+        Cipher::Aes256Cbc,
+        &mut crate::evp_pki::WasmRng,
+    );
+    if let Some(password) = password.as_deref().filter(|password| !password.is_empty()) {
+        builder = builder.add_password_recipient(password.as_bytes(), Cipher::Aes256Cbc, 2048);
+    }
+    let enveloped = builder.build(&mut WasmRng).map_err(js_error)?;
+    Ok(enveloped.to_content_info().encode())
+}
+
+/// Decrypt a CMS EnvelopedData (DER) with an RSA PKCS#8 key and its
+/// certificate, or with `password` for a password recipient.
+#[wasm_bindgen]
+pub fn cms_decrypt(
+    data: &[u8],
+    key: Option<Vec<u8>>,
+    certificate: Option<Vec<u8>>,
+    password: Option<String>,
+) -> Result<Vec<u8>, JsValue> {
+    let content_info = crown::pkcs7::ContentInfo::parse(data).map_err(js_error)?;
+    let enveloped =
+        crown::cms::EnvelopedData::from_content_info(&content_info).map_err(js_error)?;
+    if let Some(password) = password.as_deref().filter(|password| !password.is_empty()) {
+        return enveloped
+            .decrypt_with_password(password.as_bytes())
+            .map_err(js_error);
+    }
+    let (Some(key), Some(certificate)) = (key, certificate) else {
+        return Err(JsValue::from_str(
+            "key and certificate, or password, required",
+        ));
+    };
+    let info = parse_private_key_info(&key)?;
+    let private_key = info.decode().map_err(js_error)?;
+    let certificate = parse_certificate_bytes(&certificate)?;
+    enveloped
+        .decrypt_with_key(&private_key, &certificate)
+        .map_err(js_error)
+}
+
+fn parse_private_key_info(data: &[u8]) -> Result<PrivateKeyInfo, JsValue> {
+    if let Some(text) = is_pem(data) {
+        let block = pem::parse_first(text).map_err(js_error)?;
+        return PrivateKeyInfo::parse(&block.data).map_err(js_error);
+    }
+    PrivateKeyInfo::parse(data).map_err(js_error)
+}
+
+/// Verify an OCSP response (PEM or DER) against its issuer certificate and
+/// return a JSON report.
+#[wasm_bindgen]
+pub fn ocsp_verify(response: &[u8], issuer: &[u8]) -> Result<String, JsValue> {
+    let issuer = parse_certificate_bytes(issuer)?;
+    let response = match is_pem(response) {
+        Some(text) => crown::ocsp::OcspResponse::from_pem(text).map_err(js_error)?,
+        None => crown::ocsp::OcspResponse::parse(response).map_err(js_error)?,
+    };
+    let verified = response.verify(&issuer).is_ok();
+    let mut value = json!({
+        "ok": verified,
+        "status": format!("{:?}", response.status),
+    });
+    if let Ok(basic) = response.basic() {
+        let responses: Vec<Value> = basic
+            .tbs_response_data
+            .responses
+            .iter()
+            .map(|single| {
+                json!({
+                    "serial": hex(&single.cert_id.serial_number),
+                    "status": format!("{:?}", single.cert_status),
+                    "this_update": single.this_update.to_unix(),
+                    "next_update": single.next_update.map(|time| time.to_unix()),
+                })
+            })
+            .collect();
+        let object = value.as_object_mut().expect("object");
+        object.insert(
+            "responder".into(),
+            json!(format!("{:?}", basic.tbs_response_data.responder_id)),
+        );
+        object.insert("responses".into(), json!(responses));
+    }
+    serde_json::to_string(&value).map_err(|error| js_error(error.to_string()))
+}
+
+/// An RNG backed by the wasm `getrandom` implementation.
+struct WasmRng;
+
+impl crown::rng::Rng for WasmRng {
+    fn fill_bytes(&mut self, out: &mut [u8]) {
+        let _ = getrandom::fill(out);
+    }
+}
+
+#[cfg(test)]
+mod extra_tests {
+    use super::*;
+
+    const V_ROOT: &[u8] = include_bytes!("../../crown/tests/data/pki/verify/root.pem");
+    const V_INTER: &[u8] = include_bytes!("../../crown/tests/data/pki/verify/inter.pem");
+    const V_LEAF: &[u8] = include_bytes!("../../crown/tests/data/pki/verify/leaf_good.pem");
+    const V_BAD: &[u8] = include_bytes!("../../crown/tests/data/pki/verify/leaf_bad_dns.pem");
+    const V_REVOKED: &[u8] = include_bytes!("../../crown/tests/data/pki/verify/leaf_revoked.pem");
+    const V_CRL: &[u8] = include_bytes!("../../crown/tests/data/pki/verify/inter.crl");
+    const LEAF: &[u8] = include_bytes!("../../crown/tests/data/pki/leaf.pem");
+    const RSA_KEY: &[u8] = include_bytes!("../../crown/tests/data/pki/rsa_pkcs8.pem");
+    const EC_CERT: &[u8] = include_bytes!("../../crown/tests/data/pki/ec.pem");
+    const OCSP_GOOD: &[u8] = include_bytes!("../../crown/tests/data/pki/ocsp_response_good.der");
+    const PAYLOAD: &[u8] = include_bytes!("../../crown/tests/data/pki/payload.txt");
+
+    #[test]
+    fn verify_chain_reports() {
+        let report: Value =
+            serde_json::from_str(&x509_verify(V_LEAF, V_ROOT, V_INTER, None, None, None).unwrap())
+                .unwrap();
+        assert_eq!(report["ok"], true);
+        assert_eq!(report["chain"].as_array().unwrap().len(), 3);
+
+        let report: Value =
+            serde_json::from_str(&x509_verify(V_BAD, V_ROOT, V_INTER, None, None, None).unwrap())
+                .unwrap();
+        assert_eq!(report["ok"], false);
+        assert_eq!(report["code"], 47);
+
+        let report: Value = serde_json::from_str(
+            &x509_verify(V_REVOKED, V_ROOT, V_INTER, Some(V_CRL.to_vec()), None, None).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(report["ok"], false);
+        assert_eq!(report["code"], 23);
+    }
+
+    #[test]
+    fn cms_round_trip_and_ocsp() {
+        let enveloped = cms_encrypt(PAYLOAD, LEAF, None).unwrap();
+        let plaintext = cms_decrypt(
+            &enveloped,
+            Some(RSA_KEY.to_vec()),
+            Some(LEAF.to_vec()),
+            None,
+        )
+        .unwrap();
+        assert_eq!(plaintext, PAYLOAD);
+
+        let enveloped = cms_encrypt(PAYLOAD, LEAF, Some("crown-test".to_string())).unwrap();
+        let plaintext =
+            cms_decrypt(&enveloped, None, None, Some("crown-test".to_string())).unwrap();
+        assert_eq!(plaintext, PAYLOAD);
+
+        let report: Value =
+            serde_json::from_str(&ocsp_verify(OCSP_GOOD, EC_CERT).unwrap()).unwrap();
+        assert_eq!(report["ok"], true);
+        assert_eq!(report["responses"].as_array().unwrap().len(), 1);
+    }
+}

@@ -57,6 +57,8 @@ pub enum Args {
     Pkcs12(ArgsPkcs12),
     /// PKCS#8 private keys and encrypted keys.
     Pkey(ArgsPkey),
+    /// OCSP requests and responses.
+    Ocsp(ArgsOcsp),
 }
 
 #[derive(Debug, Parser)]

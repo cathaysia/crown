@@ -114,6 +114,8 @@ pub fn load_private_key_info(path: &str, password: Option<&str>) -> anyhow::Resu
         let block = pem::parse_first(&text)?;
         return match block.label.as_str() {
             "PRIVATE KEY" => Ok(PrivateKeyInfo::parse(&block.data)?),
+            "EC PRIVATE KEY" => wrap_ec_private_key(&block.data),
+            "RSA PRIVATE KEY" => wrap_rsa_private_key(&block.data),
             "ENCRYPTED PRIVATE KEY" => {
                 let password = password.ok_or_else(|| anyhow!("--password required"))?;
                 let encrypted = EncryptedPrivateKeyInfo::parse(&block.data)?;
@@ -128,12 +130,85 @@ pub fn load_private_key_info(path: &str, password: Option<&str>) -> anyhow::Resu
     if let Ok(info) = PrivateKeyInfo::parse(&bytes) {
         return Ok(info);
     }
+    if let Ok(info) = wrap_ec_private_key(&bytes) {
+        return Ok(info);
+    }
+    if let Ok(info) = wrap_rsa_private_key(&bytes) {
+        return Ok(info);
+    }
     let password = password.ok_or_else(|| anyhow!("--password required"))?;
     let encrypted = EncryptedPrivateKeyInfo::parse(&bytes)?;
     Ok(crown::x509::pbe::decrypt_private_key(
         &encrypted,
         password.as_bytes(),
     )?)
+}
+
+/// Wrap an RFC 5915 `ECPrivateKey` (SEC1, "EC PRIVATE KEY") into PKCS#8.
+fn wrap_ec_private_key(der: &[u8]) -> anyhow::Result<PrivateKeyInfo> {
+    use crown::asn1::der::{Class, Reader};
+    use crown::x509::AlgorithmIdentifier;
+    let mut reader = Reader::new(der);
+    let mut sequence = reader.read_sequence()?;
+    let _version = sequence.read_integer()?;
+    let _private_key = sequence.read_octet_string()?;
+    let curve = if !sequence.is_empty()
+        && sequence.peek_tag()?.class == Class::ContextSpecific
+        && sequence.peek_tag()?.number == 0
+    {
+        let mut inner = sequence.read_explicit(0)?;
+        Some(inner.read_oid()?)
+    } else {
+        None
+    };
+    let public_key = if !sequence.is_empty()
+        && sequence.peek_tag()?.class == Class::ContextSpecific
+        && sequence.peek_tag()?.number == 1
+    {
+        let mut inner = sequence.read_explicit(1)?;
+        let (unused, data) = inner.read_bit_string()?;
+        if unused == 0 {
+            Some(data.to_vec())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    let curve = curve.ok_or_else(|| anyhow!("EC key without named-curve parameters"))?;
+    let algorithm = AlgorithmIdentifier::new(
+        crown::asn1::oid::ObjectIdentifier::new(crown::asn1::oid::OID_EC_PUBLIC_KEY)
+            .expect("static oid"),
+        Some(crown::asn1::der::oid(&curve)),
+    );
+    Ok(PrivateKeyInfo {
+        algorithm,
+        private_key: der.to_vec(),
+        attributes: None,
+        public_key,
+    })
+}
+
+/// Wrap a PKCS#1 `RSAPrivateKey` ("RSA PRIVATE KEY") into PKCS#8.
+fn wrap_rsa_private_key(der: &[u8]) -> anyhow::Result<PrivateKeyInfo> {
+    use crown::asn1::der::Reader;
+    use crown::x509::AlgorithmIdentifier;
+    let mut reader = Reader::new(der);
+    let mut sequence = reader.read_sequence()?;
+    for _ in 0..9 {
+        sequence.read_integer()?;
+    }
+    sequence.expect_end()?;
+    reader.expect_end()?;
+    Ok(PrivateKeyInfo {
+        algorithm: AlgorithmIdentifier::with_null(
+            crown::asn1::oid::ObjectIdentifier::new(crown::asn1::oid::OID_RSA_ENCRYPTION)
+                .expect("static oid"),
+        ),
+        private_key: der.to_vec(),
+        attributes: None,
+        public_key: None,
+    })
 }
 
 /// Map the CLI hash enum onto the X.509 digest enum.
@@ -688,4 +763,135 @@ pub fn crl_report(crl: &CertificateList) -> String {
         signature_algorithm_name(&tbs.signature)
     );
     out
+}
+
+/// Parse a CLI name of the form `C=CN,O=Org,CN=example.com` into an X.500
+/// name (RDNs root first).
+pub fn parse_name(text: &str) -> anyhow::Result<crown::x509::Name> {
+    use crown::asn1::oid::{self, ObjectIdentifier};
+    use crown::x509::{AttributeTypeAndValue, Name, Rdn};
+    let mut rdns = Vec::new();
+    for part in text.split(',') {
+        let (key, value) = part
+            .split_once('=')
+            .ok_or_else(|| anyhow!("invalid name component {part:?} (expected KEY=VALUE)"))?;
+        let (oid, printable) = match key.trim().to_ascii_lowercase().as_str() {
+            "c" | "country" => (oid::OID_AT_COUNTRY, true),
+            "o" | "organization" => (oid::OID_AT_ORGANIZATION, false),
+            "ou" | "organizationalunit" => (oid::OID_AT_ORGANIZATIONAL_UNIT, false),
+            "cn" | "commonname" => (oid::OID_AT_COMMON_NAME, false),
+            other => bail!("unsupported name attribute {other:?} (C/O/OU/CN)"),
+        };
+        let oid = ObjectIdentifier::new(oid).expect("static oid");
+        let attribute = if printable {
+            AttributeTypeAndValue::from_printable(oid, value.trim())
+        } else {
+            AttributeTypeAndValue::from_utf8(oid, value.trim())
+        };
+        rdns.push(Rdn {
+            attributes: vec![attribute],
+        });
+    }
+    if rdns.is_empty() {
+        bail!("empty subject");
+    }
+    Ok(Name { rdns })
+}
+
+/// Map the CLI purpose onto the verification purpose.
+pub fn purpose_from_cli(purpose: crate::args::CertPurpose) -> crown::x509::Purpose {
+    use crate::args::CertPurpose as From;
+    use crown::x509::Purpose as To;
+    match purpose {
+        From::Any => To::Any,
+        From::SslServer => To::SslServer,
+        From::SslClient => To::SslClient,
+        From::SmimeSign => To::SmimeSign,
+        From::SmimeEncrypt => To::SmimeEncrypt,
+        From::CodeSigning => To::CodeSigning,
+        From::OcspHelper => To::OcspHelper,
+        From::TimeStamping => To::TimeStamping,
+        From::CrlSign => To::CrlSign,
+    }
+}
+
+/// Map the CLI CMS cipher onto the library cipher.
+pub fn cms_cipher_from_cli(cipher: crate::args::CmsCipher) -> crown::cms::Cipher {
+    use crate::args::CmsCipher as From;
+    use crown::cms::Cipher as To;
+    match cipher {
+        From::Aes128Cbc => To::Aes128Cbc,
+        From::Aes192Cbc => To::Aes192Cbc,
+        From::Aes256Cbc => To::Aes256Cbc,
+        From::Aes128Gcm => To::Aes128Gcm,
+        From::Aes192Gcm => To::Aes192Gcm,
+        From::Aes256Gcm => To::Aes256Gcm,
+        From::DesEde3Cbc => To::DesEde3Cbc,
+    }
+}
+
+/// A random positive serial number (8 bytes, top bit clear).
+pub fn random_serial() -> Vec<u8> {
+    let mut serial = vec![0u8; 8];
+    FileRng.fill_bytes(&mut serial);
+    serial[0] &= 0x7f;
+    if serial.iter().all(|&byte| byte == 0) {
+        serial[7] = 1;
+    }
+    serial
+}
+
+/// Resolve a `--serial` option (hex) or generate one.
+pub fn resolve_serial(serial: Option<&str>) -> anyhow::Result<Vec<u8>> {
+    match serial {
+        Some(serial) => {
+            let decoded = hex::decode(serial)?;
+            if decoded.is_empty() {
+                bail!("empty serial");
+            }
+            Ok(decoded)
+        }
+        None => Ok(random_serial()),
+    }
+}
+
+/// Build the leaf/CA extensions shared by `self-sign` and `issue`.
+pub fn issuance_extensions(
+    subject: &crown::x509::Name,
+    public_key: &crown::x509::PublicKey,
+    sans: &[String],
+    ca: bool,
+) -> anyhow::Result<Vec<crown::x509::Extension>> {
+    use crown::x509::extensions::{
+        authority_key_identifier as aki, basic_constraints, key_usage, subject_alt_name,
+        subject_key_identifier as ski,
+    };
+    use crown::x509::{KeyUsage, SubjectPublicKeyInfo};
+    let spki = SubjectPublicKeyInfo::from_public_key(public_key)?;
+    let key_id = spki.key_identifier()?;
+    let mut extensions = vec![
+        basic_constraints(ca, None),
+        key_usage(KeyUsage {
+            digital_signature: !ca,
+            key_cert_sign: ca,
+            crl_sign: ca,
+            key_encipherment: !ca,
+            ..Default::default()
+        }),
+        ski(&key_id),
+        aki(&key_id),
+    ];
+    if !sans.is_empty() {
+        extensions.push(subject_alt_name(sans, &[]));
+    }
+    let _ = subject;
+    Ok(extensions)
+}
+
+/// The default signature algorithm for a private key at the given digest.
+pub fn signature_algorithm_for_key(
+    key: &crown::x509::PrivateKey,
+    hash: crown::x509::Hash,
+) -> anyhow::Result<crown::x509::SignatureAlgorithm> {
+    default_signature_algorithm(key, hash)
 }

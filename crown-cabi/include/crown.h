@@ -16,6 +16,11 @@ typedef struct BlockCipher BlockCipher;
 typedef struct Certificate Certificate;
 
 /**
+ * An opaque trust store for RFC 5280 path validation.
+ */
+typedef struct CertificateStore CertificateStore;
+
+/**
  * An opaque parsed X.509 CRL.
  */
 typedef struct Crl Crl;
@@ -1116,6 +1121,91 @@ int32_t certificate_signature_algorithm(const struct Certificate *certificate,
  * Whether the certificate signature algorithm is one crown can verify.
  */
 int32_t certificate_signature_supported(const struct Certificate *certificate);
+
+/**
+ * Create an empty certificate store.
+ */
+struct CertificateStore *certificate_store_new(void);
+
+/**
+ * Free a certificate store.
+ */
+void certificate_store_free(struct CertificateStore *store);
+
+/**
+ * Add a trust anchor.
+ */
+int32_t certificate_store_add_trusted(struct CertificateStore *store,
+                                      const struct Certificate *certificate);
+
+/**
+ * Add an untrusted intermediate certificate.
+ */
+int32_t certificate_store_add_untrusted(struct CertificateStore *store,
+                                        const struct Certificate *certificate);
+
+/**
+ * Add a CRL (DER) to the store.
+ */
+int32_t certificate_store_add_crl(struct CertificateStore *store,
+                                  const uint8_t *crl,
+                                  uintptr_t crl_len);
+
+/**
+ * Verify `certificate` against the store.
+ *
+ * `purpose`: 0 any, 1 sslServer, 2 sslClient, 3 smimeSign, 4 smimeEncrypt,
+ * 5 codeSigning, 6 ocspHelper, 7 timeStamping, 8 crlSign.
+ * `flags` bitmask: 1 CRL check, 2 CRL check all, 4 policy check,
+ * 8 explicit policy, 16 inhibit anyPolicy, 32 x509 strict.
+ * Returns 1 verified, 0 not, -1 on error.
+ */
+int32_t certificate_store_verify(const struct CertificateStore *store,
+                                 const struct Certificate *certificate,
+                                 int64_t now,
+                                 int32_t check_time,
+                                 uint32_t purpose,
+                                 uint32_t flags);
+
+/**
+ * Encrypt `content` to one RSA recipient certificate (AES-256-CBC).
+ * Output is a DER `ContentInfo`; use the query pattern for `out`.
+ */
+int32_t cms_encrypt(const uint8_t *content,
+                    uintptr_t content_len,
+                    const struct Certificate *recipient,
+                    uint8_t *out,
+                    uintptr_t *out_len);
+
+/**
+ * Decrypt a CMS EnvelopedData (DER) with an RSA key (PKCS#8 DER) and its
+ * certificate. Returns the plaintext with the query pattern.
+ */
+int32_t cms_decrypt(const uint8_t *data,
+                    uintptr_t data_len,
+                    const uint8_t *key,
+                    uintptr_t key_len,
+                    const struct Certificate *certificate,
+                    uint8_t *out,
+                    uintptr_t *out_len);
+
+/**
+ * Decrypt a CMS EnvelopedData (DER) with a password recipient.
+ */
+int32_t cms_decrypt_password(const uint8_t *data,
+                             uintptr_t data_len,
+                             const uint8_t *password,
+                             uintptr_t password_len,
+                             uint8_t *out,
+                             uintptr_t *out_len);
+
+/**
+ * Verify an OCSP response (DER or PEM) against its issuer certificate.
+ * Returns 1 verified, 0 not, -1 on error.
+ */
+int32_t ocsp_response_verify(const uint8_t *response,
+                             uintptr_t response_len,
+                             const struct Certificate *issuer);
 
 /**
  * ML-DSA keygen from 32-byte seed. variant = 44/65/87.

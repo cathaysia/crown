@@ -35,3 +35,6 @@ pub use pkcs12::run_pkcs12;
 
 mod pkey;
 pub use pkey::run_pkey;
+
+mod ocsp;
+pub use ocsp::run_ocsp;

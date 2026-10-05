@@ -8,6 +8,31 @@ use crown::x509::Hash;
 
 pub fn run_pkcs7(args: ArgsPkcs7) -> anyhow::Result<()> {
     match args.op {
+        Pkcs7Op::Encrypt {
+            input,
+            recipients,
+            password,
+            cipher,
+            iterations,
+            der,
+            out,
+        } => run_encrypt(
+            input,
+            recipients,
+            password,
+            Some(cipher),
+            iterations,
+            der,
+            out,
+        )?,
+        Pkcs7Op::Decrypt {
+            input,
+            key,
+            key_password,
+            cert,
+            password,
+            out,
+        } => run_decrypt(input, key, key_password, cert, password, out)?,
         Pkcs7Op::Info { input } => {
             let der = pki::load_der_payload(&input)?;
             match Pkcs7::parse(&der)? {
@@ -187,4 +212,65 @@ fn report(data: &SignedData) -> String {
         }
     }
     out
+}
+
+fn run_encrypt(
+    input: String,
+    recipients: Vec<String>,
+    password: Option<String>,
+    cipher: Option<crate::args::CmsCipher>,
+    iterations: u32,
+    der: bool,
+    out: Option<String>,
+) -> anyhow::Result<()> {
+    use crown::cms::EnvelopedDataBuilder;
+    let content = std::fs::read(&input)?;
+    let mut builder = EnvelopedDataBuilder::new(content);
+    let cipher = cipher.map(pki::cms_cipher_from_cli);
+    for path in &recipients {
+        let certificate = pki::load_certificate(path)?;
+        let cipher = cipher.unwrap_or(crown::cms::Cipher::Aes256Cbc);
+        builder = builder.add_rsa_recipient(&certificate, cipher, &mut FileRng);
+    }
+    if let Some(password) = &password {
+        let cipher = cipher.unwrap_or(crown::cms::Cipher::Aes256Cbc);
+        builder = builder.add_password_recipient(password.as_bytes(), cipher, iterations);
+    }
+    if recipients.is_empty() && password.is_none() {
+        anyhow::bail!("--recip or --password is required");
+    }
+    let enveloped = builder.build(&mut FileRng)?;
+    let encoded = enveloped.to_content_info().encode();
+    let output = if der {
+        encoded
+    } else {
+        pem::encode("CMS", &encoded).into_bytes()
+    };
+    pki::write_output(out.as_deref(), &output)
+}
+
+fn run_decrypt(
+    input: String,
+    key: Option<String>,
+    key_password: Option<String>,
+    cert: Option<String>,
+    password: Option<String>,
+    out: Option<String>,
+) -> anyhow::Result<()> {
+    use crown::cms::EnvelopedData;
+    let der = pki::load_der_payload(&input)?;
+    let content_info = crown::pkcs7::ContentInfo::parse(&der)?;
+    let enveloped = EnvelopedData::from_content_info(&content_info)?;
+    let plaintext = if let Some(password) = &password {
+        enveloped.decrypt_with_password(password.as_bytes())?
+    } else {
+        let (Some(key), Some(cert)) = (key.as_deref(), cert.as_deref()) else {
+            anyhow::bail!("--key and --cert, or --password, are required");
+        };
+        let info = pki::load_private_key_info(key, key_password.as_deref())?;
+        let private_key = info.decode()?;
+        let certificate = pki::load_certificate(cert)?;
+        enveloped.decrypt_with_key(&private_key, &certificate)?
+    };
+    pki::write_output(out.as_deref(), &plaintext)
 }
