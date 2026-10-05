@@ -70,6 +70,8 @@ pub mod aead;
 pub mod asn1;
 pub mod block;
 pub mod bn;
+#[cfg(feature = "alloc")]
+pub mod cms;
 pub mod curve448;
 pub mod dh;
 pub mod dsa;
@@ -88,6 +90,8 @@ pub mod ml_dsa;
 #[cfg(feature = "alloc")]
 pub mod ml_kem;
 pub mod modes;
+#[cfg(feature = "alloc")]
+pub mod ocsp;
 pub mod otp;
 pub mod padding;
 #[cfg(feature = "password")]

@@ -468,6 +468,20 @@ impl CertificateBuilder {
         }
     }
 
+    /// A builder initialized from a certification request: the request's
+    /// subject and public key become the certificate's.
+    pub fn from_request(
+        request: &super::csr::CertificationRequest,
+        signature_algorithm: SignatureAlgorithm,
+    ) -> Self {
+        let info = request.info();
+        CertificateBuilder::new(
+            info.subject.clone(),
+            info.subject_public_key_info.clone(),
+            signature_algorithm,
+        )
+    }
+
     /// Set the serial number from a positive integer magnitude.
     pub fn serial(mut self, serial_number: Vec<u8>) -> Self {
         self.serial_number = serial_number;

@@ -9,7 +9,7 @@ use crate::asn1::time::Asn1Time;
 use crate::error::{CryptoError, CryptoResult};
 
 use super::algorithm::{AlgorithmIdentifier, SignatureAlgorithm};
-use super::extensions::Extension;
+use super::extensions::{invalidity_date, reason_code, CrlReason, Extension};
 use super::keys::PublicKey;
 use super::name::Name;
 
@@ -22,6 +22,29 @@ pub struct RevokedCertificate {
     pub revocation_date: Asn1Time,
     /// CRL entry extensions.
     pub extensions: Vec<Extension>,
+}
+
+impl RevokedCertificate {
+    /// A revoked entry at `revocation_date` with no reason code.
+    pub fn new(serial_number: Vec<u8>, revocation_date: Asn1Time) -> Self {
+        RevokedCertificate {
+            serial_number,
+            revocation_date,
+            extensions: Vec::new(),
+        }
+    }
+
+    /// Attach a `reasonCode` extension.
+    pub fn reason(mut self, reason: CrlReason) -> Self {
+        self.extensions.push(reason_code(reason));
+        self
+    }
+
+    /// Attach an `invalidityDate` extension.
+    pub fn invalidity_date(mut self, date: Asn1Time) -> Self {
+        self.extensions.push(invalidity_date(date));
+        self
+    }
 }
 
 /// The signed part of a CRL.
@@ -142,7 +165,7 @@ impl TbsCertList {
             for extension in &self.extensions {
                 exts.extend_from_slice(&extension.encode());
             }
-            content.extend_from_slice(&der::explicit(3, &der::sequence(&exts)));
+            content.extend_from_slice(&der::explicit(0, &der::sequence(&exts)));
         }
         der::sequence(&content)
     }
