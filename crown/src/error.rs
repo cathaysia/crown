@@ -86,7 +86,7 @@ impl core::fmt::Display for CryptoError {
             CryptoError::AuthenticationFailed => write!(f, "invalid tag"),
             CryptoError::InvalidHashState => write!(f, "invalid hash state"),
             CryptoError::InvalidHashIdentifier => write!(f, "invalid hash identifier"),
-            CryptoError::StrError(_) => write!(f, "invalid hash size"),
+            CryptoError::StrError(message) => write!(f, "{}", message),
             CryptoError::Utf8Error(_) => write!(f, "invalid UTF-8 sequence"),
             CryptoError::IoEof => write!(f, "io eof"),
             CryptoError::MismatchedHashAndPassword => write!(f, "mismatched hash and password"),
@@ -118,3 +118,17 @@ impl From<core::str::Utf8Error> for CryptoError {
 }
 
 pub type CryptoResult<T> = Result<T, CryptoError>;
+
+#[cfg(all(test, feature = "alloc"))]
+mod tests {
+    use super::*;
+    use alloc::string::ToString;
+
+    #[test]
+    fn str_error_displays_its_message() {
+        assert_eq!(
+            CryptoError::StrError("x509: issuer name mismatch").to_string(),
+            "x509: issuer name mismatch"
+        );
+    }
+}
