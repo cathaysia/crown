@@ -220,6 +220,28 @@ with `cargo +nightly build -p crown-cabi --features cbindgen` (cbindgen's
 expansion needs nightly); this round also pulled in previously missing
 declarations that predated it.
 
+### PKI completion: path validation, OCSP and CMS — 2026-10-05
+
+| area | crown status |
+|---|---|
+| RFC 5280 path validation | `x509::verify`: `Store` (trust anchors + CRLs), `VerifyOptions` (time, max depth, purpose, flags, untrusted intermediates, initial policy set), chain building (AKI/SKI disambiguation, loop protection), signature/validity checks, CA basicConstraints/keyUsage/pathLenConstraint, EKU purposes (TLS server/client, S/MIME sign/encrypt, code signing, OCSP helper, time stamping, CRL signing), name constraints (DNS/email/IP/URI/directoryName/otherName, permitted+excluded subtrees), policy processing (anyPolicy, mappings, requireExplicitPolicy, inhibitAnyPolicy), CRL and delta-CRL revocation with scope/reason checks, OpenSSL `X509_V_ERR_*` codes. Fixtures under `crown/tests/data/pki/verify/` cross-pinned against `openssl verify` (47/48/25/23/43 and the OK cases) |
+| new X.509 extensions | typed parse/encode + builders for nameConstraints, policyConstraints, inhibitAnyPolicy, policyMappings, subjectInfoAccess, cRLNumber, deltaCRLIndicator, issuingDistributionPoint (reason flags), reasonCode, invalidityDate, certificateIssuer, freshestCRL, tlsfeature, OCSP no-check, noRevAvail |
+| OCSP (RFC 6960) | `ocsp`: request build/parse with nonce, `OcspResponse` status, `BasicOcspResponse`/`ResponseData`/`SingleResponse`/`ResponderId`/`CertStatus`, `CertId` hashing (issuer name + public-key BIT STRING), `OcspResponder` signing, verification with delegated-responder chaining, OCSP-signing EKU and nonce checks; OpenSSL `ocsp` CLI cross-checked both directions |
+| CMS (RFC 5652) | `cms`: `EnvelopedData` (RSA PKCS#1 v1.5 and OAEP, ECDH key agreement P-256/384/521, KEK and password recipients; AES-CBC/GCM and 3DES content ciphers), `AuthEnvelopedData` (GCM), `EncryptedData`, `DigestedData`; builder and recipient-side decryption; interoperable with `openssl cms -encrypt/-decrypt` both ways |
+| issuance helpers | `CertificateBuilder::from_request` (CSR to certificate), `RevokedCertificate::{new, reason, invalidity_date}`; fixed a pre-existing `TbsCertList` encoder bug (CRL extensions were written with tag [3] instead of [0], so crown could not re-read its own CRLs with extensions and OpenSSL rejected them) |
+| consumers | CLI: `x509 verify --trust/--untrusted/--crl/--crl-check/--purpose/--policy-check`, `x509 self-sign`, `x509 issue`, `x509 crl`, `pkcs7 encrypt`/`decrypt`, `ocsp request`/`verify`/`info` (SEC1/PKCS#1 legacy keys accepted). C ABI: `certificate_store_*` chain verification, `cms_encrypt`/`cms_decrypt`/`cms_decrypt_password`, `ocsp_response_verify`. wasm: `x509_verify`, `cms_encrypt`/`cms_decrypt`, `ocsp_verify`; playground modes for chain validation, CMS and OCSP |
+
+Still not ported (OpenSSL-only PKI surface):
+
+- CMP (RFC 4210/9480) and CRMF (RFC 4211).
+- RFC 3161 timestamping (`crypto/ts`) and ESS (`crypto/ess`).
+- Attribute certificates (`X509_AC`).
+- Automated fetching of AIA/CRL distribution points and OCSP-based revocation
+  inside `verify_certificate`: intermediates and CRLs are caller-supplied
+  (no network code in the library).
+- CMS `CompressedData`, `AuthenticatedData`, and a multi-signer *builder*
+  (multi-signer `SignedData` parsing and verification already work).
+
 ### crown gaps — other buckets (closed 2026-10-03)
 
 - ARIA/SM4/Camellia/SEED GCM/CCM are wired through the generic

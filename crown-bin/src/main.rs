@@ -48,6 +48,7 @@ fn main() -> anyhow::Result<()> {
         args::Args::Pkcs7(args) => runner::run_pkcs7(args)?,
         args::Args::Pkcs12(args) => runner::run_pkcs12(args)?,
         args::Args::Pkey(args) => runner::run_pkey(args)?,
+        args::Args::Ocsp(args) => runner::run_ocsp(args)?,
     }
 
     Ok(())
