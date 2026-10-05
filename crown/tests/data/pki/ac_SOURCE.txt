@@ -1,0 +1,4 @@
+These attribute certificates are copied from the OpenSSL source tree
+(test/certs/{acert,acert_ietf,acert_bc1,acert_bc2}.pem), which is licensed
+under the Apache License 2.0. They are used as third-party parse/print and
+re-encode fixtures for crown::x509::ac.
