@@ -81,8 +81,39 @@ jobs:
         with:
           name: ${{ matrix.target }}
           path: "*.tar.gz"
+  build-ssh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+
+      - name: Configure
+        run: cmake -S ssh -B ssh/build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build libssh2 with the crown backend and the client
+        run: cmake --build ssh/build -j"$(nproc)"
+
+      - name: Package
+        run: |
+          mkdir -p release-ssh
+          cp ssh/build/crown-ssh release-ssh/
+          cp ssh/README.md release-ssh/README-ssh.md
+          tar -czf ssh-x86_64-unknown-linux-gnu.tar.gz -C release-ssh .
+
+      - name: upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: ssh-x86_64-unknown-linux-gnu
+          path: "ssh-*.tar.gz"
+
   create-release:
-    needs: [build-cross]
+    needs: [build-cross, build-ssh]
     permissions:
       contents: write
       discussions: write

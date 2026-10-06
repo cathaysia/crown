@@ -1,0 +1,61 @@
+name: check-ssh
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.11
+
+      - name: Configure
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: "sccache"
+        run: cmake -S ssh -B ssh/build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build libssh2 with the crown backend and the client
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: "sccache"
+        run: cmake --build ssh/build -j"$(nproc)"
+
+      - name: Check the cryptographic engine is Crown
+        run: |
+          ssh/build/crown-ssh -v x@127.0.0.1 -p 1 2>&1 | tee banner.txt
+          grep -q "crypto backend: Crown" banner.txt
+
+      - name: Start the test sshd
+        run: |
+          docker build -t crown-ssh-e2e ssh/tests/sshd
+          docker run -d --name crown-ssh-e2e -p 2222:2222 crown-ssh-e2e
+          for _ in $(seq 1 30); do
+            if docker exec crown-ssh-e2e sh -c 'true' 2>/dev/null &&
+               timeout 1 bash -c '</dev/tcp/127.0.0.1/2222' 2>/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          docker ps --filter name=crown-ssh-e2e
+
+      - name: Run the algorithm matrix
+        env:
+          SSH_TEST_CONTAINER: crown-ssh-e2e
+        run: ssh/tests/e2e.sh
+
+      - name: Show sshd log on failure
+        if: failure()
+        run: docker logs crown-ssh-e2e || true
