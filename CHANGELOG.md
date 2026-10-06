@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.29.0](https://github.com/cathaysia/crown/compare/v0.28.0...v0.29.0) (2026-10-06)
+
+
+### Features
+
+* **asm:** dispatch nistz256, RSAZ and ML-DSA NTT ([821da7a](https://github.com/cathaysia/crown/commit/821da7af4dbeef01b591704dfaed245b3c89bf08))
+* **cabi:** expose bignum, DH, EC, RSA and raw CBC primitives ([3d640fb](https://github.com/cathaysia/crown/commit/3d640fbca99b6368c88c54b5306398d1b7557945))
+* **hash:** close keccak and sha2-256-192 openssl parity gaps ([5ee8e9c](https://github.com/cathaysia/crown/commit/5ee8e9c77f416550269b0c16be61771952332e07))
+* **pki:** add asn1, x509, pkcs7 and pkcs12 support ([223a9b8](https://github.com/cathaysia/crown/commit/223a9b881edc281378ea9f4cf08db4391c8442c5))
+* **pki:** add name matching, partial chains and lossless extensions ([ed3f296](https://github.com/cathaysia/crown/commit/ed3f2967214e5956d315850fe0bdd48f97b57cda))
+* **pki:** add RFC 3161, CMP/CRMF, attribute certificates and CMS extras ([cb31001](https://github.com/cathaysia/crown/commit/cb31001195cf2a8a7d215b677bee9e1cda16ae5a))
+* **pki:** add RFC 5280 path validation, OCSP and CMS ([76d423d](https://github.com/cathaysia/crown/commit/76d423d3ee6412b45fa6a28055435350d7439800))
+* **pki:** expose ts, cmp, attribute certificates and cms extras in consumers ([0409e3d](https://github.com/cathaysia/crown/commit/0409e3d8394410d9dbdb1d821b782cc5f1ab643c))
+* **pki:** expose validation, issuance, cms and ocsp in consumers ([f889cf2](https://github.com/cathaysia/crown/commit/f889cf2e95e8d91cd3d8ef3921eb01a689b2f833))
+* **pki:** wire x509/pkcs7/pkcs12 into cli, cabi and playground ([e128602](https://github.com/cathaysia/crown/commit/e128602123de31ff10585a498feefff9bb3e48b3))
+* **ssh:** add a libssh2 crypto backend built on crown ([608c9e8](https://github.com/cathaysia/crown/commit/608c9e8a92110dc1af33dfaf6406a78d571bfbf7))
+
+
+### Bug Fixes
+
+* **error:** display the message of CryptoError::StrError ([dca8ae6](https://github.com/cathaysia/crown/commit/dca8ae6a43c2eb5ec1c9a2f1594367e33b26eac4))
+
 ## [0.28.0](https://github.com/cathaysia/crown/compare/v0.27.0...v0.28.0) (2026-10-03)
 
 
