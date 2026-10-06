@@ -201,11 +201,12 @@ RIPEMD-160 digests, and an explicit SM2 identity override because OpenSSL's
 provider CLI signs SM2 with an empty ID unless `distid` is given (the GM/T
 default identity is used by default).
 
-Verification scope: `Certificate::verify`/`verify_signature` cover name
-chaining, validity windows, CA basicConstraints/keyUsage and the signature.
-Full RFC 5280 path validation (name constraints, policies, revocation) and
-OCSP/CMP are out of scope, as are CMS `EnvelopedData` and OCSP response
-signing.
+Verification scope at the time of this section: `Certificate::verify`/
+`verify_signature` covered name chaining, validity windows, CA
+basicConstraints/keyUsage and the signature. Superseded by the sections below
+(`PKI completion` 2026-10-05 and `PKI round 2` 2026-10-06), which add full
+RFC 5280 path validation, OCSP, CMS `EnvelopedData`, CMP, request signing and
+name matching.
 
 ### PKI consumer wiring (CLI / C ABI / playground) — 2026-10-05
 
@@ -243,8 +244,11 @@ declarations that predated it.
 Still not ported (OpenSSL-only PKI surface):
 
 - Automated fetching of AIA/CRL distribution points and OCSP-based revocation
-  inside `verify_certificate`: intermediates and CRLs are caller-supplied
-  (no network code in the library).
+  inside `verify_certificate`: intermediates and CRLs are caller-supplied.
+  The building blocks exist since PKI round 2 (`x509::http`, the
+  `ocsp_urls`/`ca_issuer_urls`/`crl_urls`/`freshest_crl_urls` helpers and
+  `OcspRequest::post_to`), but `verify_certificate` itself never performs
+  network I/O.
 - CMS `CompressedData` (needs a compression backend) and the CMP client/server
   transaction state machine (message-level support is implemented).
 
@@ -382,3 +386,16 @@ Notes:
   prepended to the CBC of PKCS#7-padded plaintext (output = `iv || ct`).
 - Crown CBC decrypters follow the Go `BlockMode` convention: the processing
   entry point is `encrypt()`; `decrypt()` is `unreachable!()`.
+
+## 5. PKI round 2: name matching, lossless extensions, issuance and OCSP request signing — 2026-10-06
+
+| area | crown status |
+|---|---|
+| name matching (`X509_check_*`) | `x509::matching`: `Certificate::check_host`/`check_email`/`check_ip`/`check_ip_asc`. OpenSSL semantics pinned with the CLI: case-insensitive DNS with trailing-dot tolerance, wildcards only in the leftmost label (partial wildcards and empty star matches included), one-label wildcard reach, CN fallback only when the SAN has no dNSName entries, email local-part case-sensitive + domain case-insensitive, IPv4-mapped IPv6 equivalence, literal IPv4/IPv6 parsing. Fixtures + expectations in `crown/tests/matching.rs`, cross-checked with `openssl verify -verify_hostname/-verify_email/-verify_ip` |
+| `partial_chain` | `VerifyFlags::partial_chain` mirrors `X509_V_FLAG_PARTIAL_CHAIN`: a trusted non-self-signed chain element terminates the chain (trusted intermediate, or the leaf itself pinned as anchor). Without the flag a trusted non-self-signed element is only a link, so the build continues towards a self-signed anchor; the depth-zero/depth-n error mapping now matches OpenSSL (20 at depth 0, 2 above) |
+| lossless extensions | `certificatePolicies` keeps `PolicyInformation` with CPS-URI and userNotice qualifiers (DisplayText retains its string tag so re-encoding is byte-exact); `crlDistributionPoints`/`freshestCRL` keep full `DistributionPoint` (fullName, nameRelativeToCRLIssuer, ReasonFlags with DER-minimal unused bits, cRLIssuer); `authorityInfoAccess` keeps every `AccessDescription` (arbitrary accessMethod and GeneralName) with `ocsp_uris()`/`ca_issuers_uris()` conveniences; `subjectDirectoryAttributes` is decoded as attribute sets. CRL scope matching in `verify` compares full distribution point names (RFC 5280 6.3.3) instead of URI text |
+| certificate fetch helpers | `Certificate::ocsp_urls()`/`ca_issuer_urls()` (AIA) and `crl_urls()`/`freshest_crl_urls()` (CRL DP) extract the URLs applications need |
+| CSR `extensionRequest` | `attribute::extension_request`/`parse_extension_request`, `CertificationRequest::extensions()`, `CertificateBuilder::request_extensions()`; the OpenSSL-generated `extreq.csr` fixture parses, re-encodes byte-exactly and its requested SAN/KU/EKU are carried into an issued certificate |
+| OCSP request signing | `OcspRequest::sign` (signature over the TBSRequest, `requestorName` set to the signer subject like OpenSSL's `OCSP_request_sign`, certificates attached) and `OcspRequest::verify_signature` (explicit signer or attached certificates; a key-type mismatch is a non-match, not an error). `requestorName` is preserved on parse so OpenSSL-signed requests re-encode byte-exactly and verify |
+| HTTP fetch (std only) | `x509::http`: `get`/`post` with redirects (301/302/303/307/308), chunked decoding, body/header caps and timeouts; plain `http://` only (`https` fails explicitly — PKI payloads are caller-verifiable). `OcspRequest::post_to` posts a request to a responder URL and parses the reply. Tests drive a local `TcpListener`, no external network |
+| `DisplayText`/`VisibleString` | `asn1::der` gained VisibleString (`0x1a`) decoding; `x509::DisplayText` (tag + octets) keeps notice text byte-exact, as OpenSSL emits VisibleString |
