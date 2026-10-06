@@ -1,5 +1,6 @@
 #![allow(clippy::missing_safety_doc)]
 
+pub mod cbc;
 pub mod evp_aead;
 pub mod evp_block;
 pub mod evp_hash;
@@ -11,6 +12,8 @@ pub mod evp_pq_sign;
 pub mod evp_sign;
 pub mod evp_stream;
 pub mod evp_xts;
+pub mod math;
+pub mod pkey;
 
 unsafe fn slice_from_raw_parts<'a>(ptr: *const u8, len: usize) -> Option<&'a [u8]> {
     if ptr.is_null() {

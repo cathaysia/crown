@@ -97,14 +97,26 @@ pub fn sign(
     msg: &[u8],
     rng: &mut impl Rng,
 ) -> CryptoResult<(Bn, Bn)> {
+    let h = digest(hash, msg);
+    sign_digest(curve_id, d, &h, rng)
+}
+
+/// ECDSA sign over an already-computed digest (FIPS 186-4: the digest is
+/// reduced to `e` via leftmost-min(N, outlen) bits, then mod n).
+/// Returns `(r, s)`.
+pub fn sign_digest(
+    curve_id: CurveId,
+    d: &Bn,
+    digest: &[u8],
+    rng: &mut impl Rng,
+) -> CryptoResult<(Bn, Bn)> {
     let c = curve(curve_id);
     let n = &c.n;
     let d = d.modulus(n);
     if d.is_zero() {
         return Err(CryptoError::StrError("ecdsa: private key out of range"));
     }
-    let h = digest(hash, msg);
-    let e_bn = bits2int_mod(&h, n);
+    let e_bn = bits2int_mod(digest, n);
 
     for _ in 0..128 {
         let k = sample_k(n, rng);
@@ -136,6 +148,19 @@ pub fn verify(
     r: &Bn,
     s: &Bn,
 ) -> CryptoResult<bool> {
+    let h = digest(hash, msg);
+    verify_digest(curve_id, pub_key, &h, r, s)
+}
+
+/// ECDSA verify over an already-computed digest. Returns `true` iff the
+/// signature is valid.
+pub fn verify_digest(
+    curve_id: CurveId,
+    pub_key: &Point,
+    digest: &[u8],
+    r: &Bn,
+    s: &Bn,
+) -> CryptoResult<bool> {
     let c = curve(curve_id);
     let n = &c.n;
     if pub_key.is_infinity() || !pub_key.is_on_curve(&c) {
@@ -144,8 +169,7 @@ pub fn verify(
     if r.is_zero() || !r.lt(n) || s.is_zero() || !s.lt(n) {
         return Ok(false);
     }
-    let h = digest(hash, msg);
-    let e = bits2int_mod(&h, n);
+    let e = bits2int_mod(digest, n);
 
     let w = s.mod_inverse(n)?;
     let u1 = e.modmul(&w, n);
@@ -224,6 +248,17 @@ mod tests {
         FixedK {
             k: padded(k, order_bytes),
             used: false,
+        }
+    }
+
+    /// Deterministic counter-based RNG for random-nonce tests.
+    struct CounterRng(u64);
+    impl Rng for CounterRng {
+        fn fill_bytes(&mut self, out: &mut [u8]) {
+            for b in out.iter_mut() {
+                self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1);
+                *b = (self.0 >> 33) as u8;
+            }
         }
     }
 
@@ -371,15 +406,6 @@ mod tests {
     /// Random-nonce sign/verify roundtrip on every curve.
     #[test]
     fn sign_verify_roundtrip() {
-        struct CounterRng(u64);
-        impl Rng for CounterRng {
-            fn fill_bytes(&mut self, out: &mut [u8]) {
-                for b in out.iter_mut() {
-                    self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1);
-                    *b = (self.0 >> 33) as u8;
-                }
-            }
-        }
         let mut rng = CounterRng(0xdead_beef_cafe_babe);
         let cases = [
             (CurveId::P256, DigestId::Sha256),
@@ -395,5 +421,74 @@ mod tests {
             assert!(verify(cid, did, &pub_key, msg, &r, &s).unwrap());
             assert!(!verify(cid, did, &pub_key, b"other", &r, &s).unwrap());
         }
+    }
+
+    /// `sign_digest`/`verify_digest` round-trip on P-256 and P-384 with
+    /// known private scalars (the RFC 6979 A.2.5 / A.2.6 keys).
+    #[test]
+    fn sign_digest_verify_digest_roundtrip() {
+        let d_p256 = bn_hex("C9AFA9D845BA75166B5C215767B1D6934E50C3DB36E89B127B8A622B120F6721");
+        let d_p384 = bn_hex(
+            "6B9D3DAD2E1B8C1C05B19875B6659F4DE23C3B667BF297BA9AA47740787137D8
+             96D5724E4C70A825F872C9EA60D2EDF5",
+        );
+        let mut rng = CounterRng(0x0123_4567_89ab_cdef);
+        for (cid, d, digest_len) in [
+            (CurveId::P256, &d_p256, 32usize),
+            (CurveId::P384, &d_p384, 48usize),
+        ] {
+            let c = curve(cid);
+            let pub_key = mul_base(&c, d);
+            let h: Vec<u8> = (0..digest_len)
+                .map(|i| (i as u8).wrapping_mul(7).wrapping_add(1))
+                .collect();
+            let (r, s) = sign_digest(cid, d, &h, &mut rng).unwrap();
+            assert!(verify_digest(cid, &pub_key, &h, &r, &s).unwrap(), "{cid:?}");
+        }
+    }
+
+    /// Cross-check: the message-level `sign` and the digest-level
+    /// `verify_digest` must agree, and vice versa.
+    #[test]
+    fn sign_message_verify_digest_cross_check() {
+        let d = bn_hex("C9AFA9D845BA75166B5C215767B1D6934E50C3DB36E89B127B8A622B120F6721");
+        let c = curve(CurveId::P256);
+        let pub_key = mul_base(&c, &d);
+        let msg = b"cross-check message";
+
+        // Message-level sign, digest-level verify.
+        let k = bn_hex("A6E3C57DD01ABE90086538398355DD4C3B17AA873382B0F24D6129493D8AAD60");
+        let mut rng = fixed_k(&k, 32);
+        let (r, s) = sign(CurveId::P256, DigestId::Sha256, &d, msg, &mut rng).unwrap();
+        let h = digest(DigestId::Sha256, msg);
+        assert!(verify_digest(CurveId::P256, &pub_key, &h, &r, &s).unwrap());
+        // The message-level verifier accepts the same signature.
+        assert!(verify(CurveId::P256, DigestId::Sha256, &pub_key, msg, &r, &s).unwrap());
+
+        // Digest-level sign, message-level verify.
+        let mut rng = CounterRng(0xfeed_face_dead_beef);
+        let (r2, s2) = sign_digest(CurveId::P256, &d, &h, &mut rng).unwrap();
+        assert!(verify(CurveId::P256, DigestId::Sha256, &pub_key, msg, &r2, &s2).unwrap());
+        assert!(verify_digest(CurveId::P256, &pub_key, &h, &r2, &s2).unwrap());
+    }
+
+    /// `verify_digest` must reject a corrupted digest.
+    #[test]
+    fn verify_digest_rejects_corrupted_digest() {
+        let d = bn_hex("C9AFA9D845BA75166B5C215767B1D6934E50C3DB36E89B127B8A622B120F6721");
+        let c = curve(CurveId::P256);
+        let pub_key = mul_base(&c, &d);
+        let mut h = digest(DigestId::Sha256, b"negative test message");
+        let mut rng = CounterRng(7);
+        let (r, s) = sign_digest(CurveId::P256, &d, &h, &mut rng).unwrap();
+        assert!(verify_digest(CurveId::P256, &pub_key, &h, &r, &s).unwrap());
+
+        // Single-bit flip.
+        h[0] ^= 0x01;
+        assert!(!verify_digest(CurveId::P256, &pub_key, &h, &r, &s).unwrap());
+        h[0] ^= 0x01;
+
+        // Truncated digest (different `e`).
+        assert!(!verify_digest(CurveId::P256, &pub_key, &h[..31], &r, &s).unwrap());
     }
 }

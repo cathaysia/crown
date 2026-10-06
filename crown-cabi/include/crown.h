@@ -16,6 +16,16 @@ typedef struct AttributeCertificate AttributeCertificate;
 typedef struct BlockCipher BlockCipher;
 
 /**
+ * Opaque big number handle.
+ */
+typedef struct BnHandle BnHandle;
+
+/**
+ * CBC chaining state, in the requested direction.
+ */
+typedef struct CbcHandle CbcHandle;
+
+/**
  * An opaque parsed X.509 certificate.
  */
 typedef struct Certificate Certificate;
@@ -40,6 +50,12 @@ typedef struct Crl Crl;
  */
 typedef struct Csr Csr;
 
+/**
+ * Opaque EC key handle: always carries the public point, optionally the
+ * private scalar.
+ */
+typedef struct EcKeyHandle EcKeyHandle;
+
 typedef struct Hash Hash;
 
 typedef struct Mac Mac;
@@ -54,9 +70,46 @@ typedef struct Pkcs12 Pkcs12;
  */
 typedef struct Pkcs7 Pkcs7;
 
+/**
+ * Opaque RSA key handle: the public part is always present, the private
+ * part only for keys loaded with `crown_rsa_new_private`.
+ */
+typedef struct RsaKeyHandle RsaKeyHandle;
+
 typedef struct StreamCipher StreamCipher;
 
 typedef struct Xts Xts;
+
+/**
+ * Create an AES-CBC transform. `key` selects the variant (16/24/32 bytes)
+ * and `iv` must be 16 bytes. `encrypt` is non-zero for the encryption
+ * direction.
+ *
+ * Returns NULL on failure.
+ */
+struct CbcHandle *crown_cbc_new_aes(const uint8_t *key,
+                                    uintptr_t key_len,
+                                    const uint8_t *iv,
+                                    uintptr_t iv_len,
+                                    int32_t encrypt);
+
+/**
+ * Release a CBC transform. NULL is ignored.
+ */
+void crown_cbc_free(struct CbcHandle *c);
+
+/**
+ * Block size of the transform in bytes (16 for AES).
+ */
+uintptr_t crown_cbc_block_size(const struct CbcHandle *c);
+
+/**
+ * Transform `len` bytes in place. `len` must be a non-zero multiple of the
+ * block size; the chaining state carries over to the next call.
+ *
+ * Returns 0 on success, -1 on failure.
+ */
+int32_t crown_cbc_crypt(struct CbcHandle *c, uint8_t *data, uintptr_t len);
 
 struct AeadCipher *aead_cipher_new_aes_gcm(const uint8_t *key, uintptr_t key_len);
 
@@ -1837,5 +1890,285 @@ int32_t xts_decrypt(const struct Xts *self,
                     uintptr_t data_len);
 
 void xts_free(struct Xts *this_);
+
+/**
+ * Fill `len` bytes with cryptographically secure random data.
+ *
+ * Returns 0 on success, -1 on failure.
+ */
+int32_t crown_random(uint8_t *buf, uintptr_t len);
+
+/**
+ * Allocate a big number with the value zero.
+ */
+struct BnHandle *crown_bn_new(void);
+
+/**
+ * Release a big number. NULL is ignored.
+ */
+void crown_bn_free(struct BnHandle *bn);
+
+/**
+ * Allocate a big number from a big-endian byte string (leading zeros are
+ * accepted). Returns NULL on a NULL input.
+ */
+struct BnHandle *crown_bn_from_bin(const uint8_t *bin, uintptr_t len);
+
+/**
+ * Replace the value of `bn` with the big-endian integer in `bin`.
+ *
+ * Returns 0 on success, -1 on a NULL argument.
+ */
+int32_t crown_bn_set_from_bin(struct BnHandle *bn, const uint8_t *bin, uintptr_t len);
+
+/**
+ * Write the minimal big-endian encoding (no leading zeros, nothing at all
+ * for zero) into `out`, which must hold at least `crown_bn_bytes` bytes.
+ *
+ * Returns the number of bytes written, or 0 if the value does not fit (or
+ * `out` is NULL) — matching `BN_bn2bin`.
+ */
+uintptr_t crown_bn_to_bin(const struct BnHandle *bn, uint8_t *out, uintptr_t out_len);
+
+/**
+ * Number of significant bits (0 for zero).
+ */
+uintptr_t crown_bn_bits(const struct BnHandle *bn);
+
+/**
+ * Number of bytes needed for the minimal big-endian encoding (0 for zero).
+ */
+uintptr_t crown_bn_bytes(const struct BnHandle *bn);
+
+/**
+ * Set the value to a 32-bit word. Returns 0 on success.
+ */
+int32_t crown_bn_set_word(struct BnHandle *bn, uint32_t word);
+
+/**
+ * `a - b`. Returns NULL when the result would be negative or an argument is
+ * NULL.
+ */
+struct BnHandle *crown_bn_sub(const struct BnHandle *a, const struct BnHandle *b);
+
+/**
+ * Copy the value of `src` into `dst`. Returns 0 on success, -1 on a NULL
+ * argument.
+ */
+int32_t crown_bn_copy(struct BnHandle *dst, const struct BnHandle *src);
+
+/**
+ * Compare two big numbers: -1 if `a < b`, 0 if equal, 1 if `a > b`.
+ * Returns -2 on a NULL argument.
+ */
+int32_t crown_bn_cmp(const struct BnHandle *a, const struct BnHandle *b);
+
+/**
+ * Generate a Diffie-Hellman key pair for the group `(p, g)`: writes the
+ * private exponent to `*out_private` and `g^x mod p` to `*out_public`.
+ *
+ * Both outputs are freshly allocated and owned by the caller. Returns 0 on
+ * success, -1 on failure.
+ */
+int32_t crown_dh_key_pair(const struct BnHandle *p,
+                          const struct BnHandle *g,
+                          struct BnHandle **out_private,
+                          struct BnHandle **out_public);
+
+/**
+ * Compute the shared secret `peer^private mod p` and store it in
+ * `*out_secret`. Returns 0 on success, -1 on failure.
+ */
+int32_t crown_dh_secret(const struct BnHandle *private_,
+                        const struct BnHandle *peer,
+                        const struct BnHandle *p,
+                        struct BnHandle **out_secret);
+
+/**
+ * Validate a peer's DH public value: 1 when `1 < f < p - 1`, else 0.
+ */
+int32_t crown_dh_validate(const struct BnHandle *f, const struct BnHandle *p);
+
+/**
+ * Curve identifiers shared with the C side: 0 = P-256, 1 = P-384,
+ * 2 = P-521.
+ */
+uintptr_t crown_ec_curve_field_bytes(uint32_t curve);
+
+/**
+ * Derive the public value for a 32-byte X25519 private key.
+ *
+ * Returns 0 on success, -1 on failure.
+ */
+int32_t crown_x25519_public(const uint8_t *private_, uint8_t *public_);
+
+/**
+ * X25519 key agreement. Returns 0 on success, -1 when the shared secret is
+ * the all-zero value (low-order peer point) or an argument is NULL.
+ */
+int32_t crown_x25519(const uint8_t *private_, const uint8_t *peer_public, uint8_t *shared);
+
+/**
+ * Generate a fresh X25519 key pair into `private`/`public` (32 bytes each).
+ * Returns 0 on success, -1 on failure.
+ */
+int32_t crown_x25519_keypair(uint8_t *private_, uint8_t *public_);
+
+/**
+ * Generate a fresh key pair on `curve` (0 = P-256, 1 = P-384, 2 = P-521).
+ * Returns NULL on failure.
+ */
+struct EcKeyHandle *crown_ec_key_generate(uint32_t curve);
+
+/**
+ * Build a key from its components. `public_point` is the SEC1 encoding
+ * (`0x04 || X || Y`); when it is NULL/empty the point is derived from the
+ * private scalar. `private_scalar` may be NULL for a public-only key.
+ *
+ * Returns NULL on failure.
+ */
+struct EcKeyHandle *crown_ec_key_new(uint32_t curve,
+                                     const uint8_t *private_scalar,
+                                     uintptr_t scalar_len,
+                                     const uint8_t *public_point,
+                                     uintptr_t point_len);
+
+/**
+ * Curve id of a key handle (0 = P-256, 1 = P-384, 2 = P-521), or
+ * `UINT32_MAX` on a NULL argument.
+ */
+uint32_t crown_ec_key_curve(const struct EcKeyHandle *key);
+
+/**
+ * Release a key handle. NULL is ignored.
+ */
+void crown_ec_key_free(struct EcKeyHandle *key);
+
+/**
+ * Write the SEC1 uncompressed public point into `out`.
+ *
+ * Returns the number of bytes written, or 0 on failure (including `out` too
+ * small — the required size is `2 * field_bytes + 1`).
+ */
+uintptr_t crown_ec_key_public(const struct EcKeyHandle *key, uint8_t *out, uintptr_t out_len);
+
+/**
+ * ECDH: compute the shared secret (the X coordinate, left-padded to the
+ * field size) between `key` (which must hold a private scalar) and the SEC1
+ * `peer_point`.
+ *
+ * Returns the number of bytes written, or 0 on failure.
+ */
+uintptr_t crown_ecdh_compute(const struct EcKeyHandle *key,
+                             const uint8_t *peer_point,
+                             uintptr_t peer_len,
+                             uint8_t *out,
+                             uintptr_t out_len);
+
+/**
+ * ECDSA signature over an already-computed digest. The signature is
+ * `r || s`, each left-padded to the field size (RFC 5656 / RFC 4253 wire
+ * form).
+ *
+ * Returns the number of bytes written, or 0 on failure.
+ */
+uintptr_t crown_ecdsa_sign_digest(const struct EcKeyHandle *key,
+                                  const uint8_t *digest,
+                                  uintptr_t digest_len,
+                                  uint8_t *out,
+                                  uintptr_t out_len);
+
+/**
+ * ECDSA verification over an already-computed digest. `sig` is `r || s`,
+ * each left-padded to the field size.
+ *
+ * Returns 1 when the signature is valid, 0 otherwise.
+ */
+int32_t crown_ecdsa_verify_digest(uint32_t curve,
+                                  const uint8_t *public_point,
+                                  uintptr_t point_len,
+                                  const uint8_t *digest,
+                                  uintptr_t digest_len,
+                                  const uint8_t *sig,
+                                  uintptr_t sig_len);
+
+/**
+ * Build a public-only RSA key from `n` and `e`. Returns NULL on failure.
+ */
+struct RsaKeyHandle *crown_rsa_new_public(const uint8_t *n,
+                                          uintptr_t n_len,
+                                          const uint8_t *e,
+                                          uintptr_t e_len);
+
+/**
+ * Build an RSA key from its components. `d` and the CRT parameters
+ * (`p`, `q`, `dp`, `dq`, `qinv`) may be NULL/empty for a public-only key;
+ * the CRT parameters are optional even when `d` is present.
+ *
+ * Returns NULL on failure.
+ */
+struct RsaKeyHandle *crown_rsa_new_private(const uint8_t *n,
+                                           uintptr_t n_len,
+                                           const uint8_t *e,
+                                           uintptr_t e_len,
+                                           const uint8_t *d,
+                                           uintptr_t d_len,
+                                           const uint8_t *p,
+                                           uintptr_t p_len,
+                                           const uint8_t *q,
+                                           uintptr_t q_len,
+                                           const uint8_t *dp,
+                                           uintptr_t dp_len,
+                                           const uint8_t *dq,
+                                           uintptr_t dq_len,
+                                           const uint8_t *qinv,
+                                           uintptr_t qinv_len);
+
+/**
+ * Release an RSA key handle. NULL is ignored.
+ */
+void crown_rsa_free(struct RsaKeyHandle *key);
+
+/**
+ * Write the RSA modulus (minimal big-endian) into `out`.
+ *
+ * Returns the number of bytes written, or 0 on failure.
+ */
+uintptr_t crown_rsa_n(const struct RsaKeyHandle *key, uint8_t *out, uintptr_t out_len);
+
+/**
+ * Write the RSA public exponent (minimal big-endian) into `out`.
+ *
+ * Returns the number of bytes written, or 0 on failure.
+ */
+uintptr_t crown_rsa_e(const struct RsaKeyHandle *key, uint8_t *out, uintptr_t out_len);
+
+/**
+ * Modulus size in bytes.
+ */
+uintptr_t crown_rsa_size(const struct RsaKeyHandle *key);
+
+/**
+ * PKCS#1 v1.5 signature over an already-computed digest.
+ *
+ * Returns the number of signature bytes written, or 0 on failure (wrong key
+ * type, unknown digest length, or `out` too small).
+ */
+uintptr_t crown_rsa_sign_digest(const struct RsaKeyHandle *key,
+                                const uint8_t *digest,
+                                uintptr_t digest_len,
+                                uint8_t *out,
+                                uintptr_t out_len);
+
+/**
+ * PKCS#1 v1.5 verification of a signature over an already-computed digest.
+ *
+ * Returns 1 when the signature is valid, 0 otherwise.
+ */
+int32_t crown_rsa_verify_digest(const struct RsaKeyHandle *key,
+                                const uint8_t *digest,
+                                uintptr_t digest_len,
+                                const uint8_t *sig,
+                                uintptr_t sig_len);
 
 #endif  /* crown_H */
