@@ -1,0 +1,55 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 6b51ac6..36eb6f4 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -430,6 +430,23 @@ if(CRYPTO_BACKEND STREQUAL "WinCNG" OR NOT CRYPTO_BACKEND)
+   endif()
+ endif()
+ 
++# Crown backend, provided out-of-tree by the parent project (no find_package
++# module). Kept last so an automatic selection still prefers the backends
++# above, in their existing order.
++
++if(CRYPTO_BACKEND STREQUAL "Crown" OR
++   (NOT CRYPTO_BACKEND AND NOT "${CROWN_LIBRARIES}" STREQUAL ""))
++
++  if("${CROWN_LIBRARIES}" STREQUAL "")
++    message(FATAL_ERROR "Crown crypto backend selected, but CROWN_LIBRARIES is empty")
++  endif()
++
++  set(CRYPTO_BACKEND "Crown")
++  set(CRYPTO_BACKEND_DEFINE "LIBSSH2_CROWN")
++  list(APPEND LIBSSH2_LIBS ${CROWN_LIBRARIES})
++  include_directories(${CROWN_INCLUDE_DIRS})
++endif()
++
+ # Global functions
+ 
+ # Convert GNU Make assignments into CMake ones.
+diff --git a/include/libssh2.h b/include/libssh2.h
+index 8b16dd2..eedc422 100644
+--- a/include/libssh2.h
++++ b/include/libssh2.h
+@@ -1081,7 +1081,8 @@ typedef enum {
+     libssh2_gcrypt,
+     libssh2_mbedtls,
+     libssh2_wincng,
+-    libssh2_os400qc3
++    libssh2_os400qc3,
++    libssh2_crown
+ } libssh2_crypto_engine_t;
+ 
+ LIBSSH2_API
+diff --git a/src/crypto.h b/src/crypto.h
+index 4874441..ac2bc7e 100644
+--- a/src/crypto.h
++++ b/src/crypto.h
+@@ -51,6 +51,8 @@
+ #include "os400qc3.h"
+ #elif defined(LIBSSH2_WINCNG)
+ #include "wincng.h"
++#elif defined(LIBSSH2_CROWN)
++#include "libssh2_crown.h"
+ #else
+ #error "no cryptography backend selected"
+ #endif
