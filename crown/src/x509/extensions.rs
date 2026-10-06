@@ -7,6 +7,7 @@ use crate::asn1::der::{self, Reader};
 use crate::asn1::oid::{self, ObjectIdentifier};
 use crate::error::{CryptoError, CryptoResult};
 
+use super::attribute::Attribute;
 use super::name::Name;
 
 /// A raw extension: `SEQUENCE { extnID, critical DEFAULT FALSE, extnValue }`.
@@ -176,7 +177,9 @@ impl Extension {
             return Ok(ParsedExtension::NoRevAvail);
         }
         if self.oid.matches(oid::OID_SUBJECT_DIRECTORY_ATTRIBUTES) {
-            return Ok(ParsedExtension::SubjectDirectoryAttributes);
+            return Ok(ParsedExtension::SubjectDirectoryAttributes(
+                SubjectDirectoryAttributes::parse(&self.value)?,
+            ));
         }
         Ok(ParsedExtension::Other)
     }
@@ -199,11 +202,11 @@ pub enum ParsedExtension {
     SubjectKeyIdentifier(Vec<u8>),
     /// `authorityKeyIdentifier`.
     AuthorityKeyIdentifier(AuthorityKeyIdentifier),
-    /// `crlDistributionPoints` (URIs only).
+    /// `crlDistributionPoints`.
     CrlDistributionPoints(CrlDistributionPoints),
-    /// `authorityInfoAccess` (OCSP and caIssuers URIs only).
+    /// `authorityInfoAccess`.
     AuthorityInfoAccess(AuthorityInfoAccess),
-    /// `certificatePolicies` (policy OIDs only).
+    /// `certificatePolicies`.
     CertificatePolicies(CertificatePolicies),
     /// `nameConstraints`.
     NameConstraints(NameConstraints),
@@ -235,8 +238,8 @@ pub enum ParsedExtension {
     OcspNoCheck,
     /// `noRevAvail`.
     NoRevAvail,
-    /// `subjectDirectoryAttributes` (not decoded further).
-    SubjectDirectoryAttributes,
+    /// `subjectDirectoryAttributes`.
+    SubjectDirectoryAttributes(SubjectDirectoryAttributes),
     /// A recognized-but-untyped extension.
     Other,
 }
@@ -597,12 +600,57 @@ impl AuthorityKeyIdentifier {
     }
 }
 
-/// `CRLDistributionPoints`, reduced to the distribution point URIs.
+/// One `DistributionPoint` of a `CRLDistributionPoints` or `freshestCRL`
+/// extension.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DistributionPoint {
+    /// The distribution point name, when present.
+    pub distribution_point: Option<DistributionPointName>,
+    /// `reasons` as RFC 5280 `ReasonFlags` bits (bit 1 = `keyCompromise`, bit
+    /// 9 = `removeFromCRL`); `None` means all reasons.
+    pub reasons: Option<u16>,
+    /// `cRLIssuer` general names, when present.
+    pub crl_issuer: Vec<GeneralName>,
+}
+
+impl DistributionPoint {
+    /// A distribution point that only carries `fullName` URIs.
+    pub fn from_uris(uris: &[String]) -> Self {
+        DistributionPoint {
+            distribution_point: Some(DistributionPointName {
+                full_name: Some(uris.iter().cloned().map(GeneralName::Uri).collect()),
+                relative_name: None,
+            }),
+            reasons: None,
+            crl_issuer: Vec::new(),
+        }
+    }
+
+    /// The `fullName` URIs of this distribution point.
+    pub fn uris(&self) -> Vec<&str> {
+        match &self.distribution_point {
+            Some(DistributionPointName {
+                full_name: Some(names),
+                ..
+            }) => names.iter().filter_map(GeneralName::to_text).collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// Whether the given RFC 5280 reason bit is set (or no reasons are
+    /// restricted).
+    pub fn has_reason(&self, bit: u16) -> bool {
+        self.reasons.is_none_or(|reasons| reasons & (1 << bit) != 0)
+    }
+}
+
+/// `CRLDistributionPoints ::= SEQUENCE SIZE (1..MAX) OF DistributionPoint`.
+///
+/// `freshestCRL` reuses the same syntax.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CrlDistributionPoints {
-    /// The `uniformResourceIdentifier` general names found in the
-    /// distribution points.
-    pub uris: Vec<String>,
+    /// The distribution points.
+    pub points: Vec<DistributionPoint>,
 }
 
 impl CrlDistributionPoints {
@@ -610,63 +658,100 @@ impl CrlDistributionPoints {
     pub fn parse(der: &[u8]) -> CryptoResult<Self> {
         let mut reader = Reader::new(der);
         let mut seq = reader.read_sequence()?;
-        let mut uris = Vec::new();
+        let mut points = Vec::new();
         while !seq.is_empty() {
             // DistributionPoint ::= SEQUENCE { distributionPoint [0] OPTIONAL,
-            // reasons [1], cRLIssuer [2] }
+            // reasons [1] OPTIONAL, cRLIssuer [2] OPTIONAL }.
             let mut point = seq.read_sequence()?;
+            let mut parsed = DistributionPoint::default();
             while !point.is_empty() {
                 let tag = point.peek_tag()?;
-                let content = point.read_implicit(tag.number, tag.constructed)?;
-                if tag.number == 0 {
-                    let mut inner = Reader::new(content);
-                    // distributionPoint CHOICE: [0] fullName, [1] nameRelative.
-                    while !inner.is_empty() {
-                        let (inner_tag, inner_content) = inner.read_tlv()?;
-                        if inner_tag.number == 0 {
-                            let mut names = Reader::new(inner_content);
-                            while !names.is_empty() {
-                                if let GeneralName::Uri(uri) = GeneralName::parse(&mut names)? {
-                                    uris.push(uri);
-                                }
-                            }
+                match (tag.class, tag.number) {
+                    (der::Class::ContextSpecific, 0) => {
+                        let mut inner = point.read_implicit_constructed(0)?;
+                        parsed.distribution_point =
+                            Some(parse_distribution_point_name(&mut inner)?);
+                    }
+                    (der::Class::ContextSpecific, 1) => {
+                        let content = point.read_implicit(1, false)?;
+                        let (unused, data) = content
+                            .split_first()
+                            .ok_or(CryptoError::StrError("x509: invalid reason flags"))?;
+                        parsed.reasons = Some(bit_string_bits(*unused, data));
+                    }
+                    (der::Class::ContextSpecific, 2) => {
+                        let mut inner = point.read_implicit_constructed(2)?;
+                        while !inner.is_empty() {
+                            parsed.crl_issuer.push(GeneralName::parse(&mut inner)?);
                         }
                     }
+                    _ => return Err(CryptoError::StrError("x509: invalid crlDistributionPoints")),
                 }
             }
+            points.push(parsed);
         }
-        Ok(CrlDistributionPoints { uris })
+        Ok(CrlDistributionPoints { points })
     }
 
-    /// Encode the extension contents from URIs.
+    /// The `fullName` URIs of every distribution point.
+    pub fn uris(&self) -> Vec<&str> {
+        self.points
+            .iter()
+            .flat_map(DistributionPoint::uris)
+            .collect()
+    }
+
+    /// Build the extension contents from URIs only.
     pub fn from_uris(uris: &[String]) -> Self {
         CrlDistributionPoints {
-            uris: uris.to_vec(),
+            points: alloc::vec![DistributionPoint::from_uris(uris)],
         }
     }
 
     /// Encode the extension contents.
     pub fn encode(&self) -> Vec<u8> {
-        let mut names_content = Vec::new();
-        for uri in &self.uris {
-            names_content.extend_from_slice(&GeneralName::Uri(uri.clone()).encode());
+        let mut content = Vec::new();
+        for point in &self.points {
+            let mut point_content = Vec::new();
+            if let Some(name) = &point.distribution_point {
+                let mut name_content = Vec::new();
+                if let Some(names) = &name.full_name {
+                    let mut names_content = Vec::new();
+                    for name in names {
+                        names_content.extend_from_slice(&name.encode());
+                    }
+                    name_content.extend_from_slice(&der::implicit(0, true, &names_content));
+                }
+                if let Some(relative) = &name.relative_name {
+                    let mut rdn_content = Vec::new();
+                    for attribute in &relative.attributes {
+                        rdn_content.extend_from_slice(&attribute.encode());
+                    }
+                    name_content.extend_from_slice(&der::implicit(1, true, &rdn_content));
+                }
+                point_content.extend_from_slice(&der::implicit(0, true, &name_content));
+            }
+            if let Some(bits) = point.reasons {
+                point_content.extend_from_slice(&der::implicit(1, false, &bit_string_bytes(bits)));
+            }
+            if !point.crl_issuer.is_empty() {
+                let mut names_content = Vec::new();
+                for name in &point.crl_issuer {
+                    names_content.extend_from_slice(&name.encode());
+                }
+                point_content.extend_from_slice(&der::implicit(2, true, &names_content));
+            }
+            content.extend_from_slice(&der::sequence(&point_content));
         }
-        // DistributionPointName's fullName is [0] IMPLICIT GeneralNames.
-        let full_name = der::implicit(0, true, &names_content);
-        // DistributionPoint is SEQUENCE { distributionPoint [0] ... }.
-        let point = der::implicit(0, true, &full_name);
-        let distribution_point = der::sequence(&point);
-        der::sequence(&distribution_point)
+        der::sequence(&content)
     }
 }
 
 /// `AuthorityInfoAccessSyntax ::= SEQUENCE OF AccessDescription`.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct AuthorityInfoAccess {
-    /// OCSP responder URIs.
-    pub ocsp: Vec<String>,
-    /// CA issuers URIs.
-    pub ca_issuers: Vec<String>,
+    /// The access descriptions, in order.
+    pub descriptions: Vec<AccessDescription>,
 }
 
 impl AuthorityInfoAccess {
@@ -674,46 +759,250 @@ impl AuthorityInfoAccess {
     pub fn parse(der: &[u8]) -> CryptoResult<Self> {
         let mut reader = Reader::new(der);
         let mut seq = reader.read_sequence()?;
-        let mut out = AuthorityInfoAccess::default();
+        let mut descriptions = Vec::new();
         while !seq.is_empty() {
-            let mut desc = seq.read_sequence()?;
-            let method = desc.read_oid()?;
-            let mut location = Reader::new(desc.read_raw_tlv()?);
-            let name = GeneralName::parse(&mut location)?;
-            if let GeneralName::Uri(uri) = name {
-                if method.matches(oid::OID_AD_OCSP) {
-                    out.ocsp.push(uri);
-                } else if method.matches(oid::OID_AD_CA_ISSUERS) {
-                    out.ca_issuers.push(uri);
-                }
-            }
+            descriptions.push(AccessDescription::parse(&mut seq)?);
         }
-        Ok(out)
+        Ok(AuthorityInfoAccess { descriptions })
     }
 
     /// Encode the extension contents.
     pub fn encode(&self) -> Vec<u8> {
         let mut content = Vec::new();
-        let mut push = |method: &[u64], uri: &str| {
-            let mut desc = der::oid(&ObjectIdentifier::new(method).expect("static oid"));
-            desc.extend_from_slice(&GeneralName::Uri(String::from(uri)).encode());
-            content.extend_from_slice(&der::sequence(&desc));
-        };
-        for uri in &self.ocsp {
-            push(oid::OID_AD_OCSP, uri);
+        for description in &self.descriptions {
+            content.extend_from_slice(&description.encode());
         }
-        for uri in &self.ca_issuers {
-            push(oid::OID_AD_CA_ISSUERS, uri);
+        der::sequence(&content)
+    }
+
+    /// Every location for `method`.
+    pub fn locations(&self, method: &[u64]) -> Vec<&GeneralName> {
+        self.descriptions
+            .iter()
+            .filter(|description| description.method.matches(method))
+            .map(|description| &description.location)
+            .collect()
+    }
+
+    /// The `ocsp` responder URIs.
+    pub fn ocsp_uris(&self) -> Vec<&str> {
+        self.uris_for(oid::OID_AD_OCSP)
+    }
+
+    /// The `caIssuers` URIs.
+    pub fn ca_issuers_uris(&self) -> Vec<&str> {
+        self.uris_for(oid::OID_AD_CA_ISSUERS)
+    }
+
+    fn uris_for(&self, method: &[u64]) -> Vec<&str> {
+        self.locations(method)
+            .into_iter()
+            .filter_map(GeneralName::to_text)
+            .collect()
+    }
+}
+
+/// One `PolicyInformation` of a `certificatePolicies` extension.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PolicyInformation {
+    /// The policy OID.
+    pub policy_identifier: ObjectIdentifier,
+    /// Optional policy qualifiers.
+    pub qualifiers: Vec<PolicyQualifier>,
+}
+
+/// A policy qualifier of a `PolicyInformation`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PolicyQualifier {
+    /// `id-qt-cps`: a certification practice statement URI.
+    CpsUri(String),
+    /// `id-qt-unotice`: a user notice.
+    UserNotice(UserNotice),
+    /// Any other qualifier (raw value preserved).
+    Other {
+        /// The qualifier OID.
+        oid: ObjectIdentifier,
+        /// The raw qualifier value.
+        value: Vec<u8>,
+    },
+}
+
+/// A `DisplayText` value (`IA5String|VisibleString|BMPString|UTF8String`).
+///
+/// The original string tag is preserved so re-encoding a parsed value is
+/// byte-exact, matching [`AttributeTypeAndValue`](super::name::AttributeTypeAndValue).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DisplayText {
+    /// The string type's universal tag.
+    pub tag: der::Tag,
+    /// Raw string content octets.
+    pub value: Vec<u8>,
+}
+
+impl Default for DisplayText {
+    fn default() -> Self {
+        DisplayText {
+            tag: der::UTF8_STRING,
+            value: Vec::new(),
+        }
+    }
+}
+
+impl DisplayText {
+    /// A UTF8String-valued text.
+    pub fn from_utf8(text: &str) -> Self {
+        DisplayText {
+            tag: der::UTF8_STRING,
+            value: text.as_bytes().to_vec(),
+        }
+    }
+
+    /// Parse one `DisplayText`.
+    pub fn parse(reader: &mut Reader<'_>) -> CryptoResult<Self> {
+        let (tag, content) = reader.read_tlv()?;
+        if tag.class != der::Class::Universal || tag.constructed {
+            return Err(CryptoError::StrError("x509: invalid display text"));
+        }
+        Ok(DisplayText {
+            tag,
+            value: content.to_vec(),
+        })
+    }
+
+    /// Encode the `DisplayText`.
+    pub fn encode(&self) -> Vec<u8> {
+        der::string_with_tag(self.tag, &self.value)
+    }
+
+    /// The text decoded according to its string type.
+    pub fn text(&self) -> CryptoResult<String> {
+        der::decode_string(self.tag, &self.value)
+    }
+}
+
+/// `UserNotice ::= SEQUENCE { noticeRef NoticeReference OPTIONAL,
+/// explicitText DisplayText OPTIONAL }`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct UserNotice {
+    /// The notice reference, when present.
+    pub notice_ref: Option<NoticeReference>,
+    /// The explicit text, when present.
+    pub explicit_text: Option<DisplayText>,
+}
+
+/// `NoticeReference ::= SEQUENCE { organization DisplayText,
+/// noticeNumbers SEQUENCE OF INTEGER }`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct NoticeReference {
+    /// The organization maintaining the notice file.
+    pub organization: DisplayText,
+    /// The notice numbers.
+    pub notice_numbers: Vec<u64>,
+}
+
+impl PolicyQualifier {
+    /// Parse one `PolicyQualifierInfo`.
+    pub fn parse(reader: &mut Reader<'_>) -> CryptoResult<Self> {
+        let mut seq = reader.read_sequence()?;
+        let oid = seq.read_oid()?;
+        let tag = seq.peek_tag()?;
+        if oid.matches(oid::OID_QT_UNOTICE) && tag.number == der::SEQUENCE.number && tag.constructed
+        {
+            return Ok(PolicyQualifier::UserNotice(UserNotice::parse(&mut seq)?));
+        }
+        let (tag, content) = seq.read_tlv()?;
+        if tag.class != der::Class::Universal {
+            return Err(CryptoError::StrError("x509: invalid policy qualifier"));
+        }
+        if oid.matches(oid::OID_QT_CPS) && tag.number == der::IA5_STRING.number {
+            let text = core::str::from_utf8(content)
+                .map_err(|_| CryptoError::StrError("x509: invalid CPS URI"))?;
+            return Ok(PolicyQualifier::CpsUri(String::from(text)));
+        }
+        Ok(PolicyQualifier::Other {
+            oid,
+            value: der::tlv(tag, content),
+        })
+    }
+
+    /// Encode the qualifier.
+    pub fn encode(&self) -> Vec<u8> {
+        let (qualifier_oid, value) = match self {
+            PolicyQualifier::CpsUri(uri) => (oid::OID_QT_CPS, der::ia5_string(uri)),
+            PolicyQualifier::UserNotice(notice) => (oid::OID_QT_UNOTICE, notice.encode()),
+            PolicyQualifier::Other { oid, value } => {
+                let mut content = der::oid(oid);
+                content.extend_from_slice(value);
+                return der::sequence(&content);
+            }
+        };
+        let mut content = der::oid(&ObjectIdentifier::new(qualifier_oid).expect("static oid"));
+        content.extend_from_slice(&value);
+        der::sequence(&content)
+    }
+}
+
+impl UserNotice {
+    /// Parse a `UserNotice`.
+    fn parse(reader: &mut Reader<'_>) -> CryptoResult<Self> {
+        let mut seq = reader.read_sequence()?;
+        let mut notice = UserNotice::default();
+        while !seq.is_empty() {
+            let tag = seq.peek_tag()?;
+            if tag.number == der::SEQUENCE.number && tag.constructed {
+                notice.notice_ref = Some(NoticeReference::parse(&mut seq)?);
+            } else {
+                notice.explicit_text = Some(DisplayText::parse(&mut seq)?);
+            }
+        }
+        Ok(notice)
+    }
+
+    /// Encode the `UserNotice`.
+    pub fn encode(&self) -> Vec<u8> {
+        let mut content = Vec::new();
+        if let Some(notice_ref) = &self.notice_ref {
+            let mut reference = notice_ref.organization.encode();
+            let mut numbers = Vec::new();
+            for number in &notice_ref.notice_numbers {
+                numbers.extend_from_slice(&der::integer_i64(*number as i64));
+            }
+            reference.extend_from_slice(&der::sequence(&numbers));
+            content.extend_from_slice(&der::sequence(&reference));
+        }
+        if let Some(text) = &self.explicit_text {
+            content.extend_from_slice(&text.encode());
         }
         der::sequence(&content)
     }
 }
 
-/// `CertificatePolicies`, reduced to the policy OIDs.
+impl NoticeReference {
+    /// Parse a `NoticeReference`.
+    fn parse(reader: &mut Reader<'_>) -> CryptoResult<Self> {
+        let mut seq = reader.read_sequence()?;
+        let organization = DisplayText::parse(&mut seq)?;
+        let mut numbers = seq.read_sequence()?;
+        let mut notice_numbers = Vec::new();
+        while !numbers.is_empty() {
+            notice_numbers.push(
+                u64::try_from(numbers.read_integer_i64()?)
+                    .map_err(|_| CryptoError::StrError("x509: invalid notice number"))?,
+            );
+        }
+        seq.expect_end()?;
+        Ok(NoticeReference {
+            organization,
+            notice_numbers,
+        })
+    }
+}
+
+/// `CertificatePolicies ::= SEQUENCE SIZE (1..MAX) OF PolicyInformation`.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CertificatePolicies {
-    /// Policy OIDs.
-    pub policies: Vec<ObjectIdentifier>,
+    /// The policy information entries.
+    pub policies: Vec<PolicyInformation>,
 }
 
 impl CertificatePolicies {
@@ -723,11 +1012,69 @@ impl CertificatePolicies {
         let mut seq = reader.read_sequence()?;
         let mut policies = Vec::new();
         while !seq.is_empty() {
+            // PolicyInformation ::= SEQUENCE { policyIdentifier OID,
+            // policyQualifiers SEQUENCE OF PolicyQualifierInfo OPTIONAL }.
             let mut info = seq.read_sequence()?;
-            policies.push(info.read_oid()?);
+            let policy_identifier = info.read_oid()?;
+            let mut qualifiers = Vec::new();
+            if !info.is_empty() {
+                let mut list = info.read_sequence()?;
+                while !list.is_empty() {
+                    qualifiers.push(PolicyQualifier::parse(&mut list)?);
+                }
+            }
+            info.expect_end()?;
+            policies.push(PolicyInformation {
+                policy_identifier,
+                qualifiers,
+            });
         }
         Ok(CertificatePolicies { policies })
     }
+
+    /// The policy OIDs in order.
+    pub fn policy_identifiers(&self) -> Vec<ObjectIdentifier> {
+        self.policies
+            .iter()
+            .map(|policy| policy.policy_identifier.clone())
+            .collect()
+    }
+
+    /// Whether `arcs` is one of the policy OIDs.
+    pub fn contains(&self, arcs: &[u64]) -> bool {
+        self.policies
+            .iter()
+            .any(|policy| policy.policy_identifier.matches(arcs))
+    }
+
+    /// Encode the extension contents.
+    pub fn encode(&self) -> Vec<u8> {
+        let mut content = Vec::new();
+        for policy in &self.policies {
+            let mut policy_content = der::oid(&policy.policy_identifier);
+            if !policy.qualifiers.is_empty() {
+                let mut qualifiers = Vec::new();
+                for qualifier in &policy.qualifiers {
+                    qualifiers.extend_from_slice(&qualifier.encode());
+                }
+                policy_content.extend_from_slice(&der::sequence(&qualifiers));
+            }
+            content.extend_from_slice(&der::sequence(&policy_content));
+        }
+        der::sequence(&content)
+    }
+}
+
+/// Build a `certificatePolicies` extension.
+pub fn certificate_policies(policies: &[PolicyInformation]) -> Extension {
+    Extension::new(
+        ObjectIdentifier::new(oid::OID_CERTIFICATE_POLICIES).expect("static oid"),
+        false,
+        CertificatePolicies {
+            policies: policies.to_vec(),
+        }
+        .encode(),
+    )
 }
 
 /// Build a `subjectAltName` extension from DNS names and IP addresses.
@@ -883,6 +1230,39 @@ impl SubjectInfoAccess {
             .into_iter()
             .filter_map(GeneralName::to_text)
             .collect()
+    }
+}
+
+/// `SubjectDirectoryAttributes ::= SEQUENCE SIZE (1..MAX) OF AttributeSet`,
+/// with `AttributeSet ::= SET SIZE (1..MAX) OF Attribute` (RFC 5280 4.2.1.8).
+///
+/// Each entry keeps its `SET OF` grouping; values are generic `Attribute`s
+/// because the types are application-defined.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SubjectDirectoryAttributes {
+    /// The attribute sets, in order.
+    pub attributes: Vec<Vec<Attribute>>,
+}
+
+impl SubjectDirectoryAttributes {
+    /// Parse the extension contents.
+    pub fn parse(der: &[u8]) -> CryptoResult<Self> {
+        let mut reader = Reader::new(der);
+        let mut seq = reader.read_sequence()?;
+        let mut attributes = Vec::new();
+        while !seq.is_empty() {
+            attributes.push(super::attribute::parse_attributes(&mut seq)?);
+        }
+        Ok(SubjectDirectoryAttributes { attributes })
+    }
+
+    /// Encode the extension contents.
+    pub fn encode(&self) -> Vec<u8> {
+        let mut content = Vec::new();
+        for set in &self.attributes {
+            content.extend_from_slice(&super::attribute::encode_attributes(set));
+        }
+        der::sequence(&content)
     }
 }
 
@@ -1690,11 +2070,18 @@ fn bit_string_bytes(bits: u16) -> Vec<u8> {
         }
         byte
     };
-    if bits > 0xff {
-        alloc::vec![0, encode(bits >> 8), encode(bits & 0xff)]
-    } else {
-        alloc::vec![0, encode(bits)]
+    // DER uses the smallest number of octets with a matching unused-bit
+    // count; OpenSSL emits the same for ReasonFlags.
+    let Some(highest) = (0..16).rev().find(|bit| bits & (1 << bit) != 0) else {
+        return alloc::vec![0];
+    };
+    let octets = highest / 8 + 1;
+    let unused = (octets * 8 - (highest + 1)) as u8;
+    let mut out = alloc::vec![unused];
+    for octet in (0..octets).rev() {
+        out.push(encode((bits >> (octet * 8)) & 0xff));
     }
+    out
 }
 
 /// Read an IMPLICIT INTEGER of at most four octets.

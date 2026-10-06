@@ -56,6 +56,10 @@ pub enum X509Op {
         /// Extra-strict extension checks.
         #[clap(long, default_value_t = false)]
         x509_strict: bool,
+        /// Accept a chain ending in a non-self-signed trust anchor
+        /// (`X509_V_FLAG_PARTIAL_CHAIN`).
+        #[clap(long, default_value_t = false)]
+        partial_chain: bool,
         /// Required leaf purpose.
         #[clap(long, default_value = "any")]
         purpose: CertPurpose,

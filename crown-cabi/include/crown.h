@@ -1167,7 +1167,7 @@ int32_t certificate_store_add_crl(struct CertificateStore *store,
  * `purpose`: 0 any, 1 sslServer, 2 sslClient, 3 smimeSign, 4 smimeEncrypt,
  * 5 codeSigning, 6 ocspHelper, 7 timeStamping, 8 crlSign.
  * `flags` bitmask: 1 CRL check, 2 CRL check all, 4 policy check,
- * 8 explicit policy, 16 inhibit anyPolicy, 32 x509 strict.
+ * 8 explicit policy, 16 inhibit anyPolicy, 32 x509 strict, 64 partial chain.
  * Returns 1 verified, 0 not, -1 on error.
  */
 int32_t certificate_store_verify(const struct CertificateStore *store,

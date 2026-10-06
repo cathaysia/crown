@@ -30,9 +30,10 @@
 //! # Ok::<(), crown::error::CryptoError>(())
 //! ```
 //!
-//! Only the `id-pkix-ocsp-basic` response type is decoded; request/response
-//! signing for *requests* (the `optionalSignature` field) is parsed and
-//! re-encoded but not verified.
+//! Only the `id-pkix-ocsp-basic` response type is decoded. Requests can be
+//! signed ([`OcspRequest::sign`]) and their signatures verified
+//! ([`OcspRequest::verify_signature`]); with the `std` feature a request can
+//! be posted to a responder URL ([`OcspRequest::post_to`]).
 
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -45,7 +46,7 @@ use crate::error::{CryptoError, CryptoResult};
 use crate::rng::Rng;
 use crate::x509::algorithm::{AlgorithmIdentifier, Hash, SignatureAlgorithm};
 use crate::x509::cert::Certificate;
-use crate::x509::extensions::Extension;
+use crate::x509::extensions::{Extension, GeneralName};
 use crate::x509::keys::PrivateKey;
 use crate::x509::name::Name;
 
@@ -329,6 +330,10 @@ impl OcspSignature {
 pub struct OcspRequest {
     /// `TBSRequest.version`: `None` means the default v1.
     pub version: Option<u8>,
+    /// `requestorName [1] EXPLICIT GeneralName`, kept as the raw TLV so
+    /// re-encoding stays byte-exact (signed requests carry the requester's
+    /// subject here).
+    pub requestor_name: Option<Vec<u8>>,
     /// `requestList`.
     pub requests: Vec<Request>,
     /// `requestExtensions`, where OpenSSL places the nonce.
@@ -360,9 +365,10 @@ impl OcspRequest {
         } else {
             None
         };
-        // requestorName [1] EXPLICIT GeneralName is not decoded; skip it.
+        // requestorName [1] EXPLICIT GeneralName is kept as the raw TLV.
+        let mut requestor_name = None;
         if !tbs.is_empty() && tbs.peek_tag()? == der::Tag::context_constructed(1) {
-            let _ = tbs.read_raw_tlv()?;
+            requestor_name = Some(tbs.read_raw_tlv()?.to_vec());
         }
         let mut list = tbs.read_sequence()?;
         let mut requests = Vec::new();
@@ -396,6 +402,7 @@ impl OcspRequest {
         seq.expect_end()?;
         Ok(OcspRequest {
             version,
+            requestor_name,
             requests,
             request_extensions,
             optional_signature,
@@ -404,9 +411,22 @@ impl OcspRequest {
 
     /// Encode as DER.
     pub fn encode(&self) -> Vec<u8> {
+        let mut content = self.tbs_der();
+        if let Some(signature) = &self.optional_signature {
+            content.extend_from_slice(&der::explicit(0, &signature.encode()));
+        }
+        der::sequence(&content)
+    }
+
+    /// The DER of the `TBSRequest` — the input covered by the request
+    /// signature (RFC 6960 4.1.2).
+    pub fn tbs_der(&self) -> Vec<u8> {
         let mut tbs = Vec::new();
         if let Some(version) = self.version {
             tbs.extend_from_slice(&der::explicit(0, &der::integer(&[version])));
+        }
+        if let Some(requestor) = &self.requestor_name {
+            tbs.extend_from_slice(requestor);
         }
         let mut list = Vec::new();
         for request in &self.requests {
@@ -416,11 +436,7 @@ impl OcspRequest {
         if !self.request_extensions.is_empty() {
             tbs.extend_from_slice(&encode_explicit_extensions(2, &self.request_extensions));
         }
-        let mut content = der::sequence(&tbs);
-        if let Some(signature) = &self.optional_signature {
-            content.extend_from_slice(&der::explicit(0, &signature.encode()));
-        }
-        der::sequence(&content)
+        der::sequence(&tbs)
     }
 
     /// Parse a PEM `OCSP REQUEST`.
@@ -441,6 +457,7 @@ impl OcspRequest {
     pub fn request_for(cert: &Certificate, issuer: &Certificate, hash: Hash) -> CryptoResult<Self> {
         Ok(OcspRequest {
             version: None,
+            requestor_name: None,
             requests: alloc::vec![Request::new(CertId::for_certificate(cert, issuer, hash)?)],
             request_extensions: Vec::new(),
             optional_signature: None,
@@ -469,6 +486,87 @@ impl OcspRequest {
     pub fn clear_nonce(&mut self) {
         self.request_extensions
             .retain(|extension| !extension.oid.matches(OID_ID_PKIX_OCSP_NONCE));
+    }
+
+    /// Sign the request (RFC 6960 `optionalSignature`): the signature covers
+    /// the `TBSRequest` DER and the `requestorName` becomes the signer's
+    /// subject, mirroring OpenSSL's `OCSP_request_sign`. The first of `certs`
+    /// is the signer; attach enough of the chain for the receiver to verify.
+    pub fn sign(
+        &mut self,
+        signature_algorithm: SignatureAlgorithm,
+        key: &PrivateKey,
+        certs: Vec<Certificate>,
+        rng: &mut impl Rng,
+    ) -> CryptoResult<()> {
+        let signer = certs.first().ok_or(CryptoError::StrError(
+            "ocsp: signing requires the signer certificate",
+        ))?;
+        self.requestor_name = Some(der::explicit(
+            1,
+            &GeneralName::DirectoryName(signer.subject().clone()).encode(),
+        ));
+        let tbs = self.tbs_der();
+        let signature = signature_algorithm.sign(key, &tbs, rng)?;
+        self.optional_signature = Some(OcspSignature {
+            signature_algorithm: signature_algorithm.to_identifier(),
+            signature,
+            certs,
+        });
+        Ok(())
+    }
+
+    /// Verify the request signature (RFC 6960 `optionalSignature`).
+    ///
+    /// With `signer` given, its public key must verify the signature;
+    /// otherwise every attached certificate is tried. A key of an
+    /// incompatible type simply does not verify (returns `false`). Signed
+    /// requests are rare in practice and RFC 6960 does not define trust
+    /// semantics for them, so the caller decides what the signer's identity
+    /// means.
+    pub fn verify_signature(&self, signer: Option<&Certificate>) -> CryptoResult<bool> {
+        let Some(signature) = &self.optional_signature else {
+            return Ok(false);
+        };
+        let tbs = self.tbs_der();
+        let verify = |certificate: &Certificate| -> CryptoResult<bool> {
+            let algorithm = SignatureAlgorithm::from_identifier(&signature.signature_algorithm)?;
+            match algorithm.verify(certificate.public_key(), &tbs, &signature.signature) {
+                // The algorithm cannot apply to this key: it did not sign.
+                Err(CryptoError::UnsupportedOperation(_)) => Ok(false),
+                other => other,
+            }
+        };
+        if let Some(signer) = signer {
+            return verify(signer);
+        }
+        for certificate in &signature.certs {
+            if verify(certificate)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+}
+
+#[cfg(feature = "std")]
+impl OcspRequest {
+    /// `POST` the request to an OCSP responder URL and parse the response.
+    ///
+    /// Responder URLs come from a certificate's `authorityInfoAccess`
+    /// ([`Certificate::ocsp_urls`](crate::x509::Certificate::ocsp_urls)).
+    /// Only plain `http://` URLs are supported (see [`crate::x509::http`]).
+    pub fn post_to(
+        &self,
+        url: &str,
+        timeout: Option<std::time::Duration>,
+    ) -> CryptoResult<OcspResponse> {
+        let response =
+            crate::x509::http::post(url, "application/ocsp-request", &self.encode(), timeout)?;
+        if response.status != 200 {
+            return Err(CryptoError::StrError("ocsp: HTTP error from responder"));
+        }
+        OcspResponse::parse(&response.body)
     }
 }
 

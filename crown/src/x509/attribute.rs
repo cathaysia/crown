@@ -124,3 +124,40 @@ pub fn octet_string_value(attribute: &Attribute) -> CryptoResult<&[u8]> {
     let mut reader = Reader::new(value);
     reader.read_octet_string()
 }
+
+/// Build an `extensionRequest` attribute (PKCS#9): the extensions a CA should
+/// place in the issued certificate.
+pub fn extension_request(extensions: &[super::extensions::Extension]) -> Attribute {
+    let mut content = Vec::new();
+    for extension in extensions {
+        content.extend_from_slice(&extension.encode());
+    }
+    Attribute::new(
+        ObjectIdentifier::new(crate::asn1::oid::OID_PKCS9_EXTENSION_REQUEST).expect("static oid"),
+        alloc::vec![der::sequence(&content)],
+    )
+}
+
+/// Decode the requested extensions from an `extensionRequest` attribute.
+pub fn parse_extension_request(
+    attribute: &Attribute,
+) -> CryptoResult<Vec<super::extensions::Extension>> {
+    if !attribute
+        .oid
+        .matches(crate::asn1::oid::OID_PKCS9_EXTENSION_REQUEST)
+    {
+        return Err(CryptoError::StrError("pkcs: not an extensionRequest"));
+    }
+    let value = attribute
+        .values
+        .first()
+        .ok_or(CryptoError::StrError("pkcs: empty extensionRequest"))?;
+    let mut reader = Reader::new(value);
+    let mut seq = reader.read_sequence()?;
+    let mut extensions = Vec::new();
+    while !seq.is_empty() {
+        extensions.push(super::extensions::Extension::parse(&mut seq)?);
+    }
+    reader.expect_end()?;
+    Ok(extensions)
+}

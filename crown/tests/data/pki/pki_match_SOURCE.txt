@@ -1,0 +1,63 @@
+PKI fixtures for crown::x509 name matching (check_host/check_email/check_ip),
+the lossless extension parsing roundtrip, CSR extensionRequest and signed
+OCSP requests. Generated with the OpenSSL 3.0.13 CLI of this machine
+(`openssl version`), which also pins the expected match results: every
+positive/negative case exercised by `crown/tests/matching.rs` was checked
+with `openssl verify -verify_hostname/-verify_email/-verify_ip` against the
+same files.
+
+Throwaway fixture CA (fixture_ca.pem, P-256):
+
+```
+openssl ecparam -name prime256v1 -genkey -noout -out ca.key
+openssl req -x509 -new -key ca.key -sha256 -days 36500 \
+  -subj "/C=CN/O=Crown Fixture/CN=Crown Fixture Root CA" \
+  -addext "basicConstraints=critical,CA:TRUE" \
+  -addext "keyUsage=critical,keyCertSign,cRLSign" -out ca.pem
+```
+
+Leaves (each with a fresh P-256 key; `openssl x509 -req -CA ca.pem -CAkey
+ca.key -set_serial 1234 -days 36500 -sha256 -extfile <ext> -out <name>.pem`):
+
+* `matching_san.pem`: `subjectAltName=DNS:www.crown.example,
+  DNS:*.wild.crown.example,IP:127.0.0.1,IP:::1,email:user@crown.example`
+* `matching_wild.pem`: `subjectAltName=DNS:*.crown.example`
+* `matching_partial.pem`: `subjectAltName=DNS:www*.crown.example`
+* `matching_cn_only.pem`: no SAN; host matching falls back to the CN
+  (`matching_cn_only.crown.example`)
+* `policies.pem`: `certificatePolicies` with a CPS URI and a userNotice
+  (explicitText, organization, noticeNumbers 1,2,3) on 2.23.140.1.2.1 and a
+  bare 1.2.3.4.5 policy
+* `crldp.pem`: `crlDistributionPoints` with fullName
+  `URI:http://crl.crown.example/root.crl`, `reasons=keyCompromise,
+  cessationOfOperation`, `CRLissuer=URI:http://ca.crown.example`, plus an
+  `authorityInfoAccess` with OCSP and caIssuers URIs
+
+`extreq.csr` (fresh P-256 key, `openssl req -new -config`):
+
+```
+[req]
+distinguished_name = dn
+req_extensions = v3_req
+prompt = no
+[dn]
+C = CN
+O = Crown Fixture
+CN = extreq.crown.example
+[v3_req]
+basicConstraints = CA:FALSE
+keyUsage = critical, digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth, clientAuth
+subjectAltName = DNS:req.crown.example, IP:10.1.2.3
+```
+
+`ocsp_request_signed.der` plus its signer certificate
+`ocsp_request_signer.pem` (RSA 2048, serial 1237):
+
+```
+openssl ocsp -issuer ca.pem -serial 1234 -no_nonce \
+  -signkey signer.key -signer signer.pem -reqout ocsp_request_signed.der
+```
+
+The private keys are not committed; the signing paths are exercised with the
+existing `rsa_pkcs8.pem`/`ec_pkcs8.pem` fixtures instead.

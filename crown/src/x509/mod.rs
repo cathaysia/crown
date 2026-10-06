@@ -26,9 +26,10 @@
 //! # Ok::<(), crown::error::CryptoError>(())
 //! ```
 //!
-//! Path validation is limited to [`Certificate::verify`] (name chaining,
-//! validity, CA constraints and the signature); full RFC 5280 path
-//! validation, name constraints, policies, OCSP and CMP are out of scope.
+//! Full RFC 5280 path validation (chain building, name constraints, policy
+//! processing, CRL/Delta-CRL revocation) lives in [`verify`]; OCSP support in
+//! [`crate::ocsp`], and `check_host`/`check_email`/`check_ip` name matching
+//! on [`Certificate`].
 
 pub mod ac;
 pub mod algorithm;
@@ -37,7 +38,10 @@ pub mod cert;
 pub mod crl;
 pub mod csr;
 pub mod extensions;
+#[cfg(feature = "std")]
+pub mod http;
 pub mod keys;
+pub mod matching;
 pub mod name;
 pub mod pbe;
 pub mod verify;
@@ -54,10 +58,11 @@ pub use csr::{CertificationRequest, CertificationRequestInfo};
 pub use extensions::{
     AccessDescription, AuthorityInfoAccess, AuthorityKeyIdentifier, BasicConstraints,
     CertificateIssuer, CertificatePolicies, CrlDistributionPoints, CrlNumber, CrlReason,
-    DeltaCrlIndicator, DistributionPointName, ExtendedKeyUsage, Extension, GeneralName,
-    GeneralSubtree, InhibitAnyPolicy, InvalidityDate, IssuingDistributionPoint, KeyUsage,
-    NameConstraints, ParsedExtension, PolicyConstraints, PolicyMapping, PolicyMappings,
-    SubjectInfoAccess, TlsFeature,
+    DeltaCrlIndicator, DisplayText, DistributionPoint, DistributionPointName, ExtendedKeyUsage,
+    Extension, GeneralName, GeneralSubtree, InhibitAnyPolicy, InvalidityDate,
+    IssuingDistributionPoint, KeyUsage, NameConstraints, NoticeReference, ParsedExtension,
+    PolicyConstraints, PolicyInformation, PolicyMapping, PolicyMappings, PolicyQualifier,
+    SubjectDirectoryAttributes, SubjectInfoAccess, TlsFeature, UserNotice,
 };
 pub use keys::{
     EncryptedPrivateKeyInfo, PrivateKey, PrivateKeyInfo, PublicKey, SubjectPublicKeyInfo,

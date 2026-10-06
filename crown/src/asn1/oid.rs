@@ -433,6 +433,10 @@ pub const OID_AD_CA_REPOSITORY: &[u64] = &[1, 3, 6, 1, 5, 5, 7, 48, 5];
 pub const OID_TLS_FEATURE: &[u64] = &[1, 3, 6, 1, 5, 5, 7, 1, 24];
 /// `OCSP no-check` (1.3.6.1.5.5.7.48.1.5).
 pub const OID_OCSP_NOCHECK: &[u64] = &[1, 3, 6, 1, 5, 5, 7, 48, 1, 5];
+/// `id-qt-cps` policy qualifier (1.3.6.1.5.5.7.2.1).
+pub const OID_QT_CPS: &[u64] = &[1, 3, 6, 1, 5, 5, 7, 2, 1];
+/// `id-qt-unotice` policy qualifier (1.3.6.1.5.5.7.2.2).
+pub const OID_QT_UNOTICE: &[u64] = &[1, 3, 6, 1, 5, 5, 7, 2, 2];
 
 // ---------------------------------------------------------------------------
 // Extended key usage purposes
@@ -475,6 +479,8 @@ pub const OID_PKCS9_MESSAGE_DIGEST: &[u64] = &[1, 2, 840, 113549, 1, 9, 4];
 pub const OID_PKCS9_SIGNING_TIME: &[u64] = &[1, 2, 840, 113549, 1, 9, 5];
 /// `counterSignature` (1.2.840.113549.1.9.6).
 pub const OID_PKCS9_COUNTER_SIGNATURE: &[u64] = &[1, 2, 840, 113549, 1, 9, 6];
+/// `extensionRequest` (1.2.840.113549.1.9.14).
+pub const OID_PKCS9_EXTENSION_REQUEST: &[u64] = &[1, 2, 840, 113549, 1, 9, 14];
 /// `smimeCapabilities` (1.2.840.113549.1.9.15).
 pub const OID_PKCS9_SMIME_CAPABILITIES: &[u64] = &[1, 2, 840, 113549, 1, 9, 15];
 /// `friendlyName` (1.2.840.113549.1.9.20).

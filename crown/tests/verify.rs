@@ -75,11 +75,12 @@ fn chain_verifies_and_reports_anchors() {
     );
     assert_eq!(result.chain[1].subject(), intermediate.subject());
 
-    // The chain is rebuilt from the caller's intermediates only.
+    // The chain is rebuilt from the caller's intermediates only
+    // (`openssl verify` reports error 20 at depth 0 for the same input).
     let missing = verify_certificate(&store, &leaf, &options(Vec::new()));
     assert_eq!(
         missing.unwrap_err(),
-        VerifyError::UnableToGetIssuerCertificate
+        VerifyError::UnableToGetIssuerCertificateLocally
     );
 
     let in_chain = verify_certificate(&store, &leaf, &options(vec![intermediate, cert("root")]));
@@ -565,4 +566,59 @@ fn issuance_and_crl_round_trip() {
     revoking_store.add_crl(crl);
     let err = verify_certificate(&revoking_store, &leaf, &checking).unwrap_err();
     assert_eq!(err, VerifyError::CertificateRevoked);
+}
+
+#[test]
+fn partial_chain_ends_at_a_trusted_intermediate() {
+    // Pinned to `openssl verify`: with only the intermediate trusted,
+    // `-partial_chain` accepts the chain, while the default build reports
+    // "error 2 ... unable to get issuer certificate" at depth 1.
+    let leaf = cert("leaf_good");
+    let intermediate = cert("inter");
+    let mut store = Store::new();
+    store.add_trusted_certificate(intermediate.clone());
+
+    let err = verify_certificate(&store, &leaf, &options(Vec::new())).unwrap_err();
+    assert_eq!(err, VerifyError::UnableToGetIssuerCertificate);
+    assert_eq!(err.code(), 2);
+
+    let partial = VerifyOptions {
+        flags: VerifyFlags {
+            partial_chain: true,
+            ..Default::default()
+        },
+        ..options(Vec::new())
+    };
+    let result = verify_certificate(&store, &leaf, &partial).expect("partial chain verifies");
+    assert_eq!(result.chain.len(), 2);
+    assert_eq!(
+        result.trust_anchor().subject(),
+        intermediate.subject(),
+        "the trusted intermediate is the anchor"
+    );
+    assert!(!result.trust_anchor().is_self_signed());
+}
+
+#[test]
+fn partial_chain_accepts_a_trusted_leaf() {
+    // `openssl verify -partial_chain -trusted leaf.pem leaf.pem` succeeds;
+    // without the flag OpenSSL reports error 20 at depth 0.
+    let leaf = cert("leaf_good");
+    let mut store = Store::new();
+    store.add_trusted_certificate(leaf.clone());
+
+    let err = verify_certificate(&store, &leaf, &options(Vec::new())).unwrap_err();
+    assert_eq!(err, VerifyError::UnableToGetIssuerCertificateLocally);
+    assert_eq!(err.code(), 20);
+
+    let partial = VerifyOptions {
+        flags: VerifyFlags {
+            partial_chain: true,
+            ..Default::default()
+        },
+        ..options(Vec::new())
+    };
+    let result = verify_certificate(&store, &leaf, &partial).expect("pinned leaf verifies");
+    assert_eq!(result.chain.len(), 1);
+    assert_eq!(result.leaf().subject(), leaf.subject());
 }

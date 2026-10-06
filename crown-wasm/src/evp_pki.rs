@@ -1,7 +1,7 @@
 //! X.509 / PKCS bindings: certificate, CSR, CRL, CMS, PKCS#12 and PKCS#8
 //! inspection and verification, returning JSON reports for the playground.
 
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 use wasm_bindgen::prelude::*;
 
 use crown::asn1::pem;
@@ -11,7 +11,7 @@ use crown::pkcs7::{Pkcs7, SignerIdentifier};
 use crown::x509::{
     AlgorithmIdentifier, AuthorityKeyIdentifier, Certificate, CertificateList,
     CertificationRequest, EncryptedPrivateKeyInfo, ExtendedKeyUsage, GeneralName, Hash, KeyUsage,
-    ParsedExtension, PrivateKey, PrivateKeyInfo, PublicKey, SignatureAlgorithm,
+    ParsedExtension, PolicyQualifier, PrivateKey, PrivateKeyInfo, PublicKey, SignatureAlgorithm,
 };
 
 fn js_error(error: impl core::fmt::Display) -> JsValue {
@@ -265,19 +265,71 @@ fn extension_json(extension: &crown::x509::Extension) -> Value {
         }
         Ok(ParsedExtension::CrlDistributionPoints(points)) => {
             object.insert("name".into(), json!("crlDistributionPoints"));
-            object.insert("uris".into(), json!(points.uris));
+            let points: Vec<Value> = points
+                .points
+                .iter()
+                .map(|point| {
+                    let mut entry = Map::new();
+                    entry.insert("uris".into(), json!(point.uris()));
+                    if let Some(reasons) = point.reasons {
+                        entry.insert("reasons".into(), json!(format!("0x{reasons:04x}")));
+                    }
+                    if !point.crl_issuer.is_empty() {
+                        let issuers: Vec<String> =
+                            point.crl_issuer.iter().map(general_name_text).collect();
+                        entry.insert("crl_issuer".into(), json!(issuers));
+                    }
+                    Value::Object(entry)
+                })
+                .collect();
+            object.insert("points".into(), json!(points));
         }
         Ok(ParsedExtension::AuthorityInfoAccess(access)) => {
             object.insert("name".into(), json!("authorityInfoAccess"));
-            object.insert("ocsp".into(), json!(access.ocsp));
-            object.insert("ca_issuers".into(), json!(access.ca_issuers));
+            object.insert("ocsp".into(), json!(access.ocsp_uris()));
+            object.insert("ca_issuers".into(), json!(access.ca_issuers_uris()));
         }
         Ok(ParsedExtension::CertificatePolicies(policies)) => {
             object.insert("name".into(), json!("certificatePolicies"));
-            let policies: Vec<String> = policies
+            let policies: Vec<Value> = policies
                 .policies
                 .iter()
-                .map(|oid| oid.to_string())
+                .map(|policy| {
+                    let mut entry = Map::new();
+                    entry.insert(
+                        "policy_identifier".into(),
+                        json!(policy.policy_identifier.to_string()),
+                    );
+                    let qualifiers: Vec<Value> = policy
+                        .qualifiers
+                        .iter()
+                        .map(|qualifier| match qualifier {
+                            PolicyQualifier::CpsUri(uri) => {
+                                json!({"kind": "cps", "uri": uri})
+                            }
+                            PolicyQualifier::UserNotice(notice) => {
+                                json!({
+                                    "kind": "userNotice",
+                                    "explicit_text": notice
+                                        .explicit_text
+                                        .as_ref()
+                                        .and_then(|text| text.text().ok()),
+                                    "organization": notice
+                                        .notice_ref
+                                        .as_ref()
+                                        .and_then(|r| r.organization.text().ok()),
+                                    "notice_numbers":
+                                        notice.notice_ref.as_ref().map(|r| r.notice_numbers.clone()),
+                                })
+                            }
+                            PolicyQualifier::Other { oid, .. } => {
+                                json!({"kind": "other", "oid": oid.to_string()})
+                            }
+                        })
+                        .collect();
+                    entry.insert("qualifiers".into(), json!(qualifiers));
+                    Value::Object(entry)
+                })
                 .collect();
             object.insert("policies".into(), json!(policies));
         }

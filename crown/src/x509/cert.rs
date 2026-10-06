@@ -332,6 +332,57 @@ impl Certificate {
         self.tbs.subject == self.tbs.issuer
     }
 
+    /// The OCSP responder URLs from `authorityInfoAccess`
+    /// (`id-ad-ocsp` locations).
+    pub fn ocsp_urls(&self) -> Vec<String> {
+        self.access_uris(oid::OID_AUTHORITY_INFO_ACCESS, oid::OID_AD_OCSP)
+    }
+
+    /// The CA issuer URLs from `authorityInfoAccess`
+    /// (`id-ad-caIssuers` locations).
+    pub fn ca_issuer_urls(&self) -> Vec<String> {
+        self.access_uris(oid::OID_AUTHORITY_INFO_ACCESS, oid::OID_AD_CA_ISSUERS)
+    }
+
+    /// The CRL URLs from `crlDistributionPoints`.
+    pub fn crl_urls(&self) -> Vec<String> {
+        self.distribution_point_uris(oid::OID_CRL_DISTRIBUTION_POINTS)
+    }
+
+    /// The delta CRL URLs from `freshestCRL`.
+    pub fn freshest_crl_urls(&self) -> Vec<String> {
+        self.distribution_point_uris(oid::OID_FRESHEST_CRL)
+    }
+
+    fn access_uris(&self, extension: &[u64], method: &[u64]) -> Vec<String> {
+        let Some(extension) = self.tbs.extension(extension) else {
+            return Vec::new();
+        };
+        let Ok(super::extensions::ParsedExtension::AuthorityInfoAccess(access)) =
+            extension.parsed()
+        else {
+            return Vec::new();
+        };
+        access
+            .locations(method)
+            .into_iter()
+            .filter_map(GeneralName::to_text)
+            .map(String::from)
+            .collect()
+    }
+
+    fn distribution_point_uris(&self, extension: &[u64]) -> Vec<String> {
+        let Some(extension) = self.tbs.extension(extension) else {
+            return Vec::new();
+        };
+        let Ok(super::extensions::ParsedExtension::CrlDistributionPoints(points)) =
+            extension.parsed()
+        else {
+            return Vec::new();
+        };
+        points.uris().into_iter().map(String::from).collect()
+    }
+
     /// A digest (fingerprint) over the DER encoding.
     pub fn fingerprint(&self, hash: Hash) -> CryptoResult<Vec<u8>> {
         hash.digest(&self.encode())
@@ -480,6 +531,16 @@ impl CertificateBuilder {
             info.subject_public_key_info.clone(),
             signature_algorithm,
         )
+    }
+
+    /// Carry over the extensions a CSR requested through its
+    /// `extensionRequest` attribute, in order.
+    pub fn request_extensions(
+        mut self,
+        request: &super::csr::CertificationRequest,
+    ) -> CryptoResult<Self> {
+        self.extensions.extend(request.extensions()?);
+        Ok(self)
     }
 
     /// Set the serial number from a positive integer magnitude.

@@ -10,7 +10,7 @@ use crown::rng::Rng;
 use crown::x509::{
     AlgorithmIdentifier, AuthorityKeyIdentifier, Certificate, CertificateList,
     CertificationRequest, EncryptedPrivateKeyInfo, ExtendedKeyUsage, GeneralName, Hash, KeyUsage,
-    ParsedExtension, PrivateKey, PrivateKeyInfo, PublicKey, SignatureAlgorithm,
+    ParsedExtension, PolicyQualifier, PrivateKey, PrivateKeyInfo, PublicKey, SignatureAlgorithm,
 };
 
 use crate::args::{HashAlgorithm, PbeCipher};
@@ -658,25 +658,61 @@ fn write_extension(out: &mut String, extension: &crown::x509::Extension) {
             let _ = writeln!(out, "            {}", authority_key_identifier_text(&aki));
         }
         Ok(ParsedExtension::CrlDistributionPoints(points)) => {
-            for uri in &points.uris {
-                let _ = writeln!(out, "            URI:{uri}");
+            for (index, point) in points.points.iter().enumerate() {
+                if points.points.len() > 1 {
+                    let _ = write!(out, "            [{}]", index);
+                } else {
+                    let _ = write!(out, "            ");
+                }
+                let uris = point.uris();
+                if !uris.is_empty() {
+                    let _ = write!(out, " {}", uris.join(", "));
+                }
+                if let Some(reasons) = point.reasons {
+                    let _ = write!(out, " reasons:0x{reasons:04x}");
+                }
+                if !point.crl_issuer.is_empty() {
+                    let _ = write!(out, " issuer:{}", general_names_text(&point.crl_issuer));
+                }
+                let _ = writeln!(out);
             }
         }
         Ok(ParsedExtension::AuthorityInfoAccess(access)) => {
-            for uri in &access.ocsp {
+            for uri in access.ocsp_uris() {
                 let _ = writeln!(out, "            OCSP - URI:{uri}");
             }
-            for uri in &access.ca_issuers {
+            for uri in access.ca_issuers_uris() {
                 let _ = writeln!(out, "            CA Issuers - URI:{uri}");
             }
         }
         Ok(ParsedExtension::CertificatePolicies(policies)) => {
-            let policies: Vec<String> = policies
-                .policies
-                .iter()
-                .map(|oid| oid.to_string())
-                .collect();
-            let _ = writeln!(out, "            {}", policies.join(", "));
+            for policy in &policies.policies {
+                let _ = writeln!(out, "            Policy: {}", policy.policy_identifier);
+                for qualifier in &policy.qualifiers {
+                    match qualifier {
+                        PolicyQualifier::CpsUri(uri) => {
+                            let _ = writeln!(out, "              CPS: {uri}");
+                        }
+                        PolicyQualifier::UserNotice(notice) => {
+                            if let Some(text) = &notice.explicit_text {
+                                let text = text.text().unwrap_or_default();
+                                let _ = writeln!(out, "              UserNotice: {text}");
+                            }
+                            if let Some(reference) = &notice.notice_ref {
+                                let _ = writeln!(
+                                    out,
+                                    "              UserNotice org: {} numbers: {:?}",
+                                    reference.organization.text().unwrap_or_default(),
+                                    reference.notice_numbers
+                                );
+                            }
+                        }
+                        PolicyQualifier::Other { oid, .. } => {
+                            let _ = writeln!(out, "              Qualifier: {oid}");
+                        }
+                    }
+                }
+            }
         }
         _ => {
             let _ = writeln!(out, "            (unparsed)");

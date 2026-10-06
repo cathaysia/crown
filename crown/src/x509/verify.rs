@@ -81,6 +81,10 @@ pub struct VerifyFlags {
     pub inhibit_any_policy: bool,
     /// Stricter extension checks (all CAs must have `basicConstraints`).
     pub x509_strict: bool,
+    /// Accept a chain that ends in a non-self-signed trusted certificate
+    /// (`X509_V_FLAG_PARTIAL_CHAIN`): any store certificate that issued the
+    /// previous element terminates the chain.
+    pub partial_chain: bool,
 }
 
 /// A set of trust anchors and CRLs used for path validation.
@@ -432,9 +436,16 @@ fn build_chain(
     loop {
         let current = chain.last().expect("chain is never empty");
         if let Some(anchor) = store.anchor_for(current) {
-            let last = chain.len() - 1;
-            chain[last] = anchor.clone();
-            return Ok(chain);
+            // A trusted certificate that is a chain element terminates the
+            // chain when it is self-signed, or — matching OpenSSL's
+            // X509_V_FLAG_PARTIAL_CHAIN — when the flag is set. Otherwise it
+            // is only a link and the chain keeps building towards a
+            // self-signed anchor.
+            if anchor.is_self_signed() || options.flags.partial_chain {
+                let last = chain.len() - 1;
+                chain[last] = anchor.clone();
+                return Ok(chain);
+            }
         }
         if current.subject() == current.issuer()
             && current
@@ -448,12 +459,25 @@ fn build_chain(
             });
         }
         let Some(issuer) = find_issuer(store, &chain, options) else {
+            // OpenSSL reports "unable to get local issuer certificate" at
+            // depth zero and "unable to get issuer certificate" further up.
             return Err(if chain.len() == 1 {
-                VerifyError::UnableToGetIssuerCertificate
-            } else {
                 VerifyError::UnableToGetIssuerCertificateLocally
+            } else {
+                VerifyError::UnableToGetIssuerCertificate
             });
         };
+        // With `partial_chain`, a trusted non-self-signed issuer terminates
+        // the chain like a trust anchor.
+        if options.flags.partial_chain
+            && store
+                .trusted_certificates()
+                .iter()
+                .any(|anchor| same_certificate(anchor, &issuer))
+        {
+            chain.push(issuer);
+            return Ok(chain);
+        }
         if chain.len() > options.max_depth {
             return Err(VerifyError::PathLengthExceeded);
         }
@@ -946,7 +970,7 @@ fn certificate_policies(
         return Ok(None);
     };
     let parsed = CertificatePolicies::parse(&extension.value).map_err(VerifyError::Other)?;
-    Ok(Some(parsed.policies))
+    Ok(Some(parsed.policy_identifiers()))
 }
 
 // ---------------------------------------------------------------------------
@@ -1056,7 +1080,7 @@ fn crl_scope_matches(
         return Ok(false);
     }
     // When both the certificate and the CRL name distribution points, they
-    // must intersect.
+    // must intersect (RFC 5280 6.3.3 (e)-(f)).
     let Some(certificate_points) = certificate
         .tbs()
         .extension(oid::OID_CRL_DISTRIBUTION_POINTS)
@@ -1074,10 +1098,13 @@ fn crl_scope_matches(
     }
     let parsed = super::extensions::CrlDistributionPoints::parse(&certificate_points.value)
         .map_err(VerifyError::Other)?;
-    Ok(parsed.uris.iter().any(|uri| {
-        crl_names
-            .iter()
-            .any(|name| name.to_text().is_some_and(|text| text == uri))
+    // A distribution point without a name applies to any CRL of the issuer.
+    Ok(parsed.points.iter().any(|point| {
+        point
+            .distribution_point
+            .as_ref()
+            .and_then(|name| name.full_name.as_ref())
+            .is_none_or(|names| names.iter().any(|name| crl_names.contains(&name)))
     }))
 }
 
