@@ -35,6 +35,7 @@ pub fn run_x509(args: ArgsX509) -> anyhow::Result<()> {
             policy_check,
             explicit_policy,
             x509_strict,
+            partial_chain,
             purpose,
             no_check_time,
             sm2_id,
@@ -76,6 +77,7 @@ pub fn run_x509(args: ArgsX509) -> anyhow::Result<()> {
                     explicit_policy,
                     inhibit_any_policy: false,
                     x509_strict,
+                    partial_chain,
                 },
                 ..Default::default()
             };

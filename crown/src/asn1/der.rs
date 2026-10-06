@@ -154,6 +154,8 @@ pub const IA5_STRING: Tag = Tag::universal(0x16);
 pub const UTC_TIME: Tag = Tag::universal(0x17);
 /// GeneralizedTime.
 pub const GENERALIZED_TIME: Tag = Tag::universal(0x18);
+/// VisibleString (ISO646String).
+pub const VISIBLE_STRING: Tag = Tag::universal(0x1a);
 /// BMPString.
 pub const BMP_STRING: Tag = Tag::universal(0x1e);
 
@@ -555,7 +557,7 @@ pub fn decode_string(tag: Tag, content: &[u8]) -> CryptoResult<alloc::string::St
         t if t == UTF8_STRING => core::str::from_utf8(content)
             .map(String::from)
             .map_err(|_| CryptoError::StrError("asn1: invalid utf8 string")),
-        t if t == PRINTABLE_STRING || t == IA5_STRING => {
+        t if t == PRINTABLE_STRING || t == IA5_STRING || t == VISIBLE_STRING => {
             if content.is_ascii() {
                 Ok(content.iter().map(|&b| b as char).collect())
             } else {

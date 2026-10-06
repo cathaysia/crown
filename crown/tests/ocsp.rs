@@ -370,3 +370,97 @@ fn openssl_cli_parses_crown_built_artifacts() {
     let _ = std::fs::remove_file(&request_path);
     let _ = std::fs::remove_file(&response_path);
 }
+
+const REQUEST_SIGNED: &[u8] = include_bytes!("data/pki/ocsp_request_signed.der");
+const REQUEST_SIGNER_PEM: &str = include_str!("data/pki/ocsp_request_signer.pem");
+
+#[test]
+fn openssl_signed_request_verifies() {
+    let request = OcspRequest::parse(REQUEST_SIGNED).expect("parse signed request");
+    // The requestorName and the signature re-encode byte-exactly.
+    assert_eq!(request.encode(), REQUEST_SIGNED, "re-encode");
+    let signature = request
+        .optional_signature
+        .as_ref()
+        .expect("optionalSignature present");
+    assert!(request.requestor_name.is_some(), "requestorName preserved");
+    assert_eq!(signature.certs.len(), 1, "openssl attaches the signer");
+
+    let signer = certificate(REQUEST_SIGNER_PEM);
+    // The attached certificate is the signer.
+    assert_eq!(
+        signature.certs[0].tbs_der(),
+        signer.tbs_der(),
+        "signer certificate"
+    );
+    // With an explicit signer, the signature over the TBSRequest verifies.
+    assert!(request.verify_signature(Some(&signer)).unwrap());
+    // Without one, every attached certificate is tried.
+    assert!(request.verify_signature(None).unwrap());
+    // A different certificate must not verify the signature.
+    assert!(!request
+        .verify_signature(Some(&certificate(CA_PEM)))
+        .unwrap());
+
+    // The request still carries the queried serial (1234, set with
+    // `-serial` when the fixture was generated).
+    assert_eq!(request.cert_id().unwrap().serial_number, vec![0x04, 0xd2]);
+}
+
+#[test]
+fn crown_signed_request_roundtrips_and_verifies() {
+    let ca = certificate(CA_PEM);
+    let leaf = certificate(LEAF_PEM);
+    let mut request = OcspRequest::request_for(&leaf, &ca, Hash::Sha256).unwrap();
+    request.set_nonce(&[0xde, 0xad, 0xbe, 0xef]);
+
+    // Sign with the issuer key (rsa_pkcs8.pem matches ec.pem in these
+    // fixtures), attaching the signer certificate.
+    let block = pem::parse_first(CA_KEY_PEM).unwrap();
+    let key = PrivateKeyInfo::parse(&block.data)
+        .unwrap()
+        .decode()
+        .unwrap();
+    let mut rng = TestRng(0x0c5);
+    request
+        .sign(
+            SignatureAlgorithm::Ecdsa(Hash::Sha256),
+            &key,
+            vec![ca.clone()],
+            &mut rng,
+        )
+        .expect("sign request");
+
+    // The requestorName now names the signer.
+    assert_eq!(
+        request.requestor_name,
+        Some(crown::asn1::der::explicit(
+            1,
+            &crown::x509::GeneralName::DirectoryName(ca.subject().clone()).encode()
+        ))
+    );
+
+    let encoded = request.encode();
+    let reparsed = OcspRequest::parse(&encoded).expect("signed request round-trips");
+    assert_eq!(reparsed.encode(), encoded, "signed re-encode");
+    assert!(reparsed.verify_signature(Some(&ca)).unwrap());
+    assert!(reparsed.verify_signature(None).unwrap());
+    assert_eq!(
+        reparsed.nonce().unwrap().unwrap(),
+        vec![0xde, 0xad, 0xbe, 0xef]
+    );
+    assert!(reparsed.cert_id().unwrap().matches(&leaf, &ca).unwrap());
+
+    // Tampering with the signature fails verification (the last byte keeps
+    // the ECDSA signature DER intact).
+    let mut tampered = reparsed.clone();
+    if let Some(signature) = tampered.optional_signature.as_mut() {
+        let last = signature.signature.len() - 1;
+        signature.signature[last] ^= 0x01;
+    }
+    assert!(!tampered.verify_signature(Some(&ca)).unwrap());
+
+    // An unsigned request reports no signature rather than an error.
+    let unsigned = OcspRequest::request_for(&leaf, &ca, Hash::Sha1).unwrap();
+    assert!(!unsigned.verify_signature(None).unwrap());
+}

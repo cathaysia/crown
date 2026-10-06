@@ -40,6 +40,8 @@ const SM2_STDID_PEM: &str = include_str!("../../tests/data/pki/sm2_stdid.pem");
 const MLDSA_PEM: &str = include_str!("../../tests/data/pki/mldsa.pem");
 const SLHDSA_PEM: &str = include_str!("../../tests/data/pki/slhdsa.pem");
 const CRL_PEM: &str = include_str!("../../tests/data/pki/crl.pem");
+const POLICIES_PEM: &str = include_str!("../../tests/data/pki/policies.pem");
+const CRLDP_PEM: &str = include_str!("../../tests/data/pki/crldp.pem");
 const RSA_PKCS8_PEM: &str = include_str!("../../tests/data/pki/rsa_pkcs8.pem");
 const RSA_PKCS8_PBES2_PEM: &str = include_str!("../../tests/data/pki/rsa_pkcs8_pbes2.pem");
 const RSA_PKCS8_3DES_PEM: &str = include_str!("../../tests/data/pki/rsa_pkcs8_3des.pem");
@@ -555,4 +557,170 @@ fn validity_window_helpers() {
     let inside = Asn1Time::parse_utc(b"250101000000Z").unwrap().to_unix();
     assert!(validity.contains(inside));
     assert!(!validity.contains(not_before.to_unix() - 1));
+}
+
+#[test]
+fn certificate_policies_parse_losslessly() {
+    use crate::x509::extensions::{CertificatePolicies, ParsedExtension, PolicyQualifier};
+
+    let certificate = cert(POLICIES_PEM);
+    let extension = certificate
+        .tbs()
+        .extension(oid::OID_CERTIFICATE_POLICIES)
+        .expect("certificatePolicies present");
+    let ParsedExtension::CertificatePolicies(policies) = extension.parsed().unwrap() else {
+        panic!("not certificatePolicies");
+    };
+
+    assert_eq!(policies.policies.len(), 2);
+    assert_eq!(
+        policies.policy_identifiers()[0].to_string(),
+        "2.23.140.1.2.1"
+    );
+    let first = &policies.policies[0];
+    assert_eq!(first.qualifiers.len(), 2);
+    match &first.qualifiers[0] {
+        PolicyQualifier::CpsUri(uri) => assert_eq!(uri, "http://cps.crown.example"),
+        other => panic!("expected CPS URI, got {other:?}"),
+    }
+    match &first.qualifiers[1] {
+        PolicyQualifier::UserNotice(notice) => {
+            let text = notice.explicit_text.as_ref().expect("explicitText");
+            assert_eq!(text.text().unwrap(), "crown test notice");
+            // OpenSSL encodes DisplayText as VisibleString; the tag survives.
+            assert_eq!(text.tag, crate::asn1::der::VISIBLE_STRING);
+            let reference = notice.notice_ref.as_ref().expect("noticeRef");
+            assert_eq!(reference.organization.text().unwrap(), "Crown Fixture");
+            assert_eq!(reference.notice_numbers, vec![1, 2, 3]);
+        }
+        other => panic!("expected userNotice, got {other:?}"),
+    }
+    assert!(policies.policies[1].qualifiers.is_empty());
+    assert_eq!(
+        policies.policies[1].policy_identifier.to_string(),
+        "1.2.3.4.5"
+    );
+    assert!(policies.contains(&[2, 23, 140, 1, 2, 1]));
+    assert!(!policies.contains(&[1, 2, 3]));
+
+    // The structured form re-encodes byte-exactly.
+    assert_eq!(policies.encode(), extension.value);
+    let reparsed = CertificatePolicies::parse(&extension.value).unwrap();
+    assert_eq!(reparsed, policies);
+
+    // An unknown qualifier survives a roundtrip as raw DER.
+    let qualifier = PolicyQualifier::Other {
+        oid: crate::asn1::oid::ObjectIdentifier::new(&[1, 2, 3, 4]).unwrap(),
+        value: crate::asn1::der::octet_string(b"opaque"),
+    };
+    let encoded = qualifier.encode();
+    assert_eq!(
+        PolicyQualifier::parse(&mut Reader::new(&encoded)).unwrap(),
+        qualifier
+    );
+}
+
+#[test]
+fn crl_distribution_points_parse_losslessly() {
+    use crate::x509::extensions::{
+        AuthorityInfoAccess, CrlDistributionPoints, GeneralName, ParsedExtension,
+    };
+
+    let certificate = cert(CRLDP_PEM);
+    let extension = certificate
+        .tbs()
+        .extension(oid::OID_CRL_DISTRIBUTION_POINTS)
+        .expect("crlDistributionPoints present");
+    let ParsedExtension::CrlDistributionPoints(points) = extension.parsed().unwrap() else {
+        panic!("not crlDistributionPoints");
+    };
+
+    assert_eq!(points.points.len(), 1);
+    let point = &points.points[0];
+    let name = point.distribution_point.as_ref().expect("fullName");
+    assert_eq!(
+        name.full_name.as_deref(),
+        Some(
+            &[GeneralName::Uri(String::from(
+                "http://crl.crown.example/root.crl"
+            ))][..]
+        )
+    );
+    assert!(name.relative_name.is_none());
+    // Key compromise (bit 1) and cessation of operation (bit 5).
+    assert_eq!(point.reasons, Some(0x22));
+    assert!(point.has_reason(1) && point.has_reason(5));
+    assert!(!point.has_reason(2));
+    assert_eq!(
+        point.crl_issuer,
+        vec![GeneralName::Uri(String::from("http://ca.crown.example"))]
+    );
+    assert_eq!(points.uris(), vec!["http://crl.crown.example/root.crl"]);
+
+    // Byte-exact re-encode.
+    assert_eq!(points.encode(), extension.value);
+    assert_eq!(
+        CrlDistributionPoints::parse(&extension.value).unwrap(),
+        points
+    );
+
+    // The authorityInfoAccess next to it keeps every AccessDescription.
+    let access = certificate
+        .tbs()
+        .extension(oid::OID_AUTHORITY_INFO_ACCESS)
+        .expect("authorityInfoAccess present");
+    let ParsedExtension::AuthorityInfoAccess(access) = access.parsed().unwrap() else {
+        panic!("not authorityInfoAccess");
+    };
+    assert_eq!(access.descriptions.len(), 2);
+    assert!(access.descriptions[0].method.matches(oid::OID_AD_OCSP));
+    assert!(access.descriptions[1]
+        .method
+        .matches(oid::OID_AD_CA_ISSUERS));
+    assert_eq!(access.ocsp_uris(), vec!["http://ocsp.crown.example"]);
+    assert_eq!(
+        access.ca_issuers_uris(),
+        vec!["http://certs.crown.example/ca.crt"]
+    );
+    assert_eq!(access.encode(), access_extension_value(&certificate));
+    assert_eq!(
+        AuthorityInfoAccess::parse(&access_extension_value(&certificate)).unwrap(),
+        access
+    );
+}
+
+/// The raw value of a certificate's `authorityInfoAccess` extension.
+fn access_extension_value(certificate: &Certificate) -> Vec<u8> {
+    certificate
+        .tbs()
+        .extension(oid::OID_AUTHORITY_INFO_ACCESS)
+        .expect("authorityInfoAccess present")
+        .value
+        .clone()
+}
+
+#[test]
+fn subject_directory_attributes_roundtrip() {
+    use crate::x509::extensions::{ParsedExtension, SubjectDirectoryAttributes};
+
+    let attributes = SubjectDirectoryAttributes {
+        attributes: alloc::vec![alloc::vec![crate::x509::attribute::Attribute::new(
+            crate::asn1::oid::ObjectIdentifier::new(&[2, 5, 4, 3]).unwrap(),
+            alloc::vec![crate::asn1::der::utf8_string("Dir Attribute")],
+        )]],
+    };
+    let extension = crate::x509::extensions::Extension::new(
+        crate::asn1::oid::ObjectIdentifier::new(oid::OID_SUBJECT_DIRECTORY_ATTRIBUTES).unwrap(),
+        false,
+        attributes.encode(),
+    );
+    let ParsedExtension::SubjectDirectoryAttributes(parsed) = extension.parsed().unwrap() else {
+        panic!("not subjectDirectoryAttributes");
+    };
+    assert_eq!(parsed, attributes);
+    assert_eq!(
+        parsed.attributes[0][0].first_text().as_deref(),
+        Some("Dir Attribute")
+    );
+    assert_eq!(parsed.encode(), attributes.encode());
 }

@@ -68,6 +68,21 @@ impl CertificationRequestInfo {
         content.extend_from_slice(&der::implicit(0, true, &attrs_content));
         der::sequence(&content)
     }
+
+    /// The extensions requested through the `extensionRequest` attribute
+    /// (PKCS#9), in order.
+    pub fn extensions(&self) -> CryptoResult<Vec<super::extensions::Extension>> {
+        let mut extensions = Vec::new();
+        for attribute in &self.attributes {
+            if attribute
+                .oid
+                .matches(crate::asn1::oid::OID_PKCS9_EXTENSION_REQUEST)
+            {
+                extensions.extend(super::attribute::parse_extension_request(attribute)?);
+            }
+        }
+        Ok(extensions)
+    }
 }
 
 /// A PKCS#10 certification request.
@@ -138,6 +153,12 @@ impl CertificationRequest {
     /// The raw signature.
     pub fn signature(&self) -> &[u8] {
         &self.signature
+    }
+
+    /// The extensions requested through the `extensionRequest` attribute
+    /// (PKCS#9), in order.
+    pub fn extensions(&self) -> CryptoResult<Vec<super::extensions::Extension>> {
+        self.info.extensions()
     }
 
     /// Verify the self-signature (proof of possession).
