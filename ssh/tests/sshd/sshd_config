@@ -1,0 +1,14 @@
+Port 2222
+HostKey /etc/ssh/ssh_host_ed25519_key
+HostKey /etc/ssh/ssh_host_rsa_key
+HostKey /etc/ssh/ssh_host_ecdsa_key
+HostKey /etc/ssh/ssh_host_ecdsa384_key
+HostKey /etc/ssh/ssh_host_ecdsa521_key
+PasswordAuthentication yes
+PubkeyAuthentication yes
+PermitRootLogin no
+UsePAM no
+StrictModes no
+PrintMotd no
+Subsystem sftp internal-sftp
+Ciphers +aes128-cbc,aes192-cbc,aes256-cbc
