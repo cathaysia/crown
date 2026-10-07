@@ -1,0 +1,136 @@
+name: check-benchmark
+
+# Daily benchmark report: every benchmark target is measured twice, once with
+# the default features and once with `asm`, and the two runs are compared with
+# critcmp. The markdown report lands in the job summary of the `report` job and
+# is kept as an artifact together with the raw critcmp data.
+on:
+  schedule:
+    # every day at 20:00 UTC
+    - cron: "0 20 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-benchmark
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    name: bench ${{ matrix.group }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      # A failing group must not cancel the others; the report job picks up
+      # whatever finished.
+      fail-fast: false
+      matrix:
+        # The 28 benchmark targets hold around 410 benchmarks; they are split
+        # into six groups of comparable size. Every group measures its targets
+        # twice on the same machine: once with the default features and once
+        # with `asm`, so that critcmp can compare the two.
+        include:
+          - group: hash-core
+            targets: md5,sha256,sha512,sha3
+          - group: hash-ext
+            targets: hash2,hash3,mac
+          - group: aead
+            targets: aead,modes
+          - group: stream
+            targets: aes,des,xor,rc4,chacha20,chacha20poly1305,xchacha20poly1305
+          - group: asymmetric-kdf
+            targets: ec,ec2,ed25519,ed448_x448,sm2,dsa_dh,drbg,kdf
+          - group: bigint-pq
+            targets: bn,rsa,pq,pq2
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - name: setup env
+        run: |
+          sudo apt update -y
+          sudo apt install build-essential gcc cpp libclang-dev openssl libssl-dev -y
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+      - name: Install critcmp
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: critcmp
+      - name: Prepare bench arguments
+        env:
+          TARGETS: ${{ matrix.targets }}
+        run: |
+          args=()
+          for target in ${TARGETS//,/ }; do
+            args+=(--bench "$target")
+          done
+          echo "BENCH_ARGS=${args[*]}" >> "$GITHUB_ENV"
+      # No sccache here on purpose: the `asm` build embeds a payload that the
+      # build script hands to rustc through an environment variable, and a
+      # cached object from a previous day would silently benchmark stale code.
+      - name: Benchmark without asm
+        run: cargo bench -p crown $BENCH_ARGS -- --save-baseline no-asm
+      - name: Benchmark with asm
+        run: cargo bench -p crown $BENCH_ARGS --features asm -- --save-baseline asm
+      - name: Export results
+        if: always()
+        run: |
+          mkdir -p bench-data
+          export_baseline() {
+            local baseline="$1"
+            local output="bench-data/critcmp-${{ matrix.group }}-$1.json"
+            if ! critcmp --export "$baseline" > "$output"; then
+              # Keep the other baseline's data available to the report instead
+              # of failing the export as a whole.
+              echo "::warning::no data for baseline '$baseline'"
+              echo "{\"name\": \"$baseline\", \"benchmarks\": {}}" > "$output"
+            fi
+          }
+          export_baseline no-asm
+          export_baseline asm
+          grep -m1 'model name' /proc/cpuinfo | sed 's/.*: //' > "bench-data/cpu-${{ matrix.group }}.txt"
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bench-${{ matrix.group }}
+          path: bench-data/
+
+  report:
+    name: report
+    needs: benchmark
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download results
+        continue-on-error: true
+        uses: actions/download-artifact@v7
+        with:
+          path: bench-data
+          pattern: bench-*
+          merge-multiple: true
+      - name: Generate report
+        run: |
+          python3 .github/scripts/bench_report.py bench-data/critcmp-*.json \
+            --baseline no-asm \
+            --candidate asm \
+            --note "Date: $(date -u '+%Y-%m-%d %H:%M UTC')" \
+            --note "Commit: ${{ github.sha }}" \
+            --note "Runner CPU: $(sort -u bench-data/cpu-*.txt 2>/dev/null | paste -sd, -)" \
+            --note "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --output benchmark-report.md
+      - name: Publish report to the job summary
+        run: cat benchmark-report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload report
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-report
+          path: |
+            benchmark-report.md
+            bench-data/
