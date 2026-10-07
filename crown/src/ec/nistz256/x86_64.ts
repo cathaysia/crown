@@ -9,11 +9,13 @@
 //
 // Reference configuration: perl `ecp_nistz256-x86_64.pl elf` with
 // `$win64=0` (unix SysV only; Win64 SEH blocks dropped). The assembler
-// probe pins from that run: `$addx=1` (ADX/BMI2 paths present) and
-// `$avx<=1` (AVX2 gather bodies fall back to the `ud2` stub; gather_w5/w7
-// do not dispatch to AVX2). Field elements are 4 little-endian 64-bit
-// limbs; a Jacobian point is 3 field elements (X,Y,Z), 96 bytes.
-// Montgomery domain uses R = 2^256 mod p (.LRR).
+// probe pins from that run: `$addx=1` (the ADX/BMI2 `*x` bodies are
+// emitted and dispatched at run time on `OPENSSL_ia32cap_P+8`
+// `0x80100`) and `$avx=2` (the AVX2 gather bodies are emitted and the
+// `gather_w5`/`gather_w7` entry points dispatch to them on AVX2).
+// Field elements are 4 little-endian 64-bit limbs; a Jacobian point is
+// 3 field elements (X,Y,Z), 96 bytes. Montgomery domain uses
+// R = 2^256 mod p (.LRR).
 //
 // This is the pre-xlate assembly text; `translateAssembly` applies the
 // same normalisations as `perlasm/x86_64-xlate.pl` (ret -> rep-ret
@@ -2801,6 +2803,10 @@ ecp_nistz256_neg:
 .align	32
 ecp_nistz256_ord_mul_mont:
 .cfi_startproc
+	mov	$0x80100, %ecx
+	and	OPENSSL_ia32cap_P+8(%rip), %ecx
+	cmp	$0x80100, %ecx
+	je	.Lecp_nistz256_ord_mul_montx
 	push	%rbp
 .cfi_push	%rbp
 	push	%rbx
@@ -3123,6 +3129,10 @@ ecp_nistz256_ord_mul_mont:
 .align	32
 ecp_nistz256_ord_sqr_mont:
 .cfi_startproc
+	mov	$0x80100, %ecx
+	and	OPENSSL_ia32cap_P+8(%rip), %ecx
+	cmp	$0x80100, %ecx
+	je	.Lecp_nistz256_ord_sqr_montx
 	push	%rbp
 .cfi_push	%rbp
 	push	%rbx
@@ -3404,6 +3414,450 @@ ecp_nistz256_ord_sqr_mont:
 .cfi_endproc
 .size	ecp_nistz256_ord_sqr_mont,.-ecp_nistz256_ord_sqr_mont
 ################################################################################
+.type	ecp_nistz256_ord_mul_montx,@function,3
+.align	32
+ecp_nistz256_ord_mul_montx:
+.cfi_startproc
+.Lecp_nistz256_ord_mul_montx:
+	push	%rbp
+.cfi_push	%rbp
+	push	%rbx
+.cfi_push	%rbx
+	push	%r12
+.cfi_push	%r12
+	push	%r13
+.cfi_push	%r13
+	push	%r14
+.cfi_push	%r14
+	push	%r15
+.cfi_push	%r15
+.Lord_mulx_body:
+
+	mov	%rdx, %rbx
+	mov	8*0(%rdx), %rdx
+	mov	8*0(%rsi), %r9
+	mov	8*1(%rsi), %r10
+	mov	8*2(%rsi), %r11
+	mov	8*3(%rsi), %r12
+	lea	-128(%rsi), %rsi	# control u-op density
+	lea	.Lord-128(%rip), %r14
+	mov	.LordK(%rip), %r15
+
+	################################# Multiply by b[0]
+	mulx	%r9, %r8, %r9
+	mulx	%r10, %rcx, %r10
+	mulx	%r11, %rbp, %r11
+	add	%rcx, %r9
+	mulx	%r12, %rcx, %r12
+	 mov	%r8, %rdx
+	 mulx	%r15, %rdx, %rax
+	adc	%rbp, %r10
+	adc	%rcx, %r11
+	adc	$0, %r12
+
+	################################# reduction
+	xor	%r13, %r13		# %r13=0, cf=0, of=0
+	mulx	8*0+128(%r14), %rcx, %rbp
+	adcx	%rcx, %r8		# guaranteed to be zero
+	adox	%rbp, %r9
+
+	mulx	8*1+128(%r14), %rcx, %rbp
+	adcx	%rcx, %r9
+	adox	%rbp, %r10
+
+	mulx	8*2+128(%r14), %rcx, %rbp
+	adcx	%rcx, %r10
+	adox	%rbp, %r11
+
+	mulx	8*3+128(%r14), %rcx, %rbp
+	 mov	8*1(%rbx), %rdx
+	adcx	%rcx, %r11
+	adox	%rbp, %r12
+	adcx	%r8, %r12
+	adox	%r8, %r13
+	adc	$0, %r13		# cf=0, of=0
+
+	################################# Multiply by b[1]
+	mulx	8*0+128(%rsi), %rcx, %rbp
+	adcx	%rcx, %r9
+	adox	%rbp, %r10
+
+	mulx	8*1+128(%rsi), %rcx, %rbp
+	adcx	%rcx, %r10
+	adox	%rbp, %r11
+
+	mulx	8*2+128(%rsi), %rcx, %rbp
+	adcx	%rcx, %r11
+	adox	%rbp, %r12
+
+	mulx	8*3+128(%rsi), %rcx, %rbp
+	 mov	%r9, %rdx
+	 mulx	%r15, %rdx, %rax
+	adcx	%rcx, %r12
+	adox	%rbp, %r13
+
+	adcx	%r8, %r13
+	adox	%r8, %r8
+	adc	$0, %r8		# cf=0, of=0
+
+	################################# reduction
+	mulx	8*0+128(%r14), %rcx, %rbp
+	adcx	%rcx, %r9		# guaranteed to be zero
+	adox	%rbp, %r10
+
+	mulx	8*1+128(%r14), %rcx, %rbp
+	adcx	%rcx, %r10
+	adox	%rbp, %r11
+
+	mulx	8*2+128(%r14), %rcx, %rbp
+	adcx	%rcx, %r11
+	adox	%rbp, %r12
+
+	mulx	8*3+128(%r14), %rcx, %rbp
+	 mov	8*2(%rbx), %rdx
+	adcx	%rcx, %r12
+	adox	%rbp, %r13
+	adcx	%r9, %r13
+	adox	%r9, %r8
+	adc	$0, %r8		# cf=0, of=0
+
+	################################# Multiply by b[2]
+	mulx	8*0+128(%rsi), %rcx, %rbp
+	adcx	%rcx, %r10
+	adox	%rbp, %r11
+
+	mulx	8*1+128(%rsi), %rcx, %rbp
+	adcx	%rcx, %r11
+	adox	%rbp, %r12
+
+	mulx	8*2+128(%rsi), %rcx, %rbp
+	adcx	%rcx, %r12
+	adox	%rbp, %r13
+
+	mulx	8*3+128(%rsi), %rcx, %rbp
+	 mov	%r10, %rdx
+	 mulx	%r15, %rdx, %rax
+	adcx	%rcx, %r13
+	adox	%rbp, %r8
+
+	adcx	%r9, %r8
+	adox	%r9, %r9
+	adc	$0, %r9		# cf=0, of=0
+
+	################################# reduction
+	mulx	8*0+128(%r14), %rcx, %rbp
+	adcx	%rcx, %r10		# guaranteed to be zero
+	adox	%rbp, %r11
+
+	mulx	8*1+128(%r14), %rcx, %rbp
+	adcx	%rcx, %r11
+	adox	%rbp, %r12
+
+	mulx	8*2+128(%r14), %rcx, %rbp
+	adcx	%rcx, %r12
+	adox	%rbp, %r13
+
+	mulx	8*3+128(%r14), %rcx, %rbp
+	 mov	8*3(%rbx), %rdx
+	adcx	%rcx, %r13
+	adox	%rbp, %r8
+	adcx	%r10, %r8
+	adox	%r10, %r9
+	adc	$0, %r9		# cf=0, of=0
+
+	################################# Multiply by b[3]
+	mulx	8*0+128(%rsi), %rcx, %rbp
+	adcx	%rcx, %r11
+	adox	%rbp, %r12
+
+	mulx	8*1+128(%rsi), %rcx, %rbp
+	adcx	%rcx, %r12
+	adox	%rbp, %r13
+
+	mulx	8*2+128(%rsi), %rcx, %rbp
+	adcx	%rcx, %r13
+	adox	%rbp, %r8
+
+	mulx	8*3+128(%rsi), %rcx, %rbp
+	 mov	%r11, %rdx
+	 mulx	%r15, %rdx, %rax
+	adcx	%rcx, %r8
+	adox	%rbp, %r9
+
+	adcx	%r10, %r9
+	adox	%r10, %r10
+	adc	$0, %r10		# cf=0, of=0
+
+	################################# reduction
+	mulx	8*0+128(%r14), %rcx, %rbp
+	adcx	%rcx, %r11		# guaranteed to be zero
+	adox	%rbp, %r12
+
+	mulx	8*1+128(%r14), %rcx, %rbp
+	adcx	%rcx, %r12
+	adox	%rbp, %r13
+
+	mulx	8*2+128(%r14), %rcx, %rbp
+	adcx	%rcx, %r13
+	adox	%rbp, %r8
+
+	mulx	8*3+128(%r14), %rcx, %rbp
+	lea	128(%r14),%r14
+	 mov	%r12, %rbx
+	adcx	%rcx, %r8
+	adox	%rbp, %r9
+	 mov	%r13, %rdx
+	adcx	%r11, %r9
+	adox	%r11, %r10
+	adc	$0, %r10
+
+	#################################
+	# Branch-less conditional subtraction of P
+	 mov	%r8, %rcx
+	sub	8*0(%r14), %r12
+	sbb	8*1(%r14), %r13
+	sbb	8*2(%r14), %r8
+	 mov	%r9, %rbp
+	sbb	8*3(%r14), %r9
+	sbb	$0, %r10
+
+	cmovc	%rbx, %r12
+	cmovc	%rdx, %r13
+	cmovc	%rcx, %r8
+	cmovc	%rbp, %r9
+
+	mov	%r12, 8*0(%rdi)
+	mov	%r13, 8*1(%rdi)
+	mov	%r8, 8*2(%rdi)
+	mov	%r9, 8*3(%rdi)
+
+	mov	0(%rsp),%r15
+.cfi_restore	%r15
+	mov	8(%rsp),%r14
+.cfi_restore	%r14
+	mov	16(%rsp),%r13
+.cfi_restore	%r13
+	mov	24(%rsp),%r12
+.cfi_restore	%r12
+	mov	32(%rsp),%rbx
+.cfi_restore	%rbx
+	mov	40(%rsp),%rbp
+.cfi_restore	%rbp
+	lea	48(%rsp),%rsp
+.cfi_adjust_cfa_offset	-48
+.Lord_mulx_epilogue:
+	ret
+.cfi_endproc
+.size	ecp_nistz256_ord_mul_montx,.-ecp_nistz256_ord_mul_montx
+
+.type	ecp_nistz256_ord_sqr_montx,@function,3
+.align	32
+ecp_nistz256_ord_sqr_montx:
+.cfi_startproc
+.Lecp_nistz256_ord_sqr_montx:
+	push	%rbp
+.cfi_push	%rbp
+	push	%rbx
+.cfi_push	%rbx
+	push	%r12
+.cfi_push	%r12
+	push	%r13
+.cfi_push	%r13
+	push	%r14
+.cfi_push	%r14
+	push	%r15
+.cfi_push	%r15
+.Lord_sqrx_body:
+
+	mov	%rdx, %rbx
+	mov	8*0(%rsi), %rdx
+	mov	8*1(%rsi), %r14
+	mov	8*2(%rsi), %r15
+	mov	8*3(%rsi), %r8
+	lea	.Lord(%rip), %rsi
+	jmp	.Loop_ord_sqrx
+
+.align	32
+.Loop_ord_sqrx:
+	mulx	%r14, %r9, %r10	# a[0]*a[1]
+	mulx	%r15, %rcx, %r11	# a[0]*a[2]
+	 mov	%rdx, %rax		# offload a[0]
+	 movq	%r14, %xmm1		# offload a[1]
+	mulx	%r8, %rbp, %r12	# a[0]*a[3]
+	 mov	%r14, %rdx
+	add	%rcx, %r10
+	 movq	%r15, %xmm2		# offload a[2]
+	adc	%rbp, %r11
+	adc	$0, %r12
+	xor	%r13, %r13		# %r13=0,cf=0,of=0
+	#################################
+	mulx	%r15, %rcx, %rbp		# a[1]*a[2]
+	adcx	%rcx, %r11
+	adox	%rbp, %r12
+
+	mulx	%r8, %rcx, %rbp		# a[1]*a[3]
+	 mov	%r15, %rdx
+	adcx	%rcx, %r12
+	adox	%rbp, %r13
+	adc	$0, %r13
+	#################################
+	mulx	%r8, %rcx, %r14	# a[2]*a[3]
+	mov	%rax, %rdx
+	 movq	%r8, %xmm3		# offload a[3]
+	xor	%r15, %r15		# %r15=0,cf=0,of=0
+	 adcx	%r9, %r9		# acc1:6<<1
+	adox	%rcx, %r13
+	 adcx	%r10, %r10
+	adox	%r15, %r14		# of=0
+
+	################################# a[i]*a[i]
+	mulx	%rdx, %r8, %rbp
+	movq	%xmm1, %rdx
+	 adcx	%r11, %r11
+	adox	%rbp, %r9
+	 adcx	%r12, %r12
+	mulx	%rdx, %rcx, %rax
+	movq	%xmm2, %rdx
+	 adcx	%r13, %r13
+	adox	%rcx, %r10
+	 adcx	%r14, %r14
+	mulx	%rdx, %rcx, %rbp
+	.byte	0x67
+	movq	%xmm3, %rdx
+	adox	%rax, %r11
+	 adcx	%r15, %r15
+	adox	%rcx, %r12
+	adox	%rbp, %r13
+	mulx	%rdx, %rcx, %rax
+	adox	%rcx, %r14
+	adox	%rax, %r15
+
+	################################# reduction
+	mov	%r8, %rdx
+	mulx	8*4(%rsi), %rdx, %rcx
+
+	xor	%rax, %rax		# cf=0, of=0
+	mulx	8*0(%rsi), %rcx, %rbp
+	adcx	%rcx, %r8		# guaranteed to be zero
+	adox	%rbp, %r9
+	mulx	8*1(%rsi), %rcx, %rbp
+	adcx	%rcx, %r9
+	adox	%rbp, %r10
+	mulx	8*2(%rsi), %rcx, %rbp
+	adcx	%rcx, %r10
+	adox	%rbp, %r11
+	mulx	8*3(%rsi), %rcx, %rbp
+	adcx	%rcx, %r11
+	adox	%rbp, %r8		# of=0
+	adcx	%rax, %r8		# cf=0
+
+	#################################
+	mov	%r9, %rdx
+	mulx	8*4(%rsi), %rdx, %rcx
+
+	mulx	8*0(%rsi), %rcx, %rbp
+	adox	%rcx, %r9		# guaranteed to be zero
+	adcx	%rbp, %r10
+	mulx	8*1(%rsi), %rcx, %rbp
+	adox	%rcx, %r10
+	adcx	%rbp, %r11
+	mulx	8*2(%rsi), %rcx, %rbp
+	adox	%rcx, %r11
+	adcx	%rbp, %r8
+	mulx	8*3(%rsi), %rcx, %rbp
+	adox	%rcx, %r8
+	adcx	%rbp, %r9		# cf=0
+	adox	%rax, %r9		# of=0
+
+	#################################
+	mov	%r10, %rdx
+	mulx	8*4(%rsi), %rdx, %rcx
+
+	mulx	8*0(%rsi), %rcx, %rbp
+	adcx	%rcx, %r10		# guaranteed to be zero
+	adox	%rbp, %r11
+	mulx	8*1(%rsi), %rcx, %rbp
+	adcx	%rcx, %r11
+	adox	%rbp, %r8
+	mulx	8*2(%rsi), %rcx, %rbp
+	adcx	%rcx, %r8
+	adox	%rbp, %r9
+	mulx	8*3(%rsi), %rcx, %rbp
+	adcx	%rcx, %r9
+	adox	%rbp, %r10		# of=0
+	adcx	%rax, %r10		# cf=0
+
+	#################################
+	mov	%r11, %rdx
+	mulx	8*4(%rsi), %rdx, %rcx
+
+	mulx	8*0(%rsi), %rcx, %rbp
+	adox	%rcx, %r11		# guaranteed to be zero
+	adcx	%rbp, %r8
+	mulx	8*1(%rsi), %rcx, %rbp
+	adox	%rcx, %r8
+	adcx	%rbp, %r9
+	mulx	8*2(%rsi), %rcx, %rbp
+	adox	%rcx, %r9
+	adcx	%rbp, %r10
+	mulx	8*3(%rsi), %rcx, %rbp
+	adox	%rcx, %r10
+	adcx	%rbp, %r11
+	adox	%rax, %r11
+
+	################################# accumulate upper half
+	add	%r8, %r12		# add	%r12, %r8
+	adc	%r13, %r9
+	 mov	%r12, %rdx
+	adc	%r14, %r10
+	adc	%r15, %r11
+	 mov	%r9, %r14
+	adc	$0, %rax
+
+	################################# compare to modulus
+	sub	8*0(%rsi), %r12
+	 mov	%r10, %r15
+	sbb	8*1(%rsi), %r9
+	sbb	8*2(%rsi), %r10
+	 mov	%r11, %r8
+	sbb	8*3(%rsi), %r11
+	sbb	$0, %rax
+
+	cmovnc	%r12, %rdx
+	cmovnc	%r9, %r14
+	cmovnc	%r10, %r15
+	cmovnc	%r11, %r8
+
+	dec	%rbx
+	jnz	.Loop_ord_sqrx
+
+	mov	%rdx, 8*0(%rdi)
+	mov	%r14, 8*1(%rdi)
+	pxor	%xmm1, %xmm1
+	mov	%r15, 8*2(%rdi)
+	pxor	%xmm2, %xmm2
+	mov	%r8, 8*3(%rdi)
+	pxor	%xmm3, %xmm3
+
+	mov	0(%rsp),%r15
+.cfi_restore	%r15
+	mov	8(%rsp),%r14
+.cfi_restore	%r14
+	mov	16(%rsp),%r13
+.cfi_restore	%r13
+	mov	24(%rsp),%r12
+.cfi_restore	%r12
+	mov	32(%rsp),%rbx
+.cfi_restore	%rbx
+	mov	40(%rsp),%rbp
+.cfi_restore	%rbp
+	lea	48(%rsp),%rsp
+.cfi_adjust_cfa_offset	-48
+.Lord_sqrx_epilogue:
+	ret
+.cfi_endproc
+.size	ecp_nistz256_ord_sqr_montx,.-ecp_nistz256_ord_sqr_montx
+################################################################################
 # void ecp_nistz256_to_mont(
 #   uint64_t res[4],
 #   uint64_t in[4]);
@@ -3412,6 +3866,8 @@ ecp_nistz256_ord_sqr_mont:
 .align	32
 ecp_nistz256_to_mont:
 .cfi_startproc
+	mov	$0x80100, %ecx
+	and	OPENSSL_ia32cap_P+8(%rip), %ecx
 	lea	.LRR(%rip), %rdx
 	jmp	.Lmul_mont
 .cfi_endproc
@@ -3428,6 +3884,8 @@ ecp_nistz256_to_mont:
 .align	32
 ecp_nistz256_mul_mont:
 .cfi_startproc
+	mov	$0x80100, %ecx
+	and	OPENSSL_ia32cap_P+8(%rip), %ecx
 .Lmul_mont:
 	push	%rbp
 .cfi_push	%rbp
@@ -3442,6 +3900,8 @@ ecp_nistz256_mul_mont:
 	push	%r15
 .cfi_push	%r15
 .Lmul_body:
+	cmp	$0x80100, %ecx
+	je	.Lmul_montx
 	mov	%rdx, %rbx
 	mov	8*0(%rdx), %rax
 	mov	8*0(%rsi), %r9
@@ -3450,6 +3910,19 @@ ecp_nistz256_mul_mont:
 	mov	8*3(%rsi), %r12
 
 	call	__ecp_nistz256_mul_montq
+	jmp	.Lmul_mont_done
+
+.align	32
+.Lmul_montx:
+	mov	%rdx, %rbx
+	mov	8*0(%rdx), %rdx
+	mov	8*0(%rsi), %r9
+	mov	8*1(%rsi), %r10
+	mov	8*2(%rsi), %r11
+	mov	8*3(%rsi), %r12
+	lea	-128(%rsi), %rsi	# control u-op density
+
+	call	__ecp_nistz256_mul_montx
 .Lmul_mont_done:
 	mov	0(%rsp),%r15
 .cfi_restore	%r15
@@ -3700,6 +4173,8 @@ __ecp_nistz256_mul_montq:
 .align	32
 ecp_nistz256_sqr_mont:
 .cfi_startproc
+	mov	$0x80100, %ecx
+	and	OPENSSL_ia32cap_P+8(%rip), %ecx
 	push	%rbp
 .cfi_push	%rbp
 	push	%rbx
@@ -3713,12 +4188,25 @@ ecp_nistz256_sqr_mont:
 	push	%r15
 .cfi_push	%r15
 .Lsqr_body:
+	cmp	$0x80100, %ecx
+	je	.Lsqr_montx
 	mov	8*0(%rsi), %rax
 	mov	8*1(%rsi), %r14
 	mov	8*2(%rsi), %r15
 	mov	8*3(%rsi), %r8
 
 	call	__ecp_nistz256_sqr_montq
+	jmp	.Lsqr_mont_done
+
+.align	32
+.Lsqr_montx:
+	mov	8*0(%rsi), %rdx
+	mov	8*1(%rsi), %r14
+	mov	8*2(%rsi), %r15
+	mov	8*3(%rsi), %r8
+	lea	-128(%rsi), %rsi	# control u-op density
+
+	call	__ecp_nistz256_sqr_montx
 .Lsqr_mont_done:
 	mov	0(%rsp),%r15
 .cfi_restore	%r15
@@ -3902,6 +4390,304 @@ __ecp_nistz256_sqr_montq:
 	ret
 .cfi_endproc
 .size	__ecp_nistz256_sqr_montq,.-__ecp_nistz256_sqr_montq
+.type	__ecp_nistz256_mul_montx,@abi-omnipotent
+.align	32
+__ecp_nistz256_mul_montx:
+.cfi_startproc
+	########################################################################
+	# Multiply by b[0]
+	mulx	%r9, %r8, %r9
+	mulx	%r10, %rcx, %r10
+	mov	$32, %r14
+	xor	%r13, %r13		# cf=0
+	mulx	%r11, %rbp, %r11
+	mov	.Lpoly+8*3(%rip), %r15
+	adc	%rcx, %r9
+	mulx	%r12, %rcx, %r12
+	 mov	%r8, %rdx
+	adc	%rbp, %r10
+	 shlx	%r14,%r8,%rbp
+	adc	%rcx, %r11
+	 shrx	%r14,%r8,%rcx
+	adc	$0, %r12
+
+	########################################################################
+	# First reduction step
+	add	%rbp, %r9
+	adc	%rcx, %r10
+
+	mulx	%r15, %rcx, %rbp
+	 mov	8*1(%rbx), %rdx
+	adc	%rcx, %r11
+	adc	%rbp, %r12
+	adc	$0, %r13
+	xor	%r8, %r8		# %r8=0,cf=0,of=0
+
+	########################################################################
+	# Multiply by b[1]
+	mulx	8*0+128(%rsi), %rcx, %rbp
+	adcx	%rcx, %r9
+	adox	%rbp, %r10
+
+	mulx	8*1+128(%rsi), %rcx, %rbp
+	adcx	%rcx, %r10
+	adox	%rbp, %r11
+
+	mulx	8*2+128(%rsi), %rcx, %rbp
+	adcx	%rcx, %r11
+	adox	%rbp, %r12
+
+	mulx	8*3+128(%rsi), %rcx, %rbp
+	 mov	%r9, %rdx
+	adcx	%rcx, %r12
+	 shlx	%r14, %r9, %rcx
+	adox	%rbp, %r13
+	 shrx	%r14, %r9, %rbp
+
+	adcx	%r8, %r13
+	adox	%r8, %r8
+	adc	$0, %r8
+
+	########################################################################
+	# Second reduction step
+	add	%rcx, %r10
+	adc	%rbp, %r11
+
+	mulx	%r15, %rcx, %rbp
+	 mov	8*2(%rbx), %rdx
+	adc	%rcx, %r12
+	adc	%rbp, %r13
+	adc	$0, %r8
+	xor	%r9 ,%r9		# %r9=0,cf=0,of=0
+
+	########################################################################
+	# Multiply by b[2]
+	mulx	8*0+128(%rsi), %rcx, %rbp
+	adcx	%rcx, %r10
+	adox	%rbp, %r11
+
+	mulx	8*1+128(%rsi), %rcx, %rbp
+	adcx	%rcx, %r11
+	adox	%rbp, %r12
+
+	mulx	8*2+128(%rsi), %rcx, %rbp
+	adcx	%rcx, %r12
+	adox	%rbp, %r13
+
+	mulx	8*3+128(%rsi), %rcx, %rbp
+	 mov	%r10, %rdx
+	adcx	%rcx, %r13
+	 shlx	%r14, %r10, %rcx
+	adox	%rbp, %r8
+	 shrx	%r14, %r10, %rbp
+
+	adcx	%r9, %r8
+	adox	%r9, %r9
+	adc	$0, %r9
+
+	########################################################################
+	# Third reduction step
+	add	%rcx, %r11
+	adc	%rbp, %r12
+
+	mulx	%r15, %rcx, %rbp
+	 mov	8*3(%rbx), %rdx
+	adc	%rcx, %r13
+	adc	%rbp, %r8
+	adc	$0, %r9
+	xor	%r10, %r10		# %r10=0,cf=0,of=0
+
+	########################################################################
+	# Multiply by b[3]
+	mulx	8*0+128(%rsi), %rcx, %rbp
+	adcx	%rcx, %r11
+	adox	%rbp, %r12
+
+	mulx	8*1+128(%rsi), %rcx, %rbp
+	adcx	%rcx, %r12
+	adox	%rbp, %r13
+
+	mulx	8*2+128(%rsi), %rcx, %rbp
+	adcx	%rcx, %r13
+	adox	%rbp, %r8
+
+	mulx	8*3+128(%rsi), %rcx, %rbp
+	 mov	%r11, %rdx
+	adcx	%rcx, %r8
+	 shlx	%r14, %r11, %rcx
+	adox	%rbp, %r9
+	 shrx	%r14, %r11, %rbp
+
+	adcx	%r10, %r9
+	adox	%r10, %r10
+	adc	$0, %r10
+
+	########################################################################
+	# Fourth reduction step
+	add	%rcx, %r12
+	adc	%rbp, %r13
+
+	mulx	%r15, %rcx, %rbp
+	 mov	%r12, %rbx
+	mov	.Lpoly+8*1(%rip), %r14
+	adc	%rcx, %r8
+	 mov	%r13, %rdx
+	adc	%rbp, %r9
+	adc	$0, %r10
+
+	########################################################################
+	# Branch-less conditional subtraction of P
+	xor	%eax, %eax
+	 mov	%r8, %rcx
+	sbb	$-1, %r12		# .Lpoly[0]
+	sbb	%r14, %r13		# .Lpoly[1]
+	sbb	$0, %r8		# .Lpoly[2]
+	 mov	%r9, %rbp
+	sbb	%r15, %r9		# .Lpoly[3]
+	sbb	$0, %r10
+
+	cmovc	%rbx, %r12
+	cmovc	%rdx, %r13
+	mov	%r12, 8*0(%rdi)
+	cmovc	%rcx, %r8
+	mov	%r13, 8*1(%rdi)
+	cmovc	%rbp, %r9
+	mov	%r8, 8*2(%rdi)
+	mov	%r9, 8*3(%rdi)
+
+	ret
+.cfi_endproc
+.size	__ecp_nistz256_mul_montx,.-__ecp_nistz256_mul_montx
+
+.type	__ecp_nistz256_sqr_montx,@abi-omnipotent
+.align	32
+__ecp_nistz256_sqr_montx:
+.cfi_startproc
+	mulx	%r14, %r9, %r10	# a[0]*a[1]
+	mulx	%r15, %rcx, %r11	# a[0]*a[2]
+	xor	%eax, %eax
+	adc	%rcx, %r10
+	mulx	%r8, %rbp, %r12	# a[0]*a[3]
+	 mov	%r14, %rdx
+	adc	%rbp, %r11
+	adc	$0, %r12
+	xor	%r13, %r13		# %r13=0,cf=0,of=0
+
+	#################################
+	mulx	%r15, %rcx, %rbp		# a[1]*a[2]
+	adcx	%rcx, %r11
+	adox	%rbp, %r12
+
+	mulx	%r8, %rcx, %rbp		# a[1]*a[3]
+	 mov	%r15, %rdx
+	adcx	%rcx, %r12
+	adox	%rbp, %r13
+	adc	$0, %r13
+
+	#################################
+	mulx	%r8, %rcx, %r14	# a[2]*a[3]
+	 mov	8*0+128(%rsi), %rdx
+	xor	%r15, %r15		# %r15=0,cf=0,of=0
+	 adcx	%r9, %r9		# acc1:6<<1
+	adox	%rcx, %r13
+	 adcx	%r10, %r10
+	adox	%r15, %r14		# of=0
+
+	mulx	%rdx, %r8, %rbp
+	mov	8*1+128(%rsi), %rdx
+	 adcx	%r11, %r11
+	adox	%rbp, %r9
+	 adcx	%r12, %r12
+	mulx	%rdx, %rcx, %rax
+	mov	8*2+128(%rsi), %rdx
+	 adcx	%r13, %r13
+	adox	%rcx, %r10
+	 adcx	%r14, %r14
+	.byte	0x67
+	mulx	%rdx, %rcx, %rbp
+	mov	8*3+128(%rsi), %rdx
+	adox	%rax, %r11
+	 adcx	%r15, %r15
+	adox	%rcx, %r12
+	 mov	$32, %rsi
+	adox	%rbp, %r13
+	.byte	0x67,0x67
+	mulx	%rdx, %rcx, %rax
+	 mov	.Lpoly+8*3(%rip), %rdx
+	adox	%rcx, %r14
+	 shlx	%rsi, %r8, %rcx
+	adox	%rax, %r15
+	 shrx	%rsi, %r8, %rax
+	mov	%rdx,%rbp
+
+	# reduction step 1
+	add	%rcx, %r9
+	adc	%rax, %r10
+
+	mulx	%r8, %rcx, %r8
+	adc	%rcx, %r11
+	 shlx	%rsi, %r9, %rcx
+	adc	$0, %r8
+	 shrx	%rsi, %r9, %rax
+
+	# reduction step 2
+	add	%rcx, %r10
+	adc	%rax, %r11
+
+	mulx	%r9, %rcx, %r9
+	adc	%rcx, %r8
+	 shlx	%rsi, %r10, %rcx
+	adc	$0, %r9
+	 shrx	%rsi, %r10, %rax
+
+	# reduction step 3
+	add	%rcx, %r11
+	adc	%rax, %r8
+
+	mulx	%r10, %rcx, %r10
+	adc	%rcx, %r9
+	 shlx	%rsi, %r11, %rcx
+	adc	$0, %r10
+	 shrx	%rsi, %r11, %rax
+
+	# reduction step 4
+	add	%rcx, %r8
+	adc	%rax, %r9
+
+	mulx	%r11, %rcx, %r11
+	adc	%rcx, %r10
+	adc	$0, %r11
+
+	xor	%rdx, %rdx
+	add	%r8, %r12		# accumulate upper half
+	 mov	.Lpoly+8*1(%rip), %rsi
+	adc	%r9, %r13
+	 mov	%r12, %r8
+	adc	%r10, %r14
+	adc	%r11, %r15
+	 mov	%r13, %r9
+	adc	$0, %rdx
+
+	sub	$-1, %r12		# .Lpoly[0]
+	 mov	%r14, %r10
+	sbb	%rsi, %r13		# .Lpoly[1]
+	sbb	$0, %r14		# .Lpoly[2]
+	 mov	%r15, %r11
+	sbb	%rbp, %r15		# .Lpoly[3]
+	sbb	$0, %rdx
+
+	cmovc	%r8, %r12
+	cmovc	%r9, %r13
+	mov	%r12, 8*0(%rdi)
+	cmovc	%r10, %r14
+	mov	%r13, 8*1(%rdi)
+	cmovc	%r11, %r15
+	mov	%r14, 8*2(%rdi)
+	mov	%r15, 8*3(%rdi)
+
+	ret
+.cfi_endproc
+.size	__ecp_nistz256_sqr_montx,.-__ecp_nistz256_sqr_montx
 ################################################################################
 # void ecp_nistz256_from_mont(
 #   uint64_t res[4],
@@ -4041,6 +4827,9 @@ ecp_nistz256_scatter_w5:
 .align	32
 ecp_nistz256_gather_w5:
 .cfi_startproc
+	mov	OPENSSL_ia32cap_P+8(%rip), %eax
+	test	$32, %eax
+	jnz	.Lavx2_gather_w5
 	movdqa	.LOne(%rip), %xmm0
 	movd	%edx, %xmm1
 
@@ -4124,6 +4913,9 @@ ecp_nistz256_scatter_w7:
 .align	32
 ecp_nistz256_gather_w7:
 .cfi_startproc
+	mov	OPENSSL_ia32cap_P+8(%rip), %eax
+	test	$32, %eax
+	jnz	.Lavx2_gather_w7
 	movdqa	.LOne(%rip), %xmm8
 	movd	%edx, %xmm1
 
@@ -4167,14 +4959,148 @@ ecp_nistz256_gather_w7:
 .cfi_endproc
 .LSEH_end_ecp_nistz256_gather_w7:
 .size	ecp_nistz256_gather_w7,.-ecp_nistz256_gather_w7
+################################################################################
+# void ecp_nistz256_avx2_gather_w5(uint64_t *val, uint64_t *in_t, int index);
+.type	ecp_nistz256_avx2_gather_w5,@abi-omnipotent
+.align	32
+ecp_nistz256_avx2_gather_w5:
+.cfi_startproc
+.Lavx2_gather_w5:
+	vzeroupper
+	vmovdqa	.LTwo(%rip), %ymm0
+
+	vpxor	%ymm2, %ymm2, %ymm2
+	vpxor	%ymm3, %ymm3, %ymm3
+	vpxor	%ymm4, %ymm4, %ymm4
+
+	vmovdqa .LOne(%rip), %ymm5
+	vmovdqa .LTwo(%rip), %ymm10
+
+	vmovd	%edx, %xmm1
+	vpermd	%ymm1, %ymm2, %ymm1
+
+	mov	$8, %rax
+.Lselect_loop_avx2_w5:
+
+	vmovdqa	32*0(%rsi), %ymm6
+	vmovdqa	32*1(%rsi), %ymm7
+	vmovdqa	32*2(%rsi), %ymm8
+
+	vmovdqa	32*3(%rsi), %ymm11
+	vmovdqa	32*4(%rsi), %ymm12
+	vmovdqa	32*5(%rsi), %ymm13
+
+	vpcmpeqd	%ymm1, %ymm5, %ymm9
+	vpcmpeqd	%ymm1, %ymm10, %ymm14
+
+	vpaddd	%ymm0, %ymm5, %ymm5
+	vpaddd	%ymm0, %ymm10, %ymm10
+	lea	32*6(%rsi), %rsi
+
+	vpand	%ymm9, %ymm6, %ymm6
+	vpand	%ymm9, %ymm7, %ymm7
+	vpand	%ymm9, %ymm8, %ymm8
+	vpand	%ymm14, %ymm11, %ymm11
+	vpand	%ymm14, %ymm12, %ymm12
+	vpand	%ymm14, %ymm13, %ymm13
+
+	vpxor	%ymm6, %ymm2, %ymm2
+	vpxor	%ymm7, %ymm3, %ymm3
+	vpxor	%ymm8, %ymm4, %ymm4
+	vpxor	%ymm11, %ymm2, %ymm2
+	vpxor	%ymm12, %ymm3, %ymm3
+	vpxor	%ymm13, %ymm4, %ymm4
+
+	dec %rax
+	jnz .Lselect_loop_avx2_w5
+
+	vmovdqu %ymm2, 32*0(%rdi)
+	vmovdqu %ymm3, 32*1(%rdi)
+	vmovdqu %ymm4, 32*2(%rdi)
+	vzeroupper
+	ret
+.cfi_endproc
+.LSEH_end_ecp_nistz256_avx2_gather_w5:
+.size	ecp_nistz256_avx2_gather_w5,.-ecp_nistz256_avx2_gather_w5
+
+################################################################################
+# void ecp_nistz256_avx2_gather_w7(uint64_t *val, uint64_t *in_t, int index);
 .globl	ecp_nistz256_avx2_gather_w7
-.type	ecp_nistz256_avx2_gather_w7,@function,3
+.type	ecp_nistz256_avx2_gather_w7,@abi-omnipotent
 .align	32
 ecp_nistz256_avx2_gather_w7:
 .cfi_startproc
-	.byte	0x0f,0x0b	# ud2
+.Lavx2_gather_w7:
+	vzeroupper
+	vmovdqa	.LThree(%rip), %ymm0
+
+	vpxor	%ymm2, %ymm2, %ymm2
+	vpxor	%ymm3, %ymm3, %ymm3
+
+	vmovdqa .LOne(%rip), %ymm4
+	vmovdqa .LTwo(%rip), %ymm8
+	vmovdqa .LThree(%rip), %ymm12
+
+	vmovd	%edx, %xmm1
+	vpermd	%ymm1, %ymm2, %ymm1
+	# Skip index = 0, because it is implicitly the point at infinity
+
+	mov	$21, %rax
+.Lselect_loop_avx2_w7:
+
+	vmovdqa	32*0(%rsi), %ymm5
+	vmovdqa	32*1(%rsi), %ymm6
+
+	vmovdqa	32*2(%rsi), %ymm9
+	vmovdqa	32*3(%rsi), %ymm10
+
+	vmovdqa	32*4(%rsi), %ymm13
+	vmovdqa	32*5(%rsi), %ymm14
+
+	vpcmpeqd	%ymm1, %ymm4, %ymm7
+	vpcmpeqd	%ymm1, %ymm8, %ymm11
+	vpcmpeqd	%ymm1, %ymm12, %ymm15
+
+	vpaddd	%ymm0, %ymm4, %ymm4
+	vpaddd	%ymm0, %ymm8, %ymm8
+	vpaddd	%ymm0, %ymm12, %ymm12
+	lea	32*6(%rsi), %rsi
+
+	vpand	%ymm7, %ymm5, %ymm5
+	vpand	%ymm7, %ymm6, %ymm6
+	vpand	%ymm11, %ymm9, %ymm9
+	vpand	%ymm11, %ymm10, %ymm10
+	vpand	%ymm15, %ymm13, %ymm13
+	vpand	%ymm15, %ymm14, %ymm14
+
+	vpxor	%ymm5, %ymm2, %ymm2
+	vpxor	%ymm6, %ymm3, %ymm3
+	vpxor	%ymm9, %ymm2, %ymm2
+	vpxor	%ymm10, %ymm3, %ymm3
+	vpxor	%ymm13, %ymm2, %ymm2
+	vpxor	%ymm14, %ymm3, %ymm3
+
+	dec %rax
+	jnz .Lselect_loop_avx2_w7
+
+
+	vmovdqa	32*0(%rsi), %ymm5
+	vmovdqa	32*1(%rsi), %ymm6
+
+	vpcmpeqd	%ymm1, %ymm4, %ymm7
+
+	vpand	%ymm7, %ymm5, %ymm5
+	vpand	%ymm7, %ymm6, %ymm6
+
+	vpxor	%ymm5, %ymm2, %ymm2
+	vpxor	%ymm6, %ymm3, %ymm3
+
+	vmovdqu %ymm2, 32*0(%rdi)
+	vmovdqu %ymm3, 32*1(%rdi)
+	vzeroupper
 	ret
 .cfi_endproc
+.LSEH_end_ecp_nistz256_avx2_gather_w7:
 .size	ecp_nistz256_avx2_gather_w7,.-ecp_nistz256_avx2_gather_w7
 .type	__ecp_nistz256_add_toq,@abi-omnipotent
 .align	32
@@ -4310,6 +5236,10 @@ __ecp_nistz256_mul_by_2q:
 .align	32
 ecp_nistz256_point_double:
 .cfi_startproc
+	mov	$0x80100, %ecx
+	and	OPENSSL_ia32cap_P+8(%rip), %ecx
+	cmp	$0x80100, %ecx
+	je	.Lpoint_doublex
 	push	%rbp
 .cfi_push	%rbp
 	push	%rbx
@@ -4532,6 +5462,10 @@ ecp_nistz256_point_double:
 .align	32
 ecp_nistz256_point_add:
 .cfi_startproc
+	mov	$0x80100, %ecx
+	and	OPENSSL_ia32cap_P+8(%rip), %ecx
+	cmp	$0x80100, %ecx
+	je	.Lpoint_addx
 	push	%rbp
 .cfi_push	%rbp
 	push	%rbx
@@ -4940,6 +5874,10 @@ ecp_nistz256_point_add:
 .align	32
 ecp_nistz256_point_add_affine:
 .cfi_startproc
+	mov	$0x80100, %ecx
+	and	OPENSSL_ia32cap_P+8(%rip), %ecx
+	cmp	$0x80100, %ecx
+	je	.Lpoint_add_affinex
 	push	%rbp
 .cfi_push	%rbp
 	push	%rbx
@@ -5257,6 +6195,1093 @@ ecp_nistz256_point_add_affine:
 	ret
 .cfi_endproc
 .size	ecp_nistz256_point_add_affine,.-ecp_nistz256_point_add_affine
+.type	__ecp_nistz256_add_tox,@abi-omnipotent
+.align	32
+__ecp_nistz256_add_tox:
+.cfi_startproc
+	xor	%r11, %r11
+	adc	8*0(%rbx), %r12
+	adc	8*1(%rbx), %r13
+	 mov	%r12, %rax
+	adc	8*2(%rbx), %r8
+	adc	8*3(%rbx), %r9
+	 mov	%r13, %rbp
+	adc	$0, %r11
+
+	xor	%r10, %r10
+	sbb	$-1, %r12
+	 mov	%r8, %rcx
+	sbb	%r14, %r13
+	sbb	$0, %r8
+	 mov	%r9, %r10
+	sbb	%r15, %r9
+	sbb	$0, %r11
+
+	cmovc	%rax, %r12
+	cmovc	%rbp, %r13
+	mov	%r12, 8*0(%rdi)
+	cmovc	%rcx, %r8
+	mov	%r13, 8*1(%rdi)
+	cmovc	%r10, %r9
+	mov	%r8, 8*2(%rdi)
+	mov	%r9, 8*3(%rdi)
+
+	ret
+.cfi_endproc
+.size	__ecp_nistz256_add_tox,.-__ecp_nistz256_add_tox
+
+.type	__ecp_nistz256_sub_fromx,@abi-omnipotent
+.align	32
+__ecp_nistz256_sub_fromx:
+.cfi_startproc
+	xor	%r11, %r11
+	sbb	8*0(%rbx), %r12
+	sbb	8*1(%rbx), %r13
+	 mov	%r12, %rax
+	sbb	8*2(%rbx), %r8
+	sbb	8*3(%rbx), %r9
+	 mov	%r13, %rbp
+	sbb	$0, %r11
+
+	xor	%r10, %r10
+	adc	$-1, %r12
+	 mov	%r8, %rcx
+	adc	%r14, %r13
+	adc	$0, %r8
+	 mov	%r9, %r10
+	adc	%r15, %r9
+
+	bt	$0, %r11
+	cmovnc	%rax, %r12
+	cmovnc	%rbp, %r13
+	mov	%r12, 8*0(%rdi)
+	cmovnc	%rcx, %r8
+	mov	%r13, 8*1(%rdi)
+	cmovnc	%r10, %r9
+	mov	%r8, 8*2(%rdi)
+	mov	%r9, 8*3(%rdi)
+
+	ret
+.cfi_endproc
+.size	__ecp_nistz256_sub_fromx,.-__ecp_nistz256_sub_fromx
+
+.type	__ecp_nistz256_subx,@abi-omnipotent
+.align	32
+__ecp_nistz256_subx:
+.cfi_startproc
+	xor	%r11, %r11
+	sbb	%r12, %rax
+	sbb	%r13, %rbp
+	 mov	%rax, %r12
+	sbb	%r8, %rcx
+	sbb	%r9, %r10
+	 mov	%rbp, %r13
+	sbb	$0, %r11
+
+	xor	%r9 ,%r9
+	adc	$-1, %rax
+	 mov	%rcx, %r8
+	adc	%r14, %rbp
+	adc	$0, %rcx
+	 mov	%r10, %r9
+	adc	%r15, %r10
+
+	bt	$0, %r11
+	cmovc	%rax, %r12
+	cmovc	%rbp, %r13
+	cmovc	%rcx, %r8
+	cmovc	%r10, %r9
+
+	ret
+.cfi_endproc
+.size	__ecp_nistz256_subx,.-__ecp_nistz256_subx
+
+.type	__ecp_nistz256_mul_by_2x,@abi-omnipotent
+.align	32
+__ecp_nistz256_mul_by_2x:
+.cfi_startproc
+	xor	%r11, %r11
+	adc	%r12, %r12		# a0:a3+a0:a3
+	adc	%r13, %r13
+	 mov	%r12, %rax
+	adc	%r8, %r8
+	adc	%r9, %r9
+	 mov	%r13, %rbp
+	adc	$0, %r11
+
+	xor	%r10, %r10
+	sbb	$-1, %r12
+	 mov	%r8, %rcx
+	sbb	%r14, %r13
+	sbb	$0, %r8
+	 mov	%r9, %r10
+	sbb	%r15, %r9
+	sbb	$0, %r11
+
+	cmovc	%rax, %r12
+	cmovc	%rbp, %r13
+	mov	%r12, 8*0(%rdi)
+	cmovc	%rcx, %r8
+	mov	%r13, 8*1(%rdi)
+	cmovc	%r10, %r9
+	mov	%r8, 8*2(%rdi)
+	mov	%r9, 8*3(%rdi)
+
+	ret
+.cfi_endproc
+.size	__ecp_nistz256_mul_by_2x,.-__ecp_nistz256_mul_by_2x
+.type	ecp_nistz256_point_doublex,@function,2
+.align	32
+ecp_nistz256_point_doublex:
+.cfi_startproc
+.Lpoint_doublex:
+	push	%rbp
+.cfi_push	%rbp
+	push	%rbx
+.cfi_push	%rbx
+	push	%r12
+.cfi_push	%r12
+	push	%r13
+.cfi_push	%r13
+	push	%r14
+.cfi_push	%r14
+	push	%r15
+.cfi_push	%r15
+	sub	$32*5+8, %rsp
+.cfi_adjust_cfa_offset	32*5+8
+.Lpoint_doublex_body:
+
+.Lpoint_double_shortcutx:
+	movdqu	0x00(%rsi), %xmm0		# copy	*(P256_POINT *)%rsi.x
+	mov	%rsi, %rbx			# backup copy
+	movdqu	0x10(%rsi), %xmm1
+	 mov	0x20+8*0(%rsi), %r12		# load in_y in "5-4-0-1" order
+	 mov	0x20+8*1(%rsi), %r13
+	 mov	0x20+8*2(%rsi), %r8
+	 mov	0x20+8*3(%rsi), %r9
+	 mov	.Lpoly+8*1(%rip), %r14
+	 mov	.Lpoly+8*3(%rip), %r15
+	movdqa	%xmm0, 96(%rsp)
+	movdqa	%xmm1, 96+0x10(%rsp)
+	lea	0x20(%rdi), %r10
+	lea	0x40(%rdi), %r11
+	movq	%rdi, %xmm0
+	movq	%r10, %xmm1
+	movq	%r11, %xmm2
+
+	lea	0(%rsp), %rdi
+	call	__ecp_nistz256_mul_by_2x	# p256_mul_by_2(S, in_y);
+
+	mov	0x40+8*0(%rsi), %rdx
+	mov	0x40+8*1(%rsi), %r14
+	mov	0x40+8*2(%rsi), %r15
+	mov	0x40+8*3(%rsi), %r8
+	lea	0x40-128(%rsi), %rsi
+	lea	64(%rsp), %rdi
+	call	__ecp_nistz256_sqr_montx	# p256_sqr_mont(Zsqr, in_z);
+
+		mov	8*0+0(%rsp), %rdx
+	mov	8*1+0(%rsp), %r14
+	lea	-128+0(%rsp), %rsi
+	mov	8*2+0(%rsp), %r15
+	mov	8*3+0(%rsp), %r8
+	lea	0(%rsp), %rdi
+	call	__ecp_nistz256_sqr_montx	# p256_sqr_mont(S, S);
+
+	mov	0x20(%rbx), %rdx		# %rbx is still valid
+	mov	0x40+8*0(%rbx), %r9
+	mov	0x40+8*1(%rbx), %r10
+	mov	0x40+8*2(%rbx), %r11
+	mov	0x40+8*3(%rbx), %r12
+	lea	0x40-128(%rbx), %rsi
+	lea	0x20(%rbx), %rbx
+	movq	%xmm2, %rdi
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(res_z, in_z, in_y);
+	call	__ecp_nistz256_mul_by_2x	# p256_mul_by_2(res_z, res_z);
+
+	mov	96+8*0(%rsp), %r12		# "5-4-0-1" order
+	mov	96+8*1(%rsp), %r13
+	lea	64(%rsp), %rbx
+	mov	96+8*2(%rsp), %r8
+	mov	96+8*3(%rsp), %r9
+	lea	32(%rsp), %rdi
+	call	__ecp_nistz256_add_tox		# p256_add(M, in_x, Zsqr);
+
+	mov	96+8*0(%rsp), %r12		# "5-4-0-1" order
+	mov	96+8*1(%rsp), %r13
+	lea	64(%rsp), %rbx
+	mov	96+8*2(%rsp), %r8
+	mov	96+8*3(%rsp), %r9
+	lea	64(%rsp), %rdi
+	call	__ecp_nistz256_sub_fromx	# p256_sub(Zsqr, in_x, Zsqr);
+
+		mov	8*0+0(%rsp), %rdx
+	mov	8*1+0(%rsp), %r14
+	lea	-128+0(%rsp), %rsi
+	mov	8*2+0(%rsp), %r15
+	mov	8*3+0(%rsp), %r8
+	movq	%xmm1, %rdi
+	call	__ecp_nistz256_sqr_montx	# p256_sqr_mont(res_y, S);
+	xor	%r9, %r9
+	mov	%r12, %rax
+	add	$-1, %r12
+	mov	%r13, %r10
+	adc	%rsi, %r13
+	mov	%r14, %rcx
+	adc	$0, %r14
+	mov	%r15, %r8
+	adc	%rbp, %r15
+	adc	$0, %r9
+	xor	%rsi, %rsi		# borrow %rsi
+	test	$1, %rax
+
+	cmovz	%rax, %r12
+	cmovz	%r10, %r13
+	cmovz	%rcx, %r14
+	cmovz	%r8, %r15
+	cmovz	%rsi, %r9
+
+	mov	%r13, %rax		# a0:a3>>1
+	shr	$1, %r12
+	shl	$63, %rax
+	mov	%r14, %r10
+	shr	$1, %r13
+	or	%rax, %r12
+	shl	$63, %r10
+	mov	%r15, %rcx
+	shr	$1, %r14
+	or	%r10, %r13
+	shl	$63, %rcx
+	mov	%r12, 8*0(%rdi)
+	shr	$1, %r15
+	mov	%r13, 8*1(%rdi)
+	shl	$63, %r9
+	or	%rcx, %r14
+	or	%r9, %r15
+	mov	%r14, 8*2(%rdi)
+	mov	%r15, 8*3(%rdi)
+		mov	64(%rsp), %rdx
+	lea	64(%rsp), %rbx
+	mov	8*0+32(%rsp), %r9
+	mov	8*1+32(%rsp), %r10
+	lea	-128+32(%rsp), %rsi
+	mov	8*2+32(%rsp), %r11
+	mov	8*3+32(%rsp), %r12
+	lea	32(%rsp), %rdi
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(M, M, Zsqr);
+
+	lea	128(%rsp), %rdi
+	call	__ecp_nistz256_mul_by_2x
+
+	lea	32(%rsp), %rbx
+	lea	32(%rsp), %rdi
+	call	__ecp_nistz256_add_tox		# p256_mul_by_3(M, M);
+
+		mov	96(%rsp), %rdx
+	lea	96(%rsp), %rbx
+	mov	8*0+0(%rsp), %r9
+	mov	8*1+0(%rsp), %r10
+	lea	-128+0(%rsp), %rsi
+	mov	8*2+0(%rsp), %r11
+	mov	8*3+0(%rsp), %r12
+	lea	0(%rsp), %rdi
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(S, S, in_x);
+
+	lea	128(%rsp), %rdi
+	call	__ecp_nistz256_mul_by_2x	# p256_mul_by_2(tmp0, S);
+
+		mov	8*0+32(%rsp), %rdx
+	mov	8*1+32(%rsp), %r14
+	lea	-128+32(%rsp), %rsi
+	mov	8*2+32(%rsp), %r15
+	mov	8*3+32(%rsp), %r8
+	movq	%xmm0, %rdi
+	call	__ecp_nistz256_sqr_montx	# p256_sqr_mont(res_x, M);
+
+	lea	128(%rsp), %rbx
+	mov	%r14, %r8			# harmonize sqr output and sub input
+	mov	%r15, %r9
+	mov	%rsi, %r14
+	mov	%rbp, %r15
+	call	__ecp_nistz256_sub_fromx	# p256_sub(res_x, res_x, tmp0);
+
+	mov	0+8*0(%rsp), %rax
+	mov	0+8*1(%rsp), %rbp
+	mov	0+8*2(%rsp), %rcx
+	mov	0+8*3(%rsp), %r10		# "4-5-0-1" order
+	lea	0(%rsp), %rdi
+	call	__ecp_nistz256_subx		# p256_sub(S, S, res_x);
+
+	mov	32(%rsp), %rdx
+	lea	32(%rsp), %rbx
+	mov	%r12, %r14			# harmonize sub output and mul input
+	xor	%ecx, %ecx
+	mov	%r12, 0+8*0(%rsp)		# have to save:-(
+	mov	%r13, %r10
+	mov	%r13, 0+8*1(%rsp)
+	cmovz	%r8, %r11
+	mov	%r8, 0+8*2(%rsp)
+	lea	0-128(%rsp), %rsi
+	cmovz	%r9, %r12
+	mov	%r9, 0+8*3(%rsp)
+	mov	%r14, %r9
+	lea	0(%rsp), %rdi
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(S, S, M);
+
+	movq	%xmm1, %rbx
+	movq	%xmm1, %rdi
+	call	__ecp_nistz256_sub_fromx	# p256_sub(res_y, S, res_y);
+
+	lea	32*5+56(%rsp), %rsi
+.cfi_def_cfa	%rsi,8
+	mov	-48(%rsi),%r15
+.cfi_restore	%r15
+	mov	-40(%rsi),%r14
+.cfi_restore	%r14
+	mov	-32(%rsi),%r13
+.cfi_restore	%r13
+	mov	-24(%rsi),%r12
+.cfi_restore	%r12
+	mov	-16(%rsi),%rbx
+.cfi_restore	%rbx
+	mov	-8(%rsi),%rbp
+.cfi_restore	%rbp
+	lea	(%rsi),%rsp
+.cfi_def_cfa_register	%rsp
+.Lpoint_doublex_epilogue:
+	ret
+.cfi_endproc
+.size	ecp_nistz256_point_doublex,.-ecp_nistz256_point_doublex
+.type	ecp_nistz256_point_addx,@function,3
+.align	32
+ecp_nistz256_point_addx:
+.cfi_startproc
+.Lpoint_addx:
+	push	%rbp
+.cfi_push	%rbp
+	push	%rbx
+.cfi_push	%rbx
+	push	%r12
+.cfi_push	%r12
+	push	%r13
+.cfi_push	%r13
+	push	%r14
+.cfi_push	%r14
+	push	%r15
+.cfi_push	%r15
+	sub	$32*18+8, %rsp
+.cfi_adjust_cfa_offset	32*18+8
+.Lpoint_addx_body:
+
+	movdqu	0x00(%rsi), %xmm0		# copy	*(P256_POINT *)%rsi
+	movdqu	0x10(%rsi), %xmm1
+	movdqu	0x20(%rsi), %xmm2
+	movdqu	0x30(%rsi), %xmm3
+	movdqu	0x40(%rsi), %xmm4
+	movdqu	0x50(%rsi), %xmm5
+	mov	%rsi, %rbx			# reassign
+	mov	%rdx, %rsi			# reassign
+	movdqa	%xmm0, 384(%rsp)
+	movdqa	%xmm1, 384+0x10(%rsp)
+	movdqa	%xmm2, 416(%rsp)
+	movdqa	%xmm3, 416+0x10(%rsp)
+	movdqa	%xmm4, 448(%rsp)
+	movdqa	%xmm5, 448+0x10(%rsp)
+	por	%xmm4, %xmm5
+
+	movdqu	0x00(%rsi), %xmm0		# copy	*(P256_POINT *)%rbx
+	 pshufd	$0xb1, %xmm5, %xmm3
+	movdqu	0x10(%rsi), %xmm1
+	movdqu	0x20(%rsi), %xmm2
+	 por	%xmm3, %xmm5
+	movdqu	0x30(%rsi), %xmm3
+	 mov	0x40+8*0(%rsi), %rdx		# load original in2_z
+	 mov	0x40+8*1(%rsi), %r14
+	 mov	0x40+8*2(%rsi), %r15
+	 mov	0x40+8*3(%rsi), %r8
+	movdqa	%xmm0, 480(%rsp)
+	 pshufd	$0x1e, %xmm5, %xmm4
+	movdqa	%xmm1, 480+0x10(%rsp)
+	movdqu	0x40(%rsi),%xmm0		# in2_z again
+	movdqu	0x50(%rsi),%xmm1
+	movdqa	%xmm2, 512(%rsp)
+	movdqa	%xmm3, 512+0x10(%rsp)
+	 por	%xmm4, %xmm5
+	 pxor	%xmm4, %xmm4
+	por	%xmm0, %xmm1
+	 movq	%rdi, %xmm0			# save %rdi
+
+	lea	0x40-128(%rsi), %rsi	# %rsi is still valid
+	 mov	%rdx, 544+8*0(%rsp)		# make in2_z copy
+	 mov	%r14, 544+8*1(%rsp)
+	 mov	%r15, 544+8*2(%rsp)
+	 mov	%r8, 544+8*3(%rsp)
+	lea	96(%rsp), %rdi		# Z2^2
+	call	__ecp_nistz256_sqr_montx	# p256_sqr_mont(Z2sqr, in2_z);
+
+	pcmpeqd	%xmm4, %xmm5
+	pshufd	$0xb1, %xmm1, %xmm4
+	por	%xmm1, %xmm4
+	pshufd	$0, %xmm5, %xmm5		# in1infty
+	pshufd	$0x1e, %xmm4, %xmm3
+	por	%xmm3, %xmm4
+	pxor	%xmm3, %xmm3
+	pcmpeqd	%xmm3, %xmm4
+	pshufd	$0, %xmm4, %xmm4		# in2infty
+	 mov	0x40+8*0(%rbx), %rdx		# load original in1_z
+	 mov	0x40+8*1(%rbx), %r14
+	 mov	0x40+8*2(%rbx), %r15
+	 mov	0x40+8*3(%rbx), %r8
+	movq	%rbx, %xmm1
+
+	lea	0x40-128(%rbx), %rsi
+	lea	32(%rsp), %rdi		# Z1^2
+	call	__ecp_nistz256_sqr_montx	# p256_sqr_mont(Z1sqr, in1_z);
+
+		mov	544(%rsp), %rdx
+	lea	544(%rsp), %rbx
+	mov	8*0+96(%rsp), %r9
+	mov	8*1+96(%rsp), %r10
+	lea	-128+96(%rsp), %rsi
+	mov	8*2+96(%rsp), %r11
+	mov	8*3+96(%rsp), %r12
+	lea	224(%rsp), %rdi		# S1 = Z2^3
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(S1, Z2sqr, in2_z);
+
+		mov	448(%rsp), %rdx
+	lea	448(%rsp), %rbx
+	mov	8*0+32(%rsp), %r9
+	mov	8*1+32(%rsp), %r10
+	lea	-128+32(%rsp), %rsi
+	mov	8*2+32(%rsp), %r11
+	mov	8*3+32(%rsp), %r12
+	lea	256(%rsp), %rdi		# S2 = Z1^3
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(S2, Z1sqr, in1_z);
+
+		mov	416(%rsp), %rdx
+	lea	416(%rsp), %rbx
+	mov	8*0+224(%rsp), %r9
+	mov	8*1+224(%rsp), %r10
+	lea	-128+224(%rsp), %rsi
+	mov	8*2+224(%rsp), %r11
+	mov	8*3+224(%rsp), %r12
+	lea	224(%rsp), %rdi		# S1 = Y1*Z2^3
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(S1, S1, in1_y);
+
+		mov	512(%rsp), %rdx
+	lea	512(%rsp), %rbx
+	mov	8*0+256(%rsp), %r9
+	mov	8*1+256(%rsp), %r10
+	lea	-128+256(%rsp), %rsi
+	mov	8*2+256(%rsp), %r11
+	mov	8*3+256(%rsp), %r12
+	lea	256(%rsp), %rdi		# S2 = Y2*Z1^3
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(S2, S2, in2_y);
+
+	lea	224(%rsp), %rbx
+	lea	64(%rsp), %rdi		# R = S2 - S1
+	call	__ecp_nistz256_sub_fromx	# p256_sub(R, S2, S1);
+
+	or	%r13, %r12			# see if result is zero
+	movdqa	%xmm4, %xmm2
+	or	%r8, %r12
+	or	%r9, %r12
+	por	%xmm5, %xmm2			# in1infty || in2infty
+	movq	%r12, %xmm3
+
+		mov	384(%rsp), %rdx
+	lea	384(%rsp), %rbx
+	mov	8*0+96(%rsp), %r9
+	mov	8*1+96(%rsp), %r10
+	lea	-128+96(%rsp), %rsi
+	mov	8*2+96(%rsp), %r11
+	mov	8*3+96(%rsp), %r12
+	lea	160(%rsp), %rdi		# U1 = X1*Z2^2
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(U1, in1_x, Z2sqr);
+
+		mov	480(%rsp), %rdx
+	lea	480(%rsp), %rbx
+	mov	8*0+32(%rsp), %r9
+	mov	8*1+32(%rsp), %r10
+	lea	-128+32(%rsp), %rsi
+	mov	8*2+32(%rsp), %r11
+	mov	8*3+32(%rsp), %r12
+	lea	192(%rsp), %rdi		# U2 = X2*Z1^2
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(U2, in2_x, Z1sqr);
+
+	lea	160(%rsp), %rbx
+	lea	0(%rsp), %rdi		# H = U2 - U1
+	call	__ecp_nistz256_sub_fromx	# p256_sub(H, U2, U1);
+
+	or	%r13, %r12			# see if result is zero
+	or	%r8, %r12
+	or	%r9, %r12			# !is_equal(U1, U2)
+
+	movq	%xmm2, %r8			# in1infty | in2infty
+	movq	%xmm3, %r9			# !is_equal(S1, S2)
+
+	or	%r8, %r12
+	or	%r9, %r12
+
+	# if (!is_equal(U1, U2) | in1infty | in2infty | !is_equal(S1, S2))
+	.byte	0x3e				# predict taken
+	jnz	.Ladd_proceedx
+
+.Ladd_doublex:
+	movq	%xmm1, %rsi			# restore %rsi
+	movq	%xmm0, %rdi			# restore %rdi
+	add	$416, %rsp		# difference in frame sizes
+.cfi_adjust_cfa_offset	-416
+	jmp	.Lpoint_double_shortcutx
+.cfi_adjust_cfa_offset	416
+
+.align	32
+.Ladd_proceedx:
+		mov	8*0+64(%rsp), %rdx
+	mov	8*1+64(%rsp), %r14
+	lea	-128+64(%rsp), %rsi
+	mov	8*2+64(%rsp), %r15
+	mov	8*3+64(%rsp), %r8
+	lea	96(%rsp), %rdi		# R^2
+	call	__ecp_nistz256_sqr_montx	# p256_sqr_mont(Rsqr, R);
+
+		mov	448(%rsp), %rdx
+	lea	448(%rsp), %rbx
+	mov	8*0+0(%rsp), %r9
+	mov	8*1+0(%rsp), %r10
+	lea	-128+0(%rsp), %rsi
+	mov	8*2+0(%rsp), %r11
+	mov	8*3+0(%rsp), %r12
+	lea	352(%rsp), %rdi		# Z3 = H*Z1*Z2
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(res_z, H, in1_z);
+
+		mov	8*0+0(%rsp), %rdx
+	mov	8*1+0(%rsp), %r14
+	lea	-128+0(%rsp), %rsi
+	mov	8*2+0(%rsp), %r15
+	mov	8*3+0(%rsp), %r8
+	lea	32(%rsp), %rdi		# H^2
+	call	__ecp_nistz256_sqr_montx	# p256_sqr_mont(Hsqr, H);
+
+		mov	544(%rsp), %rdx
+	lea	544(%rsp), %rbx
+	mov	8*0+352(%rsp), %r9
+	mov	8*1+352(%rsp), %r10
+	lea	-128+352(%rsp), %rsi
+	mov	8*2+352(%rsp), %r11
+	mov	8*3+352(%rsp), %r12
+	lea	352(%rsp), %rdi		# Z3 = H*Z1*Z2
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(res_z, res_z, in2_z);
+
+		mov	0(%rsp), %rdx
+	lea	0(%rsp), %rbx
+	mov	8*0+32(%rsp), %r9
+	mov	8*1+32(%rsp), %r10
+	lea	-128+32(%rsp), %rsi
+	mov	8*2+32(%rsp), %r11
+	mov	8*3+32(%rsp), %r12
+	lea	128(%rsp), %rdi		# H^3
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(Hcub, Hsqr, H);
+
+		mov	160(%rsp), %rdx
+	lea	160(%rsp), %rbx
+	mov	8*0+32(%rsp), %r9
+	mov	8*1+32(%rsp), %r10
+	lea	-128+32(%rsp), %rsi
+	mov	8*2+32(%rsp), %r11
+	mov	8*3+32(%rsp), %r12
+	lea	192(%rsp), %rdi		# U1*H^2
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(U2, U1, Hsqr);
+	#lea	192(%rsp), %rsi
+	#lea	32(%rsp), %rdi	# 2*U1*H^2
+	#call	__ecp_nistz256_mul_by_2	# ecp_nistz256_mul_by_2(Hsqr, U2);
+
+	xor	%r11, %r11
+	add	%r12, %r12		# a0:a3+a0:a3
+	lea	96(%rsp), %rsi
+	adc	%r13, %r13
+	 mov	%r12, %rax
+	adc	%r8, %r8
+	adc	%r9, %r9
+	 mov	%r13, %rbp
+	adc	$0, %r11
+
+	sub	$-1, %r12
+	 mov	%r8, %rcx
+	sbb	%r14, %r13
+	sbb	$0, %r8
+	 mov	%r9, %r10
+	sbb	%r15, %r9
+	sbb	$0, %r11
+
+	cmovc	%rax, %r12
+	mov	8*0(%rsi), %rax
+	cmovc	%rbp, %r13
+	mov	8*1(%rsi), %rbp
+	cmovc	%rcx, %r8
+	mov	8*2(%rsi), %rcx
+	cmovc	%r10, %r9
+	mov	8*3(%rsi), %r10
+
+	call	__ecp_nistz256_subx		# p256_sub(res_x, Rsqr, Hsqr);
+
+	lea	128(%rsp), %rbx
+	lea	288(%rsp), %rdi
+	call	__ecp_nistz256_sub_fromx	# p256_sub(res_x, res_x, Hcub);
+
+	mov	192+8*0(%rsp), %rax
+	mov	192+8*1(%rsp), %rbp
+	mov	192+8*2(%rsp), %rcx
+	mov	192+8*3(%rsp), %r10
+	lea	320(%rsp), %rdi
+
+	call	__ecp_nistz256_subx		# p256_sub(res_y, U2, res_x);
+
+	mov	%r12, 8*0(%rdi)		# save the result, as
+	mov	%r13, 8*1(%rdi)		# __ecp_nistz256_sub doesn't
+	mov	%r8, 8*2(%rdi)
+	mov	%r9, 8*3(%rdi)
+		mov	128(%rsp), %rdx
+	lea	128(%rsp), %rbx
+	mov	8*0+224(%rsp), %r9
+	mov	8*1+224(%rsp), %r10
+	lea	-128+224(%rsp), %rsi
+	mov	8*2+224(%rsp), %r11
+	mov	8*3+224(%rsp), %r12
+	lea	256(%rsp), %rdi
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(S2, S1, Hcub);
+
+		mov	320(%rsp), %rdx
+	lea	320(%rsp), %rbx
+	mov	8*0+64(%rsp), %r9
+	mov	8*1+64(%rsp), %r10
+	lea	-128+64(%rsp), %rsi
+	mov	8*2+64(%rsp), %r11
+	mov	8*3+64(%rsp), %r12
+	lea	320(%rsp), %rdi
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(res_y, R, res_y);
+
+	lea	256(%rsp), %rbx
+	lea	320(%rsp), %rdi
+	call	__ecp_nistz256_sub_fromx	# p256_sub(res_y, res_y, S2);
+
+	movq	%xmm0, %rdi		# restore %rdi
+
+	movdqa	%xmm5, %xmm0		# copy_conditional(res_z, in2_z, in1infty);
+	movdqa	%xmm5, %xmm1
+	pandn	352(%rsp), %xmm0
+	movdqa	%xmm5, %xmm2
+	pandn	352+0x10(%rsp), %xmm1
+	movdqa	%xmm5, %xmm3
+	pand	544(%rsp), %xmm2
+	pand	544+0x10(%rsp), %xmm3
+	por	%xmm0, %xmm2
+	por	%xmm1, %xmm3
+
+	movdqa	%xmm4, %xmm0		# copy_conditional(res_z, in1_z, in2infty);
+	movdqa	%xmm4, %xmm1
+	pandn	%xmm2, %xmm0
+	movdqa	%xmm4, %xmm2
+	pandn	%xmm3, %xmm1
+	movdqa	%xmm4, %xmm3
+	pand	448(%rsp), %xmm2
+	pand	448+0x10(%rsp), %xmm3
+	por	%xmm0, %xmm2
+	por	%xmm1, %xmm3
+	movdqu	%xmm2, 0x40(%rdi)
+	movdqu	%xmm3, 0x50(%rdi)
+
+	movdqa	%xmm5, %xmm0		# copy_conditional(res_x, in2_x, in1infty);
+	movdqa	%xmm5, %xmm1
+	pandn	288(%rsp), %xmm0
+	movdqa	%xmm5, %xmm2
+	pandn	288+0x10(%rsp), %xmm1
+	movdqa	%xmm5, %xmm3
+	pand	480(%rsp), %xmm2
+	pand	480+0x10(%rsp), %xmm3
+	por	%xmm0, %xmm2
+	por	%xmm1, %xmm3
+
+	movdqa	%xmm4, %xmm0		# copy_conditional(res_x, in1_x, in2infty);
+	movdqa	%xmm4, %xmm1
+	pandn	%xmm2, %xmm0
+	movdqa	%xmm4, %xmm2
+	pandn	%xmm3, %xmm1
+	movdqa	%xmm4, %xmm3
+	pand	384(%rsp), %xmm2
+	pand	384+0x10(%rsp), %xmm3
+	por	%xmm0, %xmm2
+	por	%xmm1, %xmm3
+	movdqu	%xmm2, 0x00(%rdi)
+	movdqu	%xmm3, 0x10(%rdi)
+
+	movdqa	%xmm5, %xmm0		# copy_conditional(res_y, in2_y, in1infty);
+	movdqa	%xmm5, %xmm1
+	pandn	320(%rsp), %xmm0
+	movdqa	%xmm5, %xmm2
+	pandn	320+0x10(%rsp), %xmm1
+	movdqa	%xmm5, %xmm3
+	pand	512(%rsp), %xmm2
+	pand	512+0x10(%rsp), %xmm3
+	por	%xmm0, %xmm2
+	por	%xmm1, %xmm3
+
+	movdqa	%xmm4, %xmm0		# copy_conditional(res_y, in1_y, in2infty);
+	movdqa	%xmm4, %xmm1
+	pandn	%xmm2, %xmm0
+	movdqa	%xmm4, %xmm2
+	pandn	%xmm3, %xmm1
+	movdqa	%xmm4, %xmm3
+	pand	416(%rsp), %xmm2
+	pand	416+0x10(%rsp), %xmm3
+	por	%xmm0, %xmm2
+	por	%xmm1, %xmm3
+	movdqu	%xmm2, 0x20(%rdi)
+	movdqu	%xmm3, 0x30(%rdi)
+
+.Ladd_donex:
+	lea	32*18+56(%rsp), %rsi
+.cfi_def_cfa	%rsi,8
+	mov	-48(%rsi),%r15
+.cfi_restore	%r15
+	mov	-40(%rsi),%r14
+.cfi_restore	%r14
+	mov	-32(%rsi),%r13
+.cfi_restore	%r13
+	mov	-24(%rsi),%r12
+.cfi_restore	%r12
+	mov	-16(%rsi),%rbx
+.cfi_restore	%rbx
+	mov	-8(%rsi),%rbp
+.cfi_restore	%rbp
+	lea	(%rsi),%rsp
+.cfi_def_cfa_register	%rsp
+.Lpoint_addx_epilogue:
+	ret
+.cfi_endproc
+.size	ecp_nistz256_point_addx,.-ecp_nistz256_point_addx
+.type	ecp_nistz256_point_add_affinex,@function,3
+.align	32
+ecp_nistz256_point_add_affinex:
+.cfi_startproc
+.Lpoint_add_affinex:
+	push	%rbp
+.cfi_push	%rbp
+	push	%rbx
+.cfi_push	%rbx
+	push	%r12
+.cfi_push	%r12
+	push	%r13
+.cfi_push	%r13
+	push	%r14
+.cfi_push	%r14
+	push	%r15
+.cfi_push	%r15
+	sub	$32*15+8, %rsp
+.cfi_adjust_cfa_offset	32*15+8
+.Ladd_affinex_body:
+
+	movdqu	0x00(%rsi), %xmm0	# copy	*(P256_POINT *)%rsi
+	mov	%rdx, %rbx		# reassign
+	movdqu	0x10(%rsi), %xmm1
+	movdqu	0x20(%rsi), %xmm2
+	movdqu	0x30(%rsi), %xmm3
+	movdqu	0x40(%rsi), %xmm4
+	movdqu	0x50(%rsi), %xmm5
+	 mov	0x40+8*0(%rsi), %rdx	# load original in1_z
+	 mov	0x40+8*1(%rsi), %r14
+	 mov	0x40+8*2(%rsi), %r15
+	 mov	0x40+8*3(%rsi), %r8
+	movdqa	%xmm0, 320(%rsp)
+	movdqa	%xmm1, 320+0x10(%rsp)
+	movdqa	%xmm2, 352(%rsp)
+	movdqa	%xmm3, 352+0x10(%rsp)
+	movdqa	%xmm4, 384(%rsp)
+	movdqa	%xmm5, 384+0x10(%rsp)
+	por	%xmm4, %xmm5
+
+	movdqu	0x00(%rbx), %xmm0	# copy	*(P256_POINT_AFFINE *)%rbx
+	 pshufd	$0xb1, %xmm5, %xmm3
+	movdqu	0x10(%rbx), %xmm1
+	movdqu	0x20(%rbx), %xmm2
+	 por	%xmm3, %xmm5
+	movdqu	0x30(%rbx), %xmm3
+	movdqa	%xmm0, 416(%rsp)
+	 pshufd	$0x1e, %xmm5, %xmm4
+	movdqa	%xmm1, 416+0x10(%rsp)
+	por	%xmm0, %xmm1
+	 movq	%rdi, %xmm0		# save %rdi
+	movdqa	%xmm2, 448(%rsp)
+	movdqa	%xmm3, 448+0x10(%rsp)
+	por	%xmm2, %xmm3
+	 por	%xmm4, %xmm5
+	 pxor	%xmm4, %xmm4
+	por	%xmm1, %xmm3
+
+	lea	0x40-128(%rsi), %rsi	# %rsi is still valid
+	lea	32(%rsp), %rdi		# Z1^2
+	call	__ecp_nistz256_sqr_montx	# p256_sqr_mont(Z1sqr, in1_z);
+
+	pcmpeqd	%xmm4, %xmm5
+	pshufd	$0xb1, %xmm3, %xmm4
+	 mov	0x00(%rbx), %rdx		# %rbx is still valid
+	 #lea	0x00(%rbx), %rbx
+	 mov	%r12, %r9			# harmonize sqr output and mul input
+	por	%xmm3, %xmm4
+	pshufd	$0, %xmm5, %xmm5		# in1infty
+	pshufd	$0x1e, %xmm4, %xmm3
+	 mov	%r13, %r10
+	por	%xmm3, %xmm4
+	pxor	%xmm3, %xmm3
+	 mov	%r14, %r11
+	pcmpeqd	%xmm3, %xmm4
+	pshufd	$0, %xmm4, %xmm4		# in2infty
+
+	lea	32-128(%rsp), %rsi
+	mov	%r15, %r12
+	lea	0(%rsp), %rdi		# U2 = X2*Z1^2
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(U2, Z1sqr, in2_x);
+
+	lea	320(%rsp), %rbx
+	lea	64(%rsp), %rdi		# H = U2 - U1
+	call	__ecp_nistz256_sub_fromx	# p256_sub(H, U2, in1_x);
+
+		mov	384(%rsp), %rdx
+	lea	384(%rsp), %rbx
+	mov	8*0+32(%rsp), %r9
+	mov	8*1+32(%rsp), %r10
+	lea	-128+32(%rsp), %rsi
+	mov	8*2+32(%rsp), %r11
+	mov	8*3+32(%rsp), %r12
+	lea	32(%rsp), %rdi		# S2 = Z1^3
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(S2, Z1sqr, in1_z);
+
+		mov	384(%rsp), %rdx
+	lea	384(%rsp), %rbx
+	mov	8*0+64(%rsp), %r9
+	mov	8*1+64(%rsp), %r10
+	lea	-128+64(%rsp), %rsi
+	mov	8*2+64(%rsp), %r11
+	mov	8*3+64(%rsp), %r12
+	lea	288(%rsp), %rdi		# Z3 = H*Z1*Z2
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(res_z, H, in1_z);
+
+		mov	448(%rsp), %rdx
+	lea	448(%rsp), %rbx
+	mov	8*0+32(%rsp), %r9
+	mov	8*1+32(%rsp), %r10
+	lea	-128+32(%rsp), %rsi
+	mov	8*2+32(%rsp), %r11
+	mov	8*3+32(%rsp), %r12
+	lea	32(%rsp), %rdi		# S2 = Y2*Z1^3
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(S2, S2, in2_y);
+
+	lea	352(%rsp), %rbx
+	lea	96(%rsp), %rdi		# R = S2 - S1
+	call	__ecp_nistz256_sub_fromx	# p256_sub(R, S2, in1_y);
+
+		mov	8*0+64(%rsp), %rdx
+	mov	8*1+64(%rsp), %r14
+	lea	-128+64(%rsp), %rsi
+	mov	8*2+64(%rsp), %r15
+	mov	8*3+64(%rsp), %r8
+	lea	128(%rsp), %rdi		# H^2
+	call	__ecp_nistz256_sqr_montx	# p256_sqr_mont(Hsqr, H);
+
+		mov	8*0+96(%rsp), %rdx
+	mov	8*1+96(%rsp), %r14
+	lea	-128+96(%rsp), %rsi
+	mov	8*2+96(%rsp), %r15
+	mov	8*3+96(%rsp), %r8
+	lea	192(%rsp), %rdi		# R^2
+	call	__ecp_nistz256_sqr_montx	# p256_sqr_mont(Rsqr, R);
+
+		mov	128(%rsp), %rdx
+	lea	128(%rsp), %rbx
+	mov	8*0+64(%rsp), %r9
+	mov	8*1+64(%rsp), %r10
+	lea	-128+64(%rsp), %rsi
+	mov	8*2+64(%rsp), %r11
+	mov	8*3+64(%rsp), %r12
+	lea	160(%rsp), %rdi		# H^3
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(Hcub, Hsqr, H);
+
+		mov	320(%rsp), %rdx
+	lea	320(%rsp), %rbx
+	mov	8*0+128(%rsp), %r9
+	mov	8*1+128(%rsp), %r10
+	lea	-128+128(%rsp), %rsi
+	mov	8*2+128(%rsp), %r11
+	mov	8*3+128(%rsp), %r12
+	lea	0(%rsp), %rdi		# U1*H^2
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(U2, in1_x, Hsqr);
+	#lea	0(%rsp), %rsi
+	#lea	128(%rsp), %rdi	# 2*U1*H^2
+	#call	__ecp_nistz256_mul_by_2	# ecp_nistz256_mul_by_2(Hsqr, U2);
+
+	xor	%r11, %r11
+	add	%r12, %r12		# a0:a3+a0:a3
+	lea	192(%rsp), %rsi
+	adc	%r13, %r13
+	 mov	%r12, %rax
+	adc	%r8, %r8
+	adc	%r9, %r9
+	 mov	%r13, %rbp
+	adc	$0, %r11
+
+	sub	$-1, %r12
+	 mov	%r8, %rcx
+	sbb	%r14, %r13
+	sbb	$0, %r8
+	 mov	%r9, %r10
+	sbb	%r15, %r9
+	sbb	$0, %r11
+
+	cmovc	%rax, %r12
+	mov	8*0(%rsi), %rax
+	cmovc	%rbp, %r13
+	mov	8*1(%rsi), %rbp
+	cmovc	%rcx, %r8
+	mov	8*2(%rsi), %rcx
+	cmovc	%r10, %r9
+	mov	8*3(%rsi), %r10
+
+	call	__ecp_nistz256_subx		# p256_sub(res_x, Rsqr, Hsqr);
+
+	lea	160(%rsp), %rbx
+	lea	224(%rsp), %rdi
+	call	__ecp_nistz256_sub_fromx	# p256_sub(res_x, res_x, Hcub);
+
+	mov	0+8*0(%rsp), %rax
+	mov	0+8*1(%rsp), %rbp
+	mov	0+8*2(%rsp), %rcx
+	mov	0+8*3(%rsp), %r10
+	lea	64(%rsp), %rdi
+
+	call	__ecp_nistz256_subx		# p256_sub(H, U2, res_x);
+
+	mov	%r12, 8*0(%rdi)		# save the result, as
+	mov	%r13, 8*1(%rdi)		# __ecp_nistz256_sub doesn't
+	mov	%r8, 8*2(%rdi)
+	mov	%r9, 8*3(%rdi)
+		mov	352(%rsp), %rdx
+	lea	352(%rsp), %rbx
+	mov	8*0+160(%rsp), %r9
+	mov	8*1+160(%rsp), %r10
+	lea	-128+160(%rsp), %rsi
+	mov	8*2+160(%rsp), %r11
+	mov	8*3+160(%rsp), %r12
+	lea	32(%rsp), %rdi
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(S2, Hcub, in1_y);
+
+		mov	96(%rsp), %rdx
+	lea	96(%rsp), %rbx
+	mov	8*0+64(%rsp), %r9
+	mov	8*1+64(%rsp), %r10
+	lea	-128+64(%rsp), %rsi
+	mov	8*2+64(%rsp), %r11
+	mov	8*3+64(%rsp), %r12
+	lea	64(%rsp), %rdi
+	call	__ecp_nistz256_mul_montx	# p256_mul_mont(H, H, R);
+
+	lea	32(%rsp), %rbx
+	lea	256(%rsp), %rdi
+	call	__ecp_nistz256_sub_fromx	# p256_sub(res_y, H, S2);
+
+	movq	%xmm0, %rdi		# restore %rdi
+
+	movdqa	%xmm5, %xmm0		# copy_conditional(res_z, ONE, in1infty);
+	movdqa	%xmm5, %xmm1
+	pandn	288(%rsp), %xmm0
+	movdqa	%xmm5, %xmm2
+	pandn	288+0x10(%rsp), %xmm1
+	movdqa	%xmm5, %xmm3
+	pand	.LONE_mont(%rip), %xmm2
+	pand	.LONE_mont+0x10(%rip), %xmm3
+	por	%xmm0, %xmm2
+	por	%xmm1, %xmm3
+
+	movdqa	%xmm4, %xmm0		# copy_conditional(res_z, in1_z, in2infty);
+	movdqa	%xmm4, %xmm1
+	pandn	%xmm2, %xmm0
+	movdqa	%xmm4, %xmm2
+	pandn	%xmm3, %xmm1
+	movdqa	%xmm4, %xmm3
+	pand	384(%rsp), %xmm2
+	pand	384+0x10(%rsp), %xmm3
+	por	%xmm0, %xmm2
+	por	%xmm1, %xmm3
+	movdqu	%xmm2, 0x40(%rdi)
+	movdqu	%xmm3, 0x50(%rdi)
+
+	movdqa	%xmm5, %xmm0		# copy_conditional(res_x, in2_x, in1infty);
+	movdqa	%xmm5, %xmm1
+	pandn	224(%rsp), %xmm0
+	movdqa	%xmm5, %xmm2
+	pandn	224+0x10(%rsp), %xmm1
+	movdqa	%xmm5, %xmm3
+	pand	416(%rsp), %xmm2
+	pand	416+0x10(%rsp), %xmm3
+	por	%xmm0, %xmm2
+	por	%xmm1, %xmm3
+
+	movdqa	%xmm4, %xmm0		# copy_conditional(res_x, in1_x, in2infty);
+	movdqa	%xmm4, %xmm1
+	pandn	%xmm2, %xmm0
+	movdqa	%xmm4, %xmm2
+	pandn	%xmm3, %xmm1
+	movdqa	%xmm4, %xmm3
+	pand	320(%rsp), %xmm2
+	pand	320+0x10(%rsp), %xmm3
+	por	%xmm0, %xmm2
+	por	%xmm1, %xmm3
+	movdqu	%xmm2, 0x00(%rdi)
+	movdqu	%xmm3, 0x10(%rdi)
+
+	movdqa	%xmm5, %xmm0		# copy_conditional(res_y, in2_y, in1infty);
+	movdqa	%xmm5, %xmm1
+	pandn	256(%rsp), %xmm0
+	movdqa	%xmm5, %xmm2
+	pandn	256+0x10(%rsp), %xmm1
+	movdqa	%xmm5, %xmm3
+	pand	448(%rsp), %xmm2
+	pand	448+0x10(%rsp), %xmm3
+	por	%xmm0, %xmm2
+	por	%xmm1, %xmm3
+
+	movdqa	%xmm4, %xmm0		# copy_conditional(res_y, in1_y, in2infty);
+	movdqa	%xmm4, %xmm1
+	pandn	%xmm2, %xmm0
+	movdqa	%xmm4, %xmm2
+	pandn	%xmm3, %xmm1
+	movdqa	%xmm4, %xmm3
+	pand	352(%rsp), %xmm2
+	pand	352+0x10(%rsp), %xmm3
+	por	%xmm0, %xmm2
+	por	%xmm1, %xmm3
+	movdqu	%xmm2, 0x20(%rdi)
+	movdqu	%xmm3, 0x30(%rdi)
+
+	lea	32*15+56(%rsp), %rsi
+.cfi_def_cfa	%rsi,8
+	mov	-48(%rsi),%r15
+.cfi_restore	%r15
+	mov	-40(%rsi),%r14
+.cfi_restore	%r14
+	mov	-32(%rsi),%r13
+.cfi_restore	%r13
+	mov	-24(%rsi),%r12
+.cfi_restore	%r12
+	mov	-16(%rsi),%rbx
+.cfi_restore	%rbx
+	mov	-8(%rsi),%rbp
+.cfi_restore	%rbp
+	lea	(%rsi),%rsp
+.cfi_def_cfa_register	%rsp
+.Ladd_affinex_epilogue:
+	ret
+.cfi_endproc
+.size	ecp_nistz256_point_add_affinex,.-ecp_nistz256_point_add_affinex
 `;
 
 export default translateAssembly(code);
