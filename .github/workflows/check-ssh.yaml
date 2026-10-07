@@ -42,9 +42,11 @@ jobs:
         run: |
           docker build -t crown-ssh-e2e ssh/tests/sshd
           docker run -d --name crown-ssh-e2e -p 2222:2222 crown-ssh-e2e
-          for _ in $(seq 1 30); do
-            if docker exec crown-ssh-e2e sh -c 'true' 2>/dev/null &&
-               timeout 1 bash -c '</dev/tcp/127.0.0.1/2222' 2>/dev/null; then
+          # The published port answers before sshd is ready; wait for the
+          # SSH banner itself.
+          for _ in $(seq 1 60); do
+            if timeout 3 bash -c 'exec 3<>/dev/tcp/127.0.0.1/2222; head -c 4 <&3' \
+                    2>/dev/null | grep -q 'SSH-'; then
               break
             fi
             sleep 1

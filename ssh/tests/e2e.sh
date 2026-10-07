@@ -13,6 +13,7 @@
 #   SSH_TEST_PORT      default 2222
 #   SSH_TEST_USER      default crown
 #   SSH_TEST_PASSWORD  default crown
+#   SSH_TEST_WAIT     seconds to wait for the SSH banner (default 60)
 #   SSH_TEST_CONTAINER optional: name of a running sshd container; when set,
 #                      the generated public keys are installed into it
 #
@@ -75,6 +76,24 @@ if [ -n "$CONTAINER" ]; then
         "mkdir -p /home/$USER/.ssh && cat >> /home/$USER/.ssh/authorized_keys && chown -R $USER /home/$USER/.ssh && chmod 600 /home/$USER/.ssh/authorized_keys"
     echo "# installed test public keys into container $CONTAINER"
 fi
+
+# The TCP port can be open (docker-proxy) well before sshd has finished
+# generating its host keys, so wait for the actual SSH banner.
+wait_for_sshd() {
+    local wait=${SSH_TEST_WAIT:-60}
+    local deadline=$((SECONDS + wait))
+    while [ "$SECONDS" -lt "$deadline" ]; do
+        if timeout 3 bash -c "exec 3<>/dev/tcp/$HOST/$PORT; head -c 4 <&3" \
+                2>/dev/null | grep -q 'SSH-'; then
+            return 0
+        fi
+        sleep 1
+    done
+    echo "crown-ssh: no SSH banner on $HOST:$PORT within ${wait}s" >&2
+    return 1
+}
+
+wait_for_sshd || exit 1
 
 echo "# crown-ssh: $CLIENT"
 "$CLIENT" -v -p "$PORT" "$USER@$HOST" true 2>&1 | grep -E "libssh2|crypto backend" \
