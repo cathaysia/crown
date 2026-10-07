@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.31.0](https://github.com/cathaysia/crown/compare/v0.30.0...v0.31.0) (2026-10-07)
+
+
+### Features
+
+* **aead:** fuse the AES-CCM CBC-MAC and CTR passes with aesni_ccm64 ([6066b40](https://github.com/cathaysia/crown/commit/6066b4059ba7a15a461235b1db269f13028c9c60))
+* **aead:** fuse the AES-OCB whole-block loop with aesni_ocb_* ([7d27826](https://github.com/cathaysia/crown/commit/7d278260010a4c87ce80198885289a954e0fa15b))
+* **asm:** add the riscv64 perlasm generator ([c3e72f6](https://github.com/cathaysia/crown/commit/c3e72f6fe639045cb1578ff8c922ec5bc837b6c8))
+* **asm:** detect the riscv64 crypto extensions ([a11326b](https://github.com/cathaysia/crown/commit/a11326b9be1718a7d29c4fd692352a556abb7824))
+* **asm:** translate the aarch64 perlasm modules ([3c341ce](https://github.com/cathaysia/crown/commit/3c341ce5c1813466c79b2918af8cfc6e4099107d))
+* **asm:** translate the riscv64 perlasm modules ([6b0088f](https://github.com/cathaysia/crown/commit/6b0088f929c1434776a5e3d2a41ad785e607a315))
+* **asm:** wire the aarch64 assembly into the dispatch ([1452cea](https://github.com/cathaysia/crown/commit/1452cea4dcfd6e878c9cd1282a8a9b36f59dac0d))
+* **asm:** wire the riscv64 assembly into the dispatch ([ab5fe25](https://github.com/cathaysia/crown/commit/ab5fe2568774f773f7bbfaf52fb614c0db89c1dc))
+* **hash:** fuse the SHA-3 sponge blocks with SHA3_absorb/SHA3_squeeze ([c4f2d15](https://github.com/cathaysia/crown/commit/c4f2d1507f908f5a9ffeda55200afeff28c3fc50))
+
+
+### Bug Fixes
+
+* **derive:** tag the riscv perlasm bare local labels ([1a3c944](https://github.com/cathaysia/crown/commit/1a3c944daed67a10e7c1d40cabdfd27e16ba4141))
+
 ## [0.30.0](https://github.com/cathaysia/crown/compare/v0.29.0...v0.30.0) (2026-10-07)
 
 
