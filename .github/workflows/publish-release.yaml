@@ -112,8 +112,46 @@ jobs:
           name: ssh-x86_64-unknown-linux-gnu
           path: "ssh-*.tar.gz"
 
+  build-wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Copy README and LICENSE
+        run: |
+          cp README.md crown-wasm/
+          cp LICENSE crown-wasm/
+
+      - name: Build wasm packages
+        run: |
+          cd crown-wasm
+          wasm-pack build --scope cathaysia --target bundler --out-dir pkg-bundler
+          wasm-pack build --scope cathaysia --target web --out-dir pkg-web
+
+      - name: Package
+        run: |
+          tar -czf wasm-bundler.tar.gz -C crown-wasm/pkg-bundler .
+          tar -czf wasm-web.tar.gz -C crown-wasm/pkg-web .
+
+      - name: upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: wasm
+          path: "wasm-*.tar.gz"
+
   create-release:
-    needs: [build-cross, build-ssh]
+    needs: [build-cross, build-ssh, build-wasm]
     permissions:
       contents: write
       discussions: write
