@@ -4107,7 +4107,7 @@ aesni_cbc_sha256_enc_shaext:
 
 	mov		240(%rcx),%r11d
 	sub		%rdi,%rsi
-	movups		(%rcx),%xmm15		# 
+	movups		(%rcx),%xmm15		#
 	movups		(%r8),%xmm6		# load IV
 	movups		16(%rcx),%xmm4	# forward reference
 	lea		112(%rcx),%rcx		# size optimization

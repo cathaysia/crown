@@ -1133,7 +1133,7 @@ sha1_block_data_order:
 	rol	$1,%edx
 	xor	36(%rsp),%ebp
 	mov	%r13d,%eax
-	
+
 	mov	%r12d,%ecx
 	xor	44(%rsp),%ebp
 	xor	%edi,%eax
@@ -1147,7 +1147,7 @@ sha1_block_data_order:
 	rol	$1,%ebp
 	xor	40(%rsp),%r14d
 	mov	%r12d,%eax
-	
+
 	mov	%r11d,%ecx
 	xor	48(%rsp),%r14d
 	xor	%esi,%eax
@@ -1161,7 +1161,7 @@ sha1_block_data_order:
 	rol	$1,%r14d
 	xor	44(%rsp),%edx
 	mov	%r11d,%eax
-	
+
 	mov	%edi,%ecx
 	xor	52(%rsp),%edx
 	xor	%r13d,%eax
@@ -1175,7 +1175,7 @@ sha1_block_data_order:
 	rol	$1,%edx
 	xor	48(%rsp),%ebp
 	mov	%edi,%eax
-	
+
 	mov	%esi,%ecx
 	xor	56(%rsp),%ebp
 	xor	%r12d,%eax
@@ -1189,7 +1189,7 @@ sha1_block_data_order:
 	rol	$1,%ebp
 	xor	52(%rsp),%r14d
 	mov	%esi,%eax
-	
+
 	mov	%r13d,%ecx
 	xor	60(%rsp),%r14d
 	xor	%r11d,%eax
@@ -1203,7 +1203,7 @@ sha1_block_data_order:
 	rol	$1,%r14d
 	xor	56(%rsp),%edx
 	mov	%r13d,%eax
-	
+
 	mov	%r12d,%ecx
 	xor	0(%rsp),%edx
 	xor	%edi,%eax
@@ -1217,7 +1217,7 @@ sha1_block_data_order:
 	rol	$1,%edx
 	xor	60(%rsp),%ebp
 	mov	%r12d,%eax
-	
+
 	mov	%r11d,%ecx
 	xor	4(%rsp),%ebp
 	xor	%esi,%eax

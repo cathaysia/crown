@@ -401,7 +401,7 @@ ChaCha20_ssse3:
 	pshufd	$78,%xmm2,%xmm2
 	pshufd	$57,%xmm1,%xmm1
 	pshufd	$147,%xmm3,%xmm3
-	nop	
+	nop
 	paddd	%xmm1,%xmm0
 	pxor	%xmm0,%xmm3
 	pshufb	%xmm6,%xmm3
@@ -915,7 +915,7 @@ ChaCha20_4x:
 	paddd		0xa0-0x100(%rcx),%xmm14
 	paddd		0xb0-0x100(%rcx),%xmm15
 
-	movdqa		%xmm8,0x00(%rsp)		# offload 
+	movdqa		%xmm8,0x00(%rsp)		# offload
 	movdqa		%xmm9,0x10(%rsp)
 	movdqa		0x20(%rsp),%xmm8		# "xc2"
 	movdqa		0x30(%rsp),%xmm9		# "xc3"
@@ -937,7 +937,7 @@ ChaCha20_4x:
 	paddd		0xe0-0x100(%rcx),%xmm8
 	paddd		0xf0-0x100(%rcx),%xmm9
 
-	movdqa		%xmm6,0x20(%rsp)		# keep offloading 
+	movdqa		%xmm6,0x20(%rsp)		# keep offloading
 	movdqa		%xmm11,0x30(%rsp)
 
 	movdqa		%xmm4,%xmm14
@@ -1880,7 +1880,7 @@ ChaCha20_8x:
 	vperm2i128	$0x31,%ymm3,%ymm11,%ymm3
 	vperm2i128	$0x20,%ymm0,%ymm8,%ymm11
 	vperm2i128	$0x31,%ymm0,%ymm8,%ymm0
-	vmovdqa		%ymm15,0x00(%rsp)		# offload 
+	vmovdqa		%ymm15,0x00(%rsp)		# offload
 	vmovdqa		%ymm9,0x20(%rsp)
 	vmovdqa		0x40(%rsp),%ymm15		# %ymm15
 	vmovdqa		0x60(%rsp),%ymm9		# %ymm9
