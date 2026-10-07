@@ -76,12 +76,13 @@ self-dispatch on `OPENSSL_ia32cap_P` except poly1305, which uses
   AVX512 (and AVX512-IFMA / AVX-IFMA) hardware that the development machine
   and the CI runners do not have, so neither the translation nor the
   dispatch could be validated end-to-end yet.
-- **translated but unwired, low value:** `aesni_ocb_encrypt/decrypt`
-  (OCB3 is generic in crown) needs the caller-managed L-table/offset/checksum
-  protocol from `crypto/modes/ocb128.c`; `aesni_ccm64_encrypt_blocks/
-  decrypt_blocks` needs the message-body driver from `crypto/modes/ccm128.c`;
-  `SHA3_absorb`/`SHA3_squeeze` (the sponge loops stay in Rust; the fused asm
-  is worth roughly 5-10% and carries delicate `next`-call bookkeeping).
+- **fused bodies are wired**: `aesni_ccm64_encrypt_blocks/decrypt_blocks`
+  drives AES-CCM (`Aes` implements `Ccm` itself, the portable driver is the
+  fallback), `aesni_ocb_encrypt/decrypt` drives AES-OCB3 (`Aes` implements
+  `Ocb3`; the L-table/offset/checksum protocol of `crypto/modes/ocb128.c` is
+  mirrored, with AAD, tail and tag shared with the portable driver) and
+  `SHA3_absorb`/`SHA3_squeeze` carry the whole-block plumbing of the SHA-3
+  sponge (modest gain: the permutation dominates).
 - **no crown consumer:** `keccak1600x4-avx512vl.pl` (4-way SHA3; crown sha3 is single-stream;
   `keccak1600-avx2/avx512/avx512vl.pl` are not even referenced by this
   OpenSSL's `build.info`).
@@ -105,7 +106,10 @@ rc4 and aes-ctr32 are live. `wp-x86_64.pl` is ported and wired into
 fallback and the test oracle).
 
 The AES-NI bulk routines that only had Rust per-block loops behind them are
-now wired: `modes::xts` hands a whole data unit to
+now wired: CCM and OCB3 exchange their message-body loops for
+`aesni_ccm64_*` and `aesni_ocb_*` (with the portable drivers as fallback and
+as the differential-test oracle), and the SHA-3 sponge uses
+`SHA3_absorb`/`SHA3_squeeze`. `modes::xts` hands a whole data unit to
 `aesni_xts_avx512_*_avx512` (when VAES+AVX512 and the 128/256-bit key
 schedule allow it) or `aesni_xts_encrypt`/`aesni_xts_decrypt`, both of which
 handle ciphertext stealing; ECB reaches `aesni_ecb_encrypt` through the new
