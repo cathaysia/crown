@@ -81,6 +81,22 @@ impl<const N: usize> Sha3<N> {
         let n = out.len();
         let mut out = out;
 
+        // `SHA3_squeeze` copies whole blocks, permuting between them; it wants
+        // a freshly permuted state, so drain first. The remaining partial block
+        // is left to the loop below.
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        {
+            if self.n == self.rate {
+                self.permute();
+            }
+            let blocks = out.len() / self.rate;
+            if blocks > 0 {
+                super::asm::squeeze(&mut self.a, &mut out[..blocks * self.rate], self.rate);
+                out = &mut out[blocks * self.rate..];
+                self.n = self.rate;
+            }
+        }
+
         // Now, do the squeezing.
         while !out.is_empty() {
             // Apply the permutation if we've squeezed the sponge dry.
@@ -120,6 +136,14 @@ impl<const N: usize> CoreWrite for Sha3<N> {
 
         let n = p.len();
         let mut p = p;
+
+        // `SHA3_absorb` needs a block-aligned state and whole blocks; it fuses
+        // the block XORs with the permutation and hands back the remainder.
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        if self.n == 0 && p.len() >= self.rate {
+            let left = super::asm::absorb(&mut self.a, p, self.rate);
+            p = &p[p.len() - left..];
+        }
 
         while !p.is_empty() {
             let x = xor_bytes(&mut self.a[self.n..self.rate], p);
