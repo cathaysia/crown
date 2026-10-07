@@ -1,11 +1,14 @@
-//! SM4 assembly implementation (SM4-NI on x86_64, ARMv8.4 SM4 on aarch64).
+//! SM4 assembly implementation (SM4-NI on x86_64, ARMv8.4 SM4 on aarch64,
+//! Zvksed on riscv64).
 //!
 //! On x86_64 the round-key schedule is the 32 native-endian `u32` words
 //! produced by the software key expansion (`Sm4.ek`);
 //! `hw_x86_64_sm4_decrypt` walks that same schedule in reverse, so no separate
 //! decryption schedule is required. On aarch64 the `sm4_v8_set_*_key` routines
 //! build their own schedule, which `sm4_v8_encrypt`/`sm4_v8_decrypt` consume,
-//! so the caller keeps a separate pair of hardware schedules.
+//! so the caller keeps a separate pair of hardware schedules. The riscv64
+//! `rv64i_zvksed_sm4_*` routines follow the aarch64 shape: they build and
+//! consume their own `SM4_KEY` (`rk[32]`) in both directions.
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 core::arch::global_asm!(
@@ -17,6 +20,12 @@ core::arch::global_asm!(
 core::arch::global_asm!(
     crown_derive::jsasm_file!("crown/src/block/sm4/aarch64.ts"),
     // The aarch64 operands carry `{v0.16b}`-style lane braces.
+    options(raw)
+);
+
+#[cfg(crown_riscv64_asm)]
+core::arch::global_asm!(
+    crown_derive::jsasm_file!("crown/src/block/sm4/riscv64.ts"),
     options(raw)
 );
 
@@ -36,6 +45,15 @@ extern "C" {
     fn sm4_v8_encrypt(inp: *const u8, out: *mut u8, ks: *const u32);
     #[cfg(crown_aarch64_asm)]
     fn sm4_v8_decrypt(inp: *const u8, out: *mut u8, ks: *const u32);
+
+    #[cfg(crown_riscv64_asm)]
+    fn rv64i_zvksed_sm4_set_encrypt_key(user_key: *const u8, key: *mut u32) -> i32;
+    #[cfg(crown_riscv64_asm)]
+    fn rv64i_zvksed_sm4_set_decrypt_key(user_key: *const u8, key: *mut u32) -> i32;
+    #[cfg(crown_riscv64_asm)]
+    fn rv64i_zvksed_sm4_encrypt(inp: *const u8, out: *mut u8, ks: *const u32);
+    #[cfg(crown_riscv64_asm)]
+    fn rv64i_zvksed_sm4_decrypt(inp: *const u8, out: *mut u8, ks: *const u32);
 }
 
 /// SM4-NI needs AVX2 (CPUID leaf 7.0 EBX bit 5 -> ia32cap[2] bit 5) plus
@@ -51,6 +69,14 @@ pub fn sm4_supported() -> bool {
 #[cfg(crown_aarch64_asm)]
 pub fn sm4_supported() -> bool {
     crate::utils::cpuid::armcap() & crate::utils::cpuid::ARMV8_SM4 != 0
+}
+
+/// The riscv64 side is `RISCV_HAS_ZVKB_AND_ZVKSED() && riscv_vlen() >= 128`,
+/// the test `cipher_sm4_hw_rv64i.inc` selects its hardware routines with.
+#[cfg(crown_riscv64_asm)]
+pub fn sm4_supported() -> bool {
+    use crate::utils::cpuid::{has_zvkb, riscv_vlen, riscvcap, RISCV_ZVKSED};
+    has_zvkb() && riscvcap() & RISCV_ZVKSED != 0 && riscv_vlen() >= 128
 }
 
 /// Expand `user_key` into the 32 round keys, same layout as `Sm4.ek`.
@@ -70,6 +96,19 @@ pub fn set_keys(user_key: &[u8], enc: &mut [u32; 32], dec: &mut [u32; 32]) {
     unsafe {
         sm4_v8_set_encrypt_key(user_key.as_ptr(), enc.as_mut_ptr());
         sm4_v8_set_decrypt_key(user_key.as_ptr(), dec.as_mut_ptr());
+    }
+}
+
+/// The riscv64 counterpart: `rv64i_zvksed_sm4_set_*_key` fill the same
+/// `SM4_KEY` pair, which `rv64i_zvksed_sm4_{en,de}crypt` consume.
+#[cfg(crown_riscv64_asm)]
+pub fn set_keys(user_key: &[u8], enc: &mut [u32; 32], dec: &mut [u32; 32]) {
+    unsafe {
+        // The Zvksed writers return 1 on success, like the Zvkned ones.
+        let rc = rv64i_zvksed_sm4_set_encrypt_key(user_key.as_ptr(), enc.as_mut_ptr());
+        debug_assert!(rc >= 0, "rv64i_zvksed_sm4_set_encrypt_key failed: {rc}");
+        let rc = rv64i_zvksed_sm4_set_decrypt_key(user_key.as_ptr(), dec.as_mut_ptr());
+        debug_assert!(rc >= 0, "rv64i_zvksed_sm4_set_decrypt_key failed: {rc}");
     }
 }
 
@@ -106,5 +145,23 @@ pub fn decrypt_block(inout: &mut [u8], ks: &[u32]) {
     let p = inout.as_mut_ptr();
     unsafe {
         sm4_v8_decrypt(p, p, ks.as_ptr());
+    }
+}
+
+/// Encrypt one 16-byte block in place with the Zvksed schedule.
+#[cfg(crown_riscv64_asm)]
+pub fn encrypt_block(inout: &mut [u8], ks: &[u32]) {
+    let p = inout.as_mut_ptr();
+    unsafe {
+        rv64i_zvksed_sm4_encrypt(p, p, ks.as_ptr());
+    }
+}
+
+/// Decrypt one 16-byte block in place with the Zvksed inverse schedule.
+#[cfg(crown_riscv64_asm)]
+pub fn decrypt_block(inout: &mut [u8], ks: &[u32]) {
+    let p = inout.as_mut_ptr();
+    unsafe {
+        rv64i_zvksed_sm4_decrypt(p, p, ks.as_ptr());
     }
 }

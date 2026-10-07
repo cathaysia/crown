@@ -46,7 +46,11 @@ impl CBCEncryptor {
 
     /// Generic CBC encryption function
     fn crypt_blocks_enc(&mut self, inout: &mut [u8]) {
-        #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
+        #[cfg(any(
+            all(feature = "asm", target_arch = "x86_64"),
+            crown_aarch64_asm,
+            crown_riscv64_asm
+        ))]
         {
             if inout.len() >= 16 {
                 self.block.cbc_blocks(inout, &mut self.iv, true);

@@ -1,5 +1,6 @@
 #![allow(dead_code, unused_imports)]
-//! GHASH assembly implementation (PCLMULQDQ on x86_64, PMULL on aarch64).
+//! GHASH assembly implementation (PCLMULQDQ on x86_64, PMULL on aarch64,
+//! Zbc/Zvbc/Zvkg on riscv64).
 
 use super::GCM_BLOCK_SIZE;
 
@@ -19,6 +20,24 @@ core::arch::global_asm!(
     options(raw)
 );
 
+#[cfg(crown_riscv64_asm)]
+core::arch::global_asm!(
+    crown_derive::jsasm_file!("crown/src/block/aes/gcm/riscv64_zbc.ts"),
+    options(raw)
+);
+
+#[cfg(crown_riscv64_asm)]
+core::arch::global_asm!(
+    crown_derive::jsasm_file!("crown/src/block/aes/gcm/riscv64_zvkb_zvbc.ts"),
+    options(raw)
+);
+
+#[cfg(crown_riscv64_asm)]
+core::arch::global_asm!(
+    crown_derive::jsasm_file!("crown/src/block/aes/gcm/riscv64_zvkg.ts"),
+    options(raw)
+);
+
 extern "C" {
     #[cfg(all(feature = "asm", target_arch = "x86_64"))]
     fn gcm_init_clmul(htbl: *mut u8, h: *const u8);
@@ -35,6 +54,36 @@ extern "C" {
     fn gcm_init_v8(htbl: *mut u8, h: *const u8);
     #[cfg(crown_aarch64_asm)]
     fn gcm_ghash_v8(xi: *mut u8, htbl: *const u8, inp: *const u8, len: usize);
+
+    // ghash-riscv64.pl (Zbc scalar bit-manipulation; the `__zbb` and `__zbkb`
+    // entries build the same table and run the same field arithmetic with the
+    // instructions those extensions add, and gcm128.c picks them the same
+    // way). The modules also export `gcm_gmult_rv64i_*`, which crown does not
+    // need: gcm_ghash alone covers single and multiple blocks.
+    #[cfg(crown_riscv64_asm)]
+    fn gcm_init_rv64i_zbc(htbl: *mut u8, h: *const u8);
+    #[cfg(crown_riscv64_asm)]
+    fn gcm_init_rv64i_zbc__zbb(htbl: *mut u8, h: *const u8);
+    #[cfg(crown_riscv64_asm)]
+    fn gcm_init_rv64i_zbc__zbkb(htbl: *mut u8, h: *const u8);
+    #[cfg(crown_riscv64_asm)]
+    fn gcm_ghash_rv64i_zbc(xi: *mut u8, htbl: *const u8, inp: *const u8, len: usize);
+    #[cfg(crown_riscv64_asm)]
+    fn gcm_ghash_rv64i_zbc__zbkb(xi: *mut u8, htbl: *const u8, inp: *const u8, len: usize);
+
+    // ghash-riscv64-zvkb-zvbc.pl (Zvkb + Zvbc vector carry-less multiply).
+    #[cfg(crown_riscv64_asm)]
+    fn gcm_init_rv64i_zvkb_zvbc(htbl: *mut u8, h: *const u8);
+    #[cfg(crown_riscv64_asm)]
+    fn gcm_ghash_rv64i_zvkb_zvbc(xi: *mut u8, htbl: *const u8, inp: *const u8, len: usize);
+
+    // ghash-riscv64-zvkg.pl (Zvkg vector GCM extension).
+    #[cfg(crown_riscv64_asm)]
+    fn gcm_init_rv64i_zvkg(htbl: *mut u8, h: *const u8);
+    #[cfg(crown_riscv64_asm)]
+    fn gcm_init_rv64i_zvkg_zvkb(htbl: *mut u8, h: *const u8);
+    #[cfg(crown_riscv64_asm)]
+    fn gcm_ghash_rv64i_zvkg(xi: *mut u8, htbl: *const u8, inp: *const u8, len: usize);
 }
 
 /// PMULL (ARMv8 crypto extensions) backs the aarch64 GHASH bodies.
@@ -93,9 +142,116 @@ pub(crate) fn ghash(out: &mut [u8; GCM_BLOCK_SIZE], h: &[u8; GCM_BLOCK_SIZE], in
     *out = state;
 }
 
+/// The riscv64 GHASH tiers, in the order `gcm_get_funcs` tries them
+/// (`GHASH_ASM_RV64I` in crypto/modes/gcm128.c). Each tier has its own
+/// Htable format, so the init and the ghash body always come from the same
+/// module.
+#[cfg(crown_riscv64_asm)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum RiscvGhashTier {
+    /// `RISCV_HAS_ZVKG() && riscv_vlen() >= 128`.
+    Zvkg { zvkb: bool },
+    /// `RISCV_HAS_ZVKB() && RISCV_HAS_ZVBC() && riscv_vlen() >= 128`.
+    ZvkbZvbc,
+    /// `RISCV_HAS_ZBC()`; `Zbb`/`Zbkb` only speed up the table build.
+    Zbc { zbb: bool, zbkb: bool },
+}
+
+/// The riscv64 GHASH tier this CPU gets, if any.
+#[cfg(crown_riscv64_asm)]
+pub(crate) fn riscv_ghash_tier() -> Option<RiscvGhashTier> {
+    use crate::utils::cpuid::{
+        riscv_vlen, riscvcap, RISCV_ZBB, RISCV_ZBC, RISCV_ZBKB, RISCV_ZVBC, RISCV_ZVKG,
+    };
+    let cap = riscvcap();
+    if cap & RISCV_ZVKG != 0 && riscv_vlen() >= 128 {
+        Some(RiscvGhashTier::Zvkg {
+            zvkb: crate::utils::cpuid::has_zvkb(),
+        })
+    } else if crate::utils::cpuid::has_zvkb() && cap & RISCV_ZVBC != 0 && riscv_vlen() >= 128 {
+        Some(RiscvGhashTier::ZvkbZvbc)
+    } else if cap & RISCV_ZBC != 0 {
+        Some(RiscvGhashTier::Zbc {
+            zbb: cap & RISCV_ZBB != 0,
+            zbkb: cap & RISCV_ZBKB != 0,
+        })
+    } else {
+        None
+    }
+}
+
+/// Build the 256-byte Htable for `tier` from H in the byte-swapped form
+/// `CRYPTO_gcm128_init` stores in `ctx->H.u` (all three riscv64 init routines
+/// consume it without a swap of their own, like `gcm_init_v8`).
+#[cfg(crown_riscv64_asm)]
+fn riscv_init_htable(tier: RiscvGhashTier, h_swapped: &[u8; GCM_BLOCK_SIZE]) -> [u8; 256] {
+    let mut htable = [0u8; 256];
+    unsafe {
+        match tier {
+            RiscvGhashTier::Zvkg { zvkb: true } => {
+                gcm_init_rv64i_zvkg_zvkb(htable.as_mut_ptr(), h_swapped.as_ptr())
+            }
+            RiscvGhashTier::Zvkg { zvkb: false } => {
+                gcm_init_rv64i_zvkg(htable.as_mut_ptr(), h_swapped.as_ptr())
+            }
+            RiscvGhashTier::ZvkbZvbc => {
+                gcm_init_rv64i_zvkb_zvbc(htable.as_mut_ptr(), h_swapped.as_ptr())
+            }
+            RiscvGhashTier::Zbc { zbkb: true, .. } => {
+                gcm_init_rv64i_zbc__zbkb(htable.as_mut_ptr(), h_swapped.as_ptr())
+            }
+            RiscvGhashTier::Zbc { zbb: true, .. } => {
+                gcm_init_rv64i_zbc__zbb(htable.as_mut_ptr(), h_swapped.as_ptr())
+            }
+            RiscvGhashTier::Zbc { .. } => {
+                gcm_init_rv64i_zbc(htable.as_mut_ptr(), h_swapped.as_ptr())
+            }
+        }
+    }
+    htable
+}
+
+/// GHASH `len` bytes (a non-zero multiple of 16) through the tier's body.
+#[cfg(crown_riscv64_asm)]
+fn riscv_ghash_blocks(
+    tier: RiscvGhashTier,
+    xi: &mut [u8; GCM_BLOCK_SIZE],
+    htable: &[u8; 256],
+    inp: &[u8],
+    len: usize,
+) {
+    unsafe {
+        match tier {
+            RiscvGhashTier::Zvkg { .. } => {
+                gcm_ghash_rv64i_zvkg(xi.as_mut_ptr(), htable.as_ptr(), inp.as_ptr(), len)
+            }
+            RiscvGhashTier::ZvkbZvbc => {
+                gcm_ghash_rv64i_zvkb_zvbc(xi.as_mut_ptr(), htable.as_ptr(), inp.as_ptr(), len)
+            }
+            RiscvGhashTier::Zbc { zbkb: true, .. } => {
+                gcm_ghash_rv64i_zbc__zbkb(xi.as_mut_ptr(), htable.as_ptr(), inp.as_ptr(), len)
+            }
+            RiscvGhashTier::Zbc { .. } => {
+                gcm_ghash_rv64i_zbc(xi.as_mut_ptr(), htable.as_ptr(), inp.as_ptr(), len)
+            }
+        }
+    }
+}
+
+/// Build the 256-byte Htable in the Zvkg format, the one
+/// `rv64i_zvkb_zvkg_zvkned_aes_gcm_*` reads from the `GCM128_CONTEXT` layout
+/// (Xi, H, Htable) that `aead::gcm::riscv64` mirrors. The caller must have
+/// checked that `RISCV_HAS_ZVKG()` holds -- [`riscv_ghash_tier`] being
+/// `Zvkg` is that check.
+#[cfg(crown_riscv64_asm)]
+pub(crate) fn init_zvkg_htable_into(htable: &mut [u8; 256], h_swapped: &[u8; GCM_BLOCK_SIZE]) {
+    unsafe { gcm_init_rv64i_zvkg(htable.as_mut_ptr(), h_swapped.as_ptr()) };
+}
+
 /// GHASH continuing from `state`. Accumulates into `xi`; prefers the AVX
-/// 8x body (gcm_ghash_avx over the AVX Htable) when the CPU allows it, and
-/// the PMULL body (gcm_ghash_v8) on aarch64.
+/// 8x body (gcm_ghash_avx over the AVX Htable) when the CPU allows it, the
+/// PMULL body (gcm_ghash_v8) on aarch64, and the Zvkg/Zvbc/Zbc bodies on
+/// riscv64.
 pub(crate) fn ghash_absorb(
     state: &mut [u8; GCM_BLOCK_SIZE],
     h: &[u8; GCM_BLOCK_SIZE],
@@ -134,6 +290,35 @@ pub(crate) fn ghash_absorb(
         }
 
         *state = xi;
+    }
+
+    #[cfg(crown_riscv64_asm)]
+    {
+        if let Some(tier) = riscv_ghash_tier() {
+            let mut h_swapped = [0u8; GCM_BLOCK_SIZE];
+            for i in 0..8 {
+                h_swapped[i] = h[7 - i];
+                h_swapped[8 + i] = h[15 - i];
+            }
+            let htable = riscv_init_htable(tier, &h_swapped);
+
+            let mut xi = *state;
+            for input in inputs {
+                let full = input.len() & !15;
+                if full >= 16 {
+                    riscv_ghash_blocks(tier, &mut xi, &htable, input, full);
+                }
+
+                let tail = &input[full..];
+                if !tail.is_empty() {
+                    let mut block = [0u8; GCM_BLOCK_SIZE];
+                    block[..tail.len()].copy_from_slice(tail);
+                    riscv_ghash_blocks(tier, &mut xi, &htable, &block, 16);
+                }
+            }
+
+            *state = xi;
+        }
     }
 
     #[cfg(all(feature = "asm", target_arch = "x86_64"))]
@@ -201,10 +386,10 @@ mod tests {
     use super::*;
     use crate::block::aes::ghash::generic_ghash;
 
-    /// The hardware GHASH (gcm_ghash_avx on x86_64, gcm_ghash_v8 on aarch64)
-    /// must match the portable GHASH for every length class the bodies
-    /// special-case: <16, 16..128 short path, 128..256 tail-after-prologue,
-    /// and full multi-block loop iterations.
+    /// The hardware GHASH (gcm_ghash_avx on x86_64, gcm_ghash_v8 on aarch64,
+    /// Zvkg/Zvbc/Zbc on riscv64) must match the portable GHASH for every
+    /// length class the bodies special-case: <16, 16..128 short path,
+    /// 128..256 tail-after-prologue, and full multi-block loop iterations.
     #[test]
     fn ghash_avx_matches_generic() {
         #[cfg(all(feature = "asm", target_arch = "x86_64"))]
@@ -213,6 +398,10 @@ mod tests {
         }
         #[cfg(crown_aarch64_asm)]
         if !ghash_pmull_supported() {
+            return;
+        }
+        #[cfg(crown_riscv64_asm)]
+        if riscv_ghash_tier().is_none() {
             return;
         }
         let h = [

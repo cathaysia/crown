@@ -4,6 +4,9 @@ pub(crate) mod aesni;
 #[cfg(crown_aarch64_asm)]
 pub(crate) mod aarch64;
 
+#[cfg(crown_riscv64_asm)]
+pub(crate) mod riscv64;
+
 #[cfg(test)]
 mod tests;
 

@@ -49,7 +49,11 @@ pub trait XtsCipher: BlockCipher + Sized {
     /// Bulk hook for the whole data unit under the IEEE tweak convention:
     /// returns true when an assembly routine processed `inout`. `key1` is the
     /// data key, `key2` the tweak key; `inout.len()` is at least one block.
-    #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
+    #[cfg(any(
+        all(feature = "asm", target_arch = "x86_64"),
+        crown_aarch64_asm,
+        crown_riscv64_asm
+    ))]
     fn bulk_data_unit(
         _key1: &Self,
         _key2: &Self,
@@ -72,7 +76,11 @@ impl XtsCipher for Aes {
         }
     }
 
-    #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
+    #[cfg(any(
+        all(feature = "asm", target_arch = "x86_64"),
+        crown_aarch64_asm,
+        crown_riscv64_asm
+    ))]
     fn bulk_data_unit(
         key1: &Self,
         key2: &Self,
@@ -106,6 +114,16 @@ impl XtsCipher for Aes {
                 crate::block::aes::aesv8::xts_crypt(inout, k1, k2, iv, enc);
                 true
             }
+        }
+
+        #[cfg(crown_riscv64_asm)]
+        {
+            // aes-riscv64-zvbb-zvkg-zvkned.pl covers the whole data unit,
+            // ciphertext stealing included; without Zvbb+Zvkg+Zvkned the
+            // portable XTS stays in charge (with the tier's block bodies).
+            let k1 = key1.bulk_schedule(enc);
+            let k2 = key2.bulk_schedule(true);
+            crate::block::aes::riscv64::xts_crypt(inout, k1, k2, iv, enc)
         }
     }
 }
@@ -255,7 +273,11 @@ fn xts_crypt<C: XtsCipher>(
         return Err(CryptoError::StrError("xts: data unit is too large"));
     }
 
-    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    #[cfg(any(
+        all(feature = "asm", target_arch = "x86_64"),
+        crown_aarch64_asm,
+        crown_riscv64_asm
+    ))]
     {
         // The assembly bodies implement the IEEE tweak doubling only.
         if standard == Standard::Ieee {

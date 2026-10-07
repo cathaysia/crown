@@ -1,4 +1,8 @@
-#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
+#[cfg(any(
+    all(feature = "asm", target_arch = "x86_64"),
+    crown_aarch64_asm,
+    crown_riscv64_asm
+))]
 pub(crate) mod asm;
 
 pub mod generic;

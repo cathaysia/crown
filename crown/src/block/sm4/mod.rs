@@ -1,7 +1,11 @@
 #[cfg(test)]
 mod tests;
 
-#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
+#[cfg(any(
+    all(feature = "asm", target_arch = "x86_64"),
+    crown_aarch64_asm,
+    crown_riscv64_asm
+))]
 mod asm;
 
 use bytes::BufMut;
@@ -18,11 +22,11 @@ use bytes::Buf;
 pub struct Sm4 {
     pub ek: [u32; 32],
     pub dk: [u32; 32],
-    /// ARMv8 schedules; the `sm4_v8_*` routines build and consume their own
-    /// layout, so they are kept next to the software pair.
-    #[cfg(crown_aarch64_asm)]
+    /// ARMv8 and Zvksed schedules; those routines build and consume their
+    /// own layout, so they are kept next to the software pair.
+    #[cfg(any(crown_aarch64_asm, crown_riscv64_asm))]
     hw_ek: [u32; 32],
-    #[cfg(crown_aarch64_asm)]
+    #[cfg(any(crown_aarch64_asm, crown_riscv64_asm))]
     hw_dk: [u32; 32],
 }
 
@@ -37,12 +41,12 @@ impl Sm4 {
                 actual: key.len(),
             });
         }
-        #[cfg(not(crown_aarch64_asm))]
+        #[cfg(not(any(crown_aarch64_asm, crown_riscv64_asm)))]
         let mut ret = Self {
             ek: [0; 32],
             dk: [0; 32],
         };
-        #[cfg(crown_aarch64_asm)]
+        #[cfg(any(crown_aarch64_asm, crown_riscv64_asm))]
         let mut ret = Self {
             ek: [0; 32],
             dk: [0; 32],
@@ -50,10 +54,10 @@ impl Sm4 {
             hw_dk: [0; 32],
         };
         ret.s_sm4_setkey(key);
-        #[cfg(crown_aarch64_asm)]
+        #[cfg(any(crown_aarch64_asm, crown_riscv64_asm))]
         {
             // The software pair above is the fallback and the test oracle;
-            // the ARMv8 schedules are only used when the SM4 extension is
+            // the hardware schedules are only used when the extension is
             // present.
             if asm::sm4_supported() {
                 asm::set_keys(key, &mut ret.hw_ek, &mut ret.hw_dk);
@@ -91,6 +95,13 @@ impl BlockCipher for Sm4 {
                 return;
             }
         }
+        #[cfg(crown_riscv64_asm)]
+        {
+            if asm::sm4_supported() {
+                asm::encrypt_block(inout, &self.hw_ek);
+                return;
+            }
+        }
         s_sm4_do(inout, &(self.ek));
     }
 
@@ -104,6 +115,13 @@ impl BlockCipher for Sm4 {
             }
         }
         #[cfg(crown_aarch64_asm)]
+        {
+            if asm::sm4_supported() {
+                asm::decrypt_block(inout, &self.hw_dk);
+                return;
+            }
+        }
+        #[cfg(crown_riscv64_asm)]
         {
             if asm::sm4_supported() {
                 asm::decrypt_block(inout, &self.hw_dk);
