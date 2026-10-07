@@ -42,7 +42,6 @@ mod tests;
 use crate::modes::{cfb::CfbMarker, ofb::OfbMarker};
 
 use crate::{
-    aead::ocb3::Ocb3Marker,
     block::BlockCipher,
     error::{CryptoError, CryptoResult},
 };
@@ -71,8 +70,6 @@ impl OfbMarker for Aes {}
 
 #[cfg(feature = "alloc")]
 impl CfbMarker for Aes {}
-
-impl Ocb3Marker for Aes {}
 
 impl Aes {
     pub const BLOCK_SIZE: usize = 16;
@@ -142,10 +139,10 @@ impl Aes {
         encrypt_block(self, inout);
     }
 
-    /// AES-NI-format schedule for the bulk XTS routines: the data schedule
-    /// (`enc` selects the inverse schedule) or the tweak schedule.
+    /// AES-NI-format schedule for the fused mode routines (XTS, OCB): `enc`
+    /// selects the forward schedule and `!enc` the inverse one.
     #[cfg(all(feature = "asm", target_arch = "x86_64"))]
-    pub fn xts_schedule(&self, enc: bool) -> &ttable::AesKey {
+    pub fn bulk_schedule(&self, enc: bool) -> &ttable::AesKey {
         if enc {
             &self.enc_key
         } else {

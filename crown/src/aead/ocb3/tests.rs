@@ -31,7 +31,6 @@ fn test_aes_ocb_enc_and_dec() {
 }
 
 #[test]
-#[ignore = "reason"]
 fn test_evpciph_aes_ocb() {
     let test_data = include_str!("evpciph_aes_ocb.txt");
 
@@ -94,34 +93,50 @@ fn test_evpciph_aes_ocb() {
             continue;
         }
 
-        let cipher = EvpAeadCipher::new_aes_ocb3::<16, 12>(&key).unwrap();
-
-        let mut ct = plaintext.clone();
-        let tag = cipher
-            .seal_in_place_separate_tag(&mut ct, &iv, &aad)
-            .unwrap();
-
-        assert_eq!(
-            tag,
-            expected_tag,
-            "Tag mismatch for test vector: {} != {}",
-            test_vector.tag,
-            hex::encode(&tag)
-        );
-
-        assert_eq!(
-            ct,
-            expected_ct,
-            "Tag mismatch for test vector: {} != {}",
-            test_vector.ct,
-            hex::encode(&ct)
-        );
-        cipher
-            .open_in_place_separate_tag(&mut ct, &tag, &iv, &aad)
-            .unwrap();
-
-        assert_eq!(ct, plaintext, "Decryption failed for test vector");
+        // The file carries both 12- and 16-byte tags; the tag length is a
+        // const generic, so dispatch on it (the nonce is always 12 bytes for
+        // these vectors).
+        match expected_tag.len() {
+            12 => check_aes_ocb::<12>(&key, &iv, &aad, &plaintext, &expected_tag, &expected_ct),
+            16 => check_aes_ocb::<16>(&key, &iv, &aad, &plaintext, &expected_tag, &expected_ct),
+            _ => continue,
+        }
     }
+}
+
+/// Seal/open one vector and compare both the ciphertext and the tag.
+fn check_aes_ocb<const TAG_SIZE: usize>(
+    key: &[u8],
+    iv: &[u8],
+    aad: &[u8],
+    plaintext: &[u8],
+    expected_tag: &[u8],
+    expected_ct: &[u8],
+) {
+    let cipher = EvpAeadCipher::new_aes_ocb3::<TAG_SIZE, 12>(key).unwrap();
+
+    let mut ct = plaintext.to_vec();
+    let tag = cipher.seal_in_place_separate_tag(&mut ct, iv, aad).unwrap();
+
+    let tag_hex = hex::encode(&tag);
+    let want_hex = hex::encode(expected_tag);
+    assert_eq!(
+        tag.as_slice(),
+        expected_tag,
+        "tag mismatch: {want_hex} != {tag_hex}"
+    );
+    assert_eq!(
+        ct,
+        expected_ct,
+        "ciphertext mismatch: {} != {}",
+        hex::encode(expected_ct),
+        hex::encode(&ct)
+    );
+
+    cipher
+        .open_in_place_separate_tag(&mut ct, &tag, iv, aad)
+        .unwrap();
+    assert_eq!(ct, plaintext, "decryption mismatch");
 }
 
 #[derive(Debug, Clone, Default)]
