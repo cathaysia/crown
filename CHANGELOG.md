@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.30.0](https://github.com/cathaysia/crown/compare/v0.29.0...v0.30.0) (2026-10-07)
+
+
+### Features
+
+* **aead:** port the shaext/xop/avx2 tiers of the CBC-HMAC-SHA256 stitch ([b743a6a](https://github.com/cathaysia/crown/commit/b743a6abc5ec6fb7d3fb5a6e1508e0291c757d40))
+* **asm:** port the full x86_64 tier set for chacha20, SHA-1/2 and nistz256 ([589a999](https://github.com/cathaysia/crown/commit/589a9998f5960359f946d756474a031cd6c3b512))
+* **mac:** dispatch the AVX/AVX2/AVX512 poly1305 bodies ([e0f40f6](https://github.com/cathaysia/crown/commit/e0f40f6e566d2e16cf41cfd0a5dd2c8c1da0ad47))
+* **modes:** wire the AES-NI and VAES/AVX512 XTS and ECB bulk routines ([9590f8e](https://github.com/cathaysia/crown/commit/9590f8eabfa41dc2309203e359741449be067f56))
+
+
+### Bug Fixes
+
+* **bench:** repair the pq2 benchmark target ([041e8d3](https://github.com/cathaysia/crown/commit/041e8d3854d5e3ce3a5f27d4624826d8c6f98d2f))
+* **derive:** tag the `_*_shortcut` labels alongside the `.L` locals ([ba88ede](https://github.com/cathaysia/crown/commit/ba88edee72b8c273ac72bbe103ac0bf1b94f82a1))
+
 ## [0.29.0](https://github.com/cathaysia/crown/compare/v0.28.0...v0.29.0) (2026-10-06)
 
 
