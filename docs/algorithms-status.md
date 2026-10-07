@@ -204,6 +204,142 @@ The ChaCha20-Poly1305 *stitched* AEAD stays x86_64-only: the module comes from
 BoringSSL, which is not part of the vendored reference tree, so the aarch64
 AEAD uses the per-primitive assembly instead (both primitives are wired).
 
+## 1c. riscv64 perlasm port — 2026-10-07
+
+The riscv64 side is a *frozen-output* port like the aarch64 one, with fewer
+moving parts: `scripts/gen-riscv64-asm.py` runs each OpenSSL perlasm script
+(`linux64` flavour) and embeds the output verbatim in a `*/riscv64.ts`.
+No C preprocessor step is involved, because the riscv64 scripts emit plain
+GNU-as syntax with no `#include`/`#if` — OpenSSL's own build generates most of
+them as lowercase `.s` (explicitly *not* preprocessed) and assembles them with
+`as`. `--lint` assembles each module with GNU as, `--lint-llvm` with rustc's
+integrated assembler (the one `jsasm_file!`/`global_asm!` uses), and
+`--lint-llvm` runs each module on its own because `crown-derive` tags the
+labels when it merges them.
+
+Three generator behaviours are worth recording:
+
+- **One-line divergence from upstream text:** `aes-riscv64.pl` emits comment
+  lines that look like conditionals (`    # if bits == 128`). GNU as reads `#`
+  as a comment, and so does LLVM ≥ 20, but older LLVM MC releases (clang 18)
+  parse `# if` as a hash-conditional directive and fail with "unterminated
+  conditional directive". The generator prefixes exactly those lines with one
+  extra `#` (`## if ...`, still a comment everywhere) and records the count in
+  the generated header. Only `aes-riscv64.ts` (2 lines) is affected.
+- `chacha-riscv64-v-zbb.pl` produces two modules through its flavour argument
+  (`GENERATE[...-zvkb.s]=asm/chacha-riscv64-v-zbb.pl zvkb` upstream): the base
+  `ChaCha20_ctr32_v_zbb` and the `Zvkb` build `ChaCha20_ctr32_v_zbb_zvkb`.
+- the riscv.pm output uses labels that start with a bare `L` (`Lstep`,
+  `Lpolymod`, `L_round_loop`, ...), which are file-local only by perlasm
+  convention. `crown-derive` already re-tags `.L*` and `_*_shortcut` labels
+  when several modules end up in one `global_asm!` unit; it now also re-tags
+  bare `L...` names that a generator *defines* at the start of a line (so
+  prose like "License" in a comment is untouched). Without that, the three
+  GHASH modules or SHA-256 and SHA-512 collide on `Lstep`/`L_round_loop`.
+
+Because a riscv64 module never self-dispatches (unlike aarch64's), the
+capability word is Rust-side: `crown/src/utils/cpuid/riscvcap.rs` mirrors
+`crypto/riscvcap.c` — the `RISCV_DEFINE_CAP` bits of `riscv_arch.def`, filled
+from the `riscv_hwprobe` syscall key `RISCV_HWPROBE_KEY_IMA_EXT_0` (note that
+hwprobe's own `IMA_EXT_0` bit positions differ from the capability-word ones,
+so the mapping is spelled out per extension), with `riscv_vlen()` read from
+the `vlenb` CSR when `V` is present (`riscv64cpuid.pl`'s `riscv_vlen_asm` in
+one instruction; its `CRYPTO_memcmp`/`OPENSSL_cleanse` have Rust
+implementations already). Two additions to the upstream model:
+
+- the `OPENSSL_riscvcap` environment override of `parse_env()` is supported.
+  It exists because `riscv_hwprobe` only grew the multi-letter extension bits
+  in Linux 6.4 and qemu-user (8.2) still reports just the baseline bits, which
+  would leave every tier above `Zbb` untestable; like upstream, the variable
+  *replaces* the probe, only ever sets bits, and needs `_v` spelled out for
+  `riscv_vlen()` to be non-zero.
+- `V` is also taken from `AT_HWCAP` (bit 21, `HWCAP_ISA_V`), so `riscv_vlen()`
+  works on kernels whose `riscv_hwprobe` predates the `IMA_EXT_0` vector bit.
+  No assembly path is gated on `V` alone.
+
+| OpenSSL script | crown file | entry points wired |
+|---|---|---|
+| `crypto/aes/asm/aes-riscv64.pl` | `crown/src/block/aes/riscv64/aes_ttable.ts` | `AES_set_{encrypt,decrypt}_key`, `AES_{encrypt,decrypt}` (the `AES_ASM` implementation riscv64 builds always install) |
+| `crypto/aes/asm/aes-riscv64-zkn.pl` | `crown/src/block/aes/riscv64/zkn.ts` | `rv64i_zkne_set_encrypt_key`, `rv64i_zknd_set_decrypt_key`, `rv64i_zk{ne,nd}_{encrypt,decrypt}` (behind `RISCV_HAS_ZKND_AND_ZKNE()`) |
+| `crypto/aes/asm/aes-riscv64-zvkned.pl` | `crown/src/block/aes/riscv64/zvkned.ts` | `rv64i_zvkned_set_{encrypt,decrypt}_key`, `rv64i_zvkned_{encrypt,decrypt}`, `rv64i_zvkned_cbc_{encrypt,decrypt}`, `rv64i_zvkned_ecb_{encrypt,decrypt}` (behind `RISCV_HAS_ZVKNED() && vlen >= 128`) |
+| `crypto/aes/asm/aes-riscv64-zvkb-zvkned.pl` | `crown/src/block/aes/riscv64/zvkb_zvkned_ctr32.ts` | `rv64i_zvkb_zvkned_ctr32_encrypt_blocks` (CTR, Zvkb too) |
+| `crypto/aes/asm/aes-riscv64-zvbb-zvkg-zvkned.pl` | `crown/src/block/aes/riscv64/zvbb_zvkg_zvkned_xts.ts` | `rv64i_zvbb_zvkg_zvkned_aes_xts_{encrypt,decrypt}` (whole data unit incl. ciphertext stealing) |
+| `crypto/modes/asm/ghash-riscv64.pl` | `crown/src/block/aes/gcm/riscv64_zbc.ts` | `gcm_init_rv64i_zbc[__zbb/__zbkb]`, `gcm_ghash_rv64i_zbc[__zbkb]` |
+| `crypto/modes/asm/ghash-riscv64-zvkb-zvbc.pl` | `crown/src/block/aes/gcm/riscv64_zvkb_zvbc.ts` | `gcm_{init,ghash}_rv64i_zvkb_zvbc` |
+| `crypto/modes/asm/ghash-riscv64-zvkg.pl` | `crown/src/block/aes/gcm/riscv64_zvkg.ts` | `gcm_init_rv64i_zvkg[_zvkb]`, `gcm_ghash_rv64i_zvkg` |
+| `crypto/modes/asm/aes-gcm-riscv64-zvkb-zvkg-zvkned.pl` | `crown/src/aead/gcm/riscv64.ts` | `rv64i_zvkb_zvkg_zvkned_aes_gcm_{encrypt,decrypt}` (the `AES_GCM_ASM` stitch) |
+| `crypto/sha/asm/sha256-riscv64-zvkb-zvknha_or_zvknhb.pl` | `crown/src/hash/sha256/block/riscv64.ts` | `sha256_block_data_order_zvkb_zvknha_or_zvknhb` (behind Zvkb + Zvknha/Zvknhb + vlen) |
+| `crypto/sha/asm/sha512-riscv64-zvkb-zvknhb.pl` | `crown/src/hash/sha512/block/riscv64.ts` | `sha512_block_data_order_zvkb_zvknhb` (behind Zvkb + Zvknhb + vlen) |
+| `crypto/sm3/asm/sm3-riscv64-zvksh.pl` | `crown/src/hash/sm3/riscv64.ts` | `ossl_hwsm3_block_data_order_zvksh` (behind Zvkb + Zvksh + vlen) |
+| `crypto/sm4/asm/sm4-riscv64-zvksed.pl` | `crown/src/block/sm4/riscv64.ts` | `rv64i_zvksed_sm4_set_{encrypt,decrypt}_key`, `rv64i_zvksed_sm4_{encrypt,decrypt}` (behind Zvkb + Zvksed + vlen) |
+| `crypto/chacha/asm/chacha-riscv64-v-zbb.pl` | `crown/src/stream/chacha20/riscv64.ts`, `.../riscv64_zvkb.ts` | `ChaCha20_ctr32_v_zbb{,_zvkb}` (Zbb + vlen, message longer than one block, 8-byte-aligned) |
+
+Two call sites had to be widened beyond the x86_64-only cfg they were written
+with, without which the bodies were compiled out and the modules were silently
+dead: `modes::xts`'s `XtsCipher::bulk_data_unit` hook (which also makes the
+aarch64 XTS bodies reachable) and the CBC encryptor/decryptor's `cbc_blocks`
+call. The riscv64 CBC/ECB wrappers additionally decline a buffer that is not a
+whole number of blocks, because `rv64i_zvkned_cbc_*`/`ecb_*` return without
+touching anything on such a length.
+
+The dispatch predicates are transcribed from the C consumers, so a riscv64
+build picks exactly what upstream picks: `cipher_aes_hw_rv64i.inc`'s
+`PROV_CIPHER_HW_select` ladder (Zvkned → Zknd/Zkne → T-table) with its AES-192
+quirk (Zvkned builds key schedules for 128/256-bit keys only, so AES-192 takes
+the T-table schedule and the Zvkned bodies — the two writers are verified to
+agree byte-for-byte in `riscv64.rs`'s tests), `gcm128.c`'s `GHASH_ASM_RV64I`
+ladder (Zvkg → Zvkb+Zvbc → Zbc), `e_aes.c`'s `AES_GCM_ASM(gctx)` conjunction
+for the GCM stitch (`rv64i_zvkb_zvkned_ctr32_encrypt_blocks` installed *and*
+`gcm_ghash_rv64i_zvkg`), `sha_riscv.c`/`sm3_riscv.c`/`chacha_riscv.c` for the
+hashes and the stream cipher, and `cipher_sm4_hw_rv64i.inc` for SM4. The GCM
+stitch context is laid out like `struct gcm128_context` (`Xi`, `H`, `Htable`,
+H at `Xi+32`, 16-aligned) because the kernel addresses `Htable[0]` relative to
+the `Xi` pointer it is handed.
+
+Two details of that transcription are worth spelling out. The modules also
+export `gcm_gmult_rv64i_*`, which crown does not call -- `gcm_ghash` covers
+single and multiple blocks, and crown's GHASH only ever absorbs runs of whole
+blocks. And the `Zbc` tier has three table-builders (`__zbb`, `__zbkb`, plain)
+whose choice upstream leaves to the same capability word; the `ghash` body
+follows suit (`__zbkb` when Zbkb is present). All of the riscv64 modules except
+the AES T-table one list `Zicclsm` (misaligned scalar loads/stores) as a
+requirement in their headers, exactly like upstream, which does not gate on it
+either.
+
+Not wired, and why:
+
+- `aes-riscv32-zkn.pl` — the RV32 build of the Zkn module
+  (`crown/src/block/aes/riscv64/aes_rv32_zkn.ts`); crown has no RV32 target.
+  It still assembles under `--lint` (GNU as accepts it in rv64 mode).
+- `riscv64cpuid.pl` — `crown/src/utils/cpuid/riscv64.ts`; `riscv_vlen_asm` is
+  one `csrr vlenb` and crown reads it inline, while `CRYPTO_memcmp` and
+  `OPENSSL_cleanse` already exist in Rust.
+
+There is no riscv64 OpenSSL assembly for the rest of crown's asm surface (no
+`sha1`, `md5`, `keccak`/SHA-3, `poly1305`, `bn` Montgomery or `nistz256`
+modules upstream in 3.5.8), so those stay on the portable paths; the
+ChaCha20-Poly1305 stitched AEAD is likewise x86_64-only (BoringSSL source).
+
+Testing uses qemu-user: `scripts/check-riscv64.sh` builds with
+`riscv64-linux-gnu-gcc` and runs the crown unit tests under
+`qemu-riscv64-static`. Two environment knobs describe the emulated CPU: `CPU`
+is the qemu `-cpu` model (the extensions must be enabled there for the
+instructions to *run*) and `CAPS` is the `OPENSSL_riscvcap` ISA string (how
+crown learns what the CPU has, since qemu-user's `riscv_hwprobe` reports only
+the baseline bits). The three configurations the CI job runs:
+
+| `CPU` | `CAPS` | tiers exercised |
+|---|---|---|
+| `max` | full ISA string (`v`, `zbc`, `zbkb`, `zk*`, `zv*`) | Zvkned AES with its CBC/ECB/CTR/XTS bodies, Zvkg GHASH, the AES-GCM stitch, SHA-256/512, SM3, SM4, the Zvkb ChaCha20 body |
+| `rv64` + `zbb,zbc,zk*` | `rv64gc_zbb_zbc_zknd_zkne_zknh_zksed_zksh` | Zkn AES, the Zbc GHASH tier (`__zbb` table + body), T-table AES |
+| `rv64` + `v,zvbb,zvbc` | `rv64gc_v_zvbb_zvbc` | the Zvkb+Zvbc GHASH tier (portable AES/hashes there) |
+| `rv64` | empty (probe only) | portable paths + T-table AES |
+
+The ChaCha20 dispatcher picks one of its two bodies on `RISCV_HAS_ZVKB()`; the
+one the CPU does not select is covered by a test that calls both entry points
+directly (`xor_key_stream/asm.rs`), so the four runs above do not need a
+fifth for it.
+
 ## 2. Algorithm coverage: crown vs OpenSSL (default provider)
 
 ### crown gaps — hash (4) — ALL CLOSED 2026-09-26
