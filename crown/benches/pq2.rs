@@ -2,7 +2,9 @@ use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use std::hint::black_box;
 
 use crown::ml_dsa::{self, MlDsaVariant};
-use crown::ml_kem::{self, MlKemVariant};
+// The rustcrypto `ml-kem` crate is used below as well, so crown's module is
+// aliased to keep the bare `ml_kem` name free.
+use crown::ml_kem::{self as crown_ml_kem, MlKemVariant};
 use crown::slh_dsa::{self, SlhDsaVariant};
 
 fn bench_ml_kem_all(c: &mut Criterion) {
@@ -16,26 +18,29 @@ fn bench_ml_kem_all(c: &mut Criterion) {
         let mut group = c.benchmark_group(name);
         group.throughput(Throughput::Elements(1));
 
-        let (pk, sk) = ml_kem::keygen(variant, &seed).unwrap();
-        let (ct, ss) = ml_kem::encapsulate(&pk, &m).unwrap();
+        let (pk, sk) = crown_ml_kem::keygen(variant, &seed).unwrap();
+        let (ct, ss) = crown_ml_kem::encapsulate(&pk, &m).unwrap();
 
         group.bench_function("keygen", |b| {
-            b.iter(|| black_box(ml_kem::keygen(black_box(variant), black_box(&seed)).unwrap()))
+            b.iter(|| {
+                black_box(crown_ml_kem::keygen(black_box(variant), black_box(&seed)).unwrap())
+            })
         });
         group.bench_function("encapsulate", |b| {
-            b.iter(|| black_box(ml_kem::encapsulate(black_box(&pk), black_box(&m)).unwrap()))
+            b.iter(|| black_box(crown_ml_kem::encapsulate(black_box(&pk), black_box(&m)).unwrap()))
         });
         group.bench_function("decapsulate", |b| {
-            b.iter(|| black_box(ml_kem::decapsulate(black_box(&sk), black_box(&ct)).unwrap()))
+            b.iter(|| black_box(crown_ml_kem::decapsulate(black_box(&sk), black_box(&ct)).unwrap()))
         });
-        assert_eq!(ss, ml_kem::decapsulate(&sk, &ct).unwrap());
+        assert_eq!(ss, crown_ml_kem::decapsulate(&sk, &ct).unwrap());
         group.finish();
     }
 }
 
 fn bench_ml_kem768_rustcrypto(c: &mut Criterion) {
     use kem::Decapsulate;
-    // `::` to dodge the `crown::ml_kem` module binding above.
+    // `ml_kem` is the rustcrypto crate: crown's own module is bound as
+    // `crown_ml_kem` above.
     use ml_kem::{EncapsulateDeterministic, KemCore, MlKem768, B32};
 
     let d = B32::from([0x42u8; 32]);
