@@ -133,6 +133,77 @@ output (the vendored 3.5.8 tree predates the script) and dispatches
 `ntt`/`ntt_inverse`/`ntt_mult` when AVX2 is available — see
 `crown/src/ml_dsa/NOTES.md`.
 
+## 1b. aarch64 (ARMv8-A) perlasm port — 2026-10-07
+
+The aarch64 side is a *frozen-output* port: `scripts/gen-aarch64-asm.py` runs
+each OpenSSL perlasm script for the `linux64` flavour, pipes the result
+through the C preprocessor the way OpenSSL's build does (`-E -P -I crypto`,
+which resolves `#include "arm_arch.h"`, the `#if __ARM_MAX_ARCH__>=7` guards
+and the `AARCH64_*` support macros) and embeds the text verbatim in a
+`*/aarch64.ts`. `crown_derive::jsasm_file!` hands it to
+`global_asm!(..., options(raw))` (raw because the NEON/SVE operands contain
+`{v0.16b}`-style lane braces); `scripts/gen-aarch64-asm.py --check`
+re-verifies the committed files against the generators and `--lint` assembles
+each one with LLVM's integrated assembler (the one `global_asm!` uses).
+Unlike the x86_64 ports, which re-run the x86_64-xlate emulation at build
+time, the perl itself is not re-run here: the aarch64 perlasm body is already
+GNU-as syntax and only needs cpp.
+
+The `crown_aarch64_asm` cfg (emitted by `crown/build.rs` for
+`asm` + `target_arch="aarch64"` + Linux/Android) replaces the four-part
+`feature`/`target_arch`/`target_os` test at every dispatch site.
+
+| OpenSSL script | crown file | entry points wired |
+|---|---|---|
+| `crypto/sha/asm/sha1-armv8.pl` | `crown/src/hash/sha1/block/aarch64.ts` | `sha1_block_data_order` (self-dispatches SHA1+NEON/scalar) |
+| `crypto/sha/asm/sha512-armv8.pl` | `crown/src/hash/sha256/block/aarch64.ts`, `.../sha512/block/aarch64.ts` | `sha256_block_data_order`, `sha512_block_data_order` |
+| `crypto/md5/asm/md5-aarch64.pl` | `crown/src/hash/md5/block/aarch64.ts` | `ossl_md5_block_asm_data_order` |
+| `crypto/sm3/asm/sm3-armv8.pl` | `crown/src/hash/sm3/aarch64.ts` | `ossl_hwsm3_block_data_order` (behind `ARMV8_SM3`, like `HWSM3_CAPABLE`) |
+| `crypto/sha/asm/keccak1600-armv8.pl` | `crown/src/hash/sha3/aarch64.ts` | `SHA3_absorb`/`SHA3_squeeze` + the `_cext` absorb used when `ARMV8_HAVE_SHA3_AND_WORTH_USING` (exactly `sha3_prov.c`'s choice); the bare permute has no aarch64 entry point, so it stays portable |
+| `crypto/aes/asm/aesv8-armx.pl` | `crown/src/block/aes/aesv8/aarch64.ts` | `aes_v8_set_{encrypt,decrypt}_key`, `aes_v8_{encrypt,decrypt}`, `aes_v8_ecb_encrypt`, `aes_v8_cbc_encrypt`, `aes_v8_ctr32_encrypt_blocks`, `aes_v8_xts_{encrypt,decrypt}` (all behind `ARMV8_AES`) |
+| `crypto/modes/asm/ghashv8-armx.pl` | `crown/src/block/aes/gcm/aarch64.ts` | `gcm_init_v8`/`gcm_ghash_v8` behind `ARMV8_PMULL` |
+| `crypto/modes/asm/aes-gcm-armv8_64.pl`, `...-unroll8_64.pl` | `crown/src/aead/gcm/aarch64.ts`, `.../aarch64_unroll8.ts` | the six `aes_gcm_{enc,dec}_{128,192,256}_kernel` bodies plus the `unroll8_eor3_*` set (selected by `ARMV8_UNROLL8_EOR3`), driven like `cipher_aes_gcm_hw_armv8.inc` |
+| `crypto/chacha/asm/chacha-armv8.pl`, `...-sve.pl` | `crown/src/stream/chacha20/aarch64.ts`, `.../aarch64_sve.ts` | `ChaCha20_ctr32` (SVE → NEON → scalar, it calls the SVE body itself) |
+| `crypto/poly1305/asm/poly1305-armv8.pl` | `crown/src/mac/poly1305/aarch64.ts` | `poly1305_init`/`blocks`/`emit` with the same function-table protocol as x86_64 |
+| `crypto/bn/asm/armv8-mont.pl` | `crown/src/bn/aarch64.ts` | `bn_mul_mont` (the NEON 8x body is entered when `OPENSSL_armv8_rsa_neonized` is set) |
+| `crypto/ec/asm/ecp_nistz256-armv8.pl` | `crown/src/ec/nistz256/aarch64.ts` | the full nistz256 set plus the precomputed w7 generator table; `ec::nistz256::driver` is shared with x86_64 |
+| `crypto/sm4/asm/sm4-armv8.pl` | `crown/src/block/sm4/aarch64.ts` | `sm4_v8_encrypt`/`sm4_v8_decrypt` with the assembly's own (separate) schedules, behind `ARMV8_SM4` |
+
+Capability detection mirrors `crypto/armcap.c`: `crown/src/utils/cpuid/armcap.rs`
+reads `AT_HWCAP`/`AT_HWCAP2` through `getauxval`, publishes
+`OPENSSL_armcap_P` (the global the modules test) and
+`OPENSSL_armv8_rsa_neonized`, and derives the MIDR-driven
+`ARMV8_UNROLL8_EOR3`/`ARMV8_UNROLL12_EOR3`/`ARMV8_HAVE_SHA3_AND_WORTH_USING`
+hints from `MIDR_EL1` (read from EL0 when the kernel advertises
+`HWCAP_CPUID`). The `OPENSSL_armcap` environment override is not supported.
+
+Testing uses qemu-user: `scripts/check-aarch64.sh` builds with
+`aarch64-linux-gnu-gcc` and runs the crown unit tests under
+`qemu-aarch64-static`. `CPU=max` (the default) exposes AES/SHA1/SHA2/SHA3/
+SHA512/SM3/SM4/PMULL/SVE, so every assembly path above runs; `CPU=cortex-a72`
+turns SHA3/SM4/SVE off and exercises the NEON and scalar fallbacks inside the
+modules. The dispatch predicates (`ARMV8_*`) are read from the same HWCAP
+word the tests' CPU model reports, so both tiers are covered by running the
+suite twice.
+
+Translated but not wired, because the consumer is missing or the portable
+path already covers it (`--lint` still assembles them):
+
+- `vpaes-armv8.pl`, `bsaes-armv8.pl` — bitsliced AES for CPUs *without*
+  `ARMV8_AES`; crown's portable AES covers those, and no QEMU CPU model can
+  drop the AES extension, so the dispatch could not be tested either.
+- `vpsm4-armv8.pl`, `vpsm4_ex-armv8.pl` — vector-permute SM4 bulk routines;
+  the block-level `sm4_v8_*` path is what is wired.
+- `ecp_sm2p256-armv8.pl` — `crown/src/ec/sm2p256_aarch64.ts`; the driver of
+  `ecp_sm2p256.c` is not ported, crown's SM2 stays on the shared `ec` field
+  arithmetic.
+- `arm64cpuid.pl` — not ported at all: `getauxval` and `MIDR_EL1` replace its
+  SIGILL probes, and crown's RNG module has no hardware-RNG consumer.
+
+The ChaCha20-Poly1305 *stitched* AEAD stays x86_64-only: the module comes from
+BoringSSL, which is not part of the vendored reference tree, so the aarch64
+AEAD uses the per-primitive assembly instead (both primitives are wired).
+
 ## 2. Algorithm coverage: crown vs OpenSSL (default provider)
 
 ### crown gaps — hash (4) — ALL CLOSED 2026-09-26
