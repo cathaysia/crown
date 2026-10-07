@@ -17,9 +17,9 @@
 //! `blocks` counts **64-byte** chunks. Only `ctx->h[0..7]` is updated
 //! (the caller owns the length counters and final padding).
 //!
-//! The AVX stitched body is wired via `global_asm!` when the `asm`
-//! feature is enabled. shaext/xop/avx2 tiers are not ported yet (see
-//! `NOTES.md`); the dispatcher routes to the AVX body.
+//! The stitched bodies (XOP, AVX, AVX2 and SHA-NI) are wired via
+//! `global_asm!` when the `asm` feature is enabled and the entry point
+//! dispatches between them from `OPENSSL_ia32cap_P`, as upstream does.
 
 use crate::block::aes::aesni::AesKey;
 
@@ -40,6 +40,23 @@ extern "C" {
         ctx: *mut u32,
         in0: *const u8,
     );
+}
+
+/// Whether `aesni_cbc_sha256_enc` has a body for this CPU.
+///
+/// The dispatcher ends in `ud2` when the CPU has neither SHA-NI, XOP, AVX2
+/// (with BMI1/BMI2) nor AVX, so the AES-NI bit alone is not enough to call
+/// it: Westmere and Nehalem have AES-NI but no AVX.
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+pub fn supported() -> bool {
+    use crate::utils::cpuid::ia32cap;
+
+    let leaf1 = ia32cap(1);
+    let sha_ext = leaf1 & (1 << (61 - 32)) != 0;
+    let xop = leaf1 & (1 << 11) != 0;
+    let avx = leaf1 & (1 << 28) != 0;
+    let bmi2_avx2_bmi1 = ia32cap(2) & (1 << 8 | 1 << 5 | 1 << 3) == (1 << 8 | 1 << 5 | 1 << 3);
+    sha_ext || xop || avx || bmi2_avx2_bmi1
 }
 
 /// SHA-256 chaining value length (the only part of `SHA256_CTX` the asm touches).
