@@ -25,6 +25,23 @@ extern "C" {
     fn aesni_set_decrypt_key(user_key: *const u8, bits: i32, key: *mut AesKey) -> i32;
     fn aesni_encrypt(inp: *const u8, out: *mut u8, key: *const AesKey);
     fn aesni_decrypt(inp: *const u8, out: *mut u8, key: *const AesKey);
+    fn aesni_ecb_encrypt(inp: *const u8, out: *mut u8, len: usize, key: *const AesKey, enc: i32);
+    fn aesni_xts_encrypt(
+        inp: *const u8,
+        out: *mut u8,
+        len: usize,
+        key1: *const AesKey,
+        key2: *const AesKey,
+        iv: *const u8,
+    );
+    fn aesni_xts_decrypt(
+        inp: *const u8,
+        out: *mut u8,
+        len: usize,
+        key1: *const AesKey,
+        key2: *const AesKey,
+        iv: *const u8,
+    );
     #[allow(dead_code)]
     fn aesni_ctr32_encrypt_blocks(
         inp: *const u8,
@@ -100,5 +117,47 @@ pub fn cbc_encrypt(inout: &mut [u8], key: &AesKey, ivec: &mut [u8; 16], enc: boo
             ivec.as_mut_ptr(),
             enc as i32,
         );
+    }
+}
+
+/// In-place ECB over whole blocks (`enc != 0` encrypts).
+pub fn ecb_encrypt(inout: &mut [u8], key: &AesKey, enc: bool) {
+    unsafe {
+        aesni_ecb_encrypt(
+            inout.as_ptr(),
+            inout.as_mut_ptr(),
+            inout.len(),
+            key,
+            enc as i32,
+        );
+    }
+}
+
+/// In-place XTS over one data unit, ciphertext stealing included. `key1` is
+/// the data key (encryption schedule when encrypting, decryption schedule
+/// otherwise), `key2` the tweak key (always an encryption schedule); `iv` is
+/// read but not updated, like `aesni_xts_encrypt`.
+pub fn xts_crypt(inout: &mut [u8], key1: &AesKey, key2: &AesKey, iv: &[u8; 16], enc: bool) {
+    debug_assert!(inout.len() >= 16);
+    unsafe {
+        if enc {
+            aesni_xts_encrypt(
+                inout.as_ptr(),
+                inout.as_mut_ptr(),
+                inout.len(),
+                key1,
+                key2,
+                iv.as_ptr(),
+            );
+        } else {
+            aesni_xts_decrypt(
+                inout.as_ptr(),
+                inout.as_mut_ptr(),
+                inout.len(),
+                key1,
+                key2,
+                iv.as_ptr(),
+            );
+        }
     }
 }

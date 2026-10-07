@@ -22,6 +22,9 @@ mod ttable;
 pub(crate) mod aesni;
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+pub(crate) mod xts_avx512;
+
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
 mod bsaes;
 
 pub(crate) mod ghash;
@@ -139,6 +142,17 @@ impl Aes {
         encrypt_block(self, inout);
     }
 
+    /// AES-NI-format schedule for the bulk XTS routines: the data schedule
+    /// (`enc` selects the inverse schedule) or the tweak schedule.
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    pub fn xts_schedule(&self, enc: bool) -> &ttable::AesKey {
+        if enc {
+            &self.enc_key
+        } else {
+            &self.dec_key
+        }
+    }
+
     /// CBC encrypt/decrypt of full blocks in place. `enc` selects direction.
     /// The IV is updated to the last ciphertext block. Uses the fused
     /// aesni/bsaes CBC routines when available.
@@ -237,6 +251,20 @@ impl BlockCipher for Aes {
         }
         #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
         decrypt_block(self, inout);
+    }
+
+    fn bulk_crypt(&self, inout: &mut [u8], enc: bool) -> bool {
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        {
+            if aesni::supported() && inout.len().is_multiple_of(Self::BLOCK_SIZE) {
+                let key = if enc { &self.enc_key } else { &self.dec_key };
+                aesni::ecb_encrypt(inout, key, enc);
+                return true;
+            }
+        }
+        #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
+        let _ = enc;
+        false
     }
 }
 
