@@ -26,6 +26,26 @@ extern "C" {
     fn aesni_encrypt(inp: *const u8, out: *mut u8, key: *const AesKey);
     fn aesni_decrypt(inp: *const u8, out: *mut u8, key: *const AesKey);
     fn aesni_ecb_encrypt(inp: *const u8, out: *mut u8, len: usize, key: *const AesKey, enc: i32);
+    fn aesni_ocb_encrypt(
+        inp: *const u8,
+        out: *mut u8,
+        blocks: usize,
+        key: *const AesKey,
+        start_block_num: u32,
+        offset_i: *mut u8,
+        l: *const u8,
+        checksum: *mut u8,
+    );
+    fn aesni_ocb_decrypt(
+        inp: *const u8,
+        out: *mut u8,
+        blocks: usize,
+        key: *const AesKey,
+        start_block_num: u32,
+        offset_i: *mut u8,
+        l: *const u8,
+        checksum: *mut u8,
+    );
     fn aesni_ccm64_encrypt_blocks(
         inp: *const u8,
         out: *mut u8,
@@ -181,6 +201,52 @@ pub fn ccm64_crypt(
                 key,
                 ivec.as_ptr(),
                 cmac.as_mut_ptr(),
+            );
+        }
+    }
+}
+
+/// OCB's whole-block loop: `Offset_i = Offset_{i-1} xor L_{ntz(i)}`, the
+/// plaintext is folded into `checksum` and the block is enciphered under
+/// `Offset_i`. `start_block_num` is the 1-based index of the first block;
+/// `l` is the `L_i` table (`L_[][16]` upstream) that the routine indexes by
+/// `ntz(i)`, so entry `i` must be `L_i`. `offset` and `checksum` are updated
+/// in place. The partial block, the AAD and the tag stay with the caller,
+/// exactly like `crypto/modes/ocb128.c`.
+#[allow(clippy::too_many_arguments)]
+pub fn ocb_crypt(
+    inout: &mut [u8],
+    blocks: usize,
+    key: &AesKey,
+    start_block_num: u32,
+    offset: &mut [u8; 16],
+    l: &[[u8; 16]; 64],
+    checksum: &mut [u8; 16],
+    enc: bool,
+) {
+    debug_assert!(inout.len() >= blocks * 16);
+    unsafe {
+        if enc {
+            aesni_ocb_encrypt(
+                inout.as_ptr(),
+                inout.as_mut_ptr(),
+                blocks,
+                key,
+                start_block_num,
+                offset.as_mut_ptr(),
+                l.as_ptr().cast(),
+                checksum.as_mut_ptr(),
+            );
+        } else {
+            aesni_ocb_decrypt(
+                inout.as_ptr(),
+                inout.as_mut_ptr(),
+                blocks,
+                key,
+                start_block_num,
+                offset.as_mut_ptr(),
+                l.as_ptr().cast(),
+                checksum.as_mut_ptr(),
             );
         }
     }

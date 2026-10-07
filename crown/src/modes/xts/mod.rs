@@ -83,8 +83,8 @@ impl XtsCipher for Aes {
         if !crate::block::aes::aesni::supported() {
             return false;
         }
-        let k1 = key1.xts_schedule(enc);
-        let k2 = key2.xts_schedule(true);
+        let k1 = key1.bulk_schedule(enc);
+        let k2 = key2.bulk_schedule(true);
         if crate::block::aes::xts_avx512::xts_crypt(inout, k1, k2, iv, enc) {
             return true;
         }
