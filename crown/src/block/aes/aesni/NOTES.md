@@ -136,12 +136,12 @@ pub fn aesni_supported() -> bool {
 5. Mode accelerators: `aesni_cbc_encrypt`, `aesni_ctr32_encrypt_blocks`,
    `aesni_ecb_encrypt` and `aesni_xts_encrypt`/`aesni_xts_decrypt` are wired
    (`block::aes::{cbc,ctr}`/`Aes::bulk_crypt`/`modes::xts`, the last also with
-   the VAES bodies from `aesni-xts-avx512.pl`). `aesni_ocb_*` and
-   `aesni_ccm64_*_blocks` are still unwired: both need the data-block driver
-   from `crypto/modes/{ocb128,ccm128}.c` (the asm keeps no counter/`ivec`
-   state of its own). CFB/OFB stay on the generic
-   `CRYPTO_[c|o]fb128_encrypt`-style single-block loop (this script does not
-   export dedicated CFB/OFB routines).
+   the VAES bodies from `aesni-xts-avx512.pl`); `aesni_ocb_*` and
+   `aesni_ccm64_*_blocks` back AES-OCB3 and AES-CCM through drivers that
+   mirror `crypto/modes/{ocb128,ccm128}.c` (the asm keeps no counter/`ivec`
+   or OCB state of its own, so the callers own it). CFB/OFB stay on the
+   generic `CRYPTO_[c|o]fb128_encrypt`-style single-block loop (this script
+   does not export dedicated CFB/OFB routines).
 6. Register the CPUID gate once in the block dispatch (already sketched as `aesni_supported()`); fall back to `vpaes` / `generic` when AES-NI is absent.
 
 ## Verification
