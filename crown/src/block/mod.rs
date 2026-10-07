@@ -46,6 +46,14 @@ pub trait BlockCipher {
 
     /// decrypt a block.
     fn decrypt_block(&self, inout: &mut [u8]);
+
+    /// Optional fused hook over a whole multiple of the block size, in place
+    /// (ECB uses it to reach the assembly routines that interleave blocks).
+    /// Returning `false` tells the caller to fall back to the per-block
+    /// methods.
+    fn bulk_crypt(&self, _inout: &mut [u8], _enc: bool) -> bool {
+        false
+    }
 }
 
 pub trait BlockCipherMarker {}

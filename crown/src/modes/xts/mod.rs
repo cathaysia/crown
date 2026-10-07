@@ -45,6 +45,20 @@ pub enum Standard {
 /// SM4-XTS, so AES-192 halves are rejected here as well.
 pub trait XtsCipher: BlockCipher + Sized {
     fn from_xts_half(key: &[u8]) -> CryptoResult<Self>;
+
+    /// Bulk hook for the whole data unit under the IEEE tweak convention:
+    /// returns true when an assembly routine processed `inout`. `key1` is the
+    /// data key, `key2` the tweak key; `inout.len()` is at least one block.
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    fn bulk_data_unit(
+        _key1: &Self,
+        _key2: &Self,
+        _iv: &[u8; BLOCK_SIZE],
+        _inout: &mut [u8],
+        _enc: bool,
+    ) -> bool {
+        false
+    }
 }
 
 impl XtsCipher for Aes {
@@ -56,6 +70,26 @@ impl XtsCipher for Aes {
                 actual: len,
             }),
         }
+    }
+
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    fn bulk_data_unit(
+        key1: &Self,
+        key2: &Self,
+        iv: &[u8; BLOCK_SIZE],
+        inout: &mut [u8],
+        enc: bool,
+    ) -> bool {
+        if !crate::block::aes::aesni::supported() {
+            return false;
+        }
+        let k1 = key1.xts_schedule(enc);
+        let k2 = key2.xts_schedule(true);
+        if crate::block::aes::xts_avx512::xts_crypt(inout, k1, k2, iv, enc) {
+            return true;
+        }
+        crate::block::aes::aesni::xts_crypt(inout, k1, k2, iv, enc);
+        true
     }
 }
 
@@ -123,7 +157,9 @@ impl<C: BlockCipher> Xts<C> {
     pub fn from_keys(k1: C, k2: C) -> Self {
         Xts { k1, k2 }
     }
+}
 
+impl<C: XtsCipher> Xts<C> {
     /// Encrypt `inout` in place under the given 16-byte tweak. The length
     /// must be at least one block and at most 2^20 blocks.
     pub fn encrypt(&self, tweak: &[u8], inout: &mut [u8]) -> CryptoResult<()> {
@@ -183,9 +219,9 @@ fn dbl(tweak: &mut [u8; BLOCK_SIZE], standard: Standard) {
     }
 }
 
-fn xts_crypt<C1: BlockCipher, C2: BlockCipher>(
-    k1: &C1,
-    k2: &C2,
+fn xts_crypt<C: XtsCipher>(
+    k1: &C,
+    k2: &C,
     tweak: &[u8],
     inout: &mut [u8],
     enc: bool,
@@ -200,6 +236,18 @@ fn xts_crypt<C1: BlockCipher, C2: BlockCipher>(
     }
     if total > MAX_DATA_UNIT_SIZE {
         return Err(CryptoError::StrError("xts: data unit is too large"));
+    }
+
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    {
+        // The assembly bodies implement the IEEE tweak doubling only.
+        if standard == Standard::Ieee {
+            let mut iv = [0u8; BLOCK_SIZE];
+            iv.copy_from_slice(tweak);
+            if C::bulk_data_unit(k1, k2, &iv, inout, enc) {
+                return Ok(());
+            }
+        }
     }
 
     let mut t = [0u8; BLOCK_SIZE];
