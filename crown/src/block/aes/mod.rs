@@ -263,7 +263,7 @@ impl BlockCipher for Aes {
             }
         }
         #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
-        let _ = enc;
+        let _ = (inout, enc);
         false
     }
 }
