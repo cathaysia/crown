@@ -26,6 +26,22 @@ extern "C" {
     fn aesni_encrypt(inp: *const u8, out: *mut u8, key: *const AesKey);
     fn aesni_decrypt(inp: *const u8, out: *mut u8, key: *const AesKey);
     fn aesni_ecb_encrypt(inp: *const u8, out: *mut u8, len: usize, key: *const AesKey, enc: i32);
+    fn aesni_ccm64_encrypt_blocks(
+        inp: *const u8,
+        out: *mut u8,
+        blocks: usize,
+        key: *const AesKey,
+        ivec: *const u8,
+        cmac: *mut u8,
+    );
+    fn aesni_ccm64_decrypt_blocks(
+        inp: *const u8,
+        out: *mut u8,
+        blocks: usize,
+        key: *const AesKey,
+        ivec: *const u8,
+        cmac: *mut u8,
+    );
     fn aesni_xts_encrypt(
         inp: *const u8,
         out: *mut u8,
@@ -130,6 +146,43 @@ pub fn ecb_encrypt(inout: &mut [u8], key: &AesKey, enc: bool) {
             key,
             enc as i32,
         );
+    }
+}
+
+/// Fused CBC-MAC + CTR over `blocks` complete 16-byte blocks (the CCM body
+/// routine of `crypto/modes/ccm128.c`). `ivec` is the counter block of the
+/// first block and is read but not updated; `cmac` is the running CBC-MAC of
+/// the plaintext (the decrypted output when `enc` is false), updated in
+/// place. Trailing partial blocks stay with the caller.
+pub fn ccm64_crypt(
+    inout: &mut [u8],
+    blocks: usize,
+    key: &AesKey,
+    ivec: &[u8; 16],
+    cmac: &mut [u8; 16],
+    enc: bool,
+) {
+    debug_assert!(inout.len() >= blocks * 16);
+    unsafe {
+        if enc {
+            aesni_ccm64_encrypt_blocks(
+                inout.as_ptr(),
+                inout.as_mut_ptr(),
+                blocks,
+                key,
+                ivec.as_ptr(),
+                cmac.as_mut_ptr(),
+            );
+        } else {
+            aesni_ccm64_decrypt_blocks(
+                inout.as_ptr(),
+                inout.as_mut_ptr(),
+                blocks,
+                key,
+                ivec.as_ptr(),
+                cmac.as_mut_ptr(),
+            );
+        }
     }
 }
 
