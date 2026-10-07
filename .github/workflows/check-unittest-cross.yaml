@@ -89,3 +89,51 @@ jobs:
         run: |
           CPU=max scripts/check-aarch64.sh --lib
           CPU=cortex-a72 scripts/check-aarch64.sh --lib
+
+  # The riscv64 assembly modules (frozen OpenSSL perlasm output, see
+  # docs/algorithms-status.md §1c) are exercised natively for the same reason:
+  # the `-cpu` model decides which extensions actually execute, while the
+  # OPENSSL_riscvcap ISA string (CAPS) is what the dispatch reads, because
+  # qemu-user's riscv_hwprobe only reports the baseline bits. The four runs
+  # below walk the dispatch ladders, which are mutually exclusive per tier:
+  # `max` with the full ISA string drives every vector tier, the scalar model
+  # the Zknd/Zkne AES and Zbc GHASH ones, the Zvbc model the Zvkb+Zvbc GHASH
+  # tier (and the base ChaCha20 body), and the baseline model the portable
+  # paths with the T-table AES.
+  check-unitest-riscv64-asm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: setup env
+        run: |
+          sudo apt update -y
+          sudo apt install gcc-riscv64-linux-gnu qemu-user-static -y
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+          targets: riscv64gc-unknown-linux-gnu
+
+      - name: run the riscv64 assembly tests under qemu (vector crypto)
+        run: |
+          scripts/check-riscv64.sh --lib
+
+      - name: run the riscv64 assembly tests under qemu (scalar crypto)
+        run: |
+          CPU=rv64,zbb=true,zbc=true,zknd=true,zkne=true,zknh=true,zksed=true,zksh=true \
+            CAPS=rv64gc_zbb_zbc_zknd_zkne_zknh_zksed_zksh \
+            scripts/check-riscv64.sh --lib
+
+      - name: run the riscv64 assembly tests under qemu (Zvbc GHASH tier)
+        run: |
+          CPU=rv64,v=true,zvbb=true,zvbc=true \
+            CAPS=rv64gc_v_zvbb_zvbc \
+            scripts/check-riscv64.sh --lib
+
+      - name: run the riscv64 assembly tests under qemu (baseline)
+        run: |
+          CPU=rv64 CAPS= scripts/check-riscv64.sh --lib
