@@ -12,8 +12,8 @@
 |---|---|---|
 | `$win64` | 0 | unix SysV ABI only; all Win64 SEH / `.LSEH_*` / `.xdata` blocks dropped |
 | flavour | `elf` | AT&T / GAS output |
-| `$addx` | 1 | ADX+BMI2 (MULX/ADCX) paths are present and dispatched at runtime on `OPENSSL_ia32cap_P` bit `0x80100` (leaf 7 EBX bits 8+19) |
-| `$avx` | ≤ 1 | AVX2 gather bodies are **not** emitted. `ecp_nistz256_avx2_gather_w5` is absent. `ecp_nistz256_avx2_gather_w7` is the `ud2` stub (the `else` branch of the `$avx>1` probe). `gather_w5` / `gather_w7` do not dispatch to AVX2. |
+| `$addx` | 1 | ADX+BMI2 (MULX/ADCX) bodies (`__ecp_nistz256_*_x`) present; the entry points test `OPENSSL_ia32cap_P+8` against `0x80100` (leaf 7 EBX bits 8+19) and jump to them at run time |
+| `$avx` | 2 | AVX2 gather bodies emitted; `ecp_nistz256_gather_w5`/`_w7` test AVX2 (bit 5 of `OPENSSL_ia32cap_P+8`) and jump to `ecp_nistz256_avx2_gather_w5`/`_w7` |
 
 `OPENSSL_ia32cap_P` is the shared CPUID word defined by
 `crown/src/utils/cpuid/x86_64.ts` and filled at load time.
@@ -39,7 +39,8 @@
 | `ecp_nistz256_gather_w5` | function | `void (void *val, const void *in_t, int index)` |
 | `ecp_nistz256_scatter_w7` | function | `void (void *val, const void *in_t, int index)` |
 | `ecp_nistz256_gather_w7` | function | `void (void *val, const void *in_t, int index)` |
-| `ecp_nistz256_avx2_gather_w7` | function | `void (void *val, const void *in_t, int index)` — `ud2` stub |
+| `ecp_nistz256_avx2_gather_w5` | function | `void (void *val, const void *in_t, int index)` — AVX2 body, reached from `ecp_nistz256_gather_w5` |
+| `ecp_nistz256_avx2_gather_w7` | function | `void (void *val, const void *in_t, int index)` — AVX2 body, reached from `ecp_nistz256_gather_w7` |
 | `ecp_nistz256_point_double` | function | `void (P256_POINT *r, const P256_POINT *a)` |
 | `ecp_nistz256_point_add` | function | `void (P256_POINT *r, const P256_POINT *a, const P256_POINT *b)` |
 | `ecp_nistz256_point_add_affine` | function | `void (P256_POINT *r, const P256_POINT *a, const P256_POINT_AFFINE *b)` |
@@ -47,7 +48,10 @@
 Internal (`.type` but not `.globl`):
 `__ecp_nistz256_mul_montq`, `__ecp_nistz256_sqr_montq`,
 `__ecp_nistz256_add_toq`, `__ecp_nistz256_sub_fromq`,
-`__ecp_nistz256_subq`, `__ecp_nistz256_mul_by_2q`.
+`__ecp_nistz256_subq`, `__ecp_nistz256_mul_by_2q` and their ADX/BMI2
+counterparts `__ecp_nistz256_mul_montx`, `__ecp_nistz256_sqr_montx`,
+`__ecp_nistz256_add_tox`, `__ecp_nistz256_sub_fromx`,
+`__ecp_nistz256_subx`, `__ecp_nistz256_mul_by_2x`.
 
 ## Register / field layout
 

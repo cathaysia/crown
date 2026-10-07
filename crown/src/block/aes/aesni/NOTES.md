@@ -3,6 +3,9 @@
 Source: OpenSSL `crypto/aes/asm/aesni-x86_64.pl`
 Port: `staging/aesni/x86_64.ts`
 Config pin: `$win64=0` (unix SysV ABI). Win64 SEH / stack-offload blocks are dropped.
+The file is regenerated from the stock configuration; the `$avx`-gated AES-CTR
+AVX/AVX2 tiers are not emitted by this script (the runtime dispatch it does
+carry is for AES-NI vs the legacy paths).
 `$PREFIX` left at default `aesni` (not the `AES` drop-in for `aes-x86_64.pl`).
 No `$avx` probe exists in this script; no avx pin was required.
 
@@ -130,7 +133,15 @@ pub fn aesni_supported() -> bool {
 2. In `block/aes/asm.rs`, mirror the vpaes `global_asm!(crown_derive::jsasm_file!(...))` include behind `#[cfg(all(feature = "asm", target_arch = "x86_64"))]`.
 3. Add `extern "C"` declarations for the 13 globals above (SysV). Keep `aesni_set_encrypt_key` / `aesni_set_decrypt_key` as the key-expansion entry points: call them from `Aes` key setup when `aesni_supported()`, storing the 240-byte `rd_key` + `rounds` next to `BlockExpanded`.
 4. Dispatch single-block `aesni_encrypt` / `aesni_decrypt` from the block trait impl when AES-NI is present (they consume the standard FIPS-197 schedule directly — unlike vpaes, no transformed-domain conversion).
-5. Mode accelerators, if desired later: `aesni_cbc_encrypt`, `aesni_ctr32_encrypt_blocks`, `aesni_ecb_encrypt`, `aesni_xts_*`, `aesni_ocb_*`, `aesni_ccm64_*_blocks` can back `modes::{cbc,ctr,xts,ocb3}` and the AEAD paths. CFB/OFB stay on the generic `CRYPTO_[c|o]fb128_encrypt`-style single-block loop (this script does not export dedicated CFB/OFB routines).
+5. Mode accelerators: `aesni_cbc_encrypt`, `aesni_ctr32_encrypt_blocks`,
+   `aesni_ecb_encrypt` and `aesni_xts_encrypt`/`aesni_xts_decrypt` are wired
+   (`block::aes::{cbc,ctr}`/`Aes::bulk_crypt`/`modes::xts`, the last also with
+   the VAES bodies from `aesni-xts-avx512.pl`). `aesni_ocb_*` and
+   `aesni_ccm64_*_blocks` are still unwired: both need the data-block driver
+   from `crypto/modes/{ocb128,ccm128}.c` (the asm keeps no counter/`ivec`
+   state of its own). CFB/OFB stay on the generic
+   `CRYPTO_[c|o]fb128_encrypt`-style single-block loop (this script does not
+   export dedicated CFB/OFB routines).
 6. Register the CPUID gate once in the block dispatch (already sketched as `aesni_supported()`); fall back to `vpaes` / `generic` when AES-NI is absent.
 
 ## Verification

@@ -41,6 +41,19 @@ dual-licensed under the CRYPTOGAMS license for the perlasm modules).
 | `crypto/sm4/asm/sm4-x86_64.pl` | `crown/src/block/sm4/x86_64.ts` |
 | `crypto/whrlpool/asm/wp-x86_64.pl` | `crown/src/hash/whirlpool/x86_64.ts` (+ NOTES.md) |
 | `crypto/ml_dsa/asm/ml_dsa_ntt-x86_64.pl` (upstream master) | `crown/src/ml_dsa/ntt_x86_64.ts` (frozen perl output; AVX2 dispatches `ntt`/`ntt_inverse`/`ntt_mult`) |
+| `crypto/aes/asm/aesni-xts-avx512.pl` | `crown/src/block/aes/xts_avx512/x86_64.ts` (VAES+AVX512 XTS; `aesni_xts_avx512_eligible` gates the 128/256-bit bodies, wired into `modes::xts`) |
+
+The ports whose perl probe used to be evaluated without `$ENV{CC}` (so
+`$avx`/`$addx`/`$shaext` never fired) have been regenerated from the stock
+configuration and now carry the full tier set: `chacha-x86_64.pl` (8x AVX2,
+8x AVX512VL, 16x AVX512F, 4x XOP), `sha1-x86_64.pl` (AVX, AVX2),
+`sha512-x86_64.pl` (AVX/AVX2/XOP for both SHA-256 and SHA-512),
+`ecp_nistz256-x86_64.pl` (`$addx=1` ADX/BMI2 bodies and `$avx=2` AVX2
+gathers), `poly1305-x86_64.pl` (AVX, AVX2, AVX512F+VL+BW with VPMADD52) and
+`aesni-sha256-x86_64.pl` (shaext, XOP, AVX2). Their `.ts` files are
+byte-comparable with the upstream perlasm output; the entry points
+self-dispatch on `OPENSSL_ia32cap_P` except poly1305, which uses
+`poly1305_init`'s function table like `crypto/poly1305/poly1305.c`.
 
 ### Remaining, by bucket
 
@@ -54,6 +67,21 @@ dual-licensed under the CRYPTOGAMS license for the perlasm modules).
   `sha256-mb-x86_64.pl` are translated (`hash/sha1/mb`, `hash/sha256/mb`)
   but unwired: the multi-block ciphers are only consumed by the TLS
   CBC-HMAC stitched ciphers' pipelined path, which crown does not implement.
+- **not ported, crown consumer exists:**
+  `crypto/modes/asm/aes-gcm-avx512.pl` (VAES+VPCLMULQDQ+AVX512 GCM; 4985-line
+  script plus the `cipher_aes_gcm_hw_vaes_avx512.inc` driver, which needs a
+  second GCM context that mirrors `GCM128_CONTEXT`) and
+  `crypto/bn/asm/rsaz-{2k,3k,4k}-{avx512,avxifma}.pl` + `rsaz_exp_x2.c` (the
+  52-bit-digit AMS driver for RSA-2048/3072/4096 modulus halves). Both need
+  AVX512 (and AVX512-IFMA / AVX-IFMA) hardware that the development machine
+  and the CI runners do not have, so neither the translation nor the
+  dispatch could be validated end-to-end yet.
+- **translated but unwired, low value:** `aesni_ocb_encrypt/decrypt`
+  (OCB3 is generic in crown) needs the caller-managed L-table/offset/checksum
+  protocol from `crypto/modes/ocb128.c`; `aesni_ccm64_encrypt_blocks/
+  decrypt_blocks` needs the message-body driver from `crypto/modes/ccm128.c`;
+  `SHA3_absorb`/`SHA3_squeeze` (the sponge loops stay in Rust; the fused asm
+  is worth roughly 5-10% and carries delicate `next`-call bookkeeping).
 - **no crown consumer:** `keccak1600x4-avx512vl.pl` (4-way SHA3; crown sha3 is single-stream;
   `keccak1600-avx2/avx512/avx512vl.pl` are not even referenced by this
   OpenSSL's `build.info`).
@@ -62,14 +90,12 @@ dual-licensed under the CRYPTOGAMS license for the perlasm modules).
   see `crown/src/bn/gf2m.rs`). Everything else is now translated and
   dispatched: `ec/` (`x25519-x86_64.pl`, `ecp_nistz256-x86_64.pl` via
   `ec::nistz256::driver`), `bn/` (`mont`, `mont5`, `rsaz-x86_64` and
-  `rsaz-avx2` via `bn::rsaz::mod_exp`) and `ml_dsa/` (`ml_dsa_ntt`).
+  `rsaz-avx2` via `bn::rsaz::mod_exp`), `aes/` (`aesni-xts-avx512.pl` via
+  `modes::xts`) and `ml_dsa/` (`ml_dsa_ntt`).
 
-### Wiring status of the newly ported asm
+### Wiring status
 
-Compiled and unit-tested against the portable implementations, dispatch not
-yet switched:
-
-All of the previously "dispatch pending" asm is now wired: `bn_mul_mont`
+All of the previously "dispatch pending" asm is wired: `bn_mul_mont`
 and the mont5 `bn_power5`/gather5 family drive `Montgomery::pow_consttime`
 (RSA private-key paths); fe51/fe64 feed ed25519 and x25519; the
 chacha20-poly1305 and aesni-gcm stitches back their AEADs; ghash's
@@ -77,6 +103,14 @@ chacha20-poly1305 and aesni-gcm stitches back their AEADs; ghash's
 rc4 and aes-ctr32 are live. `wp-x86_64.pl` is ported and wired into
 `hash/whirlpool` behind `feature="asm"` (software `block_soft` remains the
 fallback and the test oracle).
+
+The AES-NI bulk routines that only had Rust per-block loops behind them are
+now wired: `modes::xts` hands a whole data unit to
+`aesni_xts_avx512_*_avx512` (when VAES+AVX512 and the 128/256-bit key
+schedule allow it) or `aesni_xts_encrypt`/`aesni_xts_decrypt`, both of which
+handle ciphertext stealing; ECB reaches `aesni_ecb_encrypt` through the new
+defaulted `BlockCipher::bulk_crypt` hook. The GB tweak convention and the
+non-AES ciphers stay on the portable path.
 
 The RSAZ 512/1024 helpers (`rsaz-x86_64.pl` / `rsaz-avx2.pl`) are
 dispatched: `crown::bn::rsaz::mod_exp` ports `rsaz_exp.c` and
@@ -87,7 +121,8 @@ CRT halves) through it, with the mont5 stack as fallback — see
 The nistz256 module is dispatched the same way: `ec::nistz256::driver`
 ports `ecp_nistz256.c` (w5 windowed ladder for variable points, the
 precomputed w7 generator table for `mul_base`) and `crate::ec` routes
-P-256 through it — see `crown/src/ec/nistz256/NOTES.md`.
+P-256 through it — see `crown/src/ec/nistz256/NOTES.md`. Its ADX/BMI2 and
+AVX2-gather tiers self-dispatch inside the assembly.
 
 ML-DSA's `ml_dsa_ntt` is ported as a frozen build of the upstream perl
 output (the vendored 3.5.8 tree predates the script) and dispatches

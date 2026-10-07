@@ -91,3 +91,29 @@ pub fn xts_crypt(inout: &mut [u8], key1: &AesKey, key2: &AesKey, iv: &[u8; 16], 
     }
     true
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::cpuid::ia32cap;
+
+    /// The assembly probe must agree with the raw capability words it reads:
+    /// AVX512F/DQ/BW/VL from `OPENSSL_ia32cap_P+8` and VAES, VPCLMULQDQ and
+    /// VBMI2 from `OPENSSL_ia32cap_P+12`.
+    #[test]
+    fn eligibility_matches_capability_words() {
+        let avx512 = (ia32cap(2) & 0xc003_0000) == 0xc003_0000;
+        let vaes = (ia32cap(3) & 0x640) == 0x640;
+        assert_eq!(eligible(), avx512 && vaes);
+    }
+
+    #[test]
+    fn short_input_is_rejected() {
+        let key = AesKey {
+            rd_key: [0; 60],
+            rounds: 10,
+        };
+        let mut buf = [0u8; 8];
+        assert!(!xts_crypt(&mut buf, &key, &key, &[0u8; 16], true));
+    }
+}
