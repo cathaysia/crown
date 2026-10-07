@@ -1,16 +1,20 @@
 fn main() {
     println!("cargo::rerun-if-changed=**/*.cu");
 
-    // The aarch64 assembly modules are frozen ELF output of the OpenSSL
-    // perlasm scripts, so they are only offered on the targets whose
-    // assembler accepts them. This cfg keeps the module gates readable; see
-    // scripts/gen-aarch64-asm.py.
+    // The aarch64 and riscv64 assembly modules are frozen output of the
+    // OpenSSL perlasm scripts, so they are only offered on the targets whose
+    // assembler accepts them. These cfgs keep the module gates readable; see
+    // scripts/gen-aarch64-asm.py and scripts/gen-riscv64-asm.py.
     println!("cargo::rustc-check-cfg=cfg(crown_aarch64_asm)");
+    println!("cargo::rustc-check-cfg=cfg(crown_riscv64_asm)");
     let arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
     let os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     let asm = std::env::var("CARGO_FEATURE_ASM").is_ok();
     if asm && arch == "aarch64" && (os == "linux" || os == "android") {
         println!("cargo::rustc-cfg=crown_aarch64_asm");
+    }
+    if asm && arch == "riscv64" && (os == "linux" || os == "android") {
+        println!("cargo::rustc-cfg=crown_riscv64_asm");
     }
 
     #[cfg(feature = "asm")]

@@ -3,7 +3,9 @@
 //! x86_64 reads the `OPENSSL_ia32cap_P` flags that the cpuid assembly fills
 //! from the `.init` section at load time. aarch64 reads the Linux HWCAP words
 //! into `OPENSSL_armcap_P` (see [`armcap`]), the global the aarch64 assembly
-//! modules test at their entry points.
+//! modules test at their entry points. riscv64 reads `riscv_hwprobe` (see
+//! [`riscvcap`]) into a capability word of its own; its assembly does not
+//! self-dispatch, so the query answers the dispatch sites directly.
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 core::arch::global_asm!(
@@ -53,3 +55,12 @@ mod armcap;
 
 #[cfg(crown_aarch64_asm)]
 pub(crate) use armcap::*;
+
+/// riscv64 capability detection (crypto/riscvcap.c). The `crown_riscv64_asm`
+/// cfg (crown/build.rs) already covers the `asm` feature and the ELF targets
+/// whose assembler accepts the perlasm output.
+#[cfg(crown_riscv64_asm)]
+mod riscvcap;
+
+#[cfg(crown_riscv64_asm)]
+pub(crate) use riscvcap::*;
