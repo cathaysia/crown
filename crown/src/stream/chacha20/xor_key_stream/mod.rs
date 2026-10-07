@@ -1,4 +1,4 @@
 mod generic;
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 mod asm;

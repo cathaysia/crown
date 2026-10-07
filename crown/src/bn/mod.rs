@@ -11,7 +11,7 @@
 //! exponentiation data path; key generation performs variable-time work on
 //! public data, like OpenSSL's default RSA key generation.
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub(crate) mod asm;
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 pub(crate) mod gf2m;
@@ -657,7 +657,7 @@ impl Montgomery {
     }
 
     fn mont_mul(&self, a: &Bn, b: &Bn) -> Bn {
-        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
         {
             if let Some(r) = self.mont_mul_asm(a, b) {
                 return r;
@@ -666,9 +666,10 @@ impl Montgomery {
         self.mont_mul_generic(a, b)
     }
 
-    /// Montgomery mul via the x86_64-mont.pl bn_mul_mont routine.
-    /// Returns `None` only when the assembly rejects the limb count.
-    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    /// Montgomery mul via the bn_mul_mont routine (x86_64-mont.pl or
+    /// armv8-mont.pl). Returns `None` only when the assembly rejects the
+    /// limb count.
+    #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
     fn mont_mul_asm(&self, a: &Bn, b: &Bn) -> Option<Bn> {
         let n = self.limbs;
         let mut al = alloc::vec![0u64; n];

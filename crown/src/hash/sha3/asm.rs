@@ -1,4 +1,10 @@
 //! Keccak-1600 assembly implementation.
+//!
+//! The x86_64 module exports a bare `KeccakF1600` plus the fused
+//! `SHA3_absorb`/`SHA3_squeeze`; the aarch64 module exports only the fused
+//! pair (the single-permutation paths stay with the portable implementation
+//! there). The ARMv8.2 crypto-extension bodies (`*_cext`) are used exactly
+//! where `sha3_prov.c` uses them: behind `ARMV8_HAVE_SHA3_AND_WORTH_USING`.
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 core::arch::global_asm!(
@@ -6,11 +12,16 @@ core::arch::global_asm!(
     options(att_syntax)
 );
 
+#[cfg(crown_aarch64_asm)]
+core::arch::global_asm!(
+    crown_derive::jsasm_file!("crown/src/hash/sha3/aarch64.ts"),
+    // The aarch64 operands carry `{v0.16b}`-style lane braces.
+    options(raw)
+);
+
 extern "C" {
-    /// Assembly function for the Keccak-f[1600] permutation on x86_64
-    ///
-    /// # Parameters
-    /// - `state`: Pointer to the 200-byte Keccak state
+    /// Assembly function for the Keccak-f[1600] permutation (x86_64)
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
     fn KeccakF1600(state: *mut u8);
 
     /// XOR whole rate-sized blocks into the state and permute after each of
@@ -21,9 +32,14 @@ extern "C" {
     /// between blocks. `next` must be 0: the caller hands over a state that
     /// was just permuted.
     fn SHA3_squeeze(state: *mut u8, out: *mut u8, len: usize, rate: usize, next: i32);
+
+    /// ARMv8.2 SHA3 crypto-extension body of [`SHA3_absorb`].
+    #[cfg(crown_aarch64_asm)]
+    fn SHA3_absorb_cext(state: *mut u8, inp: *const u8, len: usize, rate: usize) -> usize;
 }
 
-/// Permute the Keccak state using x86_64 assembly optimization
+/// Permute the Keccak state using the x86_64 assembly implementation.
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
 pub fn keccak_f1600(da: &mut [u8; 200]) {
     unsafe {
         KeccakF1600(da.as_mut_ptr());
@@ -37,6 +53,15 @@ pub fn keccak_f1600(da: &mut [u8; 200]) {
 pub fn absorb(state: &mut [u8; 200], inp: &[u8], rate: usize) -> usize {
     debug_assert!(rate < 200 && rate.is_multiple_of(8));
     debug_assert!(inp.len() >= rate);
+
+    #[cfg(crown_aarch64_asm)]
+    {
+        if crate::utils::cpuid::armcap() & crate::utils::cpuid::ARMV8_HAVE_SHA3_AND_WORTH_USING != 0
+        {
+            return unsafe { SHA3_absorb_cext(state.as_mut_ptr(), inp.as_ptr(), inp.len(), rate) };
+        }
+    }
+
     unsafe { SHA3_absorb(state.as_mut_ptr(), inp.as_ptr(), inp.len(), rate) }
 }
 

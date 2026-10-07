@@ -40,6 +40,14 @@ pub(crate) fn ghash_absorb(
         crate::block::aes::gcm::asm::ghash_absorb(state, h, inputs);
     }
 
+    #[cfg(crown_aarch64_asm)]
+    {
+        if crate::block::aes::gcm::asm::ghash_pmull_supported() {
+            crate::block::aes::gcm::asm::ghash_absorb(state, h, inputs);
+            return;
+        }
+    }
+
     #[cfg(any(
         not(feature = "asm"),
         not(feature = "alloc"),

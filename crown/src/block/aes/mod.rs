@@ -7,19 +7,25 @@ pub(crate) mod cbc;
 pub(crate) mod ctr;
 mod generic;
 
-#[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
+#[cfg(not(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm)))]
 mod noasm;
-#[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
+#[cfg(not(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm)))]
 use noasm::*;
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 mod asm;
+
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
+pub(crate) mod key;
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 mod ttable;
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 pub(crate) mod aesni;
+
+#[cfg(crown_aarch64_asm)]
+pub(crate) mod aesv8;
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 pub(crate) mod xts_avx512;
@@ -57,12 +63,15 @@ const AES256_ROUNDS: usize = 14;
 #[derive(Clone)]
 pub struct Aes {
     /// Software schedule; kept for the no-asm path and as a test oracle.
-    #[cfg_attr(all(feature = "asm", target_arch = "x86_64"), allow(dead_code))]
+    #[cfg_attr(
+        any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm),
+        allow(dead_code)
+    )]
     block: BlockExpanded,
-    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
-    enc_key: ttable::AesKey,
-    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
-    dec_key: ttable::AesKey,
+    #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
+    enc_key: key::AesKey,
+    #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
+    dec_key: key::AesKey,
 }
 
 #[cfg(feature = "alloc")]
@@ -104,7 +113,34 @@ impl Aes {
                         dec_key,
                     })
                 }
-                #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
+                #[cfg(crown_aarch64_asm)]
+                {
+                    // The ARMv8 routines are only entered when the crypto
+                    // extension is present; the software schedule stays the
+                    // fallback (and the test oracle) either way.
+                    let mut block = block;
+                    block.expand(key);
+                    let (enc_key, dec_key) = if aesv8::supported() {
+                        (aesv8::set_encrypt_key(key), aesv8::set_decrypt_key(key))
+                    } else {
+                        (
+                            key::AesKey {
+                                rd_key: [0; 60],
+                                rounds: 0,
+                            },
+                            key::AesKey {
+                                rd_key: [0; 60],
+                                rounds: 0,
+                            },
+                        )
+                    };
+                    Ok(Aes {
+                        block,
+                        enc_key,
+                        dec_key,
+                    })
+                }
+                #[cfg(not(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm)))]
                 {
                     let mut block = block;
                     block.expand(key);
@@ -118,10 +154,19 @@ impl Aes {
         }
     }
 
-    /// AES-NI-format encrypt schedule (the stitch consumes this layout).
-    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
-    pub fn enc_schedule(&self) -> (ttable::AesKey, bool) {
-        (self.enc_key, aesni::supported())
+    /// Forward encrypt schedule plus whether the assembly built it. The flag
+    /// is false when the assembly is unavailable, in which case the schedule
+    /// is unused and the caller must stay on the portable path. x86_64 keeps
+    /// the AES-NI word order, aarch64 the FIPS-197 one, which is what the
+    /// ctr32 and GCM kernels of each architecture consume.
+    #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
+    pub fn enc_schedule(&self) -> (key::AesKey, bool) {
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        let supported = aesni::supported();
+        #[cfg(crown_aarch64_asm)]
+        let supported = aesv8::supported();
+
+        (self.enc_key, supported)
     }
 
     pub fn encrypt_block_internal(&self, inout: &mut [u8]) {
@@ -135,14 +180,22 @@ impl Aes {
                 ttable::encrypt_block(inout, &self.enc_key);
             }
         }
-        #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
+        #[cfg(crown_aarch64_asm)]
+        {
+            if aesv8::supported() {
+                aesv8::encrypt_block(inout, &self.enc_key);
+            } else {
+                generic::encrypt_block_generic(&self.block, inout);
+            }
+        }
+        #[cfg(not(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm)))]
         encrypt_block(self, inout);
     }
 
     /// AES-NI-format schedule for the fused mode routines (XTS, OCB): `enc`
     /// selects the forward schedule and `!enc` the inverse one.
-    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
-    pub fn bulk_schedule(&self, enc: bool) -> &ttable::AesKey {
+    #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
+    pub fn bulk_schedule(&self, enc: bool) -> &key::AesKey {
         if enc {
             &self.enc_key
         } else {
@@ -152,29 +205,43 @@ impl Aes {
 
     /// CBC encrypt/decrypt of full blocks in place. `enc` selects direction.
     /// The IV is updated to the last ciphertext block. Uses the fused
-    /// aesni/bsaes CBC routines when available.
-    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    /// aesni/bsaes CBC routines when available, then the ARMv8 CBC routine,
+    /// then the per-block software chain.
+    #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
     pub fn cbc_blocks(&self, inout: &mut [u8], iv: &mut [u8; 16], enc: bool) {
-        if aesni::supported() {
-            // aesni_cbc_encrypt runs aesdec, so it needs the *decryption*
-            // schedule when decypting (aesni_set_decrypt_key).
-            let key = if enc { &self.enc_key } else { &self.dec_key };
-            aesni::cbc_encrypt(inout, key, iv, enc);
-            return;
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        {
+            if aesni::supported() {
+                // aesni_cbc_encrypt runs aesdec, so it needs the *decryption*
+                // schedule when decypting (aesni_set_decrypt_key).
+                let key = if enc { &self.enc_key } else { &self.dec_key };
+                aesni::cbc_encrypt(inout, key, iv, enc);
+                return;
+            }
+            if crate::block::aes::bsaes::supported() {
+                // bsaes consumes the conventional FIPS-197 schedule (ttable
+                // format), which is what enc_key/dec_key hold when AES-NI is off.
+                let key = if enc { &self.enc_key } else { &self.dec_key };
+                let ptr = inout.as_mut_ptr();
+                let (ip, op) = unsafe {
+                    (
+                        core::slice::from_raw_parts(ptr as *const u8, inout.len()),
+                        core::slice::from_raw_parts_mut(ptr, inout.len()),
+                    )
+                };
+                crate::block::aes::bsaes::cbc_encrypt(ip, op, key, iv, enc);
+                return;
+            }
         }
-        if crate::block::aes::bsaes::supported() {
-            // bsaes consumes the conventional FIPS-197 schedule (ttable
-            // format), which is what enc_key/dec_key hold when AES-NI is off.
-            let key = if enc { &self.enc_key } else { &self.dec_key };
-            let ptr = inout.as_mut_ptr();
-            let (ip, op) = unsafe {
-                (
-                    core::slice::from_raw_parts(ptr as *const u8, inout.len()),
-                    core::slice::from_raw_parts_mut(ptr, inout.len()),
-                )
-            };
-            crate::block::aes::bsaes::cbc_encrypt(ip, op, key, iv, enc);
-            return;
+        #[cfg(crown_aarch64_asm)]
+        {
+            if aesv8::supported() {
+                // aes_v8_cbc_encrypt runs aesd, so it needs the inverse
+                // schedule when decrypting.
+                let key = if enc { &self.enc_key } else { &self.dec_key };
+                aesv8::cbc_encrypt(inout, key, iv, enc);
+                return;
+            }
         }
         // fall through to per-block software
         let n = inout.len() / 16;
@@ -227,7 +294,15 @@ impl BlockCipher for Aes {
                 ttable::encrypt_block(inout, &self.enc_key);
             }
         }
-        #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
+        #[cfg(crown_aarch64_asm)]
+        {
+            if aesv8::supported() {
+                aesv8::encrypt_block(inout, &self.enc_key);
+            } else {
+                generic::encrypt_block_generic(&self.block, inout);
+            }
+        }
+        #[cfg(not(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm)))]
         encrypt_block(self, inout);
     }
 
@@ -246,7 +321,15 @@ impl BlockCipher for Aes {
                 ttable::decrypt_block(inout, &self.dec_key);
             }
         }
-        #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
+        #[cfg(crown_aarch64_asm)]
+        {
+            if aesv8::supported() {
+                aesv8::decrypt_block(inout, &self.dec_key);
+            } else {
+                generic::decrypt_block_generic(&self.block, inout);
+            }
+        }
+        #[cfg(not(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm)))]
         decrypt_block(self, inout);
     }
 
@@ -259,7 +342,15 @@ impl BlockCipher for Aes {
                 return true;
             }
         }
-        #[cfg(not(all(feature = "asm", target_arch = "x86_64")))]
+        #[cfg(crown_aarch64_asm)]
+        {
+            if aesv8::supported() && inout.len().is_multiple_of(Self::BLOCK_SIZE) {
+                let key = if enc { &self.enc_key } else { &self.dec_key };
+                aesv8::ecb_encrypt(inout, key, enc);
+                return true;
+            }
+        }
+        #[cfg(not(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm)))]
         let _ = (inout, enc);
         false
     }

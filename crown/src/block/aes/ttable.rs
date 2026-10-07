@@ -11,13 +11,7 @@ core::arch::global_asm!(
     options(att_syntax)
 );
 
-/// OpenSSL `AES_KEY`: 15 round keys then the round count.
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct AesKey {
-    pub rd_key: [u32; 60],
-    pub rounds: u32,
-}
+pub use super::key::AesKey;
 
 extern "C" {
     fn AES_set_encrypt_key(user_key: *const u8, bits: i32, key: *mut AesKey) -> i32;

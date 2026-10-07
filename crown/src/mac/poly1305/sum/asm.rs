@@ -1,11 +1,13 @@
-//! Poly1305 assembly implementation for x86_64.
+//! Poly1305 assembly implementation.
 //!
-//! The OpenSSL assembly exports the IALU `poly1305_init`/`poly1305_blocks`/
-//! `poly1305_emit` trio plus AVX, AVX2 and AVX512F+VL+BW (VPMADD52) block
-//! functions. `poly1305_init` fills the function table handed to it with the
-//! best available pair and returns 1; a return of 0 means no accelerated
-//! path is available and the IALU entry points must be kept, exactly as
-//! `crypto/poly1305/poly1305.c` does.
+//! The OpenSSL poly1305-x86_64.pl module exports the IALU
+//! `poly1305_init`/`poly1305_blocks`/`poly1305_emit` trio plus AVX, AVX2 and
+//! AVX512F+VL+BW (VPMADD52) block functions; poly1305-armv8.pl exports the
+//! same trio plus NEON block/emit pairs. In both modules `poly1305_init`
+//! fills the function table handed to it with the best available pair and
+//! returns 1; a return of 0 means no accelerated path is available and the
+//! scalar entry points must be kept, exactly as `crypto/poly1305/poly1305.c`
+//! does.
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 core::arch::global_asm!(
@@ -13,6 +15,13 @@ core::arch::global_asm!(
     // The AVX512 body carries EVEX write-mask operands like `{%k2}`, which
     // the default `global_asm!` template syntax reads as substitution braces.
     options(att_syntax, raw)
+);
+
+#[cfg(crown_aarch64_asm)]
+core::arch::global_asm!(
+    crown_derive::jsasm_file!("crown/src/mac/poly1305/aarch64.ts"),
+    // The aarch64 operands carry `{v0.16b}`-style lane braces.
+    options(raw)
 );
 
 extern "C" {
@@ -33,8 +42,9 @@ struct FuncTable {
 
 const TAG_SIZE: usize = 16;
 
-/// `POLY1305_OPAQUE_SIZE`: the assembly keeps h/r/s at offsets 0..72 and the
-/// base-2^44 path writes the lazily precomputed powers up to offset 160.
+/// `POLY1305_OPAQUE_SIZE`: the assembly keeps h/r/s at offsets 0..72, the
+/// x86_64 base-2^44 path writes the lazily precomputed powers up to offset
+/// 160 and the aarch64 path stores its powers up to offset 128.
 const CTX_WORDS: usize = 24;
 
 /// Poly1305 MAC backed by the OpenSSL assembly routines.
@@ -53,9 +63,14 @@ pub struct MacAsm {
 
 impl MacAsm {
     pub fn new(key: &[u8; 32]) -> Self {
+        // The aarch64 `poly1305_init` picks its NEON pair from
+        // OPENSSL_armcap_P, so the capability word must be published first.
+        #[cfg(crown_aarch64_asm)]
+        crate::utils::cpuid::armcap();
+
         let mut ctx = [0u64; CTX_WORDS];
-        // Seeded with the IALU pair, which `poly1305_init` overwrites when an
-        // accelerated one is available (it returns 0 without touching the
+        // Seeded with the scalar pair, which `poly1305_init` overwrites when
+        // an accelerated one is available (it returns 0 without touching the
         // table otherwise).
         let mut func = FuncTable {
             blocks: poly1305_blocks,

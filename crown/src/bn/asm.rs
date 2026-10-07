@@ -20,6 +20,7 @@
 
 use alloc::vec::Vec;
 
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
 core::arch::global_asm!(
     crown_derive::jsasm_file!("crown/src/bn/x86_64.ts"),
     options(att_syntax)
@@ -27,10 +28,32 @@ core::arch::global_asm!(
 
 // x86_64-mont5.pl: bn_sqr8x_internal/bn_sqrx8x_internal continue
 // bn_sqr8x_mont from x86_64-mont.pl; the power5 family is the modexp core.
+#[cfg(all(feature = "asm", target_arch = "x86_64"))]
 core::arch::global_asm!(
     crown_derive::jsasm_file!("crown/src/bn/mont5_x86_64.ts"),
     options(att_syntax)
 );
+
+// armv8-mont.pl: the ARMv8 Montgomery multiplication, including the NEON 8x
+// body that CPUs advertising `OPENSSL_armv8_rsa_neonized` enter.
+#[cfg(crown_aarch64_asm)]
+core::arch::global_asm!(
+    crown_derive::jsasm_file!("crown/src/bn/aarch64.ts"),
+    // The aarch64 operands carry `{v0.16b}`-style lane braces.
+    options(raw)
+);
+
+#[cfg(crown_aarch64_asm)]
+extern "C" {
+    fn bn_mul_mont(
+        rp: *mut u64,
+        ap: *const u64,
+        bp: *const u64,
+        np: *const u64,
+        n0: *const u64,
+        num: i32,
+    ) -> i32;
+}
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 extern "C" {
@@ -140,6 +163,43 @@ pub fn power5(ap: &[u64], tbl: &[u64], n: &[u64], n0: u64, pwr: usize) -> Option
             n0p.as_ptr(),
             num as i32,
             pwr as i32,
+        )
+    };
+    if ok == 1 {
+        while rp.last() == Some(&0) {
+            rp.pop();
+        }
+        Some(rp)
+    } else {
+        None
+    }
+}
+
+/// Montgomery multiplication of `a` by `b` modulo `n` using the ARMv8
+/// routine. `n0` is `-n^-1 mod 2^64`; the assembly reads only its first word
+/// (`bn_mont.c` zeroes `n0[1]` on 64-bit platforms). The scalar and NEON
+/// bodies cover every limb count, so unlike the x86_64 routine this cannot
+/// reject one.
+#[cfg(crown_aarch64_asm)]
+pub fn mul_mont(a: &[u64], b: &[u64], n: &[u64], n0: u64) -> Option<Vec<u64>> {
+    let num = n.len();
+    if num == 0 || a.len() != num || b.len() != num {
+        return None;
+    }
+    // The 8x NEON body is only entered when the MIDR hint says so; publish
+    // the capability globals before the assembly reads them.
+    crate::utils::cpuid::armcap();
+
+    let mut rp = alloc::vec![0u64; num];
+    let n0p = [n0, 0u64];
+    let ok = unsafe {
+        bn_mul_mont(
+            rp.as_mut_ptr(),
+            a.as_ptr(),
+            b.as_ptr(),
+            n.as_ptr(),
+            n0p.as_ptr(),
+            num as i32,
         )
     };
     if ok == 1 {

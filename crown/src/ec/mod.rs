@@ -6,7 +6,7 @@
 use crate::bn::{Bn, Montgomery};
 use crate::error::{CryptoError, CryptoResult};
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub mod nistz256;
 
 use alloc::string::String;
@@ -496,7 +496,7 @@ impl Point {
     /// P-256 uses the nistz256 windowed assembly when the `asm` feature is
     /// on; every other curve uses the portable 4-bit fixed window below.
     pub fn mul_with(&self, c: &Curve, k: &Bn) -> Point {
-        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
         if nistz256::driver::is_p256(c) {
             if let Some(point) = nistz256::driver::mul(self, k, &c.n) {
                 return point;
@@ -799,7 +799,7 @@ pub fn point_mul(c: &Curve, a: &Point, k: &Bn) -> Point {
 /// P-256 uses the precomputed nistz256 generator table when the `asm`
 /// feature is on.
 pub fn mul_base(c: &Curve, k: &Bn) -> Point {
-    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
     if nistz256::driver::is_p256(c) {
         if let Some(point) = nistz256::driver::mul_base(k, &c.n) {
             return point;

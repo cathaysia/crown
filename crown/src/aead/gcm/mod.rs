@@ -1,6 +1,9 @@
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 pub(crate) mod aesni;
 
+#[cfg(crown_aarch64_asm)]
+pub(crate) mod aarch64;
+
 #[cfg(test)]
 mod tests;
 
