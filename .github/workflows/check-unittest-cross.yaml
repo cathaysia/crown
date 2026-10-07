@@ -61,3 +61,31 @@ jobs:
         if: ${{ contains(matrix.target[0], 'mips') }}
         run: |
           RUSTFLAGS="-Zpanic_abort_tests" cross +nightly test --target=${{ matrix.target[0] }} -Z build-std=std,panic_abort
+
+  # The aarch64 assembly modules (frozen OpenSSL perlasm output, see
+  # docs/algorithms-status.md §1b) are exercised natively rather than through
+  # `cross`, so the emulated CPU model can be picked: `max` exposes every
+  # extension the modules dispatch on, `cortex-a72` turns SHA3/SM4/SVE off
+  # and drives the in-module fallbacks.
+  check-unitest-aarch64-asm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: setup env
+        run: |
+          sudo apt update -y
+          sudo apt install gcc-aarch64-linux-gnu qemu-user-static -y
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+          targets: aarch64-unknown-linux-gnu
+
+      - name: run the aarch64 assembly tests under qemu
+        run: |
+          CPU=max scripts/check-aarch64.sh --lib
+          CPU=cortex-a72 scripts/check-aarch64.sh --lib
