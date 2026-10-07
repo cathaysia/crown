@@ -10,7 +10,11 @@ use crown_derive::Marshal;
 #[cfg(test)]
 mod test;
 
-#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
+#[cfg(any(
+    all(feature = "asm", target_arch = "x86_64"),
+    crown_aarch64_asm,
+    crown_riscv64_asm
+))]
 mod asm;
 
 const SM3_A: u32 = 0x7380166f;
@@ -125,7 +129,11 @@ impl Sm3 {
     const SM3_LBLOCK: usize = (Self::SM3_CBLOCK / 4);
 
     pub fn block_data_order(&mut self, mut data: &[u8], num_blocks: usize) {
-        #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
+        #[cfg(any(
+            all(feature = "asm", target_arch = "x86_64"),
+            crown_aarch64_asm,
+            crown_riscv64_asm
+        ))]
         {
             if asm::sm3_supported() {
                 asm::block_data_order(self, data, num_blocks);

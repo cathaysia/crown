@@ -7,15 +7,27 @@ pub(crate) mod cbc;
 pub(crate) mod ctr;
 mod generic;
 
-#[cfg(not(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm)))]
+#[cfg(not(any(
+    all(feature = "asm", target_arch = "x86_64"),
+    crown_aarch64_asm,
+    crown_riscv64_asm
+)))]
 mod noasm;
-#[cfg(not(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm)))]
+#[cfg(not(any(
+    all(feature = "asm", target_arch = "x86_64"),
+    crown_aarch64_asm,
+    crown_riscv64_asm
+)))]
 use noasm::*;
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 mod asm;
 
-#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
+#[cfg(any(
+    all(feature = "asm", target_arch = "x86_64"),
+    crown_aarch64_asm,
+    crown_riscv64_asm
+))]
 pub(crate) mod key;
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
@@ -26,6 +38,9 @@ pub(crate) mod aesni;
 
 #[cfg(crown_aarch64_asm)]
 pub(crate) mod aesv8;
+
+#[cfg(crown_riscv64_asm)]
+pub(crate) mod riscv64;
 
 #[cfg(all(feature = "asm", target_arch = "x86_64"))]
 pub(crate) mod xts_avx512;
@@ -64,13 +79,25 @@ const AES256_ROUNDS: usize = 14;
 pub struct Aes {
     /// Software schedule; kept for the no-asm path and as a test oracle.
     #[cfg_attr(
-        any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm),
+        any(
+            all(feature = "asm", target_arch = "x86_64"),
+            crown_aarch64_asm,
+            crown_riscv64_asm
+        ),
         allow(dead_code)
     )]
     block: BlockExpanded,
-    #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
+    #[cfg(any(
+        all(feature = "asm", target_arch = "x86_64"),
+        crown_aarch64_asm,
+        crown_riscv64_asm
+    ))]
     enc_key: key::AesKey,
-    #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
+    #[cfg(any(
+        all(feature = "asm", target_arch = "x86_64"),
+        crown_aarch64_asm,
+        crown_riscv64_asm
+    ))]
     dec_key: key::AesKey,
 }
 
@@ -140,7 +167,26 @@ impl Aes {
                         dec_key,
                     })
                 }
-                #[cfg(not(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm)))]
+                #[cfg(crown_riscv64_asm)]
+                {
+                    // Every tier is backed by assembly on riscv64: the
+                    // Zvkned or Zknd/Zkne routines when the CPU has them,
+                    // the T-table bodies otherwise (upstream builds riscv64
+                    // with AES_ASM unconditionally). The software schedule
+                    // stays as the test oracle.
+                    let mut block = block;
+                    block.expand(key);
+                    Ok(Aes {
+                        block,
+                        enc_key: riscv64::set_encrypt_key(key),
+                        dec_key: riscv64::set_decrypt_key(key),
+                    })
+                }
+                #[cfg(not(any(
+                    all(feature = "asm", target_arch = "x86_64"),
+                    crown_aarch64_asm,
+                    crown_riscv64_asm
+                )))]
                 {
                     let mut block = block;
                     block.expand(key);
@@ -159,12 +205,20 @@ impl Aes {
     /// is unused and the caller must stay on the portable path. x86_64 keeps
     /// the AES-NI word order, aarch64 the FIPS-197 one, which is what the
     /// ctr32 and GCM kernels of each architecture consume.
-    #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
+    #[cfg(any(
+        all(feature = "asm", target_arch = "x86_64"),
+        crown_aarch64_asm,
+        crown_riscv64_asm
+    ))]
     pub fn enc_schedule(&self) -> (key::AesKey, bool) {
         #[cfg(all(feature = "asm", target_arch = "x86_64"))]
         let supported = aesni::supported();
         #[cfg(crown_aarch64_asm)]
         let supported = aesv8::supported();
+        // Every riscv64 tier builds an assembly schedule; the GCM/XTS
+        // kernels that consume it check their own extension sets.
+        #[cfg(crown_riscv64_asm)]
+        let supported = true;
 
         (self.enc_key, supported)
     }
@@ -188,13 +242,23 @@ impl Aes {
                 generic::encrypt_block_generic(&self.block, inout);
             }
         }
-        #[cfg(not(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm)))]
+        #[cfg(crown_riscv64_asm)]
+        riscv64::encrypt_block(inout, &self.enc_key);
+        #[cfg(not(any(
+            all(feature = "asm", target_arch = "x86_64"),
+            crown_aarch64_asm,
+            crown_riscv64_asm
+        )))]
         encrypt_block(self, inout);
     }
 
     /// AES-NI-format schedule for the fused mode routines (XTS, OCB): `enc`
     /// selects the forward schedule and `!enc` the inverse one.
-    #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
+    #[cfg(any(
+        all(feature = "asm", target_arch = "x86_64"),
+        crown_aarch64_asm,
+        crown_riscv64_asm
+    ))]
     pub fn bulk_schedule(&self, enc: bool) -> &key::AesKey {
         if enc {
             &self.enc_key
@@ -207,7 +271,11 @@ impl Aes {
     /// The IV is updated to the last ciphertext block. Uses the fused
     /// aesni/bsaes CBC routines when available, then the ARMv8 CBC routine,
     /// then the per-block software chain.
-    #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
+    #[cfg(any(
+        all(feature = "asm", target_arch = "x86_64"),
+        crown_aarch64_asm,
+        crown_riscv64_asm
+    ))]
     pub fn cbc_blocks(&self, inout: &mut [u8], iv: &mut [u8; 16], enc: bool) {
         #[cfg(all(feature = "asm", target_arch = "x86_64"))]
         {
@@ -240,6 +308,15 @@ impl Aes {
                 // schedule when decrypting.
                 let key = if enc { &self.enc_key } else { &self.dec_key };
                 aesv8::cbc_encrypt(inout, key, iv, enc);
+                return;
+            }
+        }
+        #[cfg(crown_riscv64_asm)]
+        {
+            // Only the Zvkned tier has a CBC body (the other tiers map to
+            // the portable loop upstream too).
+            let key = if enc { &self.enc_key } else { &self.dec_key };
+            if riscv64::cbc_encrypt(inout, key, iv, enc) {
                 return;
             }
         }
@@ -302,7 +379,13 @@ impl BlockCipher for Aes {
                 generic::encrypt_block_generic(&self.block, inout);
             }
         }
-        #[cfg(not(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm)))]
+        #[cfg(crown_riscv64_asm)]
+        riscv64::encrypt_block(inout, &self.enc_key);
+        #[cfg(not(any(
+            all(feature = "asm", target_arch = "x86_64"),
+            crown_aarch64_asm,
+            crown_riscv64_asm
+        )))]
         encrypt_block(self, inout);
     }
 
@@ -329,7 +412,13 @@ impl BlockCipher for Aes {
                 generic::decrypt_block_generic(&self.block, inout);
             }
         }
-        #[cfg(not(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm)))]
+        #[cfg(crown_riscv64_asm)]
+        riscv64::decrypt_block(inout, &self.dec_key);
+        #[cfg(not(any(
+            all(feature = "asm", target_arch = "x86_64"),
+            crown_aarch64_asm,
+            crown_riscv64_asm
+        )))]
         decrypt_block(self, inout);
     }
 
@@ -350,7 +439,20 @@ impl BlockCipher for Aes {
                 return true;
             }
         }
-        #[cfg(not(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm)))]
+        #[cfg(crown_riscv64_asm)]
+        {
+            if inout.len().is_multiple_of(Self::BLOCK_SIZE) {
+                let key = if enc { &self.enc_key } else { &self.dec_key };
+                if riscv64::ecb_encrypt(inout, key, enc) {
+                    return true;
+                }
+            }
+        }
+        #[cfg(not(any(
+            all(feature = "asm", target_arch = "x86_64"),
+            crown_aarch64_asm,
+            crown_riscv64_asm
+        )))]
         let _ = (inout, enc);
         false
     }

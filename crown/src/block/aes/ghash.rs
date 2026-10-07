@@ -48,6 +48,17 @@ pub(crate) fn ghash_absorb(
         }
     }
 
+    #[cfg(crown_riscv64_asm)]
+    {
+        // Zvkg, then Zvkb+Zvbc, then Zbc; without any of them the portable
+        // implementation below stays in charge (like `GHASH_ASM_RV64I`
+        // falling through to the 4-bit tables in gcm128.c).
+        if crate::block::aes::gcm::asm::riscv_ghash_tier().is_some() {
+            crate::block::aes::gcm::asm::ghash_absorb(state, h, inputs);
+            return;
+        }
+    }
+
     #[cfg(any(
         not(feature = "asm"),
         not(feature = "alloc"),
