@@ -477,6 +477,11 @@ impl CbcHmacCore {
         if !crate::block::aes::aesni::supported() {
             return None;
         }
+        // `aesni_cbc_sha1_enc` falls back to its SSSE3 body, but the SHA-256
+        // stitch traps when the CPU has no XOP/AVX/AVX2/SHA-NI body.
+        if matches!(self.kind, Kind::Sha256) && !crate::aead::aesni_sha256::supported() {
+            return None;
+        }
         let mac_len = self.kind.out();
         let has_iv = explicit_iv.is_some();
         let iv_off = if has_iv { 16 } else { 0 };
