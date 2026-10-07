@@ -49,7 +49,7 @@ pub trait XtsCipher: BlockCipher + Sized {
     /// Bulk hook for the whole data unit under the IEEE tweak convention:
     /// returns true when an assembly routine processed `inout`. `key1` is the
     /// data key, `key2` the tweak key; `inout.len()` is at least one block.
-    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
     fn bulk_data_unit(
         _key1: &Self,
         _key2: &Self,
@@ -72,7 +72,7 @@ impl XtsCipher for Aes {
         }
     }
 
-    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
     fn bulk_data_unit(
         key1: &Self,
         key2: &Self,
@@ -80,16 +80,33 @@ impl XtsCipher for Aes {
         inout: &mut [u8],
         enc: bool,
     ) -> bool {
-        if !crate::block::aes::aesni::supported() {
-            return false;
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        {
+            if !crate::block::aes::aesni::supported() {
+                false
+            } else {
+                let k1 = key1.bulk_schedule(enc);
+                let k2 = key2.bulk_schedule(true);
+                if crate::block::aes::xts_avx512::xts_crypt(inout, k1, k2, iv, enc) {
+                    true
+                } else {
+                    crate::block::aes::aesni::xts_crypt(inout, k1, k2, iv, enc);
+                    true
+                }
+            }
         }
-        let k1 = key1.bulk_schedule(enc);
-        let k2 = key2.bulk_schedule(true);
-        if crate::block::aes::xts_avx512::xts_crypt(inout, k1, k2, iv, enc) {
-            return true;
+
+        #[cfg(crown_aarch64_asm)]
+        {
+            if !crate::block::aes::aesv8::supported() {
+                false
+            } else {
+                let k1 = key1.bulk_schedule(enc);
+                let k2 = key2.bulk_schedule(true);
+                crate::block::aes::aesv8::xts_crypt(inout, k1, k2, iv, enc);
+                true
+            }
         }
-        crate::block::aes::aesni::xts_crypt(inout, k1, k2, iv, enc);
-        true
     }
 }
 

@@ -89,7 +89,7 @@ const K: [u64; 80] = [
     0x6c44198c4a475817,
 ];
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub(crate) mod asm;
 
 /// SHA512 block size in bytes

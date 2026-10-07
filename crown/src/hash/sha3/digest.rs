@@ -84,7 +84,7 @@ impl<const N: usize> Sha3<N> {
         // `SHA3_squeeze` copies whole blocks, permuting between them; it wants
         // a freshly permuted state, so drain first. The remaining partial block
         // is left to the loop below.
-        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
         {
             if self.n == self.rate {
                 self.permute();
@@ -139,7 +139,7 @@ impl<const N: usize> CoreWrite for Sha3<N> {
 
         // `SHA3_absorb` needs a block-aligned state and whole blocks; it fuses
         // the block XORs with the permutation and hands back the remainder.
-        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
         if self.n == 0 && p.len() >= self.rate {
             let left = super::asm::absorb(&mut self.a, p, self.rate);
             p = &p[p.len() - left..];

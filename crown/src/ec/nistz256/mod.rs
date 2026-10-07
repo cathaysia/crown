@@ -4,10 +4,10 @@
 //! assembly when the `asm` feature is on. See `NOTES.md` for the source
 //! path, config pins, symbol list and register/field layout.
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub mod asm;
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub(crate) mod driver;
 
 #[cfg(test)]

@@ -33,10 +33,6 @@ pub fn jsasm_file(input: TokenStream) -> TokenStream {
 // the same shortcut collide as soon as rustc places their blobs in one
 // assembly unit.
 fn tag_local_labels(path: &str, asm: &str) -> String {
-    if !asm.is_ascii() {
-        return asm.to_string();
-    }
-
     let mut tag: String = path
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
@@ -48,7 +44,9 @@ fn tag_local_labels(path: &str, asm: &str) -> String {
     let prev_ok = |i: usize| {
         i == 0 || !is_ident(bytes[i - 1]) && bytes[i - 1] != b'$' && bytes[i - 1] != b'.'
     };
-    let mut out = String::with_capacity(asm.len() + 2 * tag.len() + 16);
+    // Byte-wise on purpose: the perl output carries comments in any encoding,
+    // and only ASCII bytes can start a label.
+    let mut out: Vec<u8> = Vec::with_capacity(asm.len() + 2 * tag.len() + 16);
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'.' && i + 1 < bytes.len() && bytes[i + 1] == b'L' {
@@ -58,10 +56,10 @@ fn tag_local_labels(path: &str, asm: &str) -> String {
             }
             let ident = &asm[i + 2..j];
             if prev_ok(i) && !ident.is_empty() && ident != "ong" {
-                out.push_str(".L");
-                out.push_str(&tag);
-                out.push('_');
-                out.push_str(ident);
+                out.extend_from_slice(b".L");
+                out.extend_from_slice(tag.as_bytes());
+                out.push(b'_');
+                out.extend_from_slice(ident.as_bytes());
                 i = j;
                 continue;
             }
@@ -72,17 +70,17 @@ fn tag_local_labels(path: &str, asm: &str) -> String {
             }
             let ident = &asm[i..j];
             if ident.ends_with("_shortcut") {
-                out.push('_');
-                out.push_str(&tag);
-                out.push_str(ident);
+                out.push(b'_');
+                out.extend_from_slice(tag.as_bytes());
+                out.extend_from_slice(ident.as_bytes());
                 i = j;
                 continue;
             }
         }
-        out.push(bytes[i] as char);
+        out.push(bytes[i]);
         i += 1;
     }
-    out
+    String::from_utf8(out).expect("label tagging preserves UTF-8")
 }
 
 #[cfg(test)]
@@ -101,5 +99,15 @@ mod tests {
         assert!(tagged.contains("jmp\t_crown_src_hash_sha1_block_x86_64_ts_avx2_shortcut"));
         // Underscore names that are not shortcut jump targets are left alone.
         assert!(tagged.contains("_vpaes_encrypt_core:"));
+    }
+
+    #[test]
+    fn tags_local_labels_with_non_ascii_comments() {
+        // The aarch64 GHASH output keeps a few `·` multiplication signs in
+        // comments; they must survive byte-exact.
+        let asm = "\tpmull\tv0.1q,v20.1d,v3.1d\t\t//H.lo·Xi.lo\n\tb\t.Lloop\n.Lloop:\n";
+        let tagged = tag_local_labels("crown/src/block/aes/gcm/aarch64.ts", asm);
+        assert!(tagged.contains("//H.lo·Xi.lo"));
+        assert!(tagged.contains(".Lcrown_src_block_aes_gcm_aarch64_ts_loop:"));
     }
 }

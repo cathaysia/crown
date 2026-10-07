@@ -4,7 +4,7 @@ pub use crate::block::aes::*;
 /// CTR32 multi-block XOR. The generic mode increments a 128-bit counter;
 /// when the low 32-bit word will not wrap over `n` blocks the CTR32 asm
 /// (which increments only the final four bytes) is keystream-identical.
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 fn ctr32_xor(b: &Aes, inout: &mut [u8], ivlo: u64, ivhi: u64, n: usize) -> bool {
     if n == 0 || inout.len() < n * 16 {
         return false;
@@ -16,7 +16,7 @@ fn ctr32_xor(b: &Aes, inout: &mut [u8], ivlo: u64, ivhi: u64, n: usize) -> bool 
     let mut ivec = [0u8; 16];
     ivec[..8].copy_from_slice(&ivhi.to_be_bytes());
     ivec[8..].copy_from_slice(&ivlo.to_be_bytes());
-    let (key, is_aesni_sched) = b.enc_schedule();
+    let (key, sched_ok) = b.enc_schedule();
     let ptr = inout.as_mut_ptr();
     let len = n * 16;
     // SAFETY: `ptr`/`len` alias the same buffer the CTR32 routine xors in place.
@@ -27,19 +27,31 @@ fn ctr32_xor(b: &Aes, inout: &mut [u8], ivlo: u64, ivhi: u64, n: usize) -> bool 
         )
     };
 
-    if is_aesni_sched {
-        crate::block::aes::aesni::ctr32_encrypt_blocks(ip, op, n, &key, &ivec);
-        return true;
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    {
+        if sched_ok {
+            crate::block::aes::aesni::ctr32_encrypt_blocks(ip, op, n, &key, &ivec);
+            return true;
+        }
+        if crate::block::aes::bsaes::supported() {
+            crate::block::aes::bsaes::ctr32_encrypt_blocks(ip, op, &key, &ivec);
+            return true;
+        }
     }
-    if crate::block::aes::bsaes::supported() {
-        crate::block::aes::bsaes::ctr32_encrypt_blocks(ip, op, &key, &ivec);
-        return true;
+
+    #[cfg(crown_aarch64_asm)]
+    {
+        if sched_ok {
+            crate::block::aes::aesv8::ctr32_encrypt_blocks(ip, op, n, &key, &ivec);
+            return true;
+        }
     }
+
     false
 }
 
 pub fn ctr_blocks_1(block: &Aes, inout: &mut [u8], iv_low: u64, iv_high: u64) {
-    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
     if ctr32_xor(block, inout, iv_low, iv_high, 1) {
         return;
     }
@@ -47,7 +59,7 @@ pub fn ctr_blocks_1(block: &Aes, inout: &mut [u8], iv_low: u64, iv_high: u64) {
 }
 
 pub fn ctr_blocks_2(block: &Aes, inout: &mut [u8], iv_low: u64, iv_high: u64) {
-    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
     if ctr32_xor(block, inout, iv_low, iv_high, 2) {
         return;
     }
@@ -55,7 +67,7 @@ pub fn ctr_blocks_2(block: &Aes, inout: &mut [u8], iv_low: u64, iv_high: u64) {
 }
 
 pub fn ctr_blocks_4(block: &Aes, inout: &mut [u8], iv_low: u64, iv_high: u64) {
-    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
     if ctr32_xor(block, inout, iv_low, iv_high, 4) {
         return;
     }
@@ -63,7 +75,7 @@ pub fn ctr_blocks_4(block: &Aes, inout: &mut [u8], iv_low: u64, iv_high: u64) {
 }
 
 pub fn ctr_blocks_8(block: &Aes, inout: &mut [u8], iv_low: u64, iv_high: u64) {
-    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+    #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
     if ctr32_xor(block, inout, iv_low, iv_high, 8) {
         return;
     }

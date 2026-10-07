@@ -50,7 +50,14 @@ core::arch::global_asm!(
     options(att_syntax)
 );
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(crown_aarch64_asm)]
+core::arch::global_asm!(
+    crown_derive::jsasm_file!("crown/src/ec/nistz256/aarch64.ts"),
+    // The aarch64 operands carry `{v0.16b}`-style lane braces.
+    options(raw)
+);
+
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 extern "C" {
     fn ecp_nistz256_add(res: *mut u64, a: *const u64, b: *const u64);
     fn ecp_nistz256_sub(res: *mut u64, a: *const u64, b: *const u64);
@@ -71,6 +78,7 @@ extern "C" {
     fn ecp_nistz256_gather_w5(val: *mut u64, in_t: *const u64, index: i32);
     fn ecp_nistz256_scatter_w7(val: *mut u64, in_t: *const u64, index: i32);
     fn ecp_nistz256_gather_w7(val: *mut u64, in_t: *const u64, index: i32);
+    #[cfg(all(feature = "asm", target_arch = "x86_64"))]
     fn ecp_nistz256_avx2_gather_w7(val: *mut u64, in_t: *const u64, index: i32);
 
     fn ecp_nistz256_point_double(r: *mut u64, a: *const u64);
@@ -85,84 +93,84 @@ pub const P256_POINT_LIMBS: usize = 12;
 /// Size of an affine point in limbs (X, Y).
 pub const P256_POINT_AFFINE_LIMBS: usize = 8;
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub fn add(a: &[u64; 4], b: &[u64; 4]) -> [u64; 4] {
     let mut res = [0u64; 4];
     unsafe { ecp_nistz256_add(res.as_mut_ptr(), a.as_ptr(), b.as_ptr()) };
     res
 }
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub fn sub(a: &[u64; 4], b: &[u64; 4]) -> [u64; 4] {
     let mut res = [0u64; 4];
     unsafe { ecp_nistz256_sub(res.as_mut_ptr(), a.as_ptr(), b.as_ptr()) };
     res
 }
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub fn neg(a: &[u64; 4]) -> [u64; 4] {
     let mut res = [0u64; 4];
     unsafe { ecp_nistz256_neg(res.as_mut_ptr(), a.as_ptr()) };
     res
 }
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub fn mul_by_2(a: &[u64; 4]) -> [u64; 4] {
     let mut res = [0u64; 4];
     unsafe { ecp_nistz256_mul_by_2(res.as_mut_ptr(), a.as_ptr()) };
     res
 }
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub fn div_by_2(a: &[u64; 4]) -> [u64; 4] {
     let mut res = [0u64; 4];
     unsafe { ecp_nistz256_div_by_2(res.as_mut_ptr(), a.as_ptr()) };
     res
 }
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub fn mul_by_3(a: &[u64; 4]) -> [u64; 4] {
     let mut res = [0u64; 4];
     unsafe { ecp_nistz256_mul_by_3(res.as_mut_ptr(), a.as_ptr()) };
     res
 }
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub fn to_mont(a: &[u64; 4]) -> [u64; 4] {
     let mut res = [0u64; 4];
     unsafe { ecp_nistz256_to_mont(res.as_mut_ptr(), a.as_ptr()) };
     res
 }
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub fn from_mont(a: &[u64; 4]) -> [u64; 4] {
     let mut res = [0u64; 4];
     unsafe { ecp_nistz256_from_mont(res.as_mut_ptr(), a.as_ptr()) };
     res
 }
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub fn mul_mont(a: &[u64; 4], b: &[u64; 4]) -> [u64; 4] {
     let mut res = [0u64; 4];
     unsafe { ecp_nistz256_mul_mont(res.as_mut_ptr(), a.as_ptr(), b.as_ptr()) };
     res
 }
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub fn sqr_mont(a: &[u64; 4]) -> [u64; 4] {
     let mut res = [0u64; 4];
     unsafe { ecp_nistz256_sqr_mont(res.as_mut_ptr(), a.as_ptr()) };
     res
 }
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub fn ord_mul_mont(a: &[u64; 4], b: &[u64; 4]) -> [u64; 4] {
     let mut res = [0u64; 4];
     unsafe { ecp_nistz256_ord_mul_mont(res.as_mut_ptr(), a.as_ptr(), b.as_ptr()) };
     res
 }
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub fn ord_sqr_mont(a: &[u64; 4], rep: u64) -> [u64; 4] {
     let mut res = [0u64; 4];
     unsafe { ecp_nistz256_ord_sqr_mont(res.as_mut_ptr(), a.as_ptr(), rep) };
@@ -173,13 +181,13 @@ pub fn ord_sqr_mont(a: &[u64; 4], rep: u64) -> [u64; 4] {
 ///
 /// `table` must hold at least `16 * P256_POINT_LIMBS` limbs.  Index is
 /// 1-based (1..=16); slot 0 is implicitly infinity and is never stored.
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub fn scatter_w5(table: &mut [u64], point: &[u64; 12], index: i32) {
     unsafe { ecp_nistz256_scatter_w5(table.as_mut_ptr(), point.as_ptr(), index) };
 }
 
 /// Gather one Jacobian point (12 limbs) from a w5 table (1-based index).
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub fn gather_w5(out: &mut [u64; 12], table: &[u64], index: i32) {
     unsafe { ecp_nistz256_gather_w5(out.as_mut_ptr(), table.as_ptr(), index) };
 }
@@ -189,19 +197,19 @@ pub fn gather_w5(out: &mut [u64; 12], table: &[u64], index: i32) {
 /// `table` must hold at least `64 * P256_POINT_AFFINE_LIMBS` limbs.
 /// Index is 0-based (0..=63); the stored entry is later read back with
 /// `gather_w7(.., index + 1)` because gather skips the implicit-zero slot.
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub fn scatter_w7(table: &mut [u64], point: &[u64; 8], index: i32) {
     unsafe { ecp_nistz256_scatter_w7(table.as_mut_ptr(), point.as_ptr(), index) };
 }
 
 /// Gather one affine point (8 limbs) from a w7 table (1-based index).
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub fn gather_w7(out: &mut [u64; 8], table: &[u64], index: i32) {
     unsafe { ecp_nistz256_gather_w7(out.as_mut_ptr(), table.as_ptr(), index) };
 }
 
 /// `r = 2*a` in Jacobian coordinates (inputs/outputs in Montgomery form).
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub fn point_double(a: &[u64; 12]) -> [u64; 12] {
     let mut r = [0u64; 12];
     unsafe { ecp_nistz256_point_double(r.as_mut_ptr(), a.as_ptr()) };
@@ -209,7 +217,7 @@ pub fn point_double(a: &[u64; 12]) -> [u64; 12] {
 }
 
 /// `r = a + b` in Jacobian coordinates (inputs/outputs in Montgomery form).
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub fn point_add(a: &[u64; 12], b: &[u64; 12]) -> [u64; 12] {
     let mut r = [0u64; 12];
     unsafe { ecp_nistz256_point_add(r.as_mut_ptr(), a.as_ptr(), b.as_ptr()) };
@@ -217,7 +225,7 @@ pub fn point_add(a: &[u64; 12], b: &[u64; 12]) -> [u64; 12] {
 }
 
 /// `r = a + b` with `b` affine (Montgomery form).
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 pub fn point_add_affine(a: &[u64; 12], b: &[u64; 8]) -> [u64; 12] {
     let mut r = [0u64; 12];
     unsafe { ecp_nistz256_point_add_affine(r.as_mut_ptr(), a.as_ptr(), b.as_ptr()) };

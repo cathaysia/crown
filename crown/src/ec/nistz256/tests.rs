@@ -3,7 +3,7 @@
 //! Gated on `feature = "asm"` + `target_arch = "x86_64"`; the module is
 //! empty otherwise.
 
-#![cfg(all(feature = "asm", target_arch = "x86_64"))]
+#![cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 
 use super::asm;
 use crate::bn::{Bn, Montgomery};
@@ -406,7 +406,7 @@ fn ord_sqr_mont_rep_matches_repeated() {
     assert_eq!(got, t.modulus(&c.n), "ord_sqr_mont rep=3");
 }
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 #[test]
 fn driver_matches_software() {
     let c = p256();
@@ -461,7 +461,7 @@ fn driver_matches_software() {
     }
 }
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 #[test]
 fn driver_precomputed_table_layout() {
     let c = p256();

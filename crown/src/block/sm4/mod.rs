@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests;
 
-#[cfg(all(feature = "asm", target_arch = "x86_64"))]
+#[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
 mod asm;
 
 use bytes::BufMut;
@@ -18,6 +18,12 @@ use bytes::Buf;
 pub struct Sm4 {
     pub ek: [u32; 32],
     pub dk: [u32; 32],
+    /// ARMv8 schedules; the `sm4_v8_*` routines build and consume their own
+    /// layout, so they are kept next to the software pair.
+    #[cfg(crown_aarch64_asm)]
+    hw_ek: [u32; 32],
+    #[cfg(crown_aarch64_asm)]
+    hw_dk: [u32; 32],
 }
 
 impl BlockCipherMarker for Sm4 {}
@@ -31,11 +37,28 @@ impl Sm4 {
                 actual: key.len(),
             });
         }
+        #[cfg(not(crown_aarch64_asm))]
         let mut ret = Self {
             ek: [0; 32],
             dk: [0; 32],
         };
+        #[cfg(crown_aarch64_asm)]
+        let mut ret = Self {
+            ek: [0; 32],
+            dk: [0; 32],
+            hw_ek: [0; 32],
+            hw_dk: [0; 32],
+        };
         ret.s_sm4_setkey(key);
+        #[cfg(crown_aarch64_asm)]
+        {
+            // The software pair above is the fallback and the test oracle;
+            // the ARMv8 schedules are only used when the SM4 extension is
+            // present.
+            if asm::sm4_supported() {
+                asm::set_keys(key, &mut ret.hw_ek, &mut ret.hw_dk);
+            }
+        }
         Ok(ret)
     }
 
@@ -61,6 +84,13 @@ impl BlockCipher for Sm4 {
                 return;
             }
         }
+        #[cfg(crown_aarch64_asm)]
+        {
+            if asm::sm4_supported() {
+                asm::encrypt_block(inout, &self.hw_ek);
+                return;
+            }
+        }
         s_sm4_do(inout, &(self.ek));
     }
 
@@ -70,6 +100,13 @@ impl BlockCipher for Sm4 {
             if asm::sm4_supported() {
                 // The SM4-NI path consumes the forward round-key schedule.
                 asm::decrypt_block(inout, &self.ek);
+                return;
+            }
+        }
+        #[cfg(crown_aarch64_asm)]
+        {
+            if asm::sm4_supported() {
+                asm::decrypt_block(inout, &self.hw_dk);
                 return;
             }
         }
