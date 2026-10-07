@@ -184,20 +184,44 @@ fn ord_mul_sqr() {
 
 // ---- scatter / gather ----
 
+/// 64-byte aligned w5/w7 table storage. The AVX2 gather bodies load the
+/// table with `vmovdqa`, which upstream satisfies by aligning the table
+/// allocation to 64 bytes.
+#[repr(align(64))]
+struct AlignedTable<const N: usize>([u64; N]);
+
+impl<const N: usize> AlignedTable<N> {
+    fn new() -> Self {
+        Self([0u64; N])
+    }
+
+    fn as_mut(&mut self) -> &mut [u64] {
+        &mut self.0
+    }
+
+    fn as_slice(&self) -> &[u64] {
+        &self.0
+    }
+}
+
+/// `ecp_nistz256_scatter_w5` loads its input point with `movdqa`.
+#[repr(align(16))]
+struct AlignedLimbs<const N: usize>([u64; N]);
+
 #[test]
 fn scatter_gather_w5_roundtrip() {
     // 16 Jacobian points in a w5 table; index is 1-based.
-    let mut table = vec![0u64; 16 * asm::P256_POINT_LIMBS];
+    let mut table = AlignedTable::<{ 16 * asm::P256_POINT_LIMBS }>::new();
     for idx in 1..=16i32 {
-        let mut pt = [0u64; 12];
-        for (j, limb) in pt.iter_mut().enumerate() {
+        let mut pt = AlignedLimbs([0u64; 12]);
+        for (j, limb) in pt.0.iter_mut().enumerate() {
             *limb = (idx as u64) << 32 | j as u64;
         }
-        asm::scatter_w5(&mut table, &pt, idx);
+        asm::scatter_w5(table.as_mut(), &pt.0, idx);
     }
     for idx in 1..=16i32 {
         let mut got = [0u64; 12];
-        asm::gather_w5(&mut got, &table, idx);
+        asm::gather_w5(&mut got, table.as_slice(), idx);
         for (j, limb) in got.iter().enumerate() {
             assert_eq!(
                 *limb,
@@ -211,17 +235,17 @@ fn scatter_gather_w5_roundtrip() {
 #[test]
 fn scatter_gather_w7_roundtrip() {
     // 64 affine points; scatter is 0-based, gather is 1-based.
-    let mut table = vec![0u64; 64 * asm::P256_POINT_AFFINE_LIMBS];
+    let mut table = AlignedTable::<{ 64 * asm::P256_POINT_AFFINE_LIMBS }>::new();
     for k in 0..64i32 {
-        let mut pt = [0u64; 8];
-        for (j, limb) in pt.iter_mut().enumerate() {
+        let mut pt = AlignedLimbs([0u64; 8]);
+        for (j, limb) in pt.0.iter_mut().enumerate() {
             *limb = (k as u64) << 32 | j as u64;
         }
-        asm::scatter_w7(&mut table, &pt, k);
+        asm::scatter_w7(table.as_mut(), &pt.0, k);
     }
     for k in 0..64i32 {
         let mut got = [0u64; 8];
-        asm::gather_w7(&mut got, &table, k + 1);
+        asm::gather_w7(&mut got, table.as_slice(), k + 1);
         for (j, limb) in got.iter().enumerate() {
             assert_eq!(*limb, (k as u64) << 32 | j as u64, "w7 k={k} limb={j}");
         }
