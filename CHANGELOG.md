@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.1](https://github.com/cathaysia/crown/compare/v0.31.0...v0.31.1) (2026-10-09)
+
+
+### Bug Fixes
+
+* **bench:** correct des key/iv sizes and drop unsupported des-gcm bench ([3564b5c](https://github.com/cathaysia/crown/commit/3564b5c2dbf63b79db385c0cdf14ef74f221c7bc))
+
 ## [0.31.0](https://github.com/cathaysia/crown/compare/v0.30.0...v0.31.0) (2026-10-07)
 
 
