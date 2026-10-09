@@ -1,18 +1,15 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 
 fn bench_des(c: &mut Criterion) {
-    let mut key = [0u8; 32];
+    let mut key = [0u8; 8];
     rand::fill(&mut key);
     let key = key;
 
     let mut block = [0u8; 4];
     rand::fill(&mut block);
 
-    let mut iv = [0u8; 16];
+    let mut iv = [0u8; 8];
     rand::fill(&mut iv);
-
-    let mut nonce = [0u8; 12];
-    rand::fill(&mut nonce);
 
     let cases = [128, 512, 1024];
 
@@ -46,24 +43,6 @@ fn bench_des(c: &mut Criterion) {
             let block = block.as_mut_slice();
             b.iter(|| {
                 let _ = cipher.encrypt(block);
-            })
-        });
-
-        group.finish();
-    }
-
-    for i in cases {
-        let mut block = vec![0u8; i];
-        rand::fill(block.as_mut_slice());
-
-        let mut group = c.benchmark_group(format!("des_gcm_{i}"));
-        group.throughput(Throughput::Bytes(i as u64));
-
-        group.bench_function("crown".to_string(), |b| {
-            let cipher = crown::envelope::EvpAeadCipher::new_des_gcm(&key).unwrap();
-            let block = &mut block;
-            b.iter(|| {
-                let _ = cipher.seal_in_place_separate_tag(block, &nonce, &[]);
             })
         });
 
