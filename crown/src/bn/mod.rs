@@ -667,20 +667,44 @@ impl Montgomery {
     }
 
     /// Montgomery mul via the bn_mul_mont routine (x86_64-mont.pl or
-    /// armv8-mont.pl). Returns `None` only when the assembly rejects the
-    /// limb count.
+    /// armv8-mont.pl). Returns `None` when the limb count has no accelerated
+    /// body or the assembly rejects it; the caller then runs the portable
+    /// CIOS.
     #[cfg(any(all(feature = "asm", target_arch = "x86_64"), crown_aarch64_asm))]
     fn mont_mul_asm(&self, a: &Bn, b: &Bn) -> Option<Bn> {
         let n = self.limbs;
-        let mut al = alloc::vec![0u64; n];
-        let mut bl = alloc::vec![0u64; n];
-        for i in 0..n {
-            al[i] = a.limbs.get(i).copied().unwrap_or(0);
-            bl[i] = b.limbs.get(i).copied().unwrap_or(0);
+        // x86_64-mont.pl only unrolls limb counts of eight and up; smaller
+        // counts enter its variable-length loop, whose per-call setup
+        // (stack-frame page walk, operand staging) is not repaid at
+        // field-element sizes, so they stay on the portable CIOS.
+        #[cfg(all(feature = "asm", target_arch = "x86_64"))]
+        {
+            if n < 8 {
+                return None;
+            }
         }
+        // Filling the padded operands in place keeps the <= 1024-bit ones on
+        // the stack, so a call allocates only the result limb vector.
+        let fill = |dst: &mut [u64], src: &Bn| {
+            for (d, &s) in dst.iter_mut().zip(src.limbs.iter()) {
+                *d = s;
+            }
+        };
         // `Montgomery::new` derives `limbs` from `n.limbs.len()`, so the
         // stored modulus is already exactly `n` limbs for the asm routine.
-        let got = asm::mul_mont(&al, &bl, &self.n.limbs, self.n0)?;
+        let got = if n <= 16 {
+            let mut al = [0u64; 16];
+            let mut bl = [0u64; 16];
+            fill(&mut al[..n], a);
+            fill(&mut bl[..n], b);
+            asm::mul_mont(&al[..n], &bl[..n], &self.n.limbs, self.n0)?
+        } else {
+            let mut al = alloc::vec![0u64; n];
+            let mut bl = alloc::vec![0u64; n];
+            fill(&mut al, a);
+            fill(&mut bl, b);
+            asm::mul_mont(&al, &bl, &self.n.limbs, self.n0)?
+        };
         let mut res = Bn { limbs: got };
         res.normalize();
         if !res.lt(&self.n) {
