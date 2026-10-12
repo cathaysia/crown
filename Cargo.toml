@@ -6,6 +6,7 @@ members = [
   "crown-cabi",
   "crown-derive",
   "crown-jsasm",
+  "crown-napi",
   "crown-wasm",
 ]
 package.version = "0.31.1"

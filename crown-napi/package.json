@@ -1,0 +1,45 @@
+{
+  "name": "@cathaysia/crown",
+  "version": "0.31.1",
+  "description": "A cryptographic library.",
+  "license": "Apache-2.0",
+  "keywords": [
+    "cryptography",
+    "crypto",
+    "encryption",
+    "hashing"
+  ],
+  "repository": "https://github.com/cathaysia/crown",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "napi": {
+    "binaryName": "crown",
+    "targets": [
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu",
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+      "x86_64-pc-windows-msvc"
+    ]
+  },
+  "scripts": {
+    "build": "napi build"
+  },
+  "optionalDependencies": {
+    "@cathaysia/crown-linux-x64-gnu": "0.31.1",
+    "@cathaysia/crown-linux-arm64-gnu": "0.31.1",
+    "@cathaysia/crown-darwin-x64": "0.31.1",
+    "@cathaysia/crown-darwin-arm64": "0.31.1",
+    "@cathaysia/crown-win32-x64-msvc": "0.31.1"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^3.10.8"
+  }
+}

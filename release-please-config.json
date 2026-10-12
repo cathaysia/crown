@@ -61,6 +61,11 @@
           "path": "crown-wasm/jsr.json",
           "type": "json",
           "jsonpath": "$.version"
+        },
+        {
+          "path": "crown-napi/package.json",
+          "type": "json",
+          "jsonpath": "$.version"
         }
       ]
     }

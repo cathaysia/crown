@@ -50,3 +50,128 @@ jobs:
       - name: Publish to jsr
         working-directory: crown-wasm
         run: npx jsr publish --allow-dirty
+
+  publish-native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            dir: linux-x64-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            dir: linux-arm64-gnu
+          - os: macos-13
+            target: x86_64-apple-darwin
+            dir: darwin-x64
+          - os: macos-15
+            target: aarch64-apple-darwin
+            dir: darwin-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            dir: win32-x64-msvc
+    runs-on: ${{ matrix.os }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: setup env
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt update -y
+          sudo apt install build-essential gcc cpp libclang-dev openssl libssl-dev -y
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+          targets: ${{ matrix.target }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: latest
+
+      - name: Install napi CLI
+        working-directory: crown-napi
+        run: npm install --no-audit --no-fund
+
+      - name: Build native module
+        working-directory: crown-napi
+        run: npx napi build --platform --release --target ${{ matrix.target }}
+
+      - name: Upload native artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: crown-${{ matrix.dir }}
+          path: |
+            crown-napi/crown.${{ matrix.dir }}.node
+            crown-napi/index.js
+            crown-napi/index.d.ts
+
+  publish-native-packages:
+    needs: publish-native
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: latest
+
+      - name: Install napi CLI
+        working-directory: crown-napi
+        run: npm install --no-audit --no-fund
+
+      - name: Copy README and LICENSE
+        run: |
+          cp README.md crown-napi/
+          cp LICENSE crown-napi/
+
+      - name: Download native artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: crown-*
+          path: artifacts
+          merge-multiple: true
+
+      - name: Assemble npm packages
+        working-directory: crown-napi
+        run: |
+          cp ../artifacts/* .
+          npx napi create-npm-dirs
+          for f in crown.*.node; do
+            dir="${f#crown.}"
+            dir="${dir%.node}"
+            mv "$f" "npm/$dir/"
+          done
+          node -e "
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          for (const name of Object.keys(pkg.optionalDependencies || {})) {
+            pkg.optionalDependencies[name] = pkg.version;
+          }
+          fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+      - name: Publish platform packages
+        working-directory: crown-napi
+        run: |
+          for dir in npm/*/; do
+            (cd "$dir" && npm publish --access public --registry=https://registry.npmjs.org/)
+          done
+
+      - name: Publish root package
+        working-directory: crown-napi
+        run: npm publish --access public --registry=https://registry.npmjs.org/
