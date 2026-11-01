@@ -4,7 +4,7 @@
 #
 # Requirements (Debian/Ubuntu names):
 #   rustup target add riscv64gc-unknown-linux-gnu
-#   apt install gcc-riscv64-linux-gnu qemu-user-static
+#   apt install gcc-riscv64-linux-gnu qemu-user-binfmt
 #
 # Usage:
 #   scripts/check-riscv64.sh [cargo test args...]
@@ -38,13 +38,19 @@ set -eu
 TARGET=riscv64gc-unknown-linux-gnu
 SYSROOT=${SYSROOT:-/usr/riscv64-linux-gnu}
 CPU=${CPU:-max}
+QEMU_RISCV64=${QEMU_RISCV64:-$(command -v qemu-riscv64-static || command -v qemu-riscv64 || true)}
+
+if [ -z "$QEMU_RISCV64" ]; then
+    echo "no qemu-riscv64 or qemu-riscv64-static in PATH" >&2
+    exit 1
+fi
 CAPS=${CAPS-rv64gc_v_zba_zbb_zbc_zbs_zbkb_zbkc_zbkx_zknd_zkne_zknh_zksed_zksh_zvbb_zvbc_zvkb_zvkg_zvkned_zvknha_zvknhb_zvksed_zvksh}
 # The defaults above are the full vector-crypto configuration; the CI job also
 # runs the scalar (Zkn/Zbc), Zvbc and baseline (probe-only) ones, see
 # docs/algorithms-status.md §1c.
 
 export CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_LINKER=${CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_LINKER:-riscv64-linux-gnu-gcc}
-export CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_RUNNER="qemu-riscv64-static -L $SYSROOT -cpu $CPU"
+export CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_RUNNER="$QEMU_RISCV64 -L $SYSROOT -cpu $CPU"
 if [ -n "$CAPS" ]; then
     export OPENSSL_riscvcap="$CAPS"
 else

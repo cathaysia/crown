@@ -4,7 +4,7 @@
 #
 # Requirements (Debian/Ubuntu names):
 #   rustup target add aarch64-unknown-linux-gnu
-#   apt install gcc-aarch64-linux-gnu qemu-user-static
+#   apt install gcc-aarch64-linux-gnu qemu-user-binfmt
 #
 # Usage:
 #   scripts/check-aarch64.sh [cargo test args...]
@@ -17,8 +17,14 @@ set -eu
 TARGET=aarch64-unknown-linux-gnu
 SYSROOT=${SYSROOT:-/usr/aarch64-linux-gnu}
 CPU=${CPU:-max}
+QEMU_AARCH64=${QEMU_AARCH64:-$(command -v qemu-aarch64-static || command -v qemu-aarch64 || true)}
+
+if [ -z "$QEMU_AARCH64" ]; then
+    echo "no qemu-aarch64 or qemu-aarch64-static in PATH" >&2
+    exit 1
+fi
 
 export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=${CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER:-aarch64-linux-gnu-gcc}
-export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER="qemu-aarch64-static -L $SYSROOT -cpu $CPU"
+export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER="$QEMU_AARCH64 -L $SYSROOT -cpu $CPU"
 
 exec cargo test -p crown --features asm --target "$TARGET" "$@"

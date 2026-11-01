@@ -178,8 +178,8 @@ hints from `MIDR_EL1` (read from EL0 when the kernel advertises
 `HWCAP_CPUID`). The `OPENSSL_armcap` environment override is not supported.
 
 Testing uses qemu-user: `scripts/check-aarch64.sh` builds with
-`aarch64-linux-gnu-gcc` and runs the crown unit tests under
-`qemu-aarch64-static`. `CPU=max` (the default) exposes AES/SHA1/SHA2/SHA3/
+`aarch64-linux-gnu-gcc` and runs the crown unit tests under `qemu-aarch64`
+(`qemu-aarch64-static` is also accepted). `CPU=max` (the default) exposes AES/SHA1/SHA2/SHA3/
 SHA512/SM3/SM4/PMULL/SVE, so every assembly path above runs; `CPU=cortex-a72`
 turns SHA3/SM4/SVE off and exercises the NEON and scalar fallbacks inside the
 modules. The dispatch predicates (`ARMV8_*`) are read from the same HWCAP
@@ -321,8 +321,8 @@ modules upstream in 3.5.8), so those stay on the portable paths; the
 ChaCha20-Poly1305 stitched AEAD is likewise x86_64-only (BoringSSL source).
 
 Testing uses qemu-user: `scripts/check-riscv64.sh` builds with
-`riscv64-linux-gnu-gcc` and runs the crown unit tests under
-`qemu-riscv64-static`. Two environment knobs describe the emulated CPU: `CPU`
+`riscv64-linux-gnu-gcc` and runs the crown unit tests under `qemu-riscv64`
+(`qemu-riscv64-static` is also accepted). Two environment knobs describe the emulated CPU: `CPU`
 is the qemu `-cpu` model (the extensions must be enabled there for the
 instructions to *run*) and `CAPS` is the `OPENSSL_riscvcap` ISA string (how
 crown learns what the CPU has, since qemu-user's `riscv_hwprobe` reports only
