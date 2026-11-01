@@ -1,0 +1,4 @@
+# Force QEMU instead of the x86_64 host's i386 compatibility mode: newer
+# Docker seccomp policies can reject the 32-bit socketcall used by bind(2).
+[target.i686-unknown-linux-gnu]
+runner = "qemu-user"

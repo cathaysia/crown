@@ -77,7 +77,7 @@ jobs:
       - name: setup env
         run: |
           sudo apt update -y
-          sudo apt install gcc-aarch64-linux-gnu qemu-user-static -y
+          sudo apt install gcc-aarch64-linux-gnu qemu-user-binfmt -y
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
@@ -101,6 +101,8 @@ jobs:
   # tier (and the base ChaCha20 body), and the baseline model the portable
   # paths with the T-table AES.
   check-unitest-riscv64-asm:
+    # QEMU 10.2 SIGILLs this scalar riscv64 CPU-model matrix; 24.04 provides
+    # the tested QEMU 8.2 line.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -110,7 +112,7 @@ jobs:
       - name: setup env
         run: |
           sudo apt update -y
-          sudo apt install gcc-riscv64-linux-gnu qemu-user-static -y
+          sudo apt install gcc-riscv64-linux-gnu qemu-user-binfmt -y
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
