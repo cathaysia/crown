@@ -967,6 +967,7 @@ mod extra_tests {
     const EC_CERT: &[u8] = include_bytes!("../../crown/tests/data/pki/ec.pem");
     const OCSP_GOOD: &[u8] = include_bytes!("../../crown/tests/data/pki/ocsp_response_good.der");
     const PAYLOAD: &[u8] = include_bytes!("../../crown/tests/data/pki/payload.txt");
+    const REVOCATION_CHECK_TIME: i64 = 1_792_454_400;
 
     #[test]
     fn verify_chain_reports() {
@@ -983,7 +984,15 @@ mod extra_tests {
         assert_eq!(report["code"], 47);
 
         let report: Value = serde_json::from_str(
-            &x509_verify(V_REVOKED, V_ROOT, V_INTER, Some(V_CRL.to_vec()), None, None).unwrap(),
+            &x509_verify(
+                V_REVOKED,
+                V_ROOT,
+                V_INTER,
+                Some(V_CRL.to_vec()),
+                None,
+                Some(REVOCATION_CHECK_TIME),
+            )
+            .unwrap(),
         )
         .unwrap();
         assert_eq!(report["ok"], false);
