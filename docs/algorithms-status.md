@@ -331,9 +331,13 @@ the baseline bits). The three configurations the CI job runs:
 | `CPU` | `CAPS` | tiers exercised |
 |---|---|---|
 | `max` | full ISA string (`v`, `zbc`, `zbkb`, `zk*`, `zv*`) | Zvkned AES with its CBC/ECB/CTR/XTS bodies, Zvkg GHASH, the AES-GCM stitch, SHA-256/512, SM3, SM4, the Zvkb ChaCha20 body |
-| `rv64` + `zbb,zbc,zk*` | `rv64gc_zbb_zbc_zknd_zkne_zknh_zksed_zksh` | Zkn AES, the Zbc GHASH tier (`__zbb` table + body), T-table AES |
+| `rv64` + `zbb,zbc,zbkb,zk*` | `rv64gc_zbb_zbc_zknd_zkne_zknh_zksed_zksh` | Zkn AES, the Zbc GHASH tier (`__zbb` table + body), T-table AES |
 | `rv64` + `v,zvbb,zvbc` | `rv64gc_v_zvbb_zvbc` | the Zvkb+Zvbc GHASH tier (portable AES/hashes there) |
 | `rv64` | empty (probe only) | portable paths + T-table AES |
+
+`brev8` is a Zbkb instruction, so the scalar CPU model must enable `zbkb` in
+addition to `zbb` and `zbc`; otherwise the GHASH initializer faults when
+`OPENSSL_riscvcap` advertises the Zbkb path.
 
 The ChaCha20 dispatcher picks one of its two bodies on `RISCV_HAS_ZVKB()`; the
 one the CPU does not select is covered by a test that calls both entry points

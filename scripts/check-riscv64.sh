@@ -13,7 +13,7 @@
 #                                                          # full ISA string
 #   CPU=rv64 CAPS= scripts/check-riscv64.sh                # portable paths
 #                                                          # and T-table AES
-#   CPU=rv64,zbb=true,zbc=true,zknd=true,zkne=true,zknh=true,zksed=true,zksh=true \
+#   CPU=rv64,zbb=true,zbc=true,zbkb=true,zknd=true,zkne=true,zknh=true,zksed=true,zksh=true \
 #       CAPS=rv64gc_zbb_zbc_zknd_zkne_zknh_zksed_zksh \
 #       scripts/check-riscv64.sh                           # Zkn AES and Zbc
 #                                                          # GHASH tiers

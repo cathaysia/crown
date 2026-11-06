@@ -101,8 +101,6 @@ jobs:
   # tier (and the base ChaCha20 body), and the baseline model the portable
   # paths with the T-table AES.
   check-unitest-riscv64-asm:
-    # QEMU 10.2 SIGILLs this scalar riscv64 CPU-model matrix; 24.04 provides
-    # the tested QEMU 8.2 line.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -125,8 +123,9 @@ jobs:
           scripts/check-riscv64.sh --lib
 
       - name: run the riscv64 assembly tests under qemu (scalar crypto)
+        # CAPS advertises Zbkb, so the CPU model must enable it for brev8.
         run: |
-          CPU=rv64,zbb=true,zbc=true,zknd=true,zkne=true,zknh=true,zksed=true,zksh=true \
+          CPU=rv64,zbb=true,zbc=true,zbkb=true,zknd=true,zkne=true,zknh=true,zksed=true,zksh=true \
             CAPS=rv64gc_zbb_zbc_zknd_zkne_zknh_zksed_zksh \
             scripts/check-riscv64.sh --lib
 
