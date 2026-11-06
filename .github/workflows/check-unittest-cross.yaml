@@ -101,7 +101,9 @@ jobs:
   # tier (and the base ChaCha20 body), and the baseline model the portable
   # paths with the T-table AES.
   check-unitest-riscv64-asm:
-    runs-on: ubuntu-latest
+    # QEMU 10.2 advertises RVV to 26.04's glibc even for scalar CPU models, so
+    # its vector memset traps. Keep the tested QEMU 8.2/glibc pair.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
         with:

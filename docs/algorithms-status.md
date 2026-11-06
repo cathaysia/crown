@@ -339,6 +339,9 @@ the baseline bits). The three configurations the CI job runs:
 addition to `zbb` and `zbc`; otherwise the GHASH initializer faults when
 `OPENSSL_riscvcap` advertises the Zbkb path.
 
+The job stays on Ubuntu 24.04: QEMU 10.2 advertises RVV to 26.04's glibc even
+when the emulated CPU has V disabled, so glibc's vector `memset` traps.
+
 The ChaCha20 dispatcher picks one of its two bodies on `RISCV_HAS_ZVKB()`; the
 one the CPU does not select is covered by a test that calls both entry points
 directly (`xor_key_stream/asm.rs`), so the four runs above do not need a
