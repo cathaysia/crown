@@ -3,9 +3,9 @@
 ![Crates.io Version](<https://img.shields.io/crates/v/crown?label=crown(crates.io)>)
 ![Crates.io Version](<https://img.shields.io/crates/v/crown-bin?label=crown-bin(crates.io)>)
 [![check-unittest](https://github.com/cathaysia/crown/actions/workflows/check-unittest.yaml/badge.svg)](https://github.com/cathaysia/crown/actions/workflows/check-unittest.yaml)
-[![release](https://github.com/cathaysia/crown/actions/workflows/release.yaml/badge.svg)](https://github.com/cathaysia/crown/actions/workflows/release.yaml)
-[![deploy-github-pages](https://github.com/cathaysia/crown/actions/workflows/deploy.yml/badge.svg)](https://github.com/cathaysia/crown/actions/workflows/deploy.yml)
-[![check-build-cross](https://github.com/cathaysia/crown/actions/workflows/check-build-cross.yaml/badge.svg)](https://github.com/cathaysia/crown/actions/workflows/check-build-cross.yaml)
+[![publish-release](https://github.com/cathaysia/crown/actions/workflows/publish-release.yaml/badge.svg)](https://github.com/cathaysia/crown/actions/workflows/publish-release.yaml)
+[![check-unittest-cross](https://github.com/cathaysia/crown/actions/workflows/check-unittest-cross.yaml/badge.svg)](https://github.com/cathaysia/crown/actions/workflows/check-unittest-cross.yaml)
+[![check-benchmark](https://github.com/cathaysia/crown/actions/workflows/check-benchmark.yaml/badge.svg)](https://github.com/cathaysia/crown/actions/workflows/check-benchmark.yaml)
 
 > 📚 **Documentation**: <https://docs.rs/crown/latest/crown/> · 🎮 **Playground**: <https://cathaysia.github.io/crown/>
 
