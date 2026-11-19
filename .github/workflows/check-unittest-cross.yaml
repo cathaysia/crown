@@ -7,7 +7,7 @@ on:
 
 jobs:
   check-unitest-cross:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -31,8 +31,7 @@ jobs:
       - name: setup env
         run: |
           sudo apt update -y
-          sudo apt upgrade -y
-          sudo apt install build-essential gcc cpp wireshark-dev libclang-dev -y
+          sudo apt install build-essential gcc cpp libclang-dev -y
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
@@ -68,7 +67,7 @@ jobs:
   # extension the modules dispatch on, `cortex-a72` turns SHA3/SM4/SVE off
   # and drives the in-module fallbacks.
   check-unitest-aarch64-asm:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
         with:
